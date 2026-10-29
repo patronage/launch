@@ -1,6 +1,6 @@
 # Spike 1: vinext on Workers without Wrangler config
 
-Issue: [#2](https://github.com/patronage/launch/issues/2). App: [`apps/spike-vinext`](../../apps/spike-vinext).
+Issue: [#2](https://github.com/patronage/launch/issues/2). The spike app, `apps/spike-vinext`, was removed once `apps/web-wordpress` took over its Worker and setup (see the git history for it).
 
 ## Answer
 

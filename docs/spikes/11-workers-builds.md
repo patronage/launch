@@ -12,7 +12,7 @@ There are no GitHub Actions in this repo. Each deployable app is its own Worker 
 
 | Setting | Value |
 | --- | --- |
-| Root directory | the app folder, e.g. `apps/spike-vinext` |
+| Root directory | the app folder, e.g. `apps/web-wordpress` |
 | Watch paths | `<app>/*`, `packages/*`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, so a change to another app does not rebuild this one |
 | Build command | `pnpm -w run verify`: frozen install, lint, typecheck and tests for the workspace. A failure stops the deploy |
 | Production deploy command | `pnpm run deploy`, on `main` |
