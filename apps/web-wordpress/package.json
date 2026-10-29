@@ -17,6 +17,10 @@
     "builds:configure": "node scripts/workers-builds.mjs"
   },
   "dependencies": {
+    "@launch/adapter-wordpress": "workspace:*",
+    "@launch/content-model": "workspace:*",
+    "@launch/images": "workspace:*",
+    "@launch/ui": "workspace:*",
     "@vinext/cloudflare": "1.3.0",
     "graphql": "17.0.2",
     "react": "19.3.1",

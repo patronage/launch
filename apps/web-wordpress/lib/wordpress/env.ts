@@ -10,8 +10,11 @@ export const wordpressEnv = () => {
     );
   }
 
+  const origin = url.replace(TRAILING_SLASH, "");
+
   return {
-    graphqlUrl: `${url.replace(TRAILING_SLASH, "")}/graphql`,
+    graphqlUrl: `${origin}/graphql`,
+    origin,
     previewPassword: process.env.WORDPRESS_PREVIEW_PASSWORD ?? "",
     previewUser: process.env.WORDPRESS_PREVIEW_USER ?? "",
     secret: process.env.HEADLESS_SECRET ?? "",
