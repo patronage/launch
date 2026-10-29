@@ -35,6 +35,18 @@ Preview deploys use Worker Previews (`cf previews deploy`). Each branch gets its
 6. Push a branch and check that its Preview URL comes up, then merge and check production.
 7. Put Previews behind Cloudflare Access. Preview URLs are public by default; Access can cover one Worker's Previews or a hostname pattern. Scripting that belongs with the Access spike; until then, add the Access application by hand and note it in the issue.
 
+## Custom domains
+
+Set `WORKER_DOMAIN` as a build variable (for example `launch-wordpress.<zone>`), and the next production deploy attaches it as the Worker's custom domain. `WORKER_DOMAIN_PREVIEWS=true` also serves each Preview at `<preview>.<domain>`. Those hostnames sit two levels below the zone, so check the certificate first: a Free plan's Universal SSL covers only one level. Without it, Previews still get `<preview>-<worker>.<subdomain>.workers.dev`.
+
+## Learned on the first run
+
+- The Builds API takes each build variable as `{ "value": "…", "is_secret": false }`, not a bare string. A bare string gets `400 [12002] Invalid request body`.
+- Each Preview keeps its own copy of the build settings, taken when the Preview is created. Changing `previews_base_config` only affects new Previews; send the update again with `--patch-existing-previews true` to change the ones that already exist.
+- Watch paths decide whether a push builds at all. A change to only the root `.nvmrc` or `package.json` does not start one.
+- The first Preview build passed (`pnpm -w run verify` plus `cf previews deploy`), so Workers Builds accepts `cf previews deploy` as the preview command.
+- That Preview came back with no URL, because the Worker, created in the dashboard, had workers.dev turned off. `cloudflare.config.ts` now sets `workersDev` and `previewUrls`, and the next production deploy applies them.
+
 ## Things to confirm on the first run
 
 These come from reading the docs and the `cf` CLI's API schema, not from a run:
@@ -43,4 +55,3 @@ These come from reading the docs and the `cf` CLI's API schema, not from a run:
 - Whether `cf deploy` without `--secrets-file` keeps the secrets already on the Worker, as Wrangler does. The deploy script relies on that in CI, where secret values are not in the build environment.
 - How Previews get secrets. The docs say a new Preview copies the Worker's base Preview secrets when it is created; the `cf` CLI has no command for those yet (Wrangler's is `wrangler preview base-config secret put`). The API behind it needs finding. Until then, a Preview without secrets still renders, but revalidation and draft mode return 401.
 - Whether Previews share the production KV namespace. If they do, a Preview could serve or clear production cache entries; giving the Preview build its own namespace through `isPreview` would fix that.
-- The docs say a custom preview command must call `wrangler preview`. That reads as advice for Wrangler projects; the run will show whether `cf previews deploy` is accepted the same way.

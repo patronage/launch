@@ -1,0 +1,8 @@
+/*
+Theme Name: Patronage Headless
+Description: Headless theme for the Launch vinext front-end. Registers the menus and fields the front-end queries over WPGraphQL, points previews at the front-end, and sends visitors there.
+Author: Patronage
+Version: 0.1.0
+License: MIT
+Requires PHP: 8.2
+*/
