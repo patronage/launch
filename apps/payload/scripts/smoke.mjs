@@ -167,7 +167,11 @@ try {
 
       const image = await page.request.get(`${base}${src}`);
 
-      if (!image.ok() || image.headers()["content-type"] !== "image/png") {
+      // The front end serves media from /media, resized by the Images binding.
+      if (
+        !(src.startsWith("/media/") && image.ok()) ||
+        !image.headers()["content-type"]?.startsWith("image/")
+      ) {
         throw new Error(`image ${src} returned ${image.status()}`);
       }
 

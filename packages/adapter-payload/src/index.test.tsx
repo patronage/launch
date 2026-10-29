@@ -56,7 +56,7 @@ describe("Payload adapter", () => {
       image: {
         alt: "Volunteers sorting a harvest",
         height: 1200,
-        src: "https://cms.example.com/api/media/file/harvest.jpg",
+        src: "https://cms.example.com/api/media/file/harvest-original.jpg",
         width: 2400,
       },
     });

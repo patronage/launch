@@ -13,7 +13,9 @@ export const placeholderImage = (src: string): string => {
     src
       .split("/")
       .at(-1)
-      ?.replace(/\.\w+$/u, "") ?? "image";
+      ?.replace(/\.\w+$/u, "")
+      // Payload 4 stores each upload as <name>-original.<ext>.
+      .replace(/-original$/u, "") ?? "image";
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200"><rect width="300" height="200" fill="#9fb59a"/><text x="150" y="108" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#1f2b1d">${name}</text></svg>`;
 

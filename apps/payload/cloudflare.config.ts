@@ -22,6 +22,8 @@ export default defineConfig({
           dev: { connectionString: process.env.POSTGRES_URL },
           id: process.env.HYPERDRIVE_ID ?? "local",
         }),
+      // Resizes media for the front end (app/(frontend)/media).
+      IMAGES: bindings.images(),
       PAYLOAD_SECRET: bindings.secret(),
       R2: bindings.r2({ name: "launch-payload-media" }),
     },
