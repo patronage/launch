@@ -67,10 +67,12 @@ function patronage_seed_image(string $file): int {
   static $images = null;
   if ($images === null) {
     $manifest = PATRONAGE_SEED_IMAGES . '/images.json';
-    $images = is_readable($manifest) ? json_decode((string) file_get_contents($manifest), true) : [];
-    if (!is_array($images)) {
-      WP_CLI::error("{$manifest} is not valid JSON");
+    // A list of {file, alt, caption?}, keyed here by file.
+    $list = is_readable($manifest) ? json_decode((string) file_get_contents($manifest), true) : null;
+    if (!is_array($list)) {
+      WP_CLI::error("Missing or invalid {$manifest}");
     }
+    $images = array_column($list, null, 'file');
   }
 
   $existing = get_posts([
