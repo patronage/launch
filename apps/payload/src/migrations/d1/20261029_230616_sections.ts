@@ -1,6 +1,9 @@
 import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-d1-sqlite'
 
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
+  // The generator leaves ON DELETE off the four columns added with ALTER TABLE
+  // below, which makes SQLite refuse to delete a linked or parent page. They
+  // carry the same actions as the Postgres migration.
   await db.run(sql`CREATE TABLE \`pages_blocks_content_links\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` text NOT NULL,
@@ -424,13 +427,13 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_pages_v_version_breadcrumbs_order_idx\` ON \`_pages_v_version_breadcrumbs\` (\`_order\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_version_breadcrumbs_parent_id_idx\` ON \`_pages_v_version_breadcrumbs\` (\`_parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_version_breadcrumbs_doc_idx\` ON \`_pages_v_version_breadcrumbs\` (\`doc_id\`);`)
-  await db.run(sql`ALTER TABLE \`pages\` ADD \`parent_id\` integer REFERENCES pages(id);`)
+  await db.run(sql`ALTER TABLE \`pages\` ADD \`parent_id\` integer REFERENCES pages(id) ON DELETE set null;`)
   await db.run(sql`CREATE INDEX \`pages_parent_idx\` ON \`pages\` (\`parent_id\`);`)
-  await db.run(sql`ALTER TABLE \`pages_rels\` ADD \`pages_id\` integer REFERENCES pages(id);`)
+  await db.run(sql`ALTER TABLE \`pages_rels\` ADD \`pages_id\` integer REFERENCES pages(id) ON DELETE cascade;`)
   await db.run(sql`CREATE INDEX \`pages_rels_pages_id_idx\` ON \`pages_rels\` (\`pages_id\`);`)
-  await db.run(sql`ALTER TABLE \`_pages_v\` ADD \`version_parent_id\` integer REFERENCES pages(id);`)
+  await db.run(sql`ALTER TABLE \`_pages_v\` ADD \`version_parent_id\` integer REFERENCES pages(id) ON DELETE set null;`)
   await db.run(sql`CREATE INDEX \`_pages_v_version_version_parent_idx\` ON \`_pages_v\` (\`version_parent_id\`);`)
-  await db.run(sql`ALTER TABLE \`_pages_v_rels\` ADD \`pages_id\` integer REFERENCES pages(id);`)
+  await db.run(sql`ALTER TABLE \`_pages_v_rels\` ADD \`pages_id\` integer REFERENCES pages(id) ON DELETE cascade;`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_pages_id_idx\` ON \`_pages_v_rels\` (\`pages_id\`);`)
   await db.run(sql`ALTER TABLE \`media\` ADD \`caption\` text;`)
   await db.run(sql`ALTER TABLE \`_media_v\` ADD \`version_caption\` text;`)
