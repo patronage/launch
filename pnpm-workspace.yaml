@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - wordpress-shared/*
 
 # Only install package versions published at least this many minutes ago.
 # 3 hours for now so the spikes can start on vinext 1.4; the goal is 4320 (72 hours).
