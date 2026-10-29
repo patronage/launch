@@ -4,8 +4,9 @@
  * (vinkla/extended-acf), so field definitions live in git as PHP. Field JSON
  * is neither loaded nor saved: editing fields in wp-admin changes nothing.
  *
- * Extended ACF is a Composer library, installed into
- * wp-content/plugins/composer-libs with the plugins.
+ * Extended ACF and Extended CPTs (inc/post-types.php) are Composer libraries,
+ * installed into wp-content/plugins/composer-libs with the plugins and
+ * loaded here.
  */
 
 if (!defined('ABSPATH')) {

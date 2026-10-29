@@ -10,7 +10,8 @@
     "wp-graphql/wp-graphql-acf": "3.0.0",
     "wordpress/secure-custom-fields": "6.9.7",
     "wp-graphql/wp-graphql-smart-cache": "2.3.4",
-    "vinkla/extended-acf": "14.6.2"
+    "vinkla/extended-acf": "14.6.2",
+    "johnbillion/extended-cpts": "5.1.0"
   },
   "repositories": [
     {
