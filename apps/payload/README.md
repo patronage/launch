@@ -4,7 +4,8 @@ One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://gith
 
 - Database: D1, which is the chosen database for the demo. Postgres through Hyperdrive is an option (`PAYLOAD_DB=postgres`).
 - Media: R2
-- Collections: `users`, `pages` (drafts on), `media`; global: `site-settings`
+- Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `media`; global: `site-settings`
+- Page sections: the `layout` blocks field holds one block per section type in `@launch/content-model` (`content`, `contentMedia`, `media`, `cardGrid`, `blockquote`, `callToAction`), each with a shared `sectionOptions` group. Field names match the content model and the WordPress ACF page builder, so `@launch/adapter-payload` only maps rich text, links and media.
 
 Findings and open problems are in [docs/spikes/05-payload-on-vinext.md](../../docs/spikes/05-payload-on-vinext.md).
 
@@ -18,8 +19,15 @@ Node 24.22.1 or later (Payload 4's minimum) and pnpm 12.
 cp .env.example .env        # set PAYLOAD_SECRET
 cp .env .dev.vars           # the Worker reads secrets from .dev.vars
 pnpm payload migrate        # create the local D1 schema
+pnpm seed                   # optional: the demo site (see below)
 pnpm build && pnpm preview  # http://localhost:4173/admin
 ```
+
+### Demo content
+
+`pnpm seed` creates the invented Neighborhood Growers site that the WordPress seed also creates: a home page with every section type (plus one hidden section), the pages it links to (`get-involved`, `apply`, `guide`, `programs`, `programs/seed-library`, `programs/tool-share`), five placeholder images from `packages/demo-content`, and the site settings. Pages are published. Running it again resets that content without duplicating it: pages match by slug and images by alt text. It works with `PAYLOAD_DB=postgres` too.
+
+The seed lives in `src/seed/`: `content.ts` is the page content, `lexical.ts` builds the rich text.
 
 `vite dev` does not work yet with Payload 4 (see the spike notes), so the loop for now is build and preview.
 
@@ -51,6 +59,7 @@ pnpm build && pnpm preview
 | `pnpm build` | Build the Worker into `.cloudflare/output` |
 | `pnpm preview` | Run the built Worker locally in workerd |
 | `pnpm payload <command>` | Payload CLI (`migrate`, `migrate:create`, `generate:types`, ...) |
+| `pnpm seed` | Create or reset the demo pages, images and settings |
 | `pnpm generate` | Regenerate `payload-types.ts` and the admin import map |
 | `pnpm smoke [url]` | Browser smoke test against a fresh database |
 | `pnpm typecheck` | Generate Worker types and run `tsc` |

@@ -11,12 +11,15 @@
     "payload": "cross-env NODE_OPTIONS=\"--no-deprecation --import=./scripts/register-node-hooks.mjs\" payload",
     "typecheck": "cf workers types && tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "generate": "pnpm payload generate:types && pnpm payload generate:importmap"
+    "generate": "pnpm payload generate:types && pnpm payload generate:importmap",
+    "seed": "pnpm payload run scripts/seed.ts"
   },
   "dependencies": {
+    "@launch/content-model": "workspace:*",
     "@payloadcms/db-d1-sqlite": "4.0.0-beta.6",
     "@payloadcms/db-postgres": "4.0.0-beta.6",
     "@payloadcms/next": "4.0.0-beta.6",
+    "@payloadcms/plugin-nested-docs": "4.0.0-beta.6",
     "@payloadcms/richtext-lexical": "4.0.0-beta.6",
     "@payloadcms/storage-r2": "4.0.0-beta.6",
     "@payloadcms/ui": "4.0.0-beta.6",
@@ -32,6 +35,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.v.7",
+    "@launch/demo-content": "workspace:*",
     "@types/node": "24.12.3",
     "@types/pg": "8.20.0",
     "@types/react": "19.3.0",

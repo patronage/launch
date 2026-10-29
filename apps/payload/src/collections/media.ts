@@ -10,6 +10,10 @@ export const Media: CollectionConfig = {
       required: true,
       type: "text",
     },
+    {
+      name: "caption",
+      type: "text",
+    },
   ],
   slug: "media",
   upload: {
