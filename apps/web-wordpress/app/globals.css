@@ -1,0 +1,35 @@
+/* Placeholder styles until packages/ui lands (Spike 2). */
+:root {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+body {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 0 1rem 4rem;
+}
+.site-header {
+  display: flex;
+  gap: 1.5rem;
+  align-items: baseline;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid #ddd;
+}
+.site-header nav {
+  display: flex;
+  gap: 1rem;
+}
+.site-title {
+  font-weight: 700;
+}
+.preview-banner {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: #fff3c4;
+}
+.hero-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}

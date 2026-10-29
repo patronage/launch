@@ -1,0 +1,17 @@
+[
+  {
+    "id": "71b4652815768ed84e1548529ba4349b47c31168c9b46effdb084dd2126bff3e",
+    "name": "ContentByUri",
+    "query": "fragment ContentFields on ContentNode { __typename databaseId status uri ... on NodeWithContentEditor { content } ... on NodeWithTitle { title } ... on Post { author { node { name } } date } ... on WithAcfHero { hero { cta { target title url } eyebrow headline intro } } } query ContentByUri($uri: String!) { nodeByUri(uri: $uri) { ... on ContentNode { ...ContentFields } } }"
+  },
+  {
+    "id": "bbd5a10d74b9ffd94a025906c43cbbd4d667ed0d053970be114383db0bdeef1c",
+    "name": "Layout",
+    "query": "query Layout { generalSettings { description title } menuItems(where: { location: PRIMARY }, first: 20) { nodes { id label target uri } } }"
+  },
+  {
+    "id": "80cafdbda31935fd64493c684e5b553fb848f1fd3efb486137e559ff9d9bda5f",
+    "name": "PreviewContent",
+    "query": "fragment ContentFields on ContentNode { __typename databaseId status uri ... on NodeWithContentEditor { content } ... on NodeWithTitle { title } ... on Post { author { node { name } } date } ... on WithAcfHero { hero { cta { target title url } eyebrow headline intro } } } query PreviewContent($id: ID!) { contentNode(id: $id, idType: DATABASE_ID) { ...ContentFields } }"
+  }
+]

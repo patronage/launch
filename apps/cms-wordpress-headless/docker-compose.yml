@@ -1,0 +1,77 @@
+# Local headless WordPress. Plugins come from `composer install` into
+# wp-content/plugins, which is mounted here and never committed.
+name: launch-wp-headless
+
+x-wordpress-env: &wordpress-env
+  WORDPRESS_DB_HOST: db:3306
+  WORDPRESS_DB_USER: wordpress
+  WORDPRESS_DB_PASSWORD: wordpress
+  WORDPRESS_DB_NAME: wordpress
+  WORDPRESS_DEBUG: 1
+  HEADLESS_FRONTEND_URL: ${HEADLESS_FRONTEND_URL:-http://localhost:3000}
+  HEADLESS_FRONTEND_INTERNAL_URL: ${HEADLESS_FRONTEND_INTERNAL_URL:-http://host.docker.internal:3000}
+  HEADLESS_SECRET: ${HEADLESS_SECRET:?Run bin/setup.sh to create .env}
+  WORDPRESS_CONFIG_EXTRA: |
+    define('WP_ENVIRONMENT_TYPE', 'local');
+    define('WP_DEBUG_LOG', '/dev/stderr');
+    define('WP_DEBUG_DISPLAY', false);
+    define('HEADLESS_FRONTEND_URL', getenv_docker('HEADLESS_FRONTEND_URL', ''));
+    define('HEADLESS_SECRET', getenv_docker('HEADLESS_SECRET', ''));
+    define('PATRONAGE_REVALIDATE_URL', getenv_docker('HEADLESS_FRONTEND_INTERNAL_URL', ''));
+    define('PATRONAGE_REVALIDATE_SECRET', HEADLESS_SECRET);
+
+x-wordpress-volumes: &wordpress-volumes
+  - wordpress:/var/www/html
+  - ./wp-content/plugins:/var/www/html/wp-content/plugins
+  - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
+  - ./wp-content/themes/patronage-headless:/var/www/html/wp-content/themes/patronage-headless
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: wordpress
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      retries: 30
+
+  wordpress:
+    image: wordpress:php8.3-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WP_PORT:-8080}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: *wordpress-env
+    volumes: *wordpress-volumes
+    # On a fresh volume the entrypoint copies WordPress in before it writes
+    # wp-config.php; WP-CLI must not run before then.
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/www/html/wp-config.php"]
+      interval: 1s
+      retries: 60
+
+  # WP-CLI, run as the Apache image's www-data (uid 33) so files it writes stay writable.
+  cli:
+    image: wordpress:cli-php8.3
+    profiles: [cli]
+    user: "33:33"
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: *wordpress-env
+    volumes: *wordpress-volumes
+
+volumes:
+  db: {}
+  wordpress: {}
