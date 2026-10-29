@@ -26,5 +26,10 @@ export default defineConfig({
       VINEXT_KV_CACHE: bindings.kv(),
     },
     name: process.env.WORKER_NAME ?? "launch-vinext-wordpress",
+    // Serve production on workers.dev and Previews on
+    // <preview>-<worker>.<subdomain>.workers.dev. A Worker created in the
+    // dashboard can start with workers.dev off; a production deploy applies these.
+    previewUrls: true,
+    workersDev: true,
   }),
 });
