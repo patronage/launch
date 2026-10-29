@@ -1,6 +1,6 @@
 {
   "name": "patronage/launch-cms-wordpress-headless",
-  "description": "Headless WordPress for the Launch vinext front-end. Plugins are installed by Composer and never committed.",
+  "description": "Headless WordPress for the Launch vinext front-end. Plugins and libraries are installed by Composer and never committed.",
   "type": "project",
   "license": "MIT",
   "require": {
@@ -8,8 +8,9 @@
     "composer/installers": "2.3.0",
     "wp-graphql/wp-graphql": "2.25.0",
     "wp-graphql/wp-graphql-acf": "3.0.0",
-    "wpengine/advanced-custom-fields": "6.8.10",
-    "wp-graphql/wp-graphql-smart-cache": "2.3.4"
+    "wordpress/secure-custom-fields": "6.9.7",
+    "wp-graphql/wp-graphql-smart-cache": "2.3.4",
+    "vinkla/extended-acf": "14.6.2"
   },
   "repositories": [
     {
@@ -58,9 +59,19 @@
       }
     },
     {
-      "type": "vcs",
-      "url": "https://github.com/AdvancedCustomFields/acf",
-      "no-api": true
+      "type": "package",
+      "package": {
+        "name": "wordpress/secure-custom-fields",
+        "version": "6.9.7",
+        "type": "wordpress-plugin",
+        "dist": {
+          "type": "zip",
+          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+        },
+        "require": {
+          "composer/installers": "^2.2"
+        }
+      }
     }
   ],
   "config": {
