@@ -45,6 +45,10 @@ const appDir = path.relative(repoRoot, root);
 const readRepoFile = (file) =>
   readFileSync(path.join(repoRoot, file), "utf-8").trim();
 
+const appName = JSON.parse(
+  readFileSync(path.join(root, "package.json"), "utf-8")
+).name;
+
 const [, pnpmVersion] = JSON.parse(
   readRepoFile("package.json")
 ).packageManager.split("@");
@@ -75,13 +79,20 @@ const lookupScriptTag = async () => {
 };
 
 // The root directory has no lockfile, so the automatic install is skipped and
-// `pnpm verify` does a frozen install of the whole workspace with the repo's
-// own pnpm and Node versions. Checks run in the build step so a failure stops
-// the deploy. The deploy script does its own vite build, because Preview
+// the build step does a frozen install of the whole workspace with the repo's
+// own pnpm and Node versions. It then lints the repo and typechecks and tests
+// only this app and the packages it depends on: the full `pnpm verify` also
+// runs the WordPress installs' PHP checks, and the build image has no PHP.
+// Checks run in the build step so a failure stops the deploy. The deploy script does its own vite build, because Preview
 // builds need CLOUDFLARE_PREVIEW_BUILD set at build time.
 const shared = {
   build_caching_enabled: true,
-  build_command: "pnpm -w run verify",
+  build_command: [
+    "pnpm -w run deps:verify",
+    "pnpm -w run lint",
+    `pnpm --filter "${appName}..." --if-present run typecheck`,
+    `pnpm --filter "${appName}..." --if-present run test`,
+  ].join(" && "),
   build_token_uuid: env.BUILD_TOKEN_UUID,
   // The API takes each variable as { value, is_secret }, not a bare string.
   // WORDPRESS_URL, WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS are read when the

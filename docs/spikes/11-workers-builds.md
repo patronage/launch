@@ -14,12 +14,12 @@ There are no GitHub Actions in this repo. Each deployable app is its own Worker 
 | --- | --- |
 | Root directory | the app folder, e.g. `apps/web-wordpress` |
 | Watch paths | `<app>/*`, `packages/*`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, so a change to another app does not rebuild this one |
-| Build command | `pnpm -w run verify`: frozen install, lint, typecheck and tests for the workspace. A failure stops the deploy |
+| Build command | Frozen install and lint for the workspace, then typecheck and tests for the app and the packages it depends on (`pnpm --filter "<app>..."`). A failure stops the deploy. The full `pnpm verify` is not used because it also runs the WordPress installs' PHP checks, and the build image has no PHP |
 | Production deploy command | `pnpm run deploy`, on `main` |
 | Preview deploy command | `pnpm run deploy --preview`, on every other branch |
 | Build variables | `NODE_VERSION` from `.nvmrc`, `PNPM_VERSION` from the root `packageManager`, `SKIP_DEPENDENCY_INSTALL=1` |
 
-`SKIP_DEPENDENCY_INSTALL` is there because the app folder has no lockfile of its own. Without it, the build image would pick a package manager by looking for a lockfile in the root directory and find none. `pnpm verify` does the install instead, from the workspace root.
+`SKIP_DEPENDENCY_INSTALL` is there because the app folder has no lockfile of its own. Without it, the build image would pick a package manager by looking for a lockfile in the root directory and find none. The build command's `pnpm -w run deps:verify` does the install instead, from the workspace root.
 
 `scripts/workers-builds.mjs` creates this configuration through the Workers Builds API (`cf builds workers create`). It reads the Worker name from `cloudflare.config.ts` and the Node and pnpm versions from the repo, so the only inputs are ids.
 
