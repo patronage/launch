@@ -1,0 +1,36 @@
+---
+title: Headless WordPress
+description: WordPress as an editor and a locked-down WPGraphQL API, with a vinext front-end on Workers that stays cached until an edit is published.
+---
+
+Two apps make up this reference: [`cms-wordpress-headless`](https://github.com/patronage/launch/tree/main/apps/cms-wordpress-headless), WordPress in Docker as the editor and API, and [`web-wordpress`](https://github.com/patronage/launch/tree/main/apps/web-wordpress), the vinext front-end that deploys as a Worker.
+
+## How it fits together
+
+| Concern | WordPress | Front-end |
+| --- | --- | --- |
+| Content | WPGraphQL at `/graphql` | Typed queries generated from a committed schema snapshot |
+| Locked queries | WPGraphQL Smart Cache runs only registered queries | Requests send a query ID, never query text |
+| Revalidation | A Patronage mu-plugin sends the paths and tags that changed | A route handler calls `revalidatePath` and `revalidateTag` |
+| Preview | The Preview button links to the front-end with a signed, short-lived token | Draft mode, reading the latest revision with the `X-GraphQL-Preview` header |
+
+Pages are cached in KV until WordPress says they changed, with an hourly fallback. Public pages stay cacheable because draft mode only runs on the preview route.
+
+## What the research settled
+
+- Install WPGraphQL from its GitHub release zips through Composer. Its Packagist package stopped at an old version.
+- Preview with the `X-GraphQL-Preview` header. The `asPreview` argument is deprecated.
+- Read drafts with a WordPress application password, so no JWT plugin is needed.
+- Sign preview links instead of putting a shared secret in the URL.
+- Lock WPGraphQL to the front-end's own queries, and keep that setting in git.
+
+The detail is in [vinext on headless WordPress](/research/vinext-on-headless-wordpress).
+
+## Run it
+
+```bash
+pnpm --filter cms-wordpress-headless setup   # composer install, Docker, WordPress and demo content
+pnpm --filter web-wordpress dev              # http://localhost:3000
+```
+
+The admin is at `http://localhost:8080/wp-admin/`. The local login is in the app's README.
