@@ -25,6 +25,6 @@ export default defineConfig({
       // Created on first deploy by `cf deploy --provision`.
       VINEXT_KV_CACHE: bindings.kv(),
     },
-    name: process.env.WORKER_NAME ?? "launch-spike-vinext",
+    name: process.env.WORKER_NAME ?? "launch-vinext-wordpress",
   }),
 });
