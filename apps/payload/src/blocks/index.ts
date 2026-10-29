@@ -1,3 +1,22 @@
+import {
+  BlockquoteFeature,
+  BoldFeature,
+  FixedToolbarFeature,
+  HeadingFeature,
+  HorizontalRuleFeature,
+  InlineCodeFeature,
+  InlineToolbarFeature,
+  ItalicFeature,
+  LinkFeature,
+  OrderedListFeature,
+  ParagraphFeature,
+  StrikethroughFeature,
+  SubscriptFeature,
+  SuperscriptFeature,
+  UnderlineFeature,
+  UnorderedListFeature,
+  lexicalEditor,
+} from "@payloadcms/richtext-lexical";
 import type { Block } from "payload";
 
 import { link, links } from "../fields/link";
@@ -10,7 +29,36 @@ import { sectionOptions } from "../fields/section-options";
 
 const eyebrow = { name: "eyebrow", type: "text" } as const;
 const heading = { name: "heading", type: "text" } as const;
-const body = { name: "body", type: "richText" } as const;
+
+/**
+ * Section bodies offer only what @launch/adapter-payload's Lexical renderer
+ * draws. The default editor also allows uploads, relationships and blocks,
+ * which would save but never reach the page.
+ */
+const body = {
+  editor: lexicalEditor({
+    features: () => [
+      ParagraphFeature(),
+      HeadingFeature({ enabledHeadingSizes: ["h2", "h3", "h4"] }),
+      BoldFeature(),
+      ItalicFeature(),
+      UnderlineFeature(),
+      StrikethroughFeature(),
+      InlineCodeFeature(),
+      SubscriptFeature(),
+      SuperscriptFeature(),
+      LinkFeature({ enabledCollections: ["pages"] }),
+      UnorderedListFeature(),
+      OrderedListFeature(),
+      BlockquoteFeature(),
+      HorizontalRuleFeature(),
+      FixedToolbarFeature(),
+      InlineToolbarFeature(),
+    ],
+  }),
+  name: "body",
+  type: "richText",
+} as const;
 
 const upload = (name: string, required = false) =>
   ({ name, relationTo: "media", required, type: "upload" }) as const;

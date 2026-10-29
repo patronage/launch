@@ -82,6 +82,22 @@ export type LexicalNodes_6C432CED =
   | SerializedHeadingNode<LexicalNodes_6C432CED>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LexicalNodes_8BE519DA".
+ */
+export type LexicalNodes_8BE519DA =
+  | SerializedTextNode
+  | SerializedTabNode
+  | SerializedLineBreakNode
+  | SerializedParagraphNode<LexicalNodes_8BE519DA>
+  | SerializedHorizontalRuleNode
+  | SerializedQuoteNode<LexicalNodes_8BE519DA>
+  | SerializedListNode<LexicalNodes_8BE519DA>
+  | SerializedListItemNode<LexicalNodes_8BE519DA>
+  | SerializedAutoLinkNode<LexicalNodes_8BE519DA, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_8BE519DA, LexicalLinkFields>
+  | SerializedHeadingNode<LexicalNodes_8BE519DA, 'h2' | 'h3' | 'h4'>;
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
  */
 export type LexicalNodes_3DE324E4 =
@@ -279,7 +295,7 @@ export interface Media {
 export interface ContentSection {
   eyebrow?: string | null;
   heading?: string | null;
-  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
   align?: ('start' | 'center') | null;
   links?:
     | {
@@ -332,7 +348,7 @@ export interface SectionOptions {
 export interface ContentMediaSection {
   eyebrow?: string | null;
   heading?: string | null;
-  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
   media: number | Media;
   mediaPosition?: ('start' | 'end') | null;
   links?:
@@ -412,7 +428,7 @@ export interface BlockquoteSection {
  */
 export interface CallToActionSection {
   heading: string;
-  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
   links?:
     | {
         link: Link;
