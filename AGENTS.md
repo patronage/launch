@@ -14,7 +14,7 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 
 - `apps/*`: deployable apps (CMS installs, vinext front-ends, the MCP Worker, the docs-site).
 - `packages/*`: shared libraries (content model, UI, Access helpers, MCP core and backends).
-- `docs/`: engineering docs for contributors and agents. Spike findings go in `docs/spikes/`.
+- `docs/`: engineering docs for contributors and agents. Spike findings go in `docs/spikes/`, which the public docs site (`apps/docs-site`) publishes as written.
 
 ## Commands
 

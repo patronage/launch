@@ -1,0 +1,42 @@
+---
+title: Architecture
+description: The apps, the shared packages, and where each CMS ends and the shared front-end code begins.
+---
+
+```txt
+apps/       Deployable apps: CMS installs, vinext front-ends, the MCP Worker, this docs site
+packages/   Shared libraries: content model, UI, Access helpers, MCP core and backends
+docs/       Engineering notes for contributors; research findings in docs/spikes/
+```
+
+## Apps
+
+| App | What it is |
+| --- | --- |
+| `cms-wordpress-headless` | WordPress in Docker as an editor and a WPGraphQL API. It renders nothing public. |
+| `web-wordpress` | The vinext front-end for headless WordPress, deployed as a Worker. |
+| `payload` | Payload as one vinext app on Workers: the admin, plus front-end pages that read through the Local API. |
+| `cms-wordpress-timber` | A traditional WordPress install with a Timber theme. It shares design tokens with the others, not components. |
+| `mcp` | One MCP Worker behind Access, with a WordPress backend and a Payload backend. |
+| `docs-site` | This site. |
+
+Some of these are still in progress; see [Research](/research) for where each one stands.
+
+## Shared packages
+
+- **`content-model`**: the CMS-neutral shape of a page and its sections.
+- **`ui`**: components that take plain props from `content-model`. They know nothing about WordPress or Payload.
+- **`access`**: helpers for verifying Cloudflare Access tokens.
+- **`mcp-core`**, **`mcp-wordpress`**, **`mcp-payload`**: the MCP server and its two backends.
+
+## Where the CMS stops
+
+Each CMS has an adapter that maps its data to `content-model`. Rich text and editor field definitions stay CMS-specific: the adapter renders rich text and passes it to the shared components as children. That keeps `ui` free of any one editor's format.
+
+## Locking the CMS down
+
+The pattern every reference follows:
+
+1. The CMS admin and API are behind a Cloudflare Access application.
+2. The front-end Worker reaches the CMS with an Access service token, or (for Payload) through the Local API in the same Worker.
+3. The CMS tells the front-end what changed through a signed revalidation request, so public pages stay cached until an edit is published.

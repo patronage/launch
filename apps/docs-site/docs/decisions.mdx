@@ -1,0 +1,29 @@
+---
+title: Decisions
+description: The choices made so far for Launch, and the ones still open.
+sidebar:
+  order: 6
+---
+
+## Made
+
+| Area | Decision |
+| --- | --- |
+| Hosting | Every front-end and the MCP server run on Cloudflare Workers. |
+| Front-end framework | vinext, Cloudflare's Vite-based implementation of the Next.js App Router. |
+| Worker config | `cloudflare.config.ts` and the `cf` CLI. No Wrangler config files in the repo. |
+| CI and deploys | Cloudflare Workers Builds, with a Preview per branch. No GitHub Actions; run `pnpm verify` before opening a pull request. |
+| Monorepo tooling | Plain pnpm workspaces, no Turborepo. Exact versions, and a minimum release age before a version installs. |
+| WordPress | Two separate installs: headless over WPGraphQL, and a traditional Timber theme. |
+| WordPress plugins | Installed by Composer and never committed. Only Patronage's own `patronage-*` code is in the repo. |
+| Payload | One app, using the Local API. D1 is the database by default, with Postgres through Hyperdrive kept as an option. See [Payload](/references/payload). |
+| Shared UI | Plain props from a CMS-neutral content model. Each CMS has an adapter; rich text stays CMS-specific. |
+| MCP | One MCP Worker behind Access, with a WordPress backend and a Payload backend. |
+| Docs | This site, built with Blume. Engineering notes stay in the repo's `docs/` folder. |
+
+## Open
+
+- D1 against Postgres through Hyperdrive, measured on deployed Workers.
+- KV against Workers Cache for page caching, measured on a real zone.
+- Getting `vite dev` working for the Payload app.
+- Scripting the Access applications and service tokens for each CMS.
