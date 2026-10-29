@@ -5,8 +5,9 @@
 //
 //   node scripts/research.mjs
 //
-// Each note's H1 becomes the page title (without its "Spike N:" prefix), and
-// links are rewritten for the site: a link to another note points at its page,
+// Each note's H1 becomes the page title (without its "Spike N:" prefix), notes
+// keep their file-name order in the sidebar (two notes can share an issue
+// number's prefix), and links are rewritten for the site: a link to another note points at its page,
 // and a link into the repo (../../apps/payload) points at GitHub.
 import {
   mkdirSync,
@@ -45,7 +46,7 @@ const rewriteLink = (target) => {
   return `${githubTree}/${path.relative(repoRoot, resolved)}${hash ? `#${hash}` : ""}`;
 };
 
-const toPage = (source) => {
+const toPage = (source, order) => {
   const [first = "", ...rest] = source.split("\n");
   const title = first.replace(/^#\s+/u, "").replace(/^Spike \d+:\s*/u, "");
 
@@ -57,7 +58,7 @@ const toPage = (source) => {
     )
     .trim();
 
-  return `---\ntitle: ${JSON.stringify(title)}\n---\n\n${body}\n`;
+  return `---\ntitle: ${JSON.stringify(title)}\nsidebar:\n  order: ${order}\n---\n\n${body}\n`;
 };
 
 mkdirSync(outDir, { recursive: true });
@@ -68,14 +69,14 @@ for (const file of readdirSync(outDir)) {
   }
 }
 
-const notes = readdirSync(notesDir).filter((file) =>
-  /^\d+-.*\.md$/u.test(file)
-);
+const notes = readdirSync(notesDir)
+  .filter((file) => /^\d+-.*\.md$/u.test(file))
+  .toSorted();
 
-for (const file of notes) {
+for (const [index, file] of notes.entries()) {
   writeFileSync(
     path.join(outDir, file),
-    toPage(readFileSync(path.join(notesDir, file), "utf-8"))
+    toPage(readFileSync(path.join(notesDir, file), "utf-8"), index + 1)
   );
 }
 

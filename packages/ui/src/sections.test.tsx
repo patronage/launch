@@ -1,0 +1,73 @@
+import type { Page } from "@launch/content-model";
+import { DEFAULT_SECTION_OPTIONS } from "@launch/content-model";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import { PageSections } from "./sections";
+
+const page: Page<ReactNode> = {
+  path: "/test",
+  sections: [
+    {
+      block: {
+        align: "center",
+        body: <p>Body</p>,
+        heading: "Hello",
+        id: "a",
+        links: [
+          {
+            href: "https://example.org",
+            label: "Go",
+            newTab: true,
+            variant: "primary",
+          },
+        ],
+        type: "content",
+      },
+      options: { ...DEFAULT_SECTION_OPTIONS, skin: "dark", slug: "intro" },
+    },
+    {
+      block: { heading: "Hidden", id: "b", links: [], type: "callToAction" },
+      options: { ...DEFAULT_SECTION_OPTIONS, hidden: true },
+    },
+    {
+      block: {
+        attribution: "Ada",
+        id: "c",
+        quote: "Quote",
+        role: "Engineer",
+        type: "blockquote",
+      },
+      options: DEFAULT_SECTION_OPTIONS,
+    },
+  ],
+  title: "Test",
+};
+
+describe(PageSections, () => {
+  const html = renderToStaticMarkup(<PageSections page={page} />);
+
+  it("applies section options as attributes", () => {
+    expect(html).toContain(
+      '<section class="l-section" data-pb="md" data-pt="md" data-skin="dark" id="intro">'
+    );
+  });
+
+  it("makes the first heading the h1 and later ones h2", () => {
+    expect(html).toContain('<h1 class="l-display">Hello</h1>');
+    expect(html).not.toContain("<h2");
+  });
+
+  it("drops hidden sections", () => {
+    expect(html).not.toContain("Hidden");
+  });
+
+  it("passes rich text through untouched", () => {
+    expect(html).toContain('<div class="l-rich"><p>Body</p></div>');
+  });
+
+  it("adds rel to new-tab links", () => {
+    expect(html).toContain('rel="noopener noreferrer" target="_blank"');
+  });
+});

@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - wordpress-shared/*
 
 # Only install package versions published at least this many minutes ago.
 # 3 hours for now so the spikes can start on vinext 1.4; the goal is 4320 (72 hours).
@@ -10,6 +11,9 @@ minimumReleaseAge: 180
 # Pin exact versions when adding dependencies.
 savePrefix: ""
 
-# Dependencies allowed to run install scripts. workerd downloads its runtime binary.
+# Dependencies allowed (true) or refused (false) to run install scripts.
+# workerd downloads its runtime binary. esbuild's postinstall only verifies its
+# platform binary, which installs as an optional dependency anyway.
 allowBuilds:
+  esbuild: false
   workerd: true
