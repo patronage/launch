@@ -41,7 +41,7 @@ Check the revalidation round trip against a running front-end (it publishes, edi
 pnpm --filter cms-wordpress-headless wp -- patronage-headless-revalidate verify
 ```
 
-When WordPress runs in Docker it reaches the front-end at `HEADLESS_FRONTEND_INTERNAL_URL` (default `http://host.docker.internal:3000`), so run the front-end on port 3000 with `HOST=0.0.0.0` for production builds (`vinext start`).
+When WordPress runs in Docker it reaches the front-end at `HEADLESS_FRONTEND_INTERNAL_URL` (default `http://host.docker.internal:3000`), so the front-end listens on port 3000 on all interfaces (`pnpm --filter web-wordpress start` already does) and allows that host name (`vite.config.ts`).
 
 ## Gotchas
 

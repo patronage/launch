@@ -1,11 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    // vinext 1.4 adapter descriptors type `options` as `T | undefined`.
+    "exactOptionalPropertyTypes": false,
     "types": ["vinext/types", "node"],
     "paths": {
       "@/*": ["./*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["**/*.ts", "**/*.tsx", ".cloudflare/types"],
+  "exclude": ["node_modules", "dist", ".cloudflare/output"]
 }
