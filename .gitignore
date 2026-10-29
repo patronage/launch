@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+.vinext/
+.wrangler/
+coverage/
+*.log
+.DS_Store
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Third-party WordPress code is installed by Composer, never committed
+**/wp-content/plugins/*
+!**/wp-content/plugins/patronage-*/
+**/wp-content/mu-plugins/*
+!**/wp-content/mu-plugins/patronage-*.php
+!**/wp-content/mu-plugins/patronage-*/
+**/wp-content/themes/*
+!**/wp-content/themes/patronage-*/
+**/composer-libs/
+**/vendor/
+**/wp-content/uploads/
+
+# Wrangler config is not used in this repo (see AGENTS.md)
+wrangler.json
+wrangler.jsonc
+wrangler.toml
