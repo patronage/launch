@@ -10,18 +10,18 @@ Every feature the front-ends need worked in local workerd (`vite preview`), with
 
 ## Versions tested
 
-vinext 1.4.0, @vinext/cloudflare 1.3.0, cf 1.0.0-beta.25, @cloudflare/vite-plugin 2.0.0-beta.v.8, Vite 8.3.0, React 19.3.1, TypeScript 7.0.2. `cf` and the Vite plugin v2 are both betas.
+vinext 1.4.0, @vinext/cloudflare 1.3.0, cf 1.0.0-beta.25, @cloudflare/vite-plugin 2.0.0-beta.v.7 (v.8 was inside the 3-hour release-age window), Vite 8.3.0, React 19.3.1, TypeScript 7.0.2. `cf` and the Vite plugin v2 are both betas.
 
 ## Results
 
 | Feature | Result | Notes |
 | --- | --- | --- |
-| App Router page | Works | |
+| App Router page | Works |  |
 | Dynamic route | Works | ISR needs `generateStaticParams` (it may return `[]`), the same rule as Next.js. Without it the route renders on every request with `no-store`. |
-| API routes | Works | |
+| API routes | Works |  |
 | ISR (`revalidate`) | Works | Served from KV: `x-vinext-cache: MISS`, then `HIT` with `s-maxage`. |
 | `revalidateTag` | Works | A tag set with `cacheTag()` inside `"use cache"`, or with `fetch(url, { next: { tags } })`, also invalidates every ISR page built from that data. One call refreshes both. |
-| `revalidatePath` | Works | |
+| `revalidatePath` | Works |  |
 | Draft mode | Works | `draftMode().enable()` sets `__prerender_bypass`. Draft requests skip the cache (`no-store`) and never write to it; anonymous requests still get the cached page. |
 | `fetch` caching | Works | Tagged fetches are shared across pages and cleared by `revalidateTag`. |
 | `next/image`, local | Works | `/_next/image` resizes through the Images binding (AVIF/WebP, immutable cache headers), simulated locally. |
@@ -40,8 +40,8 @@ The spike now uses the KV data adapter for both data and pages (`--cdn-cache dat
 
 1. Each Worker app has a `cloudflare.config.ts` (the `cf` CLI's config). No `wrangler.jsonc`, `wrangler.toml` or Wrangler dependency. Worker name, compatibility date and bindings live there; the account comes from `CLOUDFLARE_ACCOUNT_ID`, never from the file.
 2. Secrets are declared by name with `bindings.secret()`. Values come from the shell or CI secrets at deploy time and from a gitignored `.env.local` locally.
-3. Deploy is `vite build` followed by `cf deploy --prebuilt --secrets-file <temp file>`. `scripts/deploy.mjs` in the spike app does this: it reads the secret names from the built `worker.config.json`, fails if any value is missing, writes a temporary `0600` file, deploys, and deletes the file. It should move to a shared package once a second Worker exists.
-4. CI authenticates with `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" token template covers it); people use `cf auth login`.
+3. Deploy is `vite build` followed by `cf deploy --prebuilt`. `scripts/deploy.mjs` in the spike app does this. If the secret values are in the environment it uploads them with the version through a temporary `0600` `--secrets-file`; if none are, the Worker keeps the secrets it has, which `pnpm run secrets` sets (`cf workers secrets bulk`). `--preview` builds with `CLOUDFLARE_PREVIEW_BUILD=true` and runs `cf previews deploy --prebuilt`, which names the Preview after the Git branch. These scripts should move to a shared package once a second Worker exists.
+4. CI is Workers Builds, not GitHub Actions: see [`11-workers-builds.md`](11-workers-builds.md). Local deploys use `cf auth login` or `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" token template covers it).
 5. Typecheck with `cf workers types && tsc --noEmit`. Generated types land in `.cloudflare/types` and stay gitignored.
 
 The `vinext-cloudflare deploy` wrapper also uses `cf`, but it cannot pass `--secrets-file`, so the repo script calls `cf deploy` directly. The wrapper is only needed for its cache warming flags, which the KV mode does not use.
@@ -53,4 +53,5 @@ Other resources outside a Worker's bindings (DNS, Access applications, custom do
 - Run one live deploy with an account token, and check ISR headers, KV provisioning and the Images binding on `workers.dev`.
 - vinext build output marks routes that call `draftMode()` or `headers()` as "Unknown"; that is a build report label only, and the routes cached correctly at runtime.
 - The upstream `fetch` to the public internet failed in this sandbox (no direct egress from workerd), so the fetch cache was tested against the Worker's own `/api/now`.
-- When the workspace scaffold lands, the app's own `pnpm-lock.yaml`, `packageManager` and `pnpm.onlyBuiltDependencies` (for `workerd`) move to the root.
+- The app's tsconfig turns off `exactOptionalPropertyTypes` from the base config, because vinext 1.4's adapter descriptor types do not satisfy it.
+- In this sandbox, `vite preview` needed `NO_PROXY=localhost,127.0.0.1,::1`: miniflare's internal fetch to workerd fails with the sandbox's long `NO_PROXY` list. Normal machines are not affected.
