@@ -1,0 +1,118 @@
+# The Page Builder's fields as the adapter reads them. Front-ends spread
+# PageBuilderFields into their page queries; `pnpm codegen` types it from
+# apps/web-wordpress/schema.graphql into src/gql/ (committed).
+
+fragment PageBuilderImage on AcfMediaItemConnectionEdge {
+  node {
+    sourceUrl
+    altText
+    caption
+    mediaDetails {
+      width
+      height
+    }
+  }
+}
+
+fragment PageBuilderLink on AcfLink {
+  title
+  url
+  target
+}
+
+fragment PageBuilderLinks on PageBuilderSectionsLinks {
+  link {
+    ...PageBuilderLink
+  }
+  variant
+}
+
+fragment PageBuilderSectionOptions on PageBuilderSectionsSectionOptions {
+  skin
+  width
+  paddingTop
+  paddingBottom
+  anchor
+  hidden
+}
+
+fragment PageBuilderFields on WithAcfPageBuilder {
+  pageBuilder {
+    sections {
+      __typename
+      ... on PageBuilderSectionsContentLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        eyebrow
+        heading
+        body
+        align
+        links {
+          ...PageBuilderLinks
+        }
+      }
+      ... on PageBuilderSectionsContentMediaLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        eyebrow
+        heading
+        body
+        media {
+          ...PageBuilderImage
+        }
+        mediaPosition
+        links {
+          ...PageBuilderLinks
+        }
+      }
+      ... on PageBuilderSectionsMediaLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        media {
+          ...PageBuilderImage
+        }
+      }
+      ... on PageBuilderSectionsCardGridLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        heading
+        columns
+        cards {
+          title
+          text
+          image {
+            ...PageBuilderImage
+          }
+          link {
+            ...PageBuilderLink
+          }
+        }
+      }
+      ... on PageBuilderSectionsBlockquoteLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        quote
+        attribution
+        role
+        image {
+          ...PageBuilderImage
+        }
+      }
+      ... on PageBuilderSectionsCallToActionLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        heading
+        body
+        links {
+          ...PageBuilderLinks
+        }
+      }
+    }
+  }
+}

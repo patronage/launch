@@ -1,105 +1,11 @@
-# The WPGraphQL for ACF query that produces fixtures/home.json.
-# Field group "Page Builder" (graphql name pageBuilder), flexible content field "sections".
-# "Section Options" is a cloned group shared by every layout.
-
-fragment SectionOptions on PageBuilderSectionsLayout_Fields {
-  sectionOptions {
-    background
-    containerWidth
-    paddingTop
-    paddingBottom
-    hide
-    anchor
-  }
-}
-
-fragment Image on AcfMediaItemConnectionEdge {
-  node {
-    sourceUrl
-    altText
-    caption
-    mediaDetails {
-      width
-      height
-    }
-  }
-}
-
-fragment Button on PageBuilderSectionsButtons {
-  link {
-    title
-    url
-    target
-  }
-  style
-}
+# The query that produces fixtures/home.json, recorded from the home page that
+# `pnpm --filter cms-wordpress-headless seed` creates, with the origin set to
+# https://cms.example.com and one unknown layout added to test skipping.
 
 query PageSections($uri: ID!) {
   page(id: $uri, idType: URI) {
     title
     uri
-    pageBuilder {
-      sections {
-        __typename
-        ...SectionOptions
-        ... on PageBuilderSectionsContentLayout {
-          eyebrow
-          heading
-          content
-          alignment
-          buttons {
-            ...Button
-          }
-        }
-        ... on PageBuilderSectionsContentMediaLayout {
-          eyebrow
-          heading
-          content
-          image {
-            ...Image
-          }
-          imagePosition
-          buttons {
-            ...Button
-          }
-        }
-        ... on PageBuilderSectionsMediaLayout {
-          image {
-            ...Image
-          }
-        }
-        ... on PageBuilderSectionsCardGridLayout {
-          heading
-          columns
-          cards {
-            title
-            text
-            image {
-              ...Image
-            }
-            link {
-              title
-              url
-              target
-            }
-          }
-        }
-        ... on PageBuilderSectionsBlockquoteLayout {
-          quote
-          attribution
-          role
-          image {
-            ...Image
-          }
-        }
-        ... on PageBuilderSectionsCallToActionLayout {
-          heading
-          content
-          buttons {
-            ...Button
-          }
-        }
-      }
-    }
+    ...PageBuilderFields
   }
 }

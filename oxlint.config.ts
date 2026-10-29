@@ -17,5 +17,7 @@ export default defineConfig({
     ...(core.ignorePatterns ?? []),
     "**/*.generated.ts",
     ...payloadGenerated,
+    // Written by `pnpm --filter @launch/adapter-wordpress codegen`.
+    "packages/adapter-wordpress/src/gql/**",
   ],
 });

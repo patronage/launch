@@ -30,7 +30,7 @@ if ! wp core is-installed 2>/dev/null; then
     --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
 fi
 
-wp plugin activate wp-graphql advanced-custom-fields wp-graphql-acf wp-graphql-smart-cache
+wp plugin activate wp-graphql secure-custom-fields wp-graphql-acf wp-graphql-smart-cache
 wp theme activate patronage-headless
 wp plugin delete akismet hello 2>/dev/null || true
 

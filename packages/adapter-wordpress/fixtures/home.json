@@ -8,25 +8,25 @@
           {
             "__typename": "PageBuilderSectionsContentLayout",
             "sectionOptions": {
-              "background": ["accent"],
-              "containerWidth": ["narrow"],
-              "paddingTop": ["lg"],
-              "paddingBottom": ["lg"],
-              "hide": false,
-              "anchor": "Intro"
+              "skin": "accent",
+              "width": "narrow",
+              "paddingTop": "lg",
+              "paddingBottom": "lg",
+              "anchor": "Intro",
+              "hidden": false
             },
             "eyebrow": "Neighborhood Growers",
             "heading": "Grow food together",
-            "content": "<p>We help neighbors turn empty lots into <strong>shared gardens</strong>.</p>\n",
-            "alignment": ["center"],
-            "buttons": [
+            "body": "<p>We help neighbors turn empty lots into <strong>shared gardens</strong>.</p>\n",
+            "align": "center",
+            "links": [
               {
                 "link": {
                   "title": "Get involved",
                   "url": "https://cms.example.com/get-involved/",
                   "target": ""
                 },
-                "style": ["primary"]
+                "variant": "primary"
               },
               {
                 "link": {
@@ -34,46 +34,49 @@
                   "url": "https://maps.example.org/gardens",
                   "target": "_blank"
                 },
-                "style": ["secondary"]
+                "variant": "secondary"
               }
             ]
           },
           {
             "__typename": "PageBuilderSectionsContentMediaLayout",
             "sectionOptions": {
-              "background": ["light"],
-              "containerWidth": ["wide"],
-              "paddingTop": ["md"],
-              "paddingBottom": ["md"],
-              "hide": false,
-              "anchor": null
+              "skin": "light",
+              "width": "wide",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": null,
+              "hidden": false
             },
             "eyebrow": null,
             "heading": "How a garden starts",
-            "content": "<ul>\n<li>Find a lot</li>\n<li>Gather <em>five</em> neighbors</li>\n</ul>\n<p>Read <a href=\"https://cms.example.com/guide/\">the starter guide</a>.</p>\n",
-            "image": {
+            "body": "<ul>\n<li>Find a lot</li>\n<li>Gather <em>five</em> neighbors</li>\n</ul>\n<p>Read <a href=\"https://cms.example.com/guide/\">the starter guide</a>.</p>\n",
+            "media": {
               "node": {
                 "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/raised-beds.jpg",
                 "altText": "Raised garden beds in a city lot",
                 "caption": "<p>Raised beds on a former parking lot</p>\n",
-                "mediaDetails": { "width": 1600, "height": 1067 }
+                "mediaDetails": {
+                  "width": 1600,
+                  "height": 1067
+                }
               }
             },
-            "imagePosition": ["end"],
-            "buttons": null
+            "mediaPosition": "end",
+            "links": null
           },
           {
             "__typename": "PageBuilderSectionsCardGridLayout",
             "sectionOptions": {
-              "background": ["light"],
-              "containerWidth": ["default"],
-              "paddingTop": ["none"],
-              "paddingBottom": ["md"],
-              "hide": false,
-              "anchor": "programs"
+              "skin": "light",
+              "width": "default",
+              "paddingTop": "none",
+              "paddingBottom": "md",
+              "anchor": "programs",
+              "hidden": false
             },
             "heading": "Programs",
-            "columns": ["3"],
+            "columns": "3",
             "cards": [
               {
                 "title": "Seed library",
@@ -83,7 +86,10 @@
                     "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/seeds.jpg",
                     "altText": "Paper seed packets",
                     "caption": null,
-                    "mediaDetails": { "width": 1200, "height": 800 }
+                    "mediaDetails": {
+                      "width": 1200,
+                      "height": 800
+                    }
                   }
                 },
                 "link": {
@@ -100,7 +106,10 @@
                     "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/tools.jpg",
                     "altText": "Garden tools hanging on a wall",
                     "caption": null,
-                    "mediaDetails": { "width": 1200, "height": 800 }
+                    "mediaDetails": {
+                      "width": 1200,
+                      "height": 800
+                    }
                   }
                 },
                 "link": {
@@ -120,12 +129,12 @@
           {
             "__typename": "PageBuilderSectionsBlockquoteLayout",
             "sectionOptions": {
-              "background": ["dark"],
-              "containerWidth": ["narrow"],
-              "paddingTop": ["lg"],
-              "paddingBottom": ["lg"],
-              "hide": false,
-              "anchor": null
+              "skin": "dark",
+              "width": "narrow",
+              "paddingTop": "lg",
+              "paddingBottom": "lg",
+              "anchor": null,
+              "hidden": false
             },
             "quote": "The garden is the first place on our block where everyone knows each other's names.",
             "attribution": "Rosa Delgado",
@@ -135,65 +144,71 @@
                 "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/portrait.jpg",
                 "altText": "Portrait of Rosa",
                 "caption": null,
-                "mediaDetails": { "width": 400, "height": 400 }
+                "mediaDetails": {
+                  "width": 400,
+                  "height": 400
+                }
               }
             }
           },
           {
             "__typename": "PageBuilderSectionsMediaLayout",
             "sectionOptions": {
-              "background": ["light"],
-              "containerWidth": ["full"],
-              "paddingTop": ["none"],
-              "paddingBottom": ["none"],
-              "hide": false,
-              "anchor": null
+              "skin": "light",
+              "width": "full",
+              "paddingTop": "none",
+              "paddingBottom": "none",
+              "anchor": null,
+              "hidden": false
             },
-            "image": {
+            "media": {
               "node": {
                 "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/harvest.jpg",
                 "altText": "Volunteers sorting a harvest",
                 "caption": "<p>Fall harvest day</p>\n",
-                "mediaDetails": { "width": 2400, "height": 1200 }
+                "mediaDetails": {
+                  "width": 2400,
+                  "height": 1200
+                }
               }
             }
           },
           {
             "__typename": "PageBuilderSectionsCallToActionLayout",
             "sectionOptions": {
-              "background": ["accent"],
-              "containerWidth": ["narrow"],
-              "paddingTop": ["md"],
-              "paddingBottom": ["md"],
-              "hide": false,
-              "anchor": "join"
+              "skin": "accent",
+              "width": "narrow",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": "join",
+              "hidden": false
             },
             "heading": "Start a garden on your block",
-            "content": "<p>We bring soil, seeds and a mentor for the first season.</p>\n",
-            "buttons": [
+            "body": "<p>We bring soil, seeds and a mentor for the first season.</p>\n",
+            "links": [
               {
                 "link": {
                   "title": "Apply now",
                   "url": "https://cms.example.com/apply/",
                   "target": ""
                 },
-                "style": ["primary"]
+                "variant": "primary"
               }
             ]
           },
           {
             "__typename": "PageBuilderSectionsCallToActionLayout",
             "sectionOptions": {
-              "background": ["light"],
-              "containerWidth": ["default"],
-              "paddingTop": ["md"],
-              "paddingBottom": ["md"],
-              "hide": true,
-              "anchor": null
+              "skin": "light",
+              "width": "default",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": null,
+              "hidden": true
             },
             "heading": "Winter volunteer drive",
-            "content": null,
-            "buttons": null
+            "body": null,
+            "links": null
           },
           {
             "__typename": "PageBuilderSectionsLegacySliderLayout",

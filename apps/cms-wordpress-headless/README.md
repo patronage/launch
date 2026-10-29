@@ -4,10 +4,10 @@ WordPress as an editing tool and a GraphQL API for [`apps/web-wordpress`](../web
 
 ## What is in git
 
-- `composer.json` and `composer.lock`: WPGraphQL, WPGraphQL Smart Cache, WPGraphQL for ACF and ACF (free). Composer installs them into `wp-content/plugins/`, which is gitignored.
-- `wp-content/themes/patronage-headless/`: registers the primary menu and the Hero field group (in PHP, so fields live in git), points the editor's Preview button at the front-end with a signed link, redirects visitors of WordPress's own front-end to the headless site, and locks WPGraphQL to the front-end's registered queries (`inc/persisted-queries.php`, `graphql-documents.json`).
+- `composer.json` and `composer.lock`: WPGraphQL, WPGraphQL Smart Cache, WPGraphQL for ACF, [Secure Custom Fields](https://github.com/WordPress/secure-custom-fields), [Extended ACF](https://github.com/vinkla/extended-acf) and [Extended CPTs](https://github.com/johnbillion/extended-cpts). Composer installs them into `wp-content/plugins/`, which is gitignored.
+- `wp-content/themes/patronage-headless/`: registers the primary menu, the ACF field groups in `fields/` (see [Fields](#fields)) and post types with their admin list columns in `inc/post-types.php`, points the editor's Preview button at the front-end with a signed link, redirects visitors of WordPress's own front-end to the headless site, and locks WPGraphQL to the front-end's registered queries (`inc/persisted-queries.php`, `graphql-documents.json`).
 - `wp-content/mu-plugins/patronage-headless-revalidate.php`: tells the front-end which paths and tags to revalidate when content is published, edited, moved, unpublished or trashed.
-- `bin/setup.sh` and `bin/seed.sh`: install, configure and seed invented demo content.
+- `bin/setup.sh` and `bin/seed.sh`: install, configure and seed invented demo content (`seed/seed.php`, with images from [`packages/demo-content`](../../packages/demo-content)).
 
 ## Run it
 
@@ -24,7 +24,19 @@ pnpm --filter web-wordpress dev              # front-end on http://localhost:300
 - GraphQL: http://localhost:8080/graphql
 - WP-CLI: `pnpm --filter cms-wordpress-headless wp -- <command>`
 - GraphQL as an administrator: the GraphiQL IDE in wp-admin. Signed-out callers can run only registered queries, by ID.
+- Reseed (adds missing pages, leaves existing ones alone): `pnpm --filter cms-wordpress-headless seed`
 - Stop, or wipe the database: `pnpm --filter cms-wordpress-headless stop` / `reset`
+
+## Fields
+
+Field groups are PHP files in `wp-content/themes/patronage-headless/fields/`, written with Extended ACF's field classes and loaded on `acf/init`. ACF's JSON sync is off, so editing a field group in wp-admin changes nothing; change the PHP instead.
+
+- **Hero** (`hero.php`, pages and posts): eyebrow, headline, intro and a call to action.
+- **Page Builder** (`page-builder.php`, pages): the flexible content field `sections`, with one layout per block in [`packages/content-model`](../../packages/content-model): `content`, `content_media`, `media`, `card_grid`, `blockquote` and `call_to_action`. Each layout has a "Section options" tab (`skin`, `width`, `padding_top`, `padding_bottom`, `anchor`, `hidden`). Names follow the content model and the Payload app's blocks, so [`packages/adapter-wordpress`](../../packages/adapter-wordpress) only maps rich text, links and images. Pages hide the block editor: their content is their sections.
+
+WPGraphQL for ACF exposes the group as `pageBuilder { sections { ... } }`, with one type per layout (`PageBuilderSectionsCardGridLayout`). Choices are button groups, which come back as plain strings. After changing fields, refresh the front-end's schema snapshot with `pnpm --filter web-wordpress codegen:schema`.
+
+Secure Custom Fields is the GPL fork of ACF that includes the field types the Page Builder needs (flexible content, repeater). ACF Pro works the same way if you have a license: swap the Composer package.
 
 ## How the pieces connect
 
