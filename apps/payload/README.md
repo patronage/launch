@@ -2,7 +2,7 @@
 
 One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://github.com/cloudflare/vinext) instead of Next.js. The admin, REST and GraphQL APIs and the public pages are a single Worker. The public pages read content through Payload's Local API.
 
-- Database: D1 by default, or Postgres through Hyperdrive (`PAYLOAD_DB=postgres`)
+- Database: D1, which is the chosen database for the demo. Postgres through Hyperdrive is an option (`PAYLOAD_DB=postgres`).
 - Media: R2
 - Collections: `users`, `pages` (drafts on), `media`; global: `site-settings`
 

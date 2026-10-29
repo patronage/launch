@@ -14,6 +14,8 @@ Two gaps remain. `vite dev` does not work yet, and nothing has been deployed to 
 
 **Recommendation:** keep Payload as one vinext app on Workers, with D1 as the default database for the demo. Postgres through Hyperdrive works, but it needs the request-scoped pool described below. Until `vite dev` works, develop with build and preview, and raise the dev failures with vinext upstream.
 
+**Decision (2026-10-29):** the Payload app uses D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres` and gets compared on real Workers once the app deploys. No performance difference has been measured yet. Local runs say nothing about network latency, which is where the two will differ.
+
 ## What was tested
 
 Versions: Payload 4.0.0-beta.6, vinext 1.4.0, `@vinext/cloudflare` 1.3.0, `@cloudflare/vite-plugin` 2.0.0-beta.v.7, `cf` 1.0.0-beta.25, Vite 8.3, Node 24.22.
