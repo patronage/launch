@@ -71,7 +71,7 @@ Payload 3 skips access control on Local API calls unless `overrideAccess: false`
 ## Configuration notes
 
 - `vinext init` writes `cloudflare.config.ts`, the typed config for the `cf` CLI and Cloudflare Vite plugin v2. It is not a Wrangler file. It declares the Worker, bindings and secrets in code, and `vinext-cloudflare deploy` deploys with `cf`. Spike 1 should confirm that this fits the "configured through the Cloudflare CLI and API" rule.
-- Payload 4 needs Node 24.22.1 or later. The repo's `.nvmrc` moves to 24.22.2 in this PR.
+- Payload 4 needs Node 24.22.1 or later. The repo pins Node 24, and `apps/payload` sets `engines` to `>=24.22.1`.
 - The `cloudflare:workers` env types come from `cf workers types`, which `pnpm typecheck` runs first.
 - Local Hyperdrive in Miniflare refuses a connection string without a password.
 

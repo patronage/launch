@@ -10,7 +10,7 @@ minimumReleaseAge: 180
 # Pin exact versions when adding dependencies.
 savePrefix: ""
 
-# Packages allowed to run install scripts.
+# Dependencies allowed to run install scripts. workerd downloads its runtime binary.
 allowBuilds:
   esbuild: true
   workerd: true
