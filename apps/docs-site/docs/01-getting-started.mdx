@@ -1,0 +1,46 @@
+---
+title: Getting started
+description: Install the workspace, run the checks, and start a reference site locally.
+---
+
+Launch is a plain pnpm workspace. You need Node 24 (the version is in `.nvmrc`) and the pnpm version pinned in the root `package.json`.
+
+```bash
+git clone https://github.com/patronage/launch.git
+cd launch
+pnpm install
+pnpm verify
+```
+
+`pnpm verify` is the full gate: a frozen install, then lint, typecheck and tests across the workspace. Run it before you open a pull request. There are no GitHub Actions; Cloudflare Workers Builds runs the same command before it deploys.
+
+## Run a reference site
+
+The headless WordPress reference runs WordPress in Docker and the vinext front-end in local workerd:
+
+```bash
+pnpm --filter cms-wordpress-headless setup   # WordPress, demo content and .env.local
+pnpm --filter web-wordpress dev              # http://localhost:3000
+```
+
+Each app's README has the details.
+
+## Run these docs
+
+```bash
+pnpm --filter docs-site dev     # http://localhost:4321
+pnpm --filter docs-site build   # static site in apps/docs-site/dist
+```
+
+## Dependencies
+
+Versions are pinned exactly, and pnpm only installs versions older than the `minimumReleaseAge` in `pnpm-workspace.yaml`. Update them with the `deps:*` scripts in the root `package.json`, which read the same window.
+
+## Rules for contributors
+
+The repo is public, so everything in it must be fit to publish. The short version, from `AGENTS.md`:
+
+- No third-party plugin or vendor code. WordPress plugins and themes come in through Composer; only Patronage's own `patronage-*` code is committed.
+- No client references, anywhere. Demo content is invented.
+- No Wrangler config files and no GitHub Actions. See [Deploying to Workers](/deploy).
+- Shared UI takes plain props and knows nothing about any CMS.
