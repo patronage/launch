@@ -1,5 +1,6 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
-import { print } from "graphql";
+import type { DocumentNode } from "graphql";
+import { z } from "zod";
 
 import { wordpressEnv } from "./env";
 
@@ -7,14 +8,39 @@ import { wordpressEnv } from "./env";
 export const WORDPRESS_CACHE_TAG = "wordpress";
 
 interface FetchOptions {
-  /** Read as the preview user: drafts, private posts and unsaved changes. Never cached. */
-  preview?: boolean;
+  /**
+   * Preview this post: read as the preview user, with WPGraphQL's preview
+   * context so the post's latest unsaved changes overlay it. Never cached.
+   */
+  previewDatabaseId?: number;
 }
 
 interface GraphQLResponse<Result> {
   data?: Result;
   errors?: { message: string }[];
 }
+
+/**
+ * WordPress runs only registered queries (persisted queries in Smart Cache's
+ * "only allowed" mode), so requests carry the query ID alone. Codegen puts
+ * the SHA-256 of each operation in its document; scripts/documents.ts
+ * registers the same IDs with WordPress.
+ */
+const PersistedDocument = z.object({
+  __meta__: z.object({ hash: z.string() }),
+});
+
+const queryId = (document: DocumentNode): string => {
+  const parsed = PersistedDocument.safeParse(document);
+
+  if (!parsed.success) {
+    throw new TypeError(
+      "GraphQL document has no persisted query hash; run `pnpm codegen`."
+    );
+  }
+
+  return parsed.data.__meta__.hash.replace(/^sha256:/u, "");
+};
 
 const previewAuthorization = (): string => {
   const { previewUser, previewPassword } = wordpressEnv();
@@ -31,7 +57,7 @@ const previewAuthorization = (): string => {
 /**
  * Runs a typed WPGraphQL query. Public reads go through the fetch cache under
  * WORDPRESS_CACHE_TAG; preview reads authenticate with the application
- * password and skip the cache.
+ * password, send the X-GraphQL-Preview header and skip the cache.
  */
 export const wpQuery = async <
   Result,
@@ -39,16 +65,20 @@ export const wpQuery = async <
 >(
   document: TypedDocumentNode<Result, Variables>,
   variables: Variables,
-  { preview = false }: FetchOptions = {}
+  { previewDatabaseId }: FetchOptions = {}
 ): Promise<Result> => {
   const headers = new Headers({ "content-type": "application/json" });
 
+  const preview = previewDatabaseId !== undefined;
+
   if (preview) {
     headers.set("authorization", previewAuthorization());
+    // WPGraphQL 2's request-level preview context; it replaces the deprecated asPreview argument.
+    headers.set("x-graphql-preview", `database_id=${previewDatabaseId}`);
   }
 
   const response = await fetch(wordpressEnv().graphqlUrl, {
-    body: JSON.stringify({ query: print(document), variables }),
+    body: JSON.stringify({ queryId: queryId(document), variables }),
     headers,
     method: "POST",
     ...(preview

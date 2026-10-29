@@ -52,6 +52,12 @@ services:
       - "host.docker.internal:host-gateway"
     environment: *wordpress-env
     volumes: *wordpress-volumes
+    # On a fresh volume the entrypoint copies WordPress in before it writes
+    # wp-config.php; WP-CLI must not run before then.
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/www/html/wp-config.php"]
+      interval: 1s
+      retries: 60
 
   # WP-CLI, run as the Apache image's www-data (uid 33) so files it writes stay writable.
   cli:
@@ -59,7 +65,8 @@ services:
     profiles: [cli]
     user: "33:33"
     depends_on:
-      - wordpress
+      wordpress:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment: *wordpress-env

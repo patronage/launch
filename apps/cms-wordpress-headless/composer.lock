@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6904ec395a988f43e8964dd380411732",
+    "content-hash": "fc843d5e387cf7f17f047eaf3e982dcc",
     "packages": [
         {
             "name": "composer/installers",
@@ -170,6 +170,18 @@
             "dist": {
                 "type": "zip",
                 "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-acf%2Fv3.0.0/wp-graphql-acf.zip"
+            },
+            "require": {
+                "composer/installers": "^2.2"
+            },
+            "type": "wordpress-plugin"
+        },
+        {
+            "name": "wp-graphql/wp-graphql-smart-cache",
+            "version": "2.3.4",
+            "dist": {
+                "type": "zip",
+                "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-smart-cache%2Fv2.3.4/wp-graphql-smart-cache.zip"
             },
             "require": {
                 "composer/installers": "^2.2"

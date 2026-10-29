@@ -16,11 +16,17 @@ pnpm --filter web-wordpress build && HOST=0.0.0.0 pnpm --filter web-wordpress st
 - `lib/wordpress/`: the GraphQL client, queries and preview-token check.
 - `components/content-view.tsx`: renders WordPress data as it arrives, until Spike 2's adapter and `packages/ui` replace it.
 
-## GraphQL types
+## GraphQL types and registered queries
 
 Queries are written with `graphql()` from `@/gql` and typed by GraphQL Code Generator against `schema.graphql`, a committed snapshot of the WPGraphQL schema, so `pnpm typecheck` and `pnpm build` need no running WordPress. `gql/` is generated and gitignored.
 
-After changing plugins or ACF fields, refresh the snapshot from the local WordPress (WPGraphQL only allows introspection to signed-in users, so this uses the preview application password from `.env.local`):
+WordPress runs only registered queries (WPGraphQL Smart Cache persisted queries), so requests send the query's SHA-256 ID, never its text. After adding or changing a query, write the manifest WordPress registers and commit it with the change (`pnpm test` fails while it is stale):
+
+```sh
+pnpm --filter web-wordpress documents
+```
+
+After changing plugins or ACF fields, refresh the schema snapshot from the local WordPress with WP-CLI, which, unlike HTTP introspection, keeps deprecated arguments:
 
 ```sh
 pnpm --filter web-wordpress codegen:schema

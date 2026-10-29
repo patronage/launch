@@ -45,26 +45,12 @@ export const ContentByUriQuery = graphql(`
   }
 `);
 
-// WPGraphQL 2 dropped the asPreview argument: unsaved changes are the
-// latest revision, reached through the preview edge.
+// Previews send the post's ID in the X-GraphQL-Preview header (see client.ts);
+// WPGraphQL then overlays its latest unsaved changes on these fields.
 export const PreviewContentQuery = graphql(`
   query PreviewContent($id: ID!) {
     contentNode(id: $id, idType: DATABASE_ID) {
       ...ContentFields
-      ... on Page {
-        preview {
-          node {
-            ...ContentFields
-          }
-        }
-      }
-      ... on Post {
-        preview {
-          node {
-            ...ContentFields
-          }
-        }
-      }
     }
   }
 `);

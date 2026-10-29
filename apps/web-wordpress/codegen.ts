@@ -18,6 +18,9 @@ const config: CodegenConfig = {
       preset: "client",
       presetConfig: {
         fragmentMasking: false,
+        // Writes gql/persisted-documents.json and puts each operation's
+        // SHA-256 in its document, so requests send only the query ID.
+        persistedDocuments: { hashAlgorithm: "sha256" },
       },
     },
   },

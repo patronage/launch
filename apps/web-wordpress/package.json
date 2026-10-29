@@ -8,9 +8,10 @@
     "build": "pnpm codegen && vite build",
     "start": "vinext start --port 3000",
     "codegen": "graphql-codegen --config codegen.ts",
-    "codegen:schema": "graphql-codegen --config codegen.schema.ts",
+    "codegen:schema": "pnpm --filter cms-wordpress-headless schema && pnpm codegen",
     "typecheck": "pnpm codegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "pnpm codegen && vitest run && node scripts/documents.ts --check",
+    "documents": "pnpm codegen && node scripts/documents.ts"
   },
   "dependencies": {
     "graphql": "17.0.2",
@@ -23,7 +24,6 @@
   "devDependencies": {
     "@graphql-codegen/cli": "7.4.6",
     "@graphql-codegen/client-preset": "6.2.3",
-    "@graphql-codegen/schema-ast": "6.1.1",
     "@graphql-typed-document-node/core": "3.2.0",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",

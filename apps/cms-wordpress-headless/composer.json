@@ -8,7 +8,8 @@
     "composer/installers": "2.3.0",
     "wp-graphql/wp-graphql": "2.25.0",
     "wp-graphql/wp-graphql-acf": "3.0.0",
-    "wpengine/advanced-custom-fields": "6.8.10"
+    "wpengine/advanced-custom-fields": "6.8.10",
+    "wp-graphql/wp-graphql-smart-cache": "2.3.4"
   },
   "repositories": [
     {
@@ -35,6 +36,21 @@
         "dist": {
           "type": "zip",
           "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-acf%2Fv3.0.0/wp-graphql-acf.zip"
+        },
+        "require": {
+          "composer/installers": "^2.2"
+        }
+      }
+    },
+    {
+      "type": "package",
+      "package": {
+        "name": "wp-graphql/wp-graphql-smart-cache",
+        "version": "2.3.4",
+        "type": "wordpress-plugin",
+        "dist": {
+          "type": "zip",
+          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-smart-cache%2Fv2.3.4/wp-graphql-smart-cache.zip"
         },
         "require": {
           "composer/installers": "^2.2"
