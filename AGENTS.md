@@ -7,6 +7,7 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 - **No third-party plugin or vendor code.** WordPress plugins and themes come in through Composer, and `composer-libs/`, `vendor/` and third-party `wp-content` folders are gitignored. Only Patronage's own `patronage-*` plugins, mu-plugins and themes are committed. The same applies to npm packages: depend on them, never copy them in.
 - **No client references.** No client names, hostnames, ids, content, screenshots or credentials in code, fixtures, docs, commit messages, issues or PRs. Demo content is invented.
 - **No Wrangler config files.** Do not add `wrangler.json`, `wrangler.jsonc` or `wrangler.toml` (they are gitignored). Workers, bindings, secrets, Access applications and service tokens are created through the Cloudflare CLI and API by scripts in the repo.
+- **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
 - **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
 
 ## Layout
