@@ -9,3 +9,8 @@ minimumReleaseAge: 180
 
 # Pin exact versions when adding dependencies.
 savePrefix: ""
+
+# Packages allowed to run install scripts.
+allowBuilds:
+  esbuild: true
+  workerd: true
