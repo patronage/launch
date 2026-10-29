@@ -13,6 +13,7 @@ import {
   oneOf,
   slugify,
   toColumns,
+  toLinkVariant,
   toSkin,
   toSpacing,
   toWidth,
@@ -51,22 +52,6 @@ export interface PayloadAdapterOptions {
   renderRichText?: (state: LexicalState) => ReactNode | undefined;
 }
 
-/** Payload's link `appearance` values from the website template, mapped to ours. */
-const APPEARANCE = {
-  default: "primary",
-  link: "text",
-  outline: "secondary",
-  primary: "primary",
-  secondary: "secondary",
-  text: "text",
-} as const satisfies Record<string, LinkVariant>;
-
-const appearanceVariant = (
-  appearance: string | null | undefined
-): LinkVariant =>
-  Object.entries(APPEARANCE).find(([key]) => key === appearance)?.[1] ??
-  "primary";
-
 /** True when an upload field holds the populated doc rather than its id (depth 0). */
 const isPopulatedMedia = (upload: PayloadUpload): upload is PayloadMedia =>
   upload instanceof Object;
@@ -74,10 +59,10 @@ const isPopulatedMedia = (upload: PayloadUpload): upload is PayloadMedia =>
 const KNOWN_BLOCKS = new Set<string>([
   "content",
   "contentMedia",
-  "mediaBlock",
+  "media",
   "cardGrid",
   "blockquote",
-  "cta",
+  "callToAction",
 ]);
 
 const isKnownBlock = (
@@ -149,7 +134,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
       href,
       label: value.label,
       newTab: value.newTab === true,
-      variant: variant ?? appearanceVariant(value.appearance),
+      variant: variant ?? toLinkVariant(value.variant),
     };
   };
 
@@ -194,7 +179,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
       case "content": {
         return compact({
           align: oneOf(["start", "center"] as const, value.align, "start"),
-          body: richText(value.richText),
+          body: richText(value.body),
           eyebrow: value.eyebrow ?? undefined,
           heading: value.heading ?? undefined,
           id,
@@ -211,7 +196,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
         }
 
         return compact({
-          body: richText(value.richText),
+          body: richText(value.body),
           eyebrow: value.eyebrow ?? undefined,
           heading: value.heading ?? undefined,
           id,
@@ -226,7 +211,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
         });
       }
 
-      case "mediaBlock": {
+      case "media": {
         const m = media(value.media);
 
         return m ? { id, media: m, type: "media" } : undefined;
@@ -240,7 +225,8 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
                   compact({
                     id: card.id ?? `${id}-card-${index}`,
                     image: image(card.image),
-                    link: card.enableLink ? link(card.link, "text") : undefined,
+                    // Cards style their link as text; a link without a label is no link.
+                    link: link(card.link, "text"),
                     text: card.text ?? undefined,
                     title: card.title,
                   }),
@@ -269,13 +255,13 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
         });
       }
 
-      case "cta": {
+      case "callToAction": {
         if (!value.heading) {
           return undefined;
         }
 
         return compact({
-          body: richText(value.richText),
+          body: richText(value.body),
           heading: value.heading,
           id,
           links: links(value.links),

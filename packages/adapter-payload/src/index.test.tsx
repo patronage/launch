@@ -76,7 +76,7 @@ describe("Payload adapter", () => {
   it("drops images it cannot resolve at depth 0", () => {
     const shallow = createPayloadAdapter().toPage({
       id: 2,
-      layout: [{ blockType: "mediaBlock", media: 45 }],
+      layout: [{ blockType: "media", media: 45 }],
       slug: "about",
     });
 

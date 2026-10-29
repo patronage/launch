@@ -205,6 +205,23 @@ export interface Page {
   slug: string;
   hero?: (number | null) | Media;
   content?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  /**
+   * Page sections, rendered in order.
+   */
+  layout?:
+    | (
+        ContentSection | ContentMediaSection | MediaSection | CardGridSection | BlockquoteSection | CallToActionSection
+      )[]
+    | null;
+  parent?: (number | null) | Page;
+  breadcrumbs?:
+    | {
+        doc?: (number | null) | Page;
+        url?: string | null;
+        label?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   createdBy?: {
     relationTo: 'users';
     value: number | User;
@@ -224,6 +241,7 @@ export interface Page {
 export interface Media {
   id: number;
   alt: string;
+  caption?: string | null;
   prefix?: string | null;
   _objectKey?: string | null;
   createdBy?: {
@@ -253,6 +271,158 @@ export interface Media {
     prefix?: string | null;
     _objectKey?: string | null;
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ContentSection".
+ */
+export interface ContentSection {
+  eyebrow?: string | null;
+  heading?: string | null;
+  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  align?: ('start' | 'center') | null;
+  links?:
+    | {
+        link: Link;
+        id?: string | null;
+      }[]
+    | null;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'content';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "Link".
+ */
+export interface Link {
+  type: 'reference' | 'custom';
+  newTab?: boolean | null;
+  label?: string | null;
+  variant?: ('primary' | 'secondary' | 'text') | null;
+  reference?: {
+    relationTo: 'pages';
+    value: number | Page;
+  } | null;
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SectionOptions".
+ */
+export interface SectionOptions {
+  skin: 'light' | 'dark' | 'accent';
+  width: 'narrow' | 'default' | 'wide' | 'full';
+  paddingTop: 'none' | 'sm' | 'md' | 'lg';
+  paddingBottom: 'none' | 'sm' | 'md' | 'lg';
+  /**
+   * Id for in-page links, e.g. programs for /#programs.
+   */
+  anchor?: string | null;
+  /**
+   * Hidden sections are saved but not rendered.
+   */
+  hidden?: boolean | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ContentMediaSection".
+ */
+export interface ContentMediaSection {
+  eyebrow?: string | null;
+  heading?: string | null;
+  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  media: number | Media;
+  mediaPosition?: ('start' | 'end') | null;
+  links?:
+    | {
+        link: Link;
+        id?: string | null;
+      }[]
+    | null;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'contentMedia';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MediaSection".
+ */
+export interface MediaSection {
+  media: number | Media;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'media';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CardGridSection".
+ */
+export interface CardGridSection {
+  heading?: string | null;
+  columns: '2' | '3' | '4';
+  cards?:
+    | {
+        title: string;
+        text?: string | null;
+        image?: (number | null) | Media;
+        link: PlainLink;
+        id?: string | null;
+      }[]
+    | null;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'cardGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PlainLink".
+ */
+export interface PlainLink {
+  type: 'reference' | 'custom';
+  newTab?: boolean | null;
+  label?: string | null;
+  reference?: {
+    relationTo: 'pages';
+    value: number | Page;
+  } | null;
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "BlockquoteSection".
+ */
+export interface BlockquoteSection {
+  quote: string;
+  attribution?: string | null;
+  role?: string | null;
+  image?: (number | null) | Media;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'blockquote';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CallToActionSection".
+ */
+export interface CallToActionSection {
+  heading: string;
+  body?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  links?:
+    | {
+        link: Link;
+        id?: string | null;
+      }[]
+    | null;
+  sectionOptions: SectionOptions;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'callToAction';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -388,6 +558,25 @@ export interface PagesSelect<T extends boolean = true> {
   slug?: T;
   hero?: T;
   content?: T;
+  layout?:
+    | T
+    | {
+        content?: T | ContentSectionSelect<T>;
+        contentMedia?: T | ContentMediaSectionSelect<T>;
+        media?: T | MediaSectionSelect<T>;
+        cardGrid?: T | CardGridSectionSelect<T>;
+        blockquote?: T | BlockquoteSectionSelect<T>;
+        callToAction?: T | CallToActionSectionSelect<T>;
+      };
+  parent?: T;
+  breadcrumbs?:
+    | T
+    | {
+        doc?: T;
+        url?: T;
+        label?: T;
+        id?: T;
+      };
   createdBy?: T;
   updatedBy?: T;
   updatedAt?: T;
@@ -396,10 +585,145 @@ export interface PagesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ContentSection_select".
+ */
+export interface ContentSectionSelect<T extends boolean = true> {
+  eyebrow?: T;
+  heading?: T;
+  body?: T;
+  align?: T;
+  links?:
+    | T
+    | {
+        link?: T | LinkSelect<T>;
+        id?: T;
+      };
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "Link_select".
+ */
+export interface LinkSelect<T extends boolean = true> {
+  type?: T;
+  newTab?: T;
+  label?: T;
+  variant?: T;
+  reference?: T;
+  url?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SectionOptions_select".
+ */
+export interface SectionOptionsSelect<T extends boolean = true> {
+  skin?: T;
+  width?: T;
+  paddingTop?: T;
+  paddingBottom?: T;
+  anchor?: T;
+  hidden?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ContentMediaSection_select".
+ */
+export interface ContentMediaSectionSelect<T extends boolean = true> {
+  eyebrow?: T;
+  heading?: T;
+  body?: T;
+  media?: T;
+  mediaPosition?: T;
+  links?:
+    | T
+    | {
+        link?: T | LinkSelect<T>;
+        id?: T;
+      };
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MediaSection_select".
+ */
+export interface MediaSectionSelect<T extends boolean = true> {
+  media?: T;
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CardGridSection_select".
+ */
+export interface CardGridSectionSelect<T extends boolean = true> {
+  heading?: T;
+  columns?: T;
+  cards?:
+    | T
+    | {
+        title?: T;
+        text?: T;
+        image?: T;
+        link?: T | PlainLinkSelect<T>;
+        id?: T;
+      };
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PlainLink_select".
+ */
+export interface PlainLinkSelect<T extends boolean = true> {
+  type?: T;
+  newTab?: T;
+  label?: T;
+  reference?: T;
+  url?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "BlockquoteSection_select".
+ */
+export interface BlockquoteSectionSelect<T extends boolean = true> {
+  quote?: T;
+  attribution?: T;
+  role?: T;
+  image?: T;
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CallToActionSection_select".
+ */
+export interface CallToActionSectionSelect<T extends boolean = true> {
+  heading?: T;
+  body?: T;
+  links?:
+    | T
+    | {
+        link?: T | LinkSelect<T>;
+        id?: T;
+      };
+  sectionOptions?: T | SectionOptionsSelect<T>;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  caption?: T;
   prefix?: T;
   _objectKey?: T;
   createdBy?: T;
