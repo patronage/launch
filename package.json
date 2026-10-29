@@ -1,0 +1,30 @@
+{
+  "name": "launch",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "deps:check": "pnpm exec taze -r -l --maturity-period 7",
+    "deps:major": "pnpm exec taze major -r -l --maturity-period 7",
+    "deps:update": "pnpm exec taze minor -r -l --maturity-period 7 -w",
+    "deps:verify": "CI=true pnpm install --frozen-lockfile",
+    "fix": "ultracite fix",
+    "lint": "ultracite check",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "verify": "pnpm deps:verify && pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "taze": "21.3.0",
+    "turbo": "2.11.10",
+    "typescript": "7.0.2",
+    "ultracite": "8.0.2"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.33.3"
+}
