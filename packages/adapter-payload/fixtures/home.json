@@ -17,7 +17,7 @@
       },
       "eyebrow": "Neighborhood Growers",
       "heading": "Grow food together",
-      "richText": {
+      "body": {
         "root": {
           "type": "root",
           "version": 1,
@@ -83,7 +83,7 @@
             },
             "url": null,
             "label": "Get involved",
-            "appearance": "primary"
+            "variant": "primary"
           }
         },
         {
@@ -94,7 +94,7 @@
             "reference": null,
             "url": "https://maps.example.org/gardens",
             "label": "Garden map",
-            "appearance": "secondary"
+            "variant": "secondary"
           }
         }
       ]
@@ -113,7 +113,7 @@
       },
       "eyebrow": null,
       "heading": "How a garden starts",
-      "richText": {
+      "body": {
         "root": {
           "type": "root",
           "version": 1,
@@ -301,7 +301,6 @@
             "createdAt": "2026-10-20T12:00:00.000Z",
             "updatedAt": "2026-10-20T12:00:00.000Z"
           },
-          "enableLink": true,
           "link": {
             "type": "reference",
             "newTab": false,
@@ -328,8 +327,7 @@
               }
             },
             "url": null,
-            "label": "Browse seeds",
-            "appearance": "default"
+            "label": "Browse seeds"
           }
         },
         {
@@ -350,7 +348,6 @@
             "createdAt": "2026-10-20T12:00:00.000Z",
             "updatedAt": "2026-10-20T12:00:00.000Z"
           },
-          "enableLink": true,
           "link": {
             "type": "reference",
             "newTab": false,
@@ -377,8 +374,7 @@
               }
             },
             "url": null,
-            "label": "Reserve a tool",
-            "appearance": "default"
+            "label": "Reserve a tool"
           }
         },
         {
@@ -386,8 +382,13 @@
           "title": "Youth growers",
           "text": "After-school planting and harvest days.",
           "image": null,
-          "enableLink": false,
-          "link": null
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "reference": null,
+            "url": null,
+            "label": null
+          }
         }
       ]
     },
@@ -423,7 +424,7 @@
     },
     {
       "id": "6720a1c0e5",
-      "blockType": "mediaBlock",
+      "blockType": "media",
       "blockName": null,
       "sectionOptions": {
         "skin": "light",
@@ -450,7 +451,7 @@
     },
     {
       "id": "6720a1c0e6",
-      "blockType": "cta",
+      "blockType": "callToAction",
       "blockName": "Join",
       "sectionOptions": {
         "skin": "accent",
@@ -461,7 +462,7 @@
         "anchor": "join"
       },
       "heading": "Start a garden on your block",
-      "richText": {
+      "body": {
         "root": {
           "type": "root",
           "version": 1,
@@ -508,14 +509,14 @@
             },
             "url": null,
             "label": "Apply now",
-            "appearance": "primary"
+            "variant": "primary"
           }
         }
       ]
     },
     {
       "id": "6720a1c0e7",
-      "blockType": "cta",
+      "blockType": "callToAction",
       "blockName": null,
       "sectionOptions": {
         "skin": "light",
@@ -526,7 +527,7 @@
         "anchor": null
       },
       "heading": "Winter volunteer drive",
-      "richText": null,
+      "body": null,
       "links": []
     },
     {

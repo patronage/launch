@@ -207,6 +207,9 @@ importers:
 
   apps/payload:
     dependencies:
+      '@launch/content-model':
+        specifier: workspace:*
+        version: link:../../packages/content-model
       '@payloadcms/db-d1-sqlite':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/pg@8.20.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(pg@8.20.0)(supports-color@10.2.2)
@@ -216,6 +219,9 @@ importers:
       '@payloadcms/next':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/react@19.3.0)(graphql@16.14.2)(monaco-editor@0.57.0)(next@16.4.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@24.12.3)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      '@payloadcms/plugin-nested-docs':
+        specifier: 4.0.0-beta.6
+        version: 4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))
       '@payloadcms/richtext-lexical':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@faceless-ui/modal@3.0.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@faceless-ui/scroll-info@2.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)(yjs@13.6.33)
@@ -256,6 +262,9 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.v.7
         version: 2.0.0-beta.v.7(@types/node@24.12.3)(vite@8.3.0(@types/node@24.12.3)(esbuild@0.25.12)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261023.1)
+      '@launch/demo-content':
+        specifier: workspace:*
+        version: link:../../packages/demo-content
       '@types/node':
         specifier: 24.12.3
         version: 24.12.3
@@ -483,6 +492,8 @@ importers:
       vitest:
         specifier: 4.1.12
         version: 4.1.12(@types/node@26.6.6)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/demo-content: {}
 
   packages/sections-preview:
     dependencies:
@@ -3012,6 +3023,11 @@ packages:
       payload: 4.0.0-beta.6
       react: ^19.0.1 || ^19.1.2 || ^19.2.1
       react-dom: ^19.0.1 || ^19.1.2 || ^19.2.1
+
+  '@payloadcms/plugin-nested-docs@4.0.0-beta.6':
+    resolution: {integrity: sha512-mpMSMqjOqjV/9Sr2Jf/yzOgsUrHjttYYYELzKGDm/R8G7eUkeJ4AIYCh7fIX4f7X6dA/Lr6PbEbshYfIFQIVEA==}
+    peerDependencies:
+      payload: 4.0.0-beta.6
 
   '@payloadcms/richtext-lexical@4.0.0-beta.6':
     resolution: {integrity: sha512-yQJkQVQvRLj9mOWoDnD6x2dLyA2Mwf6Oy9ZVJ/8DScw13h1fA98rnoBKNYhZSOsOrL/uYBWxrzpMJ2f0/Aurtw==}
@@ -11144,6 +11160,10 @@ snapshots:
       - monaco-editor
       - supports-color
       - typescript
+
+  '@payloadcms/plugin-nested-docs@4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))':
+    dependencies:
+      payload: 4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)
 
   '@payloadcms/richtext-lexical@4.0.0-beta.6(@faceless-ui/modal@3.0.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@faceless-ui/scroll-info@2.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)(yjs@13.6.33)':
     dependencies:

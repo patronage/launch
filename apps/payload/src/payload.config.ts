@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { nestedDocsPlugin } from "@payloadcms/plugin-nested-docs";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { r2Storage } from "@payloadcms/storage-r2";
 import { env } from "cloudflare:workers";
@@ -27,6 +28,14 @@ export default buildConfig({
   db: await database(),
   editor: lexicalEditor(),
   globals: [SiteSettings],
+  plugins: [
+    // Child pages get a `parent` and `breadcrumbs`; the last crumb is the path.
+    nestedDocsPlugin({
+      collections: ["pages"],
+      generateLabel: (_, doc) => String(doc.title),
+      generateURL: (docs) => docs.map((doc) => `/${String(doc.slug)}`).join(""),
+    }),
+  ],
   secret: env.PAYLOAD_SECRET || "",
   storage: [
     r2Storage({
