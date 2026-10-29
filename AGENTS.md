@@ -17,7 +17,7 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 
 ## Commands
 
-Run from the repo root: `pnpm verify` is the full gate (frozen install, lint, typecheck, test). `pnpm lint` and `pnpm fix` use ultracite (oxlint + oxfmt). Dependencies only install versions at least seven days old (`minimumReleaseAge` in `pnpm-workspace.yaml`); update them with the `deps:*` scripts, which use taze with the same window. Versions are pinned exactly (`save-prefix=` in `.npmrc`).
+Run from the repo root: `pnpm verify` is the full gate (frozen install, lint, typecheck, test). `pnpm lint` and `pnpm fix` use ultracite (oxlint + oxfmt). Dependencies only install versions older than `minimumReleaseAge` in `pnpm-workspace.yaml` (3 hours for now, moving to 72); update them with the `deps:*` scripts, whose taze reads the same window. Versions are pinned exactly (`savePrefix` in `pnpm-workspace.yaml`).
 
 ## Maintaining this file
 

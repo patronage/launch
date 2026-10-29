@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r --if-present run build",
-    "deps:check": "pnpm exec taze -r -l --maturity-period 7",
-    "deps:major": "pnpm exec taze major -r -l --maturity-period 7",
-    "deps:update": "pnpm exec taze minor -r -l --maturity-period 7 -w",
+    "deps:check": "pnpm exec taze -r -l",
+    "deps:major": "pnpm exec taze major -r -l",
+    "deps:update": "pnpm exec taze minor -r -l -w",
     "deps:verify": "CI=true pnpm install --frozen-lockfile",
     "fix": "ultracite fix",
     "lint": "ultracite check",
@@ -16,14 +16,14 @@
     "verify": "pnpm deps:verify && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
-    "oxfmt": "0.74.0",
-    "oxlint": "1.89.0",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
     "taze": "21.3.0",
     "typescript": "7.0.2",
-    "ultracite": "8.0.2"
+    "ultracite": "8.1.0"
   },
   "engines": {
     "node": ">=22.18.0"
   },
-  "packageManager": "pnpm@10.33.3"
+  "packageManager": "pnpm@12.16.1"
 }
