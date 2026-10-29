@@ -35,6 +35,10 @@ Preview deploys use Worker Previews (`cf previews deploy`). Each branch gets its
 6. Push a branch and check that its Preview URL comes up, then merge and check production.
 7. Put Previews behind Cloudflare Access. Preview URLs are public by default; Access can cover one Worker's Previews or a hostname pattern. Scripting that belongs with the Access spike; until then, add the Access application by hand and note it in the issue.
 
+## Custom domains
+
+Set `WORKER_DOMAIN` as a build variable (for example `launch-wordpress.<zone>`), and the next production deploy attaches it as the Worker's custom domain. `WORKER_DOMAIN_PREVIEWS=true` also serves each Preview at `<preview>.<domain>`. Those hostnames sit two levels below the zone, so check the certificate first: a Free plan's Universal SSL covers only one level. Without it, Previews still get `<preview>-<worker>.<subdomain>.workers.dev`.
+
 ## Learned on the first run
 
 - The Builds API takes each build variable as `{ "value": "…", "is_secret": false }`, not a bare string. A bare string gets `400 [12002] Invalid request body`.
