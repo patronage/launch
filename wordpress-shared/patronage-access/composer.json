@@ -1,0 +1,10 @@
+{
+  "name": "patronage/patronage-access",
+  "description": "Locks WordPress behind Cloudflare Access and authenticates REST and WPGraphQL requests from Access JWTs.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.0",
+    "ext-openssl": "*"
+  }
+}
