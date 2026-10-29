@@ -1,0 +1,28 @@
+import type { CodegenConfig } from "@graphql-codegen/cli";
+
+// Generates typed documents from schema.graphql, the committed snapshot of
+// the WPGraphQL schema, so CI needs no running WordPress. Refresh the
+// snapshot with `pnpm codegen:schema` after changing plugins or fields.
+const config: CodegenConfig = {
+  documents: [
+    "app/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+  ],
+  generates: {
+    "gql/": {
+      config: {
+        enumsAsTypes: true,
+        useTypeImports: true,
+      },
+      preset: "client",
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
+  },
+  ignoreNoDocuments: true,
+  schema: "schema.graphql",
+};
+
+export default config;
