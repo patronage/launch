@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": false,
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@payload-config": ["./src/payload.config.ts"]
+    }
+  },
+  "include": [".cloudflare/types/index.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", ".cloudflare/output", "dist"]
+}
