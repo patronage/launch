@@ -208,7 +208,8 @@ interface PageBuilderSections_Layout {
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-interface PageBuilderSectionsSectionOptions_Fields implements AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsSectionOptions_Fields implements AcfFieldGroup &
+  AcfFieldGroupFields {
   "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
   anchor: String
 
@@ -232,7 +233,9 @@ interface PageBuilderSectionsSectionOptions_Fields implements AcfFieldGroup & Ac
 }
 
 "The &quot;PageBuilderSectionsSectionOptions&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsSectionOptions implements PageBuilderSectionsSectionOptions_Fields & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsSectionOptions implements PageBuilderSectionsSectionOptions_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
   anchor: String
 
@@ -256,7 +259,8 @@ type PageBuilderSectionsSectionOptions implements PageBuilderSectionsSectionOpti
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsLinks&quot; Field Group"
-interface PageBuilderSectionsLinks_Fields implements AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsLinks_Fields implements AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -268,7 +272,9 @@ interface PageBuilderSectionsLinks_Fields implements AcfFieldGroup & AcfFieldGro
 }
 
 "The &quot;PageBuilderSectionsLinks&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsLinks implements PageBuilderSectionsLinks_Fields & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsLinks implements PageBuilderSectionsLinks_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -280,7 +286,9 @@ type PageBuilderSectionsLinks implements PageBuilderSectionsLinks_Fields & AcfFi
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-interface PageBuilderSectionsContentLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsContentLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
   align: String
 
@@ -304,7 +312,10 @@ interface PageBuilderSectionsContentLayout_Fields implements PageBuilderSections
 }
 
 "The &quot;PageBuilderSectionsContentLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsContentLayout implements PageBuilderSectionsContentLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsContentLayout implements PageBuilderSectionsContentLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
   align: String
 
@@ -328,7 +339,9 @@ type PageBuilderSectionsContentLayout implements PageBuilderSectionsContentLayou
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-interface PageBuilderSectionsContentMediaLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsContentMediaLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
   body: String
 
@@ -355,7 +368,9 @@ interface PageBuilderSectionsContentMediaLayout_Fields implements PageBuilderSec
 }
 
 "Connection between the PageBuilderSectionsContentMediaLayout_Fields type and the MediaItem type"
-type AcfMediaItemConnectionEdge implements OneToOneConnection & Edge & MediaItemConnectionEdge {
+type AcfMediaItemConnectionEdge implements OneToOneConnection &
+  Edge &
+  MediaItemConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -391,7 +406,16 @@ interface MediaItemConnectionEdge implements Edge {
 }
 
 "Represents uploaded media, including images, videos, documents, and audio files."
-type MediaItem implements Node & ContentNode & UniformResourceIdentifiable & DatabaseIdentifier & NodeWithTemplate & NodeWithTitle & NodeWithAuthor & NodeWithComments & HierarchicalContentNode & HierarchicalNode {
+type MediaItem implements Node &
+  ContentNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  NodeWithTemplate &
+  NodeWithTitle &
+  NodeWithAuthor &
+  NodeWithComments &
+  HierarchicalContentNode &
+  HierarchicalNode {
   "Alternative text to display when resource is not displayed"
   altText: String
 
@@ -537,22 +561,13 @@ type MediaItem implements Node & ContentNode & UniformResourceIdentifiable & Dat
   ): ContentNodeToEnqueuedStylesheetConnection
 
   "The filename of the mediaItem for the specified size (default size is full)"
-  file(
-    "Size of the MediaItem to return"
-    size: MediaItemSizeEnum
-  ): String
+  file("Size of the MediaItem to return" size: MediaItemSizeEnum): String
 
   "The path to the original file relative to the uploads directory"
-  filePath(
-    "Size of the MediaItem to return"
-    size: MediaItemSizeEnum
-  ): String
+  filePath("Size of the MediaItem to return" size: MediaItemSizeEnum): String
 
   "The filesize in bytes of the resource"
-  fileSize(
-    "Size of the MediaItem to return"
-    size: MediaItemSizeEnum
-  ): Int
+  fileSize("Size of the MediaItem to return" size: MediaItemSizeEnum): Int
 
   "The global unique identifier for this content node. This is a stable, unique identifier for the node that does not change even if the node is moved or its url changes."
   guid: String
@@ -594,7 +609,8 @@ type MediaItem implements Node & ContentNode & UniformResourceIdentifiable & Dat
   mediaDetails: MediaDetails
 
   "The unique numeric identifier for the content node."
-  mediaItemId: Int! @deprecated(reason: "Deprecated in favor of the databaseId field")
+  mediaItemId: Int!
+    @deprecated(reason: "Deprecated in favor of the databaseId field")
 
   "Url of the mediaItem"
   mediaItemUrl: String
@@ -639,10 +655,7 @@ type MediaItem implements Node & ContentNode & UniformResourceIdentifiable & Dat
   slug: String
 
   "Url of the mediaItem"
-  sourceUrl(
-    "Size of the MediaItem to return"
-    size: MediaItemSizeEnum
-  ): String
+  sourceUrl("Size of the MediaItem to return" size: MediaItemSizeEnum): String
 
   "The srcset attribute specifies the URL of the image to use in different situations. It is a comma separated string of urls and their widths."
   srcSet(
@@ -657,10 +670,7 @@ type MediaItem implements Node & ContentNode & UniformResourceIdentifiable & Dat
   template: ContentTemplate
 
   "The title of the post. This is currently just the raw title. An amendment to support rendered title needs to be made."
-  title(
-    "Format of the field output"
-    format: PostObjectFieldFormatEnum
-  ): String
+  title("Format of the field output" format: PostObjectFieldFormatEnum): String
 
   "The unique resource identifier path"
   uri: String
@@ -811,7 +821,9 @@ interface UniformResourceIdentifiable implements Node {
 }
 
 "Connection between the ContentNode type and the ContentType type"
-type ContentNodeToContentTypeConnectionEdge implements OneToOneConnection & Edge & ContentTypeConnectionEdge {
+type ContentNodeToContentTypeConnectionEdge implements OneToOneConnection &
+  Edge &
+  ContentTypeConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -958,7 +970,8 @@ type ContentType implements Node & UniformResourceIdentifiable {
 }
 
 "Connection between the ContentType type and the Taxonomy type"
-type ContentTypeToTaxonomyConnection implements TaxonomyConnection & Connection {
+type ContentTypeToTaxonomyConnection implements TaxonomyConnection &
+  Connection {
   "Edges for the ContentTypeToTaxonomyConnection connection"
   edges: [ContentTypeToTaxonomyConnectionEdge!]!
 
@@ -1111,7 +1124,8 @@ type Taxonomy implements Node {
 }
 
 "Connection between the Taxonomy type and the ContentType type"
-type TaxonomyToContentTypeConnection implements ContentTypeConnection & Connection {
+type TaxonomyToContentTypeConnection implements ContentTypeConnection &
+  Connection {
   "Edges for the TaxonomyToContentTypeConnection connection"
   edges: [TaxonomyToContentTypeConnectionEdge!]!
 
@@ -1165,7 +1179,8 @@ interface WPPageInfo implements PageInfo {
 }
 
 "An edge in a connection"
-type TaxonomyToContentTypeConnectionEdge implements ContentTypeConnectionEdge & Edge {
+type TaxonomyToContentTypeConnectionEdge implements ContentTypeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -1174,7 +1189,9 @@ type TaxonomyToContentTypeConnectionEdge implements ContentTypeConnectionEdge & 
 }
 
 "Pagination metadata specific to &quot;TaxonomyToContentTypeConnection&quot; collections. Provides cursors and flags for navigating through sets of TaxonomyToContentTypeConnection Nodes."
-type TaxonomyToContentTypeConnectionPageInfo implements ContentTypeConnectionPageInfo & WPPageInfo & PageInfo {
+type TaxonomyToContentTypeConnectionPageInfo implements ContentTypeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -1318,7 +1335,8 @@ input TermNodeToEnqueuedScriptConnectionWhereArgs {
 }
 
 "Connection between the TermNode type and the EnqueuedScript type"
-type TermNodeToEnqueuedScriptConnection implements EnqueuedScriptConnection & Connection {
+type TermNodeToEnqueuedScriptConnection implements EnqueuedScriptConnection &
+  Connection {
   "Edges for the TermNodeToEnqueuedScriptConnection connection"
   edges: [TermNodeToEnqueuedScriptConnectionEdge!]!
 
@@ -1465,7 +1483,8 @@ interface EnqueuedScriptConnectionPageInfo implements WPPageInfo & PageInfo {
 }
 
 "An edge in a connection"
-type TermNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge & Edge {
+type TermNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -1474,7 +1493,9 @@ type TermNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionE
 }
 
 "Pagination metadata specific to &quot;TermNodeToEnqueuedScriptConnection&quot; collections. Provides cursors and flags for navigating through sets of TermNodeToEnqueuedScriptConnection Nodes."
-type TermNodeToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo & WPPageInfo & PageInfo {
+type TermNodeToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -1495,7 +1516,8 @@ input TermNodeToEnqueuedStylesheetConnectionWhereArgs {
 }
 
 "Connection between the TermNode type and the EnqueuedStylesheet type"
-type TermNodeToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection & Connection {
+type TermNodeToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection &
+  Connection {
   "Edges for the TermNodeToEnqueuedStylesheetConnection connection"
   edges: [TermNodeToEnqueuedStylesheetConnectionEdge!]!
 
@@ -1582,7 +1604,8 @@ type EnqueuedStylesheet implements Node & EnqueuedAsset {
 }
 
 "Pagination metadata specific to &quot;EnqueuedStylesheetConnectionEdge&quot; collections. Provides cursors and flags for navigating through sets of &quot;EnqueuedStylesheetConnectionEdge&quot; Nodes."
-interface EnqueuedStylesheetConnectionPageInfo implements WPPageInfo & PageInfo {
+interface EnqueuedStylesheetConnectionPageInfo implements WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -1597,7 +1620,8 @@ interface EnqueuedStylesheetConnectionPageInfo implements WPPageInfo & PageInfo 
 }
 
 "An edge in a connection"
-type TermNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge & Edge {
+type TermNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -1606,7 +1630,9 @@ type TermNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetCon
 }
 
 "Pagination metadata specific to &quot;TermNodeToEnqueuedStylesheetConnection&quot; collections. Provides cursors and flags for navigating through sets of TermNodeToEnqueuedStylesheetConnection Nodes."
-type TermNodeToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo & WPPageInfo & PageInfo {
+type TermNodeToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -1645,7 +1671,9 @@ type TaxonomyToTermNodeConnectionEdge implements TermNodeConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;TaxonomyToTermNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of TaxonomyToTermNodeConnection Nodes."
-type TaxonomyToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type TaxonomyToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -1675,7 +1703,8 @@ interface TaxonomyConnectionPageInfo implements WPPageInfo & PageInfo {
 }
 
 "An edge in a connection"
-type ContentTypeToTaxonomyConnectionEdge implements TaxonomyConnectionEdge & Edge {
+type ContentTypeToTaxonomyConnectionEdge implements TaxonomyConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -1684,7 +1713,9 @@ type ContentTypeToTaxonomyConnectionEdge implements TaxonomyConnectionEdge & Edg
 }
 
 "Pagination metadata specific to &quot;ContentTypeToTaxonomyConnection&quot; collections. Provides cursors and flags for navigating through sets of ContentTypeToTaxonomyConnection Nodes."
-type ContentTypeToTaxonomyConnectionPageInfo implements TaxonomyConnectionPageInfo & WPPageInfo & PageInfo {
+type ContentTypeToTaxonomyConnectionPageInfo implements TaxonomyConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -2239,7 +2270,8 @@ enum ContentTemplateEnum {
 }
 
 "Connection between the ContentType type and the ContentNode type"
-type ContentTypeToContentNodeConnection implements ContentNodeConnection & Connection {
+type ContentTypeToContentNodeConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the ContentTypeToContentNodeConnection connection"
   edges: [ContentTypeToContentNodeConnectionEdge!]!
 
@@ -2287,7 +2319,8 @@ interface ContentNodeConnectionPageInfo implements WPPageInfo & PageInfo {
 }
 
 "An edge in a connection"
-type ContentTypeToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type ContentTypeToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -2296,7 +2329,9 @@ type ContentTypeToContentNodeConnectionEdge implements ContentNodeConnectionEdge
 }
 
 "Pagination metadata specific to &quot;ContentTypeToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of ContentTypeToContentNodeConnection Nodes."
-type ContentTypeToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type ContentTypeToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -2389,7 +2424,9 @@ type PostTypeLabelDetails {
 }
 
 "Connection between the ContentNode type and the User type"
-type ContentNodeToEditLockConnectionEdge implements OneToOneConnection & Edge & UserConnectionEdge {
+type ContentNodeToEditLockConnectionEdge implements OneToOneConnection &
+  Edge &
+  UserConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -2410,7 +2447,10 @@ interface UserConnectionEdge implements Edge {
 }
 
 "A registered user account. Users can be assigned roles, author content, and have various capabilities within the site."
-type User implements Node & UniformResourceIdentifiable & Commenter & DatabaseIdentifier {
+type User implements Node &
+  UniformResourceIdentifiable &
+  Commenter &
+  DatabaseIdentifier {
   "The admin color scheme preference for the user. Possible values include &quot;fresh&quot;, &quot;light&quot;, &quot;blue&quot;, &quot;coffee&quot;, &quot;ectoplasm&quot;, &quot;midnight&quot;, &quot;ocean&quot;, &quot;sunrise&quot;. Default is &quot;fresh&quot;."
   adminColor: String
 
@@ -2739,7 +2779,10 @@ input UserToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -2848,18 +2891,24 @@ interface CommentConnectionEdge implements Edge {
 }
 
 "A response or reaction to content submitted by users. Comments are typically associated with a specific content entry."
-type Comment implements Node & DatabaseIdentifier & UniformResourceIdentifiable {
+type Comment implements Node &
+  DatabaseIdentifier &
+  UniformResourceIdentifiable {
   "User agent (browser or client) used to post the comment."
   agent: String
 
   "The approval status of the comment."
-  approved: Boolean @deprecated(reason: "Deprecated in favor of the `status` field")
+  approved: Boolean
+    @deprecated(reason: "Deprecated in favor of the `status` field")
 
   "The author of the comment"
   author: CommentToCommenterConnectionEdge
 
   "IP address for the author at the time of commenting."
-  authorIp: String @deprecated(reason: "Use the ipAddress field on the edge between the comment and author")
+  authorIp: String
+    @deprecated(
+      reason: "Use the ipAddress field on the edge between the comment and author"
+    )
 
   "ID for the comment, unique among comments."
   commentId: Int @deprecated(reason: "Deprecated in favor of databaseId")
@@ -2950,7 +2999,9 @@ type Comment implements Node & DatabaseIdentifier & UniformResourceIdentifiable 
 }
 
 "Connection between the Comment type and the Commenter type"
-type CommentToCommenterConnectionEdge implements OneToOneConnection & Edge & CommenterConnectionEdge {
+type CommentToCommenterConnectionEdge implements OneToOneConnection &
+  Edge &
+  CommenterConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -2980,7 +3031,9 @@ interface CommenterConnectionEdge implements Edge {
 }
 
 "Connection between the Comment type and the ContentNode type"
-type CommentToContentNodeConnectionEdge implements OneToOneConnection & Edge & ContentNodeConnectionEdge {
+type CommentToContentNodeConnectionEdge implements OneToOneConnection &
+  Edge &
+  ContentNodeConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -3081,7 +3134,10 @@ input CommentToParentCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -3091,7 +3147,9 @@ input CommentToParentCommentConnectionWhereArgs {
 }
 
 "Connection between the Comment type and the Comment type"
-type CommentToParentCommentConnectionEdge implements OneToOneConnection & Edge & CommentConnectionEdge {
+type CommentToParentCommentConnectionEdge implements OneToOneConnection &
+  Edge &
+  CommentConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -3183,7 +3241,10 @@ input CommentToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -3214,7 +3275,9 @@ type CommentToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;CommentToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of CommentToCommentConnection Nodes."
-type CommentToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type CommentToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -3253,7 +3316,9 @@ type UserToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToCommentConnection Nodes."
-type UserToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -3274,7 +3339,8 @@ input UserToEnqueuedScriptConnectionWhereArgs {
 }
 
 "Connection between the User type and the EnqueuedScript type"
-type UserToEnqueuedScriptConnection implements EnqueuedScriptConnection & Connection {
+type UserToEnqueuedScriptConnection implements EnqueuedScriptConnection &
+  Connection {
   "Edges for the UserToEnqueuedScriptConnection connection"
   edges: [UserToEnqueuedScriptConnectionEdge!]!
 
@@ -3286,7 +3352,8 @@ type UserToEnqueuedScriptConnection implements EnqueuedScriptConnection & Connec
 }
 
 "An edge in a connection"
-type UserToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge & Edge {
+type UserToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -3295,7 +3362,9 @@ type UserToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge 
 }
 
 "Pagination metadata specific to &quot;UserToEnqueuedScriptConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToEnqueuedScriptConnection Nodes."
-type UserToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -3316,7 +3385,8 @@ input UserToEnqueuedStylesheetConnectionWhereArgs {
 }
 
 "Connection between the User type and the EnqueuedStylesheet type"
-type UserToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection & Connection {
+type UserToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection &
+  Connection {
   "Edges for the UserToEnqueuedStylesheetConnection connection"
   edges: [UserToEnqueuedStylesheetConnectionEdge!]!
 
@@ -3328,7 +3398,8 @@ type UserToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection 
 }
 
 "An edge in a connection"
-type UserToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge & Edge {
+type UserToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -3337,7 +3408,9 @@ type UserToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnect
 }
 
 "Pagination metadata specific to &quot;UserToEnqueuedStylesheetConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToEnqueuedStylesheetConnection Nodes."
-type UserToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -3472,7 +3545,9 @@ type UserToMediaItemConnectionEdge implements MediaItemConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToMediaItemConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToMediaItemConnection Nodes."
-type UserToMediaItemConnectionPageInfo implements MediaItemConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToMediaItemConnectionPageInfo implements MediaItemConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -3592,7 +3667,24 @@ interface PageConnectionEdge implements Edge {
 }
 
 "A standalone content entry generally used for static, non-chronological content such as &quot;About Us&quot; or &quot;Contact&quot; pages."
-type Page implements Node & ContentNode & UniformResourceIdentifiable & DatabaseIdentifier & NodeWithTemplate & Previewable & NodeWithTitle & NodeWithContentEditor & NodeWithAuthor & NodeWithFeaturedImage & NodeWithComments & NodeWithRevisions & NodeWithPageAttributes & HierarchicalContentNode & HierarchicalNode & MenuItemLinkable & WithAcfHero & WithAcfPageBuilder {
+type Page implements Node &
+  ContentNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  NodeWithTemplate &
+  Previewable &
+  NodeWithTitle &
+  NodeWithContentEditor &
+  NodeWithAuthor &
+  NodeWithFeaturedImage &
+  NodeWithComments &
+  NodeWithRevisions &
+  NodeWithPageAttributes &
+  HierarchicalContentNode &
+  HierarchicalNode &
+  MenuItemLinkable &
+  WithAcfHero &
+  WithAcfPageBuilder {
   "Returns ancestors of the node. Default ordered as lowest (closest to the child) to highest (closest to the root)."
   ancestors(
     "The number of items to return after the referenced \"after\" cursor"
@@ -3795,7 +3887,8 @@ type Page implements Node & ContentNode & UniformResourceIdentifiable & Database
   pageBuilder: PageBuilder
 
   "The unique numeric identifier for the content node."
-  pageId: Int! @deprecated(reason: "Deprecated in favor of the databaseId field")
+  pageId: Int!
+    @deprecated(reason: "Deprecated in favor of the databaseId field")
 
   "The parent of the node. The parent object can be of various types"
   parent: HierarchicalContentNodeToParentContentNodeConnectionEdge
@@ -3849,10 +3942,7 @@ type Page implements Node & ContentNode & UniformResourceIdentifiable & Database
   template: ContentTemplate
 
   "The title of the post. This is currently just the raw title. An amendment to support rendered title needs to be made."
-  title(
-    "Format of the field output"
-    format: PostObjectFieldFormatEnum
-  ): String
+  title("Format of the field output" format: PostObjectFieldFormatEnum): String
 
   "The unique resource identifier path"
   uri: String
@@ -3885,10 +3975,7 @@ interface NodeWithTitle implements Node {
   id: ID!
 
   "The title of the post. This is currently just the raw title. An amendment to support rendered title needs to be made."
-  title(
-    "Format of the field output"
-    format: PostObjectFieldFormatEnum
-  ): String
+  title("Format of the field output" format: PostObjectFieldFormatEnum): String
 }
 
 "Content that has a main body field which can contain formatted text and media. Provides access to both raw (with appropriate permissions) and rendered versions of the content."
@@ -3919,7 +4006,9 @@ interface NodeWithAuthor implements Node {
 }
 
 "Connection between the NodeWithAuthor type and the User type"
-type NodeWithAuthorToUserConnectionEdge implements OneToOneConnection & Edge & UserConnectionEdge {
+type NodeWithAuthorToUserConnectionEdge implements OneToOneConnection &
+  Edge &
+  UserConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -3943,7 +4032,9 @@ interface NodeWithFeaturedImage implements Node {
 }
 
 "Connection between the NodeWithFeaturedImage type and the MediaItem type"
-type NodeWithFeaturedImageToMediaItemConnectionEdge implements OneToOneConnection & Edge & MediaItemConnectionEdge {
+type NodeWithFeaturedImageToMediaItemConnectionEdge implements OneToOneConnection &
+  Edge &
+  MediaItemConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -3976,7 +4067,9 @@ interface NodeWithRevisions implements Node {
 }
 
 "Connection between the NodeWithRevisions type and the ContentNode type"
-type NodeWithRevisionsToContentNodeConnectionEdge implements OneToOneConnection & Edge & ContentNodeConnectionEdge {
+type NodeWithRevisionsToContentNodeConnectionEdge implements OneToOneConnection &
+  Edge &
+  ContentNodeConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -3994,7 +4087,11 @@ interface NodeWithPageAttributes implements Node {
 }
 
 "Content that can be organized in a parent-child structure. Provides fields for navigating up and down the hierarchy and maintaining structured relationships."
-interface HierarchicalContentNode implements Node & ContentNode & UniformResourceIdentifiable & DatabaseIdentifier & HierarchicalNode {
+interface HierarchicalContentNode implements Node &
+  ContentNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  HierarchicalNode {
   "Returns ancestors of the node. Default ordered as lowest (closest to the child) to highest (closest to the root)."
   ancestors(
     "The number of items to return after the referenced \"after\" cursor"
@@ -4237,7 +4334,8 @@ input HierarchicalContentNodeToContentNodeAncestorsConnectionWhereArgs {
 }
 
 "Connection between the HierarchicalContentNode type and the ContentNode type"
-type HierarchicalContentNodeToContentNodeAncestorsConnection implements ContentNodeConnection & Connection {
+type HierarchicalContentNodeToContentNodeAncestorsConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the HierarchicalContentNodeToContentNodeAncestorsConnection connection"
   edges: [HierarchicalContentNodeToContentNodeAncestorsConnectionEdge!]!
 
@@ -4249,7 +4347,8 @@ type HierarchicalContentNodeToContentNodeAncestorsConnection implements ContentN
 }
 
 "An edge in a connection"
-type HierarchicalContentNodeToContentNodeAncestorsConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type HierarchicalContentNodeToContentNodeAncestorsConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -4258,7 +4357,9 @@ type HierarchicalContentNodeToContentNodeAncestorsConnectionEdge implements Cont
 }
 
 "Pagination metadata specific to &quot;HierarchicalContentNodeToContentNodeAncestorsConnection&quot; collections. Provides cursors and flags for navigating through sets of HierarchicalContentNodeToContentNodeAncestorsConnection Nodes."
-type HierarchicalContentNodeToContentNodeAncestorsConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type HierarchicalContentNodeToContentNodeAncestorsConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4336,7 +4437,8 @@ input HierarchicalContentNodeToContentNodeChildrenConnectionWhereArgs {
 }
 
 "Connection between the HierarchicalContentNode type and the ContentNode type"
-type HierarchicalContentNodeToContentNodeChildrenConnection implements ContentNodeConnection & Connection {
+type HierarchicalContentNodeToContentNodeChildrenConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the HierarchicalContentNodeToContentNodeChildrenConnection connection"
   edges: [HierarchicalContentNodeToContentNodeChildrenConnectionEdge!]!
 
@@ -4348,7 +4450,8 @@ type HierarchicalContentNodeToContentNodeChildrenConnection implements ContentNo
 }
 
 "An edge in a connection"
-type HierarchicalContentNodeToContentNodeChildrenConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type HierarchicalContentNodeToContentNodeChildrenConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -4357,7 +4460,9 @@ type HierarchicalContentNodeToContentNodeChildrenConnectionEdge implements Conte
 }
 
 "Pagination metadata specific to &quot;HierarchicalContentNodeToContentNodeChildrenConnection&quot; collections. Provides cursors and flags for navigating through sets of HierarchicalContentNodeToContentNodeChildrenConnection Nodes."
-type HierarchicalContentNodeToContentNodeChildrenConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type HierarchicalContentNodeToContentNodeChildrenConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4378,7 +4483,8 @@ input ContentNodeToEnqueuedScriptConnectionWhereArgs {
 }
 
 "Connection between the ContentNode type and the EnqueuedScript type"
-type ContentNodeToEnqueuedScriptConnection implements EnqueuedScriptConnection & Connection {
+type ContentNodeToEnqueuedScriptConnection implements EnqueuedScriptConnection &
+  Connection {
   "Edges for the ContentNodeToEnqueuedScriptConnection connection"
   edges: [ContentNodeToEnqueuedScriptConnectionEdge!]!
 
@@ -4390,7 +4496,8 @@ type ContentNodeToEnqueuedScriptConnection implements EnqueuedScriptConnection &
 }
 
 "An edge in a connection"
-type ContentNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge & Edge {
+type ContentNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -4399,7 +4506,9 @@ type ContentNodeToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnecti
 }
 
 "Pagination metadata specific to &quot;ContentNodeToEnqueuedScriptConnection&quot; collections. Provides cursors and flags for navigating through sets of ContentNodeToEnqueuedScriptConnection Nodes."
-type ContentNodeToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo & WPPageInfo & PageInfo {
+type ContentNodeToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4420,7 +4529,8 @@ input ContentNodeToEnqueuedStylesheetConnectionWhereArgs {
 }
 
 "Connection between the ContentNode type and the EnqueuedStylesheet type"
-type ContentNodeToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection & Connection {
+type ContentNodeToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection &
+  Connection {
   "Edges for the ContentNodeToEnqueuedStylesheetConnection connection"
   edges: [ContentNodeToEnqueuedStylesheetConnectionEdge!]!
 
@@ -4432,7 +4542,8 @@ type ContentNodeToEnqueuedStylesheetConnection implements EnqueuedStylesheetConn
 }
 
 "An edge in a connection"
-type ContentNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge & Edge {
+type ContentNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -4441,7 +4552,9 @@ type ContentNodeToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheet
 }
 
 "Pagination metadata specific to &quot;ContentNodeToEnqueuedStylesheetConnection&quot; collections. Provides cursors and flags for navigating through sets of ContentNodeToEnqueuedStylesheetConnection Nodes."
-type ContentNodeToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo & WPPageInfo & PageInfo {
+type ContentNodeToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4456,7 +4569,9 @@ type ContentNodeToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStyles
 }
 
 "Connection between the ContentNode type and the User type"
-type ContentNodeToEditLastConnectionEdge implements OneToOneConnection & Edge & UserConnectionEdge {
+type ContentNodeToEditLastConnectionEdge implements OneToOneConnection &
+  Edge &
+  UserConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -4465,7 +4580,9 @@ type ContentNodeToEditLastConnectionEdge implements OneToOneConnection & Edge & 
 }
 
 "Connection between the HierarchicalContentNode type and the ContentNode type"
-type HierarchicalContentNodeToParentContentNodeConnectionEdge implements OneToOneConnection & Edge & ContentNodeConnectionEdge {
+type HierarchicalContentNodeToParentContentNodeConnectionEdge implements OneToOneConnection &
+  Edge &
+  ContentNodeConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -4474,7 +4591,9 @@ type HierarchicalContentNodeToParentContentNodeConnectionEdge implements OneToOn
 }
 
 "Content that can be referenced by navigation menu items. Provides the essential fields needed to create links within navigation structures."
-interface MenuItemLinkable implements Node & UniformResourceIdentifiable & DatabaseIdentifier {
+interface MenuItemLinkable implements Node &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier {
   "The unique identifier stored in the database"
   databaseId: Int!
 
@@ -4501,7 +4620,9 @@ interface MenuItemLinkable implements Node & UniformResourceIdentifiable & Datab
 }
 
 "The &quot;PageBuilder&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilder implements PageBuilder_Fields & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilder implements PageBuilder_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -4593,7 +4714,10 @@ input PageToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -4624,7 +4748,9 @@ type PageToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PageToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of PageToCommentConnection Nodes."
-type PageToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type PageToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4639,7 +4765,9 @@ type PageToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPa
 }
 
 "Connection between the page type and the page type"
-type PageToPreviewConnectionEdge implements OneToOneConnection & Edge & PageConnectionEdge {
+type PageToPreviewConnectionEdge implements OneToOneConnection &
+  Edge &
+  PageConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -4741,7 +4869,9 @@ type PageToRevisionConnectionEdge implements PageConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PageToRevisionConnection&quot; collections. Provides cursors and flags for navigating through sets of PageToRevisionConnection Nodes."
-type PageToRevisionConnectionPageInfo implements PageConnectionPageInfo & WPPageInfo & PageInfo {
+type PageToRevisionConnectionPageInfo implements PageConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4780,7 +4910,9 @@ type UserToPageConnectionEdge implements PageConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToPageConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToPageConnection Nodes."
-type UserToPageConnectionPageInfo implements PageConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToPageConnectionPageInfo implements PageConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -4930,7 +5062,22 @@ interface PostConnectionEdge implements Edge {
 }
 
 "A chronological content entry typically used for blog posts, news articles, or similar date-based content."
-type Post implements Node & ContentNode & UniformResourceIdentifiable & DatabaseIdentifier & NodeWithTemplate & Previewable & NodeWithTitle & NodeWithContentEditor & NodeWithAuthor & NodeWithFeaturedImage & NodeWithExcerpt & NodeWithComments & NodeWithTrackbacks & NodeWithRevisions & MenuItemLinkable & WithAcfHero {
+type Post implements Node &
+  ContentNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  NodeWithTemplate &
+  Previewable &
+  NodeWithTitle &
+  NodeWithContentEditor &
+  NodeWithAuthor &
+  NodeWithFeaturedImage &
+  NodeWithExcerpt &
+  NodeWithComments &
+  NodeWithTrackbacks &
+  NodeWithRevisions &
+  MenuItemLinkable &
+  WithAcfHero {
   "The ancestors of the content node."
   ancestors(
     "The number of items to return after the referenced \"after\" cursor"
@@ -4944,7 +5091,10 @@ type Post implements Node & ContentNode & UniformResourceIdentifiable & Database
 
     "Cursor used along with the \"last\" argument to reference where in the dataset to get data"
     before: String
-  ): PostToPostConnection @deprecated(reason: "This content type is not hierarchical and typically will not have ancestors")
+  ): PostToPostConnection
+    @deprecated(
+      reason: "This content type is not hierarchical and typically will not have ancestors"
+    )
 
   "Connection between the NodeWithAuthor type and the User type"
   author: NodeWithAuthorToUserConnectionEdge
@@ -5130,7 +5280,10 @@ type Post implements Node & ContentNode & UniformResourceIdentifiable & Database
   modifiedGmt: String
 
   "The parent of the content node."
-  parent: PostToParentConnectionEdge @deprecated(reason: "This content type is not hierarchical and typically will not have a parent")
+  parent: PostToParentConnectionEdge
+    @deprecated(
+      reason: "This content type is not hierarchical and typically will not have a parent"
+    )
 
   "The password for the post object."
   password: String
@@ -5160,7 +5313,8 @@ type Post implements Node & ContentNode & UniformResourceIdentifiable & Database
   ): PostToPostFormatConnection
 
   "The unique numeric identifier for the content node."
-  postId: Int! @deprecated(reason: "Deprecated in favor of the databaseId field")
+  postId: Int!
+    @deprecated(reason: "Deprecated in favor of the databaseId field")
 
   "Connection between the post type and the post type"
   preview: PostToPreviewConnectionEdge
@@ -5238,10 +5392,7 @@ type Post implements Node & ContentNode & UniformResourceIdentifiable & Database
   ): PostToTermNodeConnection
 
   "The title of the post. This is currently just the raw title. An amendment to support rendered title needs to be made."
-  title(
-    "Format of the field output"
-    format: PostObjectFieldFormatEnum
-  ): String
+  title("Format of the field output" format: PostObjectFieldFormatEnum): String
 
   "URLs queued to be pinged."
   toPing: [String]
@@ -5299,7 +5450,9 @@ type PostToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToPostConnection Nodes."
-type PostToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -5385,7 +5538,10 @@ input PostToCategoryConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -5452,7 +5608,13 @@ interface CategoryConnectionEdge implements Edge {
 }
 
 "A taxonomy term that classifies content. Categories support hierarchy and can be used to create a nested structure."
-type Category implements Node & TermNode & UniformResourceIdentifiable & DatabaseIdentifier & HierarchicalTermNode & HierarchicalNode & MenuItemLinkable {
+type Category implements Node &
+  TermNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  HierarchicalTermNode &
+  HierarchicalNode &
+  MenuItemLinkable {
   "The ancestors of the node. Default ordered as lowest (closest to the child) to highest (closest to the root)."
   ancestors(
     "The number of items to return after the referenced \"after\" cursor"
@@ -5626,7 +5788,11 @@ type Category implements Node & TermNode & UniformResourceIdentifiable & Databas
 }
 
 "Term node with hierarchical (parent/child) relationships"
-interface HierarchicalTermNode implements Node & TermNode & UniformResourceIdentifiable & DatabaseIdentifier & HierarchicalNode {
+interface HierarchicalTermNode implements Node &
+  TermNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  HierarchicalNode {
   "The number of objects connected to the object"
   count: Int
 
@@ -5722,7 +5888,8 @@ interface HierarchicalTermNode implements Node & TermNode & UniformResourceIdent
 }
 
 "Connection between the Category type and the category type"
-type CategoryToAncestorsCategoryConnection implements CategoryConnection & Connection {
+type CategoryToAncestorsCategoryConnection implements CategoryConnection &
+  Connection {
   "Edges for the CategoryToAncestorsCategoryConnection connection"
   edges: [CategoryToAncestorsCategoryConnectionEdge!]!
 
@@ -5734,7 +5901,8 @@ type CategoryToAncestorsCategoryConnection implements CategoryConnection & Conne
 }
 
 "An edge in a connection"
-type CategoryToAncestorsCategoryConnectionEdge implements CategoryConnectionEdge & Edge {
+type CategoryToAncestorsCategoryConnectionEdge implements CategoryConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -5743,7 +5911,9 @@ type CategoryToAncestorsCategoryConnectionEdge implements CategoryConnectionEdge
 }
 
 "Pagination metadata specific to &quot;CategoryToAncestorsCategoryConnection&quot; collections. Provides cursors and flags for navigating through sets of CategoryToAncestorsCategoryConnection Nodes."
-type CategoryToAncestorsCategoryConnectionPageInfo implements CategoryConnectionPageInfo & WPPageInfo & PageInfo {
+type CategoryToAncestorsCategoryConnectionPageInfo implements CategoryConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -5829,7 +5999,10 @@ input CategoryToCategoryConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -5860,7 +6033,9 @@ type CategoryToCategoryConnectionEdge implements CategoryConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;CategoryToCategoryConnection&quot; collections. Provides cursors and flags for navigating through sets of CategoryToCategoryConnection Nodes."
-type CategoryToCategoryConnectionPageInfo implements CategoryConnectionPageInfo & WPPageInfo & PageInfo {
+type CategoryToCategoryConnectionPageInfo implements CategoryConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -5944,7 +6119,8 @@ enum ContentTypesOfCategoryEnum {
 }
 
 "Connection between the Category type and the ContentNode type"
-type CategoryToContentNodeConnection implements ContentNodeConnection & Connection {
+type CategoryToContentNodeConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the CategoryToContentNodeConnection connection"
   edges: [CategoryToContentNodeConnectionEdge!]!
 
@@ -5956,7 +6132,8 @@ type CategoryToContentNodeConnection implements ContentNodeConnection & Connecti
 }
 
 "An edge in a connection"
-type CategoryToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type CategoryToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -5965,7 +6142,9 @@ type CategoryToContentNodeConnectionEdge implements ContentNodeConnectionEdge & 
 }
 
 "Pagination metadata specific to &quot;CategoryToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of CategoryToContentNodeConnection Nodes."
-type CategoryToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type CategoryToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -5980,7 +6159,9 @@ type CategoryToContentNodeConnectionPageInfo implements ContentNodeConnectionPag
 }
 
 "Connection between the Category type and the category type"
-type CategoryToParentCategoryConnectionEdge implements OneToOneConnection & Edge & CategoryConnectionEdge {
+type CategoryToParentCategoryConnectionEdge implements OneToOneConnection &
+  Edge &
+  CategoryConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -6112,7 +6293,9 @@ type CategoryToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;CategoryToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of CategoryToPostConnection Nodes."
-type CategoryToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type CategoryToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6127,7 +6310,9 @@ type CategoryToPostConnectionPageInfo implements PostConnectionPageInfo & WPPage
 }
 
 "Connection between the Category type and the Taxonomy type"
-type CategoryToTaxonomyConnectionEdge implements OneToOneConnection & Edge & TaxonomyConnectionEdge {
+type CategoryToTaxonomyConnectionEdge implements OneToOneConnection &
+  Edge &
+  TaxonomyConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -6145,7 +6330,9 @@ type PostToCategoryConnectionEdge implements CategoryConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToCategoryConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToCategoryConnection Nodes."
-type PostToCategoryConnectionPageInfo implements CategoryConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToCategoryConnectionPageInfo implements CategoryConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6243,7 +6430,10 @@ input PostToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -6274,7 +6464,9 @@ type PostToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToCommentConnection Nodes."
-type PostToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6289,7 +6481,9 @@ type PostToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPa
 }
 
 "Connection between the post type and the post type"
-type PostToParentConnectionEdge implements OneToOneConnection & Edge & PostConnectionEdge {
+type PostToParentConnectionEdge implements OneToOneConnection &
+  Edge &
+  PostConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -6354,7 +6548,10 @@ input PostToPostFormatConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -6397,7 +6594,10 @@ interface PostFormatConnectionEdge implements Edge {
 }
 
 "A standardized classification system for content presentation styles. These formats can be used to display content differently based on type, such as &quot;standard&quot;, &quot;gallery&quot;, &quot;video&quot;, etc."
-type PostFormat implements Node & TermNode & UniformResourceIdentifiable & DatabaseIdentifier {
+type PostFormat implements Node &
+  TermNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier {
   "Connection between the PostFormat type and the ContentNode type"
   contentNodes(
     "The number of items to return after the referenced \"after\" cursor"
@@ -6598,7 +6798,8 @@ enum ContentTypesOfPostFormatEnum {
 }
 
 "Connection between the PostFormat type and the ContentNode type"
-type PostFormatToContentNodeConnection implements ContentNodeConnection & Connection {
+type PostFormatToContentNodeConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the PostFormatToContentNodeConnection connection"
   edges: [PostFormatToContentNodeConnectionEdge!]!
 
@@ -6610,7 +6811,8 @@ type PostFormatToContentNodeConnection implements ContentNodeConnection & Connec
 }
 
 "An edge in a connection"
-type PostFormatToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type PostFormatToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -6619,7 +6821,9 @@ type PostFormatToContentNodeConnectionEdge implements ContentNodeConnectionEdge 
 }
 
 "Pagination metadata specific to &quot;PostFormatToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of PostFormatToContentNodeConnection Nodes."
-type PostFormatToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type PostFormatToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6757,7 +6961,9 @@ type PostFormatToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostFormatToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of PostFormatToPostConnection Nodes."
-type PostFormatToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type PostFormatToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6772,7 +6978,9 @@ type PostFormatToPostConnectionPageInfo implements PostConnectionPageInfo & WPPa
 }
 
 "Connection between the PostFormat type and the Taxonomy type"
-type PostFormatToTaxonomyConnectionEdge implements OneToOneConnection & Edge & TaxonomyConnectionEdge {
+type PostFormatToTaxonomyConnectionEdge implements OneToOneConnection &
+  Edge &
+  TaxonomyConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -6805,7 +7013,9 @@ type PostToPostFormatConnectionEdge implements PostFormatConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToPostFormatConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToPostFormatConnection Nodes."
-type PostToPostFormatConnectionPageInfo implements PostFormatConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToPostFormatConnectionPageInfo implements PostFormatConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -6820,7 +7030,9 @@ type PostToPostFormatConnectionPageInfo implements PostFormatConnectionPageInfo 
 }
 
 "Connection between the post type and the post type"
-type PostToPreviewConnectionEdge implements OneToOneConnection & Edge & PostConnectionEdge {
+type PostToPreviewConnectionEdge implements OneToOneConnection &
+  Edge &
+  PostConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -6952,7 +7164,9 @@ type PostToRevisionConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToRevisionConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToRevisionConnection Nodes."
-type PostToRevisionConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToRevisionConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7023,7 +7237,10 @@ input PostToTagConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -7066,7 +7283,11 @@ interface TagConnectionEdge implements Edge {
 }
 
 "A taxonomy term used to organize and classify content. Tags do not have a hierarchy and are generally used for more specific classifications."
-type Tag implements Node & TermNode & UniformResourceIdentifiable & DatabaseIdentifier & MenuItemLinkable {
+type Tag implements Node &
+  TermNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  MenuItemLinkable {
   "Connection between the Tag type and the ContentNode type"
   contentNodes(
     "The number of items to return after the referenced \"after\" cursor"
@@ -7279,7 +7500,8 @@ type TagToContentNodeConnection implements ContentNodeConnection & Connection {
 }
 
 "An edge in a connection"
-type TagToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type TagToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -7288,7 +7510,9 @@ type TagToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;TagToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of TagToContentNodeConnection Nodes."
-type TagToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type TagToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7426,7 +7650,9 @@ type TagToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;TagToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of TagToPostConnection Nodes."
-type TagToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type TagToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7441,7 +7667,9 @@ type TagToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo 
 }
 
 "Connection between the Tag type and the Taxonomy type"
-type TagToTaxonomyConnectionEdge implements OneToOneConnection & Edge & TaxonomyConnectionEdge {
+type TagToTaxonomyConnectionEdge implements OneToOneConnection &
+  Edge &
+  TaxonomyConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -7474,7 +7702,9 @@ type PostToTagConnectionEdge implements TagConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToTagConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToTagConnection Nodes."
-type PostToTagConnectionPageInfo implements TagConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToTagConnectionPageInfo implements TagConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7548,7 +7778,10 @@ input PostToTermNodeConnectionWhereArgs {
   taxonomies: [TaxonomyEnum]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -7594,7 +7827,9 @@ type PostToTermNodeConnectionEdge implements TermNodeConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;PostToTermNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of PostToTermNodeConnection Nodes."
-type PostToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type PostToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7618,7 +7853,9 @@ type UserToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToPostConnection Nodes."
-type UserToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7717,7 +7954,9 @@ type UserToRevisionsConnectionEdge implements ContentNodeConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToRevisionsConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToRevisionsConnection Nodes."
-type UserToRevisionsConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToRevisionsConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7807,7 +8046,9 @@ type UserToUserRoleConnectionEdge implements UserRoleConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;UserToUserRoleConnection&quot; collections. Provides cursors and flags for navigating through sets of UserToUserRoleConnection Nodes."
-type UserToUserRoleConnectionPageInfo implements UserRoleConnectionPageInfo & WPPageInfo & PageInfo {
+type UserToUserRoleConnectionPageInfo implements UserRoleConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -7905,7 +8146,10 @@ input MediaItemToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -7936,7 +8180,9 @@ type MediaItemToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;MediaItemToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of MediaItemToCommentConnection Nodes."
-type MediaItemToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type MediaItemToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -8065,7 +8311,10 @@ type MediaSize {
 }
 
 "The &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsContentMediaLayout implements PageBuilderSectionsContentMediaLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsContentMediaLayout implements PageBuilderSectionsContentMediaLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
   body: String
 
@@ -8092,7 +8341,9 @@ type PageBuilderSectionsContentMediaLayout implements PageBuilderSectionsContent
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsMediaLayout&quot; Field Group"
-interface PageBuilderSectionsMediaLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsMediaLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -8104,7 +8355,10 @@ interface PageBuilderSectionsMediaLayout_Fields implements PageBuilderSections_L
 }
 
 "The &quot;PageBuilderSectionsMediaLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsMediaLayout implements PageBuilderSectionsMediaLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsMediaLayout implements PageBuilderSectionsMediaLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -8116,7 +8370,8 @@ type PageBuilderSectionsMediaLayout implements PageBuilderSectionsMediaLayout_Fi
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsCards&quot; Field Group"
-interface PageBuilderSectionsCards_Fields implements AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsCards_Fields implements AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -8134,7 +8389,9 @@ interface PageBuilderSectionsCards_Fields implements AcfFieldGroup & AcfFieldGro
 }
 
 "The &quot;PageBuilderSectionsCards&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsCards implements PageBuilderSectionsCards_Fields & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsCards implements PageBuilderSectionsCards_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
@@ -8152,7 +8409,9 @@ type PageBuilderSectionsCards implements PageBuilderSectionsCards_Fields & AcfFi
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsCardGridLayout&quot; Field Group"
-interface PageBuilderSectionsCardGridLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsCardGridLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCardGridLayout&quot; Field Group"
   cards: [PageBuilderSectionsCards]
 
@@ -8170,7 +8429,10 @@ interface PageBuilderSectionsCardGridLayout_Fields implements PageBuilderSection
 }
 
 "The &quot;PageBuilderSectionsCardGridLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsCardGridLayout implements PageBuilderSectionsCardGridLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsCardGridLayout implements PageBuilderSectionsCardGridLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCardGridLayout&quot; Field Group"
   cards: [PageBuilderSectionsCards]
 
@@ -8188,7 +8450,9 @@ type PageBuilderSectionsCardGridLayout implements PageBuilderSectionsCardGridLay
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsBlockquoteLayout&quot; Field Group"
-interface PageBuilderSectionsBlockquoteLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsBlockquoteLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsBlockquoteLayout&quot; Field Group"
   attribution: String
 
@@ -8209,7 +8473,10 @@ interface PageBuilderSectionsBlockquoteLayout_Fields implements PageBuilderSecti
 }
 
 "The &quot;PageBuilderSectionsBlockquoteLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsBlockquoteLayout implements PageBuilderSectionsBlockquoteLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsBlockquoteLayout implements PageBuilderSectionsBlockquoteLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsBlockquoteLayout&quot; Field Group"
   attribution: String
 
@@ -8230,7 +8497,9 @@ type PageBuilderSectionsBlockquoteLayout implements PageBuilderSectionsBlockquot
 }
 
 "Interface representing fields of the ACF &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
-interface PageBuilderSectionsCallToActionLayout_Fields implements PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+interface PageBuilderSectionsCallToActionLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
   body: String
 
@@ -8248,7 +8517,10 @@ interface PageBuilderSectionsCallToActionLayout_Fields implements PageBuilderSec
 }
 
 "The &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsCallToActionLayout implements PageBuilderSectionsCallToActionLayout_Fields & PageBuilderSections_Layout & AcfFieldGroup & AcfFieldGroupFields {
+type PageBuilderSectionsCallToActionLayout implements PageBuilderSectionsCallToActionLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
   body: String
 
@@ -8351,7 +8623,10 @@ type RootQuery {
     contentType: ContentTypeEnum
 
     "Whether to return the Preview Node instead of the Published Node. When the ID of a Node is provided along with asPreview being set to true, the preview node with un-published changes will be returned instead of the published node. If no preview node exists or the requester doesn't have proper capabilities to preview, no node will be returned. If the ID provided is a URI and has a preview query arg, it will be used as a fallback if the \"asPreview\" argument is not explicitly provided as an argument."
-    asPreview: Boolean @deprecated(reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version.")
+    asPreview: Boolean
+      @deprecated(
+        reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version."
+      )
   ): ContentNode
 
   "Connection between the RootQuery type and the ContentNode type"
@@ -8411,7 +8686,10 @@ type RootQuery {
     idType: GraphqlDocumentIdType
 
     "Whether to return the Preview Node instead of the Published Node. When the ID of a Node is provided along with asPreview being set to true, the preview node with un-published changes will be returned instead of the published node. If no preview node exists or the requester doesn't have proper capabilities to preview, no node will be returned. If the ID provided is a URI and has a preview query arg, it will be used as a fallback if the \"asPreview\" argument is not explicitly provided as an argument."
-    asPreview: Boolean @deprecated(reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version.")
+    asPreview: Boolean
+      @deprecated(
+        reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version."
+      )
   ): GraphqlDocument
 
   "A graphqlDocument object"
@@ -8427,7 +8705,10 @@ type RootQuery {
 
     "Get the graphqlDocument by its slug (only available for non-hierarchical types)"
     slug: String
-  ): GraphqlDocument @deprecated(reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)")
+  ): GraphqlDocument
+    @deprecated(
+      reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)"
+    )
 
   "A 0bject"
   graphqlDocumentGroup(
@@ -8483,7 +8764,10 @@ type RootQuery {
     idType: MediaItemIdType
 
     "Whether to return the Preview Node instead of the Published Node. When the ID of a Node is provided along with asPreview being set to true, the preview node with un-published changes will be returned instead of the published node. If no preview node exists or the requester doesn't have proper capabilities to preview, no node will be returned. If the ID provided is a URI and has a preview query arg, it will be used as a fallback if the \"asPreview\" argument is not explicitly provided as an argument."
-    asPreview: Boolean @deprecated(reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version.")
+    asPreview: Boolean
+      @deprecated(
+        reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version."
+      )
   ): MediaItem
 
   "A mediaItem object"
@@ -8499,7 +8783,10 @@ type RootQuery {
 
     "Get the mediaItem by its slug (only available for non-hierarchical types)"
     slug: String
-  ): MediaItem @deprecated(reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)")
+  ): MediaItem
+    @deprecated(
+      reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)"
+    )
 
   "Connection between the RootQuery type and the mediaItem type"
   mediaItems(
@@ -8574,10 +8861,7 @@ type RootQuery {
   ): RootQueryToMenuConnection
 
   "Fetches an object given its ID"
-  node(
-    "The unique identifier of the node"
-    id: ID
-  ): Node
+  node("The unique identifier of the node" id: ID): Node
 
   "Fetches an object given its Unique Resource Identifier"
   nodeByUri(
@@ -8594,7 +8878,10 @@ type RootQuery {
     idType: PageIdType
 
     "Whether to return the Preview Node instead of the Published Node. When the ID of a Node is provided along with asPreview being set to true, the preview node with un-published changes will be returned instead of the published node. If no preview node exists or the requester doesn't have proper capabilities to preview, no node will be returned. If the ID provided is a URI and has a preview query arg, it will be used as a fallback if the \"asPreview\" argument is not explicitly provided as an argument."
-    asPreview: Boolean @deprecated(reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version.")
+    asPreview: Boolean
+      @deprecated(
+        reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version."
+      )
   ): Page
 
   "A page object"
@@ -8607,7 +8894,10 @@ type RootQuery {
 
     "Get the page by its uri"
     uri: String
-  ): Page @deprecated(reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)")
+  ): Page
+    @deprecated(
+      reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)"
+    )
 
   "Connection between the RootQuery type and the page type"
   pages(
@@ -8631,10 +8921,7 @@ type RootQuery {
   permalinkSettings: PermalinkSettings
 
   "A WordPress plugin"
-  plugin(
-    "The globally unique identifier of the plugin."
-    id: ID!
-  ): Plugin
+  plugin("The globally unique identifier of the plugin." id: ID!): Plugin
 
   "Connection between the RootQuery type and the Plugin type"
   plugins(
@@ -8663,7 +8950,10 @@ type RootQuery {
     idType: PostIdType
 
     "Whether to return the Preview Node instead of the Published Node. When the ID of a Node is provided along with asPreview being set to true, the preview node with un-published changes will be returned instead of the published node. If no preview node exists or the requester doesn't have proper capabilities to preview, no node will be returned. If the ID provided is a URI and has a preview query arg, it will be used as a fallback if the \"asPreview\" argument is not explicitly provided as an argument."
-    asPreview: Boolean @deprecated(reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version.")
+    asPreview: Boolean
+      @deprecated(
+        reason: "Use the request-level preview context instead: send the `X-GraphQL-Preview` request header (or a `preview` object in the request `extensions`). When a request carries preview context, the context is applied and `asPreview` is ignored. This argument is planned for removal in a future major version."
+      )
   ): Post
 
   "A post object"
@@ -8679,7 +8969,10 @@ type RootQuery {
 
     "Get the post by its slug (only available for non-hierarchical types)"
     slug: String
-  ): Post @deprecated(reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)")
+  ): Post
+    @deprecated(
+      reason: "Deprecated in favor of using the single entry point for this type with ID and IDType fields. For example, instead of postBy( id: &quot;&quot; ), use post(id: &quot;&quot; idType: &quot;&quot;)"
+    )
 
   "A 0bject"
   postFormat(
@@ -8865,10 +9158,7 @@ type RootQuery {
   ): RootQueryToTermNodeConnection
 
   "A Theme object"
-  theme(
-    "The globally unique identifier of the theme."
-    id: ID!
-  ): Theme
+  theme("The globally unique identifier of the theme." id: ID!): Theme
 
   "Connection between the RootQuery type and the Theme type"
   themes(
@@ -9066,7 +9356,10 @@ input RootQueryToCategoryConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -9088,7 +9381,8 @@ type RootQueryToCategoryConnection implements CategoryConnection & Connection {
 }
 
 "An edge in a connection"
-type RootQueryToCategoryConnectionEdge implements CategoryConnectionEdge & Edge {
+type RootQueryToCategoryConnectionEdge implements CategoryConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -9097,7 +9391,9 @@ type RootQueryToCategoryConnectionEdge implements CategoryConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;RootQueryToCategoryConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToCategoryConnection Nodes."
-type RootQueryToCategoryConnectionPageInfo implements CategoryConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToCategoryConnectionPageInfo implements CategoryConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -9222,7 +9518,10 @@ input RootQueryToCommentConnectionWhereArgs {
   search: String
 
   "Comment status to limit results by."
-  status: String @deprecated(reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string")
+  status: String
+    @deprecated(
+      reason: "Deprecated in favor of statusIn which accepts a list of one or more CommentStatusEnum values instead of a string"
+    )
 
   "One or more Comment Statuses to limit results by"
   statusIn: [CommentStatusEnum]
@@ -9253,7 +9552,9 @@ type RootQueryToCommentConnectionEdge implements CommentConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToCommentConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToCommentConnection Nodes."
-type RootQueryToCommentConnectionPageInfo implements CommentConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToCommentConnectionPageInfo implements CommentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -9343,7 +9644,8 @@ input RootQueryToContentNodeConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the ContentNode type"
-type RootQueryToContentNodeConnection implements ContentNodeConnection & Connection {
+type RootQueryToContentNodeConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the RootQueryToContentNodeConnection connection"
   edges: [RootQueryToContentNodeConnectionEdge!]!
 
@@ -9355,7 +9657,8 @@ type RootQueryToContentNodeConnection implements ContentNodeConnection & Connect
 }
 
 "An edge in a connection"
-type RootQueryToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type RootQueryToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -9364,7 +9667,9 @@ type RootQueryToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
 }
 
 "Pagination metadata specific to &quot;RootQueryToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToContentNodeConnection Nodes."
-type RootQueryToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -9388,7 +9693,8 @@ enum ContentTypeIdTypeEnum {
 }
 
 "Connection between the RootQuery type and the ContentType type"
-type RootQueryToContentTypeConnection implements ContentTypeConnection & Connection {
+type RootQueryToContentTypeConnection implements ContentTypeConnection &
+  Connection {
   "Edges for the RootQueryToContentTypeConnection connection"
   edges: [RootQueryToContentTypeConnectionEdge!]!
 
@@ -9400,7 +9706,8 @@ type RootQueryToContentTypeConnection implements ContentTypeConnection & Connect
 }
 
 "An edge in a connection"
-type RootQueryToContentTypeConnectionEdge implements ContentTypeConnectionEdge & Edge {
+type RootQueryToContentTypeConnectionEdge implements ContentTypeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -9409,7 +9716,9 @@ type RootQueryToContentTypeConnectionEdge implements ContentTypeConnectionEdge &
 }
 
 "Pagination metadata specific to &quot;RootQueryToContentTypeConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToContentTypeConnection Nodes."
-type RootQueryToContentTypeConnectionPageInfo implements ContentTypeConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToContentTypeConnectionPageInfo implements ContentTypeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -9481,7 +9790,9 @@ type GeneralSettings implements Node {
 }
 
 "Connection between the GeneralSettings type and the MediaItem type"
-type GeneralSettingsToMediaItemConnectionEdge implements OneToOneConnection & Edge & MediaItemConnectionEdge {
+type GeneralSettingsToMediaItemConnectionEdge implements OneToOneConnection &
+  Edge &
+  MediaItemConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -9505,7 +9816,13 @@ enum GraphqlDocumentIdType {
 }
 
 "Saved GraphQL Documents"
-type GraphqlDocument implements Node & ContentNode & UniformResourceIdentifiable & DatabaseIdentifier & NodeWithTemplate & NodeWithTitle & NodeWithContentEditor {
+type GraphqlDocument implements Node &
+  ContentNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier &
+  NodeWithTemplate &
+  NodeWithTitle &
+  NodeWithContentEditor {
   "Alias names for saved GraphQL query documents"
   alias: [String!]
 
@@ -9522,7 +9839,10 @@ type GraphqlDocument implements Node & ContentNode & UniformResourceIdentifiable
 
     "Cursor used along with the \"last\" argument to reference where in the dataset to get data"
     before: String
-  ): GraphqlDocumentToGraphqlDocumentConnection @deprecated(reason: "This content type is not hierarchical and typically will not have ancestors")
+  ): GraphqlDocumentToGraphqlDocumentConnection
+    @deprecated(
+      reason: "This content type is not hierarchical and typically will not have ancestors"
+    )
 
   "The content of the post."
   content(
@@ -9615,7 +9935,8 @@ type GraphqlDocument implements Node & ContentNode & UniformResourceIdentifiable
   ): GraphqlDocumentToGraphqlDocumentGroupConnection
 
   "The unique numeric identifier for the content node."
-  graphqlDocumentId: Int! @deprecated(reason: "Deprecated in favor of the databaseId field")
+  graphqlDocumentId: Int!
+    @deprecated(reason: "Deprecated in favor of the databaseId field")
 
   "The global unique identifier for this content node. This is a stable, unique identifier for the node that does not change even if the node is moved or its url changes."
   guid: String
@@ -9663,13 +9984,19 @@ type GraphqlDocument implements Node & ContentNode & UniformResourceIdentifiable
   modifiedGmt: String
 
   "The parent of the content node."
-  parent: GraphqlDocumentToParentConnectionEdge @deprecated(reason: "This content type is not hierarchical and typically will not have a parent")
+  parent: GraphqlDocumentToParentConnectionEdge
+    @deprecated(
+      reason: "This content type is not hierarchical and typically will not have a parent"
+    )
 
   "The password for the graphql_document object."
   password: String
 
   "Connection between the graphqlDocument type and the graphqlDocument type"
-  preview: GraphqlDocumentToPreviewConnectionEdge @deprecated(reason: "The &quot;GraphqlDocument&quot; Type is not publicly queryable and does not support previews. This field will be removed in the future.")
+  preview: GraphqlDocumentToPreviewConnectionEdge
+    @deprecated(
+      reason: "The &quot;GraphqlDocument&quot; Type is not publicly queryable and does not support previews. This field will be removed in the future."
+    )
 
   "The database id of the preview node"
   previewRevisionDatabaseId: Int
@@ -9705,17 +10032,15 @@ type GraphqlDocument implements Node & ContentNode & UniformResourceIdentifiable
   ): GraphqlDocumentToTermNodeConnection
 
   "The title of the post. This is currently just the raw title. An amendment to support rendered title needs to be made."
-  title(
-    "Format of the field output"
-    format: PostObjectFieldFormatEnum
-  ): String
+  title("Format of the field output" format: PostObjectFieldFormatEnum): String
 
   "The unique resource identifier path"
   uri: String
 }
 
 "Connection between the graphqlDocument type and the graphqlDocument type"
-type GraphqlDocumentToGraphqlDocumentConnection implements GraphqlDocumentConnection & Connection {
+type GraphqlDocumentToGraphqlDocumentConnection implements GraphqlDocumentConnection &
+  Connection {
   "Edges for the GraphqlDocumentToGraphqlDocumentConnection connection"
   edges: [GraphqlDocumentToGraphqlDocumentConnectionEdge!]!
 
@@ -9763,7 +10088,8 @@ interface GraphqlDocumentConnectionPageInfo implements WPPageInfo & PageInfo {
 }
 
 "An edge in a connection"
-type GraphqlDocumentToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge & Edge {
+type GraphqlDocumentToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -9772,7 +10098,9 @@ type GraphqlDocumentToGraphqlDocumentConnectionEdge implements GraphqlDocumentCo
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentToGraphqlDocumentConnection&quot; collections. Provides cursors and flags for navigating through sets of GraphqlDocumentToGraphqlDocumentConnection Nodes."
-type GraphqlDocumentToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo & WPPageInfo & PageInfo {
+type GraphqlDocumentToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -9843,7 +10171,10 @@ input GraphqlDocumentToGraphqlDocumentGroupConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -9853,7 +10184,8 @@ input GraphqlDocumentToGraphqlDocumentGroupConnectionWhereArgs {
 }
 
 "Connection between the GraphqlDocument type and the graphqlDocumentGroup type"
-type GraphqlDocumentToGraphqlDocumentGroupConnection implements GraphqlDocumentGroupConnection & Connection {
+type GraphqlDocumentToGraphqlDocumentGroupConnection implements GraphqlDocumentGroupConnection &
+  Connection {
   "Edges for the GraphqlDocumentToGraphqlDocumentGroupConnection connection"
   edges: [GraphqlDocumentToGraphqlDocumentGroupConnectionEdge!]!
 
@@ -9886,7 +10218,10 @@ interface GraphqlDocumentGroupConnectionEdge implements Edge {
 }
 
 "Tag the saved query document with other queries as a &quot;group&quot;."
-type GraphqlDocumentGroup implements Node & TermNode & UniformResourceIdentifiable & DatabaseIdentifier {
+type GraphqlDocumentGroup implements Node &
+  TermNode &
+  UniformResourceIdentifiable &
+  DatabaseIdentifier {
   "Connection between the GraphqlDocumentGroup type and the ContentNode type"
   contentNodes(
     "The number of items to return after the referenced \"after\" cursor"
@@ -9951,7 +10286,8 @@ type GraphqlDocumentGroup implements Node & TermNode & UniformResourceIdentifiab
   ): TermNodeToEnqueuedStylesheetConnection
 
   "The unique numeric identifier for the term."
-  graphqlDocumentGroupId: Int @deprecated(reason: "Deprecated in favor of databaseId")
+  graphqlDocumentGroupId: Int
+    @deprecated(reason: "Deprecated in favor of databaseId")
 
   "Connection between the GraphqlDocumentGroup type and the graphqlDocument type"
   graphqlDocuments(
@@ -10087,7 +10423,8 @@ enum ContentTypesOfGraphqlDocumentGroupEnum {
 }
 
 "Connection between the GraphqlDocumentGroup type and the ContentNode type"
-type GraphqlDocumentGroupToContentNodeConnection implements ContentNodeConnection & Connection {
+type GraphqlDocumentGroupToContentNodeConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the GraphqlDocumentGroupToContentNodeConnection connection"
   edges: [GraphqlDocumentGroupToContentNodeConnectionEdge!]!
 
@@ -10099,7 +10436,8 @@ type GraphqlDocumentGroupToContentNodeConnection implements ContentNodeConnectio
 }
 
 "An edge in a connection"
-type GraphqlDocumentGroupToContentNodeConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type GraphqlDocumentGroupToContentNodeConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10108,7 +10446,9 @@ type GraphqlDocumentGroupToContentNodeConnectionEdge implements ContentNodeConne
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentGroupToContentNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of GraphqlDocumentGroupToContentNodeConnection Nodes."
-type GraphqlDocumentGroupToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type GraphqlDocumentGroupToContentNodeConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10183,7 +10523,8 @@ input GraphqlDocumentGroupToGraphqlDocumentConnectionWhereArgs {
 }
 
 "Connection between the GraphqlDocumentGroup type and the graphqlDocument type"
-type GraphqlDocumentGroupToGraphqlDocumentConnection implements GraphqlDocumentConnection & Connection {
+type GraphqlDocumentGroupToGraphqlDocumentConnection implements GraphqlDocumentConnection &
+  Connection {
   "Edges for the GraphqlDocumentGroupToGraphqlDocumentConnection connection"
   edges: [GraphqlDocumentGroupToGraphqlDocumentConnectionEdge!]!
 
@@ -10195,7 +10536,8 @@ type GraphqlDocumentGroupToGraphqlDocumentConnection implements GraphqlDocumentC
 }
 
 "An edge in a connection"
-type GraphqlDocumentGroupToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge & Edge {
+type GraphqlDocumentGroupToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10204,7 +10546,9 @@ type GraphqlDocumentGroupToGraphqlDocumentConnectionEdge implements GraphqlDocum
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentGroupToGraphqlDocumentConnection&quot; collections. Provides cursors and flags for navigating through sets of GraphqlDocumentGroupToGraphqlDocumentConnection Nodes."
-type GraphqlDocumentGroupToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo & WPPageInfo & PageInfo {
+type GraphqlDocumentGroupToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10219,7 +10563,9 @@ type GraphqlDocumentGroupToGraphqlDocumentConnectionPageInfo implements GraphqlD
 }
 
 "Connection between the GraphqlDocumentGroup type and the Taxonomy type"
-type GraphqlDocumentGroupToTaxonomyConnectionEdge implements OneToOneConnection & Edge & TaxonomyConnectionEdge {
+type GraphqlDocumentGroupToTaxonomyConnectionEdge implements OneToOneConnection &
+  Edge &
+  TaxonomyConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -10228,7 +10574,8 @@ type GraphqlDocumentGroupToTaxonomyConnectionEdge implements OneToOneConnection 
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentGroupConnectionEdge&quot; collections. Provides cursors and flags for navigating through sets of &quot;GraphqlDocumentGroupConnectionEdge&quot; Nodes."
-interface GraphqlDocumentGroupConnectionPageInfo implements WPPageInfo & PageInfo {
+interface GraphqlDocumentGroupConnectionPageInfo implements WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10243,7 +10590,8 @@ interface GraphqlDocumentGroupConnectionPageInfo implements WPPageInfo & PageInf
 }
 
 "An edge in a connection"
-type GraphqlDocumentToGraphqlDocumentGroupConnectionEdge implements GraphqlDocumentGroupConnectionEdge & Edge {
+type GraphqlDocumentToGraphqlDocumentGroupConnectionEdge implements GraphqlDocumentGroupConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10252,7 +10600,9 @@ type GraphqlDocumentToGraphqlDocumentGroupConnectionEdge implements GraphqlDocum
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentToGraphqlDocumentGroupConnection&quot; collections. Provides cursors and flags for navigating through sets of GraphqlDocumentToGraphqlDocumentGroupConnection Nodes."
-type GraphqlDocumentToGraphqlDocumentGroupConnectionPageInfo implements GraphqlDocumentGroupConnectionPageInfo & WPPageInfo & PageInfo {
+type GraphqlDocumentToGraphqlDocumentGroupConnectionPageInfo implements GraphqlDocumentGroupConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10267,7 +10617,9 @@ type GraphqlDocumentToGraphqlDocumentGroupConnectionPageInfo implements GraphqlD
 }
 
 "Connection between the graphqlDocument type and the graphqlDocument type"
-type GraphqlDocumentToParentConnectionEdge implements OneToOneConnection & Edge & GraphqlDocumentConnectionEdge {
+type GraphqlDocumentToParentConnectionEdge implements OneToOneConnection &
+  Edge &
+  GraphqlDocumentConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -10276,7 +10628,9 @@ type GraphqlDocumentToParentConnectionEdge implements OneToOneConnection & Edge 
 }
 
 "Connection between the graphqlDocument type and the graphqlDocument type"
-type GraphqlDocumentToPreviewConnectionEdge implements OneToOneConnection & Edge & GraphqlDocumentConnectionEdge {
+type GraphqlDocumentToPreviewConnectionEdge implements OneToOneConnection &
+  Edge &
+  GraphqlDocumentConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -10344,7 +10698,10 @@ input GraphqlDocumentToTermNodeConnectionWhereArgs {
   taxonomies: [TaxonomyEnum]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -10354,7 +10711,8 @@ input GraphqlDocumentToTermNodeConnectionWhereArgs {
 }
 
 "Connection between the GraphqlDocument type and the TermNode type"
-type GraphqlDocumentToTermNodeConnection implements TermNodeConnection & Connection {
+type GraphqlDocumentToTermNodeConnection implements TermNodeConnection &
+  Connection {
   "Edges for the GraphqlDocumentToTermNodeConnection connection"
   edges: [GraphqlDocumentToTermNodeConnectionEdge!]!
 
@@ -10366,7 +10724,8 @@ type GraphqlDocumentToTermNodeConnection implements TermNodeConnection & Connect
 }
 
 "An edge in a connection"
-type GraphqlDocumentToTermNodeConnectionEdge implements TermNodeConnectionEdge & Edge {
+type GraphqlDocumentToTermNodeConnectionEdge implements TermNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10375,7 +10734,9 @@ type GraphqlDocumentToTermNodeConnectionEdge implements TermNodeConnectionEdge &
 }
 
 "Pagination metadata specific to &quot;GraphqlDocumentToTermNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of GraphqlDocumentToTermNodeConnection Nodes."
-type GraphqlDocumentToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type GraphqlDocumentToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10464,7 +10825,10 @@ input RootQueryToGraphqlDocumentGroupConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -10474,7 +10838,8 @@ input RootQueryToGraphqlDocumentGroupConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the graphqlDocumentGroup type"
-type RootQueryToGraphqlDocumentGroupConnection implements GraphqlDocumentGroupConnection & Connection {
+type RootQueryToGraphqlDocumentGroupConnection implements GraphqlDocumentGroupConnection &
+  Connection {
   "Edges for the RootQueryToGraphqlDocumentGroupConnection connection"
   edges: [RootQueryToGraphqlDocumentGroupConnectionEdge!]!
 
@@ -10486,7 +10851,8 @@ type RootQueryToGraphqlDocumentGroupConnection implements GraphqlDocumentGroupCo
 }
 
 "An edge in a connection"
-type RootQueryToGraphqlDocumentGroupConnectionEdge implements GraphqlDocumentGroupConnectionEdge & Edge {
+type RootQueryToGraphqlDocumentGroupConnectionEdge implements GraphqlDocumentGroupConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10495,7 +10861,9 @@ type RootQueryToGraphqlDocumentGroupConnectionEdge implements GraphqlDocumentGro
 }
 
 "Pagination metadata specific to &quot;RootQueryToGraphqlDocumentGroupConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToGraphqlDocumentGroupConnection Nodes."
-type RootQueryToGraphqlDocumentGroupConnectionPageInfo implements GraphqlDocumentGroupConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToGraphqlDocumentGroupConnectionPageInfo implements GraphqlDocumentGroupConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10570,7 +10938,8 @@ input RootQueryToGraphqlDocumentConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the graphqlDocument type"
-type RootQueryToGraphqlDocumentConnection implements GraphqlDocumentConnection & Connection {
+type RootQueryToGraphqlDocumentConnection implements GraphqlDocumentConnection &
+  Connection {
   "Edges for the RootQueryToGraphqlDocumentConnection connection"
   edges: [RootQueryToGraphqlDocumentConnectionEdge!]!
 
@@ -10582,7 +10951,8 @@ type RootQueryToGraphqlDocumentConnection implements GraphqlDocumentConnection &
 }
 
 "An edge in a connection"
-type RootQueryToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge & Edge {
+type RootQueryToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10591,7 +10961,9 @@ type RootQueryToGraphqlDocumentConnectionEdge implements GraphqlDocumentConnecti
 }
 
 "Pagination metadata specific to &quot;RootQueryToGraphqlDocumentConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToGraphqlDocumentConnection Nodes."
-type RootQueryToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToGraphqlDocumentConnectionPageInfo implements GraphqlDocumentConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10696,7 +11068,8 @@ input RootQueryToMediaItemConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the mediaItem type"
-type RootQueryToMediaItemConnection implements MediaItemConnection & Connection {
+type RootQueryToMediaItemConnection implements MediaItemConnection &
+  Connection {
   "Edges for the RootQueryToMediaItemConnection connection"
   edges: [RootQueryToMediaItemConnectionEdge!]!
 
@@ -10708,7 +11081,8 @@ type RootQueryToMediaItemConnection implements MediaItemConnection & Connection 
 }
 
 "An edge in a connection"
-type RootQueryToMediaItemConnectionEdge implements MediaItemConnectionEdge & Edge {
+type RootQueryToMediaItemConnectionEdge implements MediaItemConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -10717,7 +11091,9 @@ type RootQueryToMediaItemConnectionEdge implements MediaItemConnectionEdge & Edg
 }
 
 "Pagination metadata specific to &quot;RootQueryToMediaItemConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToMediaItemConnection Nodes."
-type RootQueryToMediaItemConnectionPageInfo implements MediaItemConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToMediaItemConnectionPageInfo implements MediaItemConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10872,7 +11248,8 @@ type MenuItem implements Node & DatabaseIdentifier {
   connectedNode: MenuItemToMenuItemLinkableConnectionEdge
 
   "The object connected to this menu item."
-  connectedObject: MenuItemObjectUnion @deprecated(reason: "Deprecated in favor of the connectedNode field")
+  connectedObject: MenuItemObjectUnion
+    @deprecated(reason: "Deprecated in favor of the connectedNode field")
 
   "Class attribute for the menu item link"
   cssClasses: [String]
@@ -10902,7 +11279,8 @@ type MenuItem implements Node & DatabaseIdentifier {
   menu: MenuItemToMenuConnectionEdge
 
   "WP ID of the menu item."
-  menuItemId: Int @deprecated(reason: "Deprecated in favor of the databaseId field")
+  menuItemId: Int
+    @deprecated(reason: "Deprecated in favor of the databaseId field")
 
   "Menu item order"
   order: Int
@@ -10966,7 +11344,9 @@ type MenuItemToMenuItemConnectionEdge implements MenuItemConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;MenuItemToMenuItemConnection&quot; collections. Provides cursors and flags for navigating through sets of MenuItemToMenuItemConnection Nodes."
-type MenuItemToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo & WPPageInfo & PageInfo {
+type MenuItemToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -10996,7 +11376,9 @@ interface MenuItemConnectionPageInfo implements WPPageInfo & PageInfo {
 }
 
 "Connection between the MenuItem type and the MenuItemLinkable type"
-type MenuItemToMenuItemLinkableConnectionEdge implements OneToOneConnection & Edge & MenuItemLinkableConnectionEdge {
+type MenuItemToMenuItemLinkableConnectionEdge implements OneToOneConnection &
+  Edge &
+  MenuItemLinkableConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -11017,7 +11399,9 @@ interface MenuItemLinkableConnectionEdge implements Edge {
 union MenuItemObjectUnion = Post | Page | Category | Tag
 
 "Connection between the MenuItem type and the Menu type"
-type MenuItemToMenuConnectionEdge implements OneToOneConnection & Edge & MenuConnectionEdge {
+type MenuItemToMenuConnectionEdge implements OneToOneConnection &
+  Edge &
+  MenuConnectionEdge {
   "Opaque reference to the nodes position in the connection. Value can be used with pagination args."
   cursor: String
 
@@ -11044,7 +11428,9 @@ type MenuToMenuItemConnectionEdge implements MenuItemConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;MenuToMenuItemConnection&quot; collections. Provides cursors and flags for navigating through sets of MenuToMenuItemConnection Nodes."
-type MenuToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo & WPPageInfo & PageInfo {
+type MenuToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11095,7 +11481,8 @@ type RootQueryToMenuItemConnection implements MenuItemConnection & Connection {
 }
 
 "An edge in a connection"
-type RootQueryToMenuItemConnectionEdge implements MenuItemConnectionEdge & Edge {
+type RootQueryToMenuItemConnectionEdge implements MenuItemConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -11104,7 +11491,9 @@ type RootQueryToMenuItemConnectionEdge implements MenuItemConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;RootQueryToMenuItemConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToMenuItemConnection Nodes."
-type RootQueryToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToMenuItemConnectionPageInfo implements MenuItemConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11179,7 +11568,9 @@ type RootQueryToMenuConnectionEdge implements MenuConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToMenuConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToMenuConnection Nodes."
-type RootQueryToMenuConnectionPageInfo implements MenuConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToMenuConnectionPageInfo implements MenuConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11299,7 +11690,9 @@ type RootQueryToPageConnectionEdge implements PageConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToPageConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToPageConnection Nodes."
-type RootQueryToPageConnectionPageInfo implements PageConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToPageConnectionPageInfo implements PageConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11452,7 +11845,9 @@ type RootQueryToPluginConnectionEdge implements PluginConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToPluginConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToPluginConnection Nodes."
-type RootQueryToPluginConnectionPageInfo implements PluginConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToPluginConnectionPageInfo implements PluginConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11556,7 +11951,10 @@ input RootQueryToPostFormatConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -11566,7 +11964,8 @@ input RootQueryToPostFormatConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the postFormat type"
-type RootQueryToPostFormatConnection implements PostFormatConnection & Connection {
+type RootQueryToPostFormatConnection implements PostFormatConnection &
+  Connection {
   "Edges for the RootQueryToPostFormatConnection connection"
   edges: [RootQueryToPostFormatConnectionEdge!]!
 
@@ -11578,7 +11977,8 @@ type RootQueryToPostFormatConnection implements PostFormatConnection & Connectio
 }
 
 "An edge in a connection"
-type RootQueryToPostFormatConnectionEdge implements PostFormatConnectionEdge & Edge {
+type RootQueryToPostFormatConnectionEdge implements PostFormatConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -11587,7 +11987,9 @@ type RootQueryToPostFormatConnectionEdge implements PostFormatConnectionEdge & E
 }
 
 "Pagination metadata specific to &quot;RootQueryToPostFormatConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToPostFormatConnection Nodes."
-type RootQueryToPostFormatConnectionPageInfo implements PostFormatConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToPostFormatConnectionPageInfo implements PostFormatConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11725,7 +12127,9 @@ type RootQueryToPostConnectionEdge implements PostConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToPostConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToPostConnection Nodes."
-type RootQueryToPostConnectionPageInfo implements PostConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToPostConnectionPageInfo implements PostConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11764,7 +12168,8 @@ input RootQueryToEnqueuedScriptConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the EnqueuedScript type"
-type RootQueryToEnqueuedScriptConnection implements EnqueuedScriptConnection & Connection {
+type RootQueryToEnqueuedScriptConnection implements EnqueuedScriptConnection &
+  Connection {
   "Edges for the RootQueryToEnqueuedScriptConnection connection"
   edges: [RootQueryToEnqueuedScriptConnectionEdge!]!
 
@@ -11776,7 +12181,8 @@ type RootQueryToEnqueuedScriptConnection implements EnqueuedScriptConnection & C
 }
 
 "An edge in a connection"
-type RootQueryToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge & Edge {
+type RootQueryToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -11785,7 +12191,9 @@ type RootQueryToEnqueuedScriptConnectionEdge implements EnqueuedScriptConnection
 }
 
 "Pagination metadata specific to &quot;RootQueryToEnqueuedScriptConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToEnqueuedScriptConnection Nodes."
-type RootQueryToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToEnqueuedScriptConnectionPageInfo implements EnqueuedScriptConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11806,7 +12214,8 @@ input RootQueryToEnqueuedStylesheetConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the EnqueuedStylesheet type"
-type RootQueryToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection & Connection {
+type RootQueryToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnection &
+  Connection {
   "Edges for the RootQueryToEnqueuedStylesheetConnection connection"
   edges: [RootQueryToEnqueuedStylesheetConnectionEdge!]!
 
@@ -11818,7 +12227,8 @@ type RootQueryToEnqueuedStylesheetConnection implements EnqueuedStylesheetConnec
 }
 
 "An edge in a connection"
-type RootQueryToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge & Edge {
+type RootQueryToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -11827,7 +12237,9 @@ type RootQueryToEnqueuedStylesheetConnectionEdge implements EnqueuedStylesheetCo
 }
 
 "Pagination metadata specific to &quot;RootQueryToEnqueuedStylesheetConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToEnqueuedStylesheetConnection Nodes."
-type RootQueryToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToEnqueuedStylesheetConnectionPageInfo implements EnqueuedStylesheetConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -11905,7 +12317,8 @@ input RootQueryToRevisionsConnectionWhereArgs {
 }
 
 "Connection between the RootQuery type and the ContentNode type"
-type RootQueryToRevisionsConnection implements ContentNodeConnection & Connection {
+type RootQueryToRevisionsConnection implements ContentNodeConnection &
+  Connection {
   "Edges for the RootQueryToRevisionsConnection connection"
   edges: [RootQueryToRevisionsConnectionEdge!]!
 
@@ -11917,7 +12330,8 @@ type RootQueryToRevisionsConnection implements ContentNodeConnection & Connectio
 }
 
 "An edge in a connection"
-type RootQueryToRevisionsConnectionEdge implements ContentNodeConnectionEdge & Edge {
+type RootQueryToRevisionsConnectionEdge implements ContentNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -11926,7 +12340,9 @@ type RootQueryToRevisionsConnectionEdge implements ContentNodeConnectionEdge & E
 }
 
 "Pagination metadata specific to &quot;RootQueryToRevisionsConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToRevisionsConnection Nodes."
-type RootQueryToRevisionsConnectionPageInfo implements ContentNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToRevisionsConnectionPageInfo implements ContentNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12015,7 +12431,10 @@ input RootQueryToTagConnectionWhereArgs {
   slug: [String]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -12046,7 +12465,9 @@ type RootQueryToTagConnectionEdge implements TagConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToTagConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToTagConnection Nodes."
-type RootQueryToTagConnectionPageInfo implements TagConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToTagConnectionPageInfo implements TagConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12073,7 +12494,8 @@ type RootQueryToTaxonomyConnection implements TaxonomyConnection & Connection {
 }
 
 "An edge in a connection"
-type RootQueryToTaxonomyConnectionEdge implements TaxonomyConnectionEdge & Edge {
+type RootQueryToTaxonomyConnectionEdge implements TaxonomyConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -12082,7 +12504,9 @@ type RootQueryToTaxonomyConnectionEdge implements TaxonomyConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;RootQueryToTaxonomyConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToTaxonomyConnection Nodes."
-type RootQueryToTaxonomyConnectionPageInfo implements TaxonomyConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToTaxonomyConnectionPageInfo implements TaxonomyConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12183,7 +12607,10 @@ input RootQueryToTermNodeConnectionWhereArgs {
   taxonomies: [TaxonomyEnum]
 
   "Array of term taxonomy IDs, to match when querying terms."
-  termTaxonomId: [ID] @deprecated(reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL.")
+  termTaxonomId: [ID]
+    @deprecated(
+      reason: "Use `termTaxonomyId` instead. This will be removed in the next major version of WPGraphQL."
+    )
 
   "Array of term taxonomy IDs, to match when querying terms."
   termTaxonomyId: [ID]
@@ -12205,7 +12632,8 @@ type RootQueryToTermNodeConnection implements TermNodeConnection & Connection {
 }
 
 "An edge in a connection"
-type RootQueryToTermNodeConnectionEdge implements TermNodeConnectionEdge & Edge {
+type RootQueryToTermNodeConnectionEdge implements TermNodeConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -12214,7 +12642,9 @@ type RootQueryToTermNodeConnectionEdge implements TermNodeConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;RootQueryToTermNodeConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToTermNodeConnection Nodes."
-type RootQueryToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToTermNodeConnectionPageInfo implements TermNodeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12322,7 +12752,9 @@ type RootQueryToThemeConnectionEdge implements ThemeConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToThemeConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToThemeConnection Nodes."
-type RootQueryToThemeConnectionPageInfo implements ThemeConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToThemeConnectionPageInfo implements ThemeConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12370,7 +12802,8 @@ type RootQueryToUserRoleConnection implements UserRoleConnection & Connection {
 }
 
 "An edge in a connection"
-type RootQueryToUserRoleConnectionEdge implements UserRoleConnectionEdge & Edge {
+type RootQueryToUserRoleConnectionEdge implements UserRoleConnectionEdge &
+  Edge {
   "A cursor for use in pagination"
   cursor: String
 
@@ -12379,7 +12812,9 @@ type RootQueryToUserRoleConnectionEdge implements UserRoleConnectionEdge & Edge 
 }
 
 "Pagination metadata specific to &quot;RootQueryToUserRoleConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToUserRoleConnection Nodes."
-type RootQueryToUserRoleConnectionPageInfo implements UserRoleConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToUserRoleConnectionPageInfo implements UserRoleConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12562,7 +12997,9 @@ type RootQueryToUserConnectionEdge implements UserConnectionEdge & Edge {
 }
 
 "Pagination metadata specific to &quot;RootQueryToUserConnection&quot; collections. Provides cursors and flags for navigating through sets of RootQueryToUserConnection Nodes."
-type RootQueryToUserConnectionPageInfo implements UserConnectionPageInfo & WPPageInfo & PageInfo {
+type RootQueryToUserConnectionPageInfo implements UserConnectionPageInfo &
+  WPPageInfo &
+  PageInfo {
   "When paginating forwards, the cursor to continue."
   endCursor: String
 
@@ -12714,10 +13151,7 @@ type RootMutation {
   ): DeleteUserPayload
 
   "Increase the count."
-  increaseCount(
-    "The count to increase"
-    count: Int
-  ): Int
+  increaseCount("The count to increase" count: Int): Int
 
   "The registerUser mutation"
   registerUser(
@@ -12846,7 +13280,8 @@ type CreateCategoryPayload {
 "Input for the createComment mutation."
 input CreateCommentInput {
   "The approval status of the comment."
-  approved: String @deprecated(reason: "Deprecated in favor of the status field")
+  approved: String
+    @deprecated(reason: "Deprecated in favor of the status field")
 
   "The name of the comment's author."
   author: String
@@ -13728,7 +14163,10 @@ type SendPasswordResetEmailPayload {
   success: Boolean
 
   "The user that the password reset email was sent to"
-  user: User @deprecated(reason: "This field will be removed in a future version of WPGraphQL")
+  user: User
+    @deprecated(
+      reason: "This field will be removed in a future version of WPGraphQL"
+    )
 }
 
 "Input for the updateCategory mutation."
@@ -13770,7 +14208,8 @@ type UpdateCategoryPayload {
 "Input for the updateComment mutation."
 input UpdateCommentInput {
   "The approval status of the comment."
-  approved: String @deprecated(reason: "Deprecated in favor of the status field")
+  approved: String
+    @deprecated(reason: "Deprecated in favor of the status field")
 
   "The name of the comment's author."
   author: String
@@ -14151,7 +14590,10 @@ input UpdateSettingsInput {
   generalSettingsTitle: String
 
   "Site URL."
-  generalSettingsUrl: String @deprecated(reason: "The site URL is read-only and cannot be changed through the API.")
+  generalSettingsUrl: String
+    @deprecated(
+      reason: "The site URL is read-only and cannot be changed through the API."
+    )
 
   "The ID of the page that should display the latest posts"
   readingSettingsPageForPosts: Int

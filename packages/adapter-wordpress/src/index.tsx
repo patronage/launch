@@ -139,8 +139,8 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
     };
   };
 
-  const links = (rows: AcfLinkRow[] | null | undefined): Link[] =>
-    (rows ?? []).flatMap((row) => link(row.link, row.variant) ?? []);
+  const links = (rows: (AcfLinkRow | null)[] | null | undefined): Link[] =>
+    (rows ?? []).flatMap((row) => link(row?.link, row?.variant) ?? []);
 
   const image = (acf: AcfImage | null | undefined): Image | undefined => {
     const node = acf?.node;
@@ -214,7 +214,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       case "PageBuilderSectionsCardGridLayout": {
         return compact({
           cards: (layout.cards ?? []).flatMap((card, index) =>
-            card.title
+            card?.title
               ? [
                   compact({
                     id: `${id}-card-${index}`,
@@ -281,11 +281,12 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       page.pageBuilder?.sections ?? []
     ).entries()) {
       // ACF flexible content rows have no stable id, so the row index stands in.
-      const mapped = isKnownLayout(layout)
-        ? block(layout, `${layoutName(layout.__typename)}-${index}`)
-        : undefined;
+      const mapped =
+        layout && isKnownLayout(layout)
+          ? block(layout, `${layoutName(layout.__typename)}-${index}`)
+          : undefined;
 
-      if (mapped) {
+      if (layout && mapped) {
         sections.push({
           block: mapped,
           options: sectionOptions(layout.sectionOptions),

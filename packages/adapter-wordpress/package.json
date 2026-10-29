@@ -5,19 +5,26 @@
   "type": "module",
   "exports": {
     ".": "./src/index.tsx",
-    "./fixtures": "./fixtures/index.ts"
+    "./fixtures": "./fixtures/index.ts",
+    "./page-builder.graphql": "./src/page-builder.graphql"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "codegen": "graphql-codegen --config codegen.ts",
+    "test": "graphql-codegen --config codegen.ts --check && vitest run",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@launch/content-model": "workspace:*"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "7.4.6",
+    "@graphql-codegen/typescript": "6.1.2",
+    "@graphql-codegen/typescript-operations": "6.2.0",
+    "@graphql-typed-document-node/core": "3.2.0",
     "@launch/ui": "workspace:*",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",
+    "graphql": "17.0.2",
     "react": "19.2.9",
     "react-dom": "19.2.9",
     "typescript": "7.0.2",

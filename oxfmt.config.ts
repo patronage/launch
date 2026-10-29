@@ -14,5 +14,7 @@ export default defineConfig({
     ...(ultracite.ignorePatterns ?? []),
     "**/*.generated.ts",
     ...payloadGenerated,
+    // Written by `pnpm --filter @launch/adapter-wordpress codegen`.
+    "packages/adapter-wordpress/src/gql/**",
   ],
 });
