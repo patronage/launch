@@ -30,7 +30,7 @@ describe("WordPress adapter", () => {
     ]);
   });
 
-  it("reads one-item select arrays and slugifies anchors", () => {
+  it("reads section options and slugifies anchors", () => {
     expect(intro?.options).toStrictEqual({
       hidden: false,
       paddingBottom: "lg",

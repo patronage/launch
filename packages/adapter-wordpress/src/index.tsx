@@ -21,7 +21,7 @@ import {
 import type { ReactNode } from "react";
 
 import type {
-  AcfButton,
+  AcfLinkRow,
   AcfImage,
   AcfLink,
   AcfSectionOptions,
@@ -83,12 +83,12 @@ const sectionOptions = (
   acf: AcfSectionOptions | null | undefined
 ): SectionOptions =>
   compact({
-    hidden: acf?.hide === true,
+    hidden: acf?.hidden === true,
     paddingBottom: toSpacing(acf?.paddingBottom),
     paddingTop: toSpacing(acf?.paddingTop),
-    skin: toSkin(acf?.background),
+    skin: toSkin(acf?.skin),
     slug: slugify(acf?.anchor),
-    width: toWidth(acf?.containerWidth),
+    width: toWidth(acf?.width),
   });
 
 export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
@@ -124,7 +124,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
 
   const link = (
     acf: AcfLink | null | undefined,
-    style?: SelectValue
+    variant?: SelectValue
   ): Link | undefined => {
     if (!(acf?.url && acf.title)) {
       return undefined;
@@ -134,13 +134,13 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       href: localizeUrl(acf.url),
       label: acf.title,
       newTab: acf.target === "_blank",
-      // Card links have no style field and render as text links.
-      variant: style === undefined ? "text" : toLinkVariant(style),
+      // Card links have no variant field and render as text links.
+      variant: variant === undefined ? "text" : toLinkVariant(variant),
     };
   };
 
-  const buttons = (rows: AcfButton[] | null | undefined): Link[] =>
-    (rows ?? []).flatMap((row) => link(row.link, row.style) ?? []);
+  const links = (rows: AcfLinkRow[] | null | undefined): Link[] =>
+    (rows ?? []).flatMap((row) => link(row.link, row.variant) ?? []);
 
   const image = (acf: AcfImage | null | undefined): Image | undefined => {
     const node = acf?.node;
@@ -172,33 +172,33 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
     switch (layout.__typename) {
       case "PageBuilderSectionsContentLayout": {
         return compact({
-          align: oneOf(["start", "center"] as const, layout.alignment, "start"),
-          body: richText(layout.content),
+          align: oneOf(["start", "center"] as const, layout.align, "start"),
+          body: richText(layout.body),
           eyebrow: layout.eyebrow ?? undefined,
           heading: layout.heading ?? undefined,
           id,
-          links: buttons(layout.buttons),
+          links: links(layout.links),
           type: "content",
         });
       }
 
       case "PageBuilderSectionsContentMediaLayout": {
-        const m = media(layout.image);
+        const m = media(layout.media);
 
         if (!m) {
           return undefined;
         }
 
         return compact({
-          body: richText(layout.content),
+          body: richText(layout.body),
           eyebrow: layout.eyebrow ?? undefined,
           heading: layout.heading ?? undefined,
           id,
-          links: buttons(layout.buttons),
+          links: links(layout.links),
           media: m,
           mediaPosition: oneOf(
             ["start", "end"] as const,
-            layout.imagePosition,
+            layout.mediaPosition,
             "end"
           ),
           type: "contentMedia",
@@ -206,7 +206,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       }
 
       case "PageBuilderSectionsMediaLayout": {
-        const m = media(layout.image);
+        const m = media(layout.media);
 
         return m ? { id, media: m, type: "media" } : undefined;
       }
@@ -254,10 +254,10 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
         }
 
         return compact({
-          body: richText(layout.content),
+          body: richText(layout.body),
           heading: layout.heading,
           id,
-          links: buttons(layout.buttons),
+          links: links(layout.links),
           type: "callToAction",
         });
       }

@@ -23,18 +23,18 @@ export interface AcfImage {
   } | null;
 }
 
-export interface AcfButton {
+export interface AcfLinkRow {
   link: AcfLink | null;
-  style: AcfSelect;
+  variant: AcfSelect;
 }
 
 export interface AcfSectionOptions {
-  background: AcfSelect;
-  containerWidth: AcfSelect;
+  skin: AcfSelect;
+  width: AcfSelect;
   paddingTop: AcfSelect;
   paddingBottom: AcfSelect;
-  hide: boolean | null;
   anchor: string | null;
+  hidden: boolean | null;
 }
 
 interface LayoutBase<T extends string> {
@@ -45,22 +45,22 @@ interface LayoutBase<T extends string> {
 export interface ContentLayout extends LayoutBase<"PageBuilderSectionsContentLayout"> {
   eyebrow: string | null;
   heading: string | null;
-  content: string | null;
-  alignment: AcfSelect;
-  buttons: AcfButton[] | null;
+  body: string | null;
+  align: AcfSelect;
+  links: AcfLinkRow[] | null;
 }
 
 export interface ContentMediaLayout extends LayoutBase<"PageBuilderSectionsContentMediaLayout"> {
   eyebrow: string | null;
   heading: string | null;
-  content: string | null;
-  image: AcfImage | null;
-  imagePosition: AcfSelect;
-  buttons: AcfButton[] | null;
+  body: string | null;
+  media: AcfImage | null;
+  mediaPosition: AcfSelect;
+  links: AcfLinkRow[] | null;
 }
 
 export interface MediaLayout extends LayoutBase<"PageBuilderSectionsMediaLayout"> {
-  image: AcfImage | null;
+  media: AcfImage | null;
 }
 
 export interface AcfCard {
@@ -85,8 +85,8 @@ export interface BlockquoteLayout extends LayoutBase<"PageBuilderSectionsBlockqu
 
 export interface CallToActionLayout extends LayoutBase<"PageBuilderSectionsCallToActionLayout"> {
   heading: string | null;
-  content: string | null;
-  buttons: AcfButton[] | null;
+  body: string | null;
+  links: AcfLinkRow[] | null;
 }
 
 export type Layout =

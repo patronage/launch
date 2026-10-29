@@ -1,17 +1,8 @@
 # The WPGraphQL for ACF query that produces fixtures/home.json.
-# Field group "Page Builder" (graphql name pageBuilder), flexible content field "sections".
-# "Section Options" is a cloned group shared by every layout.
-
-fragment SectionOptions on PageBuilderSectionsLayout_Fields {
-  sectionOptions {
-    background
-    containerWidth
-    paddingTop
-    paddingBottom
-    hide
-    anchor
-  }
-}
+# Field group "Page Builder" (graphql name pageBuilder), flexible content field
+# "sections", defined in apps/cms-wordpress-headless/wp-content/themes/
+# patronage-headless/fields/page-builder.php. Every layout has its own
+# sectionOptions group, so each type selects it.
 
 fragment Image on AcfMediaItemConnectionEdge {
   node {
@@ -25,13 +16,10 @@ fragment Image on AcfMediaItemConnectionEdge {
   }
 }
 
-fragment Button on PageBuilderSectionsButtons {
-  link {
-    title
-    url
-    target
-  }
-  style
+fragment Link on AcfLink {
+  title
+  url
+  target
 }
 
 query PageSections($uri: ID!) {
@@ -41,34 +29,71 @@ query PageSections($uri: ID!) {
     pageBuilder {
       sections {
         __typename
-        ...SectionOptions
         ... on PageBuilderSectionsContentLayout {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
           eyebrow
           heading
-          content
-          alignment
-          buttons {
-            ...Button
+          body
+          align
+          links {
+            link {
+              ...Link
+            }
+            variant
           }
         }
         ... on PageBuilderSectionsContentMediaLayout {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
           eyebrow
           heading
-          content
-          image {
+          body
+          media {
             ...Image
           }
-          imagePosition
-          buttons {
-            ...Button
+          mediaPosition
+          links {
+            link {
+              ...Link
+            }
+            variant
           }
         }
         ... on PageBuilderSectionsMediaLayout {
-          image {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
+          media {
             ...Image
           }
         }
         ... on PageBuilderSectionsCardGridLayout {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
           heading
           columns
           cards {
@@ -78,13 +103,19 @@ query PageSections($uri: ID!) {
               ...Image
             }
             link {
-              title
-              url
-              target
+              ...Link
             }
           }
         }
         ... on PageBuilderSectionsBlockquoteLayout {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
           quote
           attribution
           role
@@ -93,10 +124,21 @@ query PageSections($uri: ID!) {
           }
         }
         ... on PageBuilderSectionsCallToActionLayout {
+          sectionOptions {
+            skin
+            width
+            paddingTop
+            paddingBottom
+            anchor
+            hidden
+          }
           heading
-          content
-          buttons {
-            ...Button
+          body
+          links {
+            link {
+              ...Link
+            }
+            variant
           }
         }
       }
