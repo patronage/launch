@@ -1,0 +1,27 @@
+{
+  "name": "@launch/sections-preview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsx --tsconfig ../../tsconfig.base.json src/build.tsx",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@launch/adapter-payload": "workspace:*",
+    "@launch/adapter-wordpress": "workspace:*",
+    "@launch/content-model": "workspace:*",
+    "@launch/ui": "workspace:*",
+    "react": "19.2.9",
+    "react-dom": "19.2.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  }
+}
