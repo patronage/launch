@@ -23,5 +23,7 @@ export default defineConfig({
       // See src/og-stub.ts.
       "next/og.js": fileURLToPath(new URL("src/og-stub.ts", import.meta.url)),
     },
+    // packages/* pin their own React for tests; the app must render with one copy.
+    dedupe: ["react", "react-dom"],
   },
 });

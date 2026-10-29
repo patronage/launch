@@ -12,10 +12,14 @@
     "typecheck": "cf workers types && tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "generate": "pnpm payload generate:types && pnpm payload generate:importmap",
-    "seed": "pnpm payload run scripts/seed.ts"
+    "seed": "pnpm payload run scripts/seed.ts",
+    "record-fixture": "pnpm payload run scripts/record-fixture.ts"
   },
   "dependencies": {
+    "@launch/adapter-payload": "workspace:*",
     "@launch/content-model": "workspace:*",
+    "@launch/images": "workspace:*",
+    "@launch/ui": "workspace:*",
     "@payloadcms/db-d1-sqlite": "4.0.0-beta.6",
     "@payloadcms/db-postgres": "4.0.0-beta.6",
     "@payloadcms/next": "4.0.0-beta.6",

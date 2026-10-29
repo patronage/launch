@@ -29,6 +29,8 @@ pnpm build && pnpm preview  # http://localhost:4173/admin
 
 The seed lives in `src/seed/`: `content.ts` is the page content, `lexical.ts` builds the rich text.
 
+After changing the seed or the blocks, `pnpm record-fixture` writes the seeded home page, read exactly as the front end reads it, to `packages/adapter-payload/fixtures/home.json`, so the parity test in `packages/sections-preview` compares real Payload output with WordPress's.
+
 `vite dev` does not work yet with Payload 4 (see the spike notes), so the loop for now is build and preview.
 
 `pnpm smoke` drives a browser through the admin against a fresh preview: first user, media upload to R2, a global, a draft page hidden from anonymous visitors, publishing, REST and GraphQL.
@@ -44,6 +46,9 @@ pnpm build && pnpm preview
 ```
 
 ## How it fits together
+
+- `src/app/(frontend)/[[...slug]]/page.tsx` serves every page by path. It reads the page through the Local API at depth 1 (`src/lib/page-query.ts`), checks the path against its nested-docs breadcrumbs, and renders the layout blocks with `PageSections` from `@launch/ui` through `@launch/adapter-payload`. Pages without blocks show the hero and rich text. `/` lists the pages until one has the slug `home`.
+- `src/app/(frontend)/media/[...path]` serves media resized by the Cloudflare Images binding (`@launch/images`). It gets the original from Payload's own file endpoint in-process, so Payload keeps its R2 keys and access rules. vinext's `/_next/image` only resizes files in `public/` on Workers.
 
 - `cloudflare.config.ts` declares the Worker and its bindings for the `cf` CLI and the Cloudflare Vite plugin. There is no Wrangler config.
 - `src/payload.config.ts` reads bindings from `cloudflare:workers`. `src/db.ts` picks the adapter. Vite replaces `PAYLOAD_DB` at build time, so the bundle only carries one adapter.
@@ -61,6 +66,7 @@ pnpm build && pnpm preview
 | `pnpm payload <command>` | Payload CLI (`migrate`, `migrate:create`, `generate:types`, ...) |
 | `pnpm seed` | Create or reset the demo pages, images and settings |
 | `pnpm generate` | Regenerate `payload-types.ts` and the admin import map |
+| `pnpm record-fixture` | Record the seeded home page as the Payload adapter's fixture |
 | `pnpm smoke [url]` | Browser smoke test against a fresh database |
 | `pnpm typecheck` | Generate Worker types and run `tsc` |
 | `pnpm deploy` | `vinext-cloudflare deploy` (not yet exercised, see Spike 1) |

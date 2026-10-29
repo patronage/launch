@@ -186,9 +186,18 @@ importers:
 
   apps/payload:
     dependencies:
+      '@launch/adapter-payload':
+        specifier: workspace:*
+        version: link:../../packages/adapter-payload
       '@launch/content-model':
         specifier: workspace:*
         version: link:../../packages/content-model
+      '@launch/images':
+        specifier: workspace:*
+        version: link:../../packages/images
+      '@launch/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@payloadcms/db-d1-sqlite':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/pg@8.20.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(pg@8.20.0)(supports-color@10.2.2)
