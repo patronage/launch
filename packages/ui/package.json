@@ -1,0 +1,29 @@
+{
+  "name": "@launch/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./sections.css": "./src/sections.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@launch/content-model": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.3",
+    "react": "19.2.9",
+    "react-dom": "19.2.9",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  }
+}

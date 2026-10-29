@@ -1,0 +1,80 @@
+/*
+ * Design tokens. Override these per site; components only read variables.
+ *
+ * Type scale is deliberately short and named by role, not by heading level:
+ * a section heading can be an <h2> or <h3> and still use `--type-title`.
+ */
+:root {
+  /* Palette */
+  --color-ink: #14161a;
+  --color-paper: #ffffff;
+  --color-muted: #5b6270;
+  --color-line: #e3e5ea;
+  --color-brand: #2f5bea;
+  --color-brand-ink: #ffffff;
+  --color-surface: #f5f6f8;
+
+  /* Type */
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+  --type-small: 0.875rem;
+  --type-body: 1rem;
+  --type-lead: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
+  --type-title: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem);
+  --type-display: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem);
+  --leading-tight: 1.15;
+  --leading-body: 1.6;
+
+  /* Space */
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-section-sm: clamp(2rem, 1.5rem + 2vw, 3rem);
+  --space-section-md: clamp(3rem, 2rem + 4vw, 5.5rem);
+  --space-section-lg: clamp(4.5rem, 3rem + 6vw, 8rem);
+  --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+
+  /* Container widths */
+  --width-narrow: 42rem;
+  --width-default: 64rem;
+  --width-wide: 80rem;
+
+  /* Shape */
+  --radius: 0.5rem;
+}
+
+/*
+ * Skins remap the semantic colours. Components use only --skin-* variables, so
+ * any block inherits the skin of the section around it.
+ */
+[data-skin],
+:root {
+  --skin-bg: var(--color-paper);
+  --skin-fg: var(--color-ink);
+  --skin-muted: var(--color-muted);
+  --skin-line: var(--color-line);
+  --skin-card: var(--color-surface);
+  --skin-action-bg: var(--color-brand);
+  --skin-action-fg: var(--color-brand-ink);
+}
+
+[data-skin="dark"] {
+  --skin-bg: var(--color-ink);
+  --skin-fg: var(--color-paper);
+  --skin-muted: #b5bac4;
+  --skin-line: #2c3038;
+  --skin-card: #1f2228;
+  --skin-action-bg: var(--color-paper);
+  --skin-action-fg: var(--color-ink);
+}
+
+[data-skin="accent"] {
+  --skin-bg: var(--color-brand);
+  --skin-fg: var(--color-brand-ink);
+  --skin-muted: rgb(255 255 255 / 0.8);
+  --skin-line: rgb(255 255 255 / 0.25);
+  --skin-card: rgb(255 255 255 / 0.1);
+  --skin-action-bg: var(--color-brand-ink);
+  --skin-action-fg: var(--color-brand);
+}

@@ -1,0 +1,542 @@
+{
+  "id": 1,
+  "title": "Home",
+  "slug": "home",
+  "layout": [
+    {
+      "id": "6720a1c0e1",
+      "blockType": "content",
+      "blockName": "Intro",
+      "sectionOptions": {
+        "skin": "accent",
+        "width": "narrow",
+        "paddingTop": "lg",
+        "paddingBottom": "lg",
+        "hidden": false,
+        "anchor": "Intro"
+      },
+      "eyebrow": "Neighborhood Growers",
+      "heading": "Grow food together",
+      "richText": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "We help neighbors turn empty lots into ",
+                  "format": 0,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                },
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "shared gardens",
+                  "format": 1,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                },
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": ".",
+                  "format": 0,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                }
+              ],
+              "direction": "ltr",
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0
+        }
+      },
+      "align": "center",
+      "links": [
+        {
+          "id": "l1",
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "reference": {
+              "relationTo": "pages",
+              "value": {
+                "id": 12,
+                "slug": "get-involved",
+                "title": "Get involved"
+              }
+            },
+            "url": null,
+            "label": "Get involved",
+            "appearance": "primary"
+          }
+        },
+        {
+          "id": "l2",
+          "link": {
+            "type": "custom",
+            "newTab": true,
+            "reference": null,
+            "url": "https://maps.example.org/gardens",
+            "label": "Garden map",
+            "appearance": "secondary"
+          }
+        }
+      ]
+    },
+    {
+      "id": "6720a1c0e2",
+      "blockType": "contentMedia",
+      "blockName": null,
+      "sectionOptions": {
+        "skin": "light",
+        "width": "wide",
+        "paddingTop": "md",
+        "paddingBottom": "md",
+        "hidden": false,
+        "anchor": null
+      },
+      "eyebrow": null,
+      "heading": "How a garden starts",
+      "richText": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "list",
+              "version": 1,
+              "children": [
+                {
+                  "type": "listitem",
+                  "version": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": "Find a lot",
+                      "format": 0,
+                      "style": "",
+                      "mode": "normal",
+                      "detail": 0
+                    }
+                  ],
+                  "direction": "ltr",
+                  "format": "",
+                  "indent": 0,
+                  "value": 1
+                },
+                {
+                  "type": "listitem",
+                  "version": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": "Gather ",
+                      "format": 0,
+                      "style": "",
+                      "mode": "normal",
+                      "detail": 0
+                    },
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": "five",
+                      "format": 2,
+                      "style": "",
+                      "mode": "normal",
+                      "detail": 0
+                    },
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": " neighbors",
+                      "format": 0,
+                      "style": "",
+                      "mode": "normal",
+                      "detail": 0
+                    }
+                  ],
+                  "direction": "ltr",
+                  "format": "",
+                  "indent": 0,
+                  "value": 2
+                }
+              ],
+              "direction": "ltr",
+              "format": "",
+              "indent": 0,
+              "listType": "bullet",
+              "start": 1,
+              "tag": "ul"
+            },
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "Read ",
+                  "format": 0,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                },
+                {
+                  "type": "link",
+                  "version": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "version": 1,
+                      "text": "the starter guide",
+                      "format": 0,
+                      "style": "",
+                      "mode": "normal",
+                      "detail": 0
+                    }
+                  ],
+                  "direction": "ltr",
+                  "format": "",
+                  "indent": 0,
+                  "fields": {
+                    "linkType": "internal",
+                    "newTab": false,
+                    "doc": {
+                      "relationTo": "pages",
+                      "value": {
+                        "id": 31,
+                        "slug": "guide"
+                      }
+                    }
+                  },
+                  "id": "lnk1"
+                },
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": ".",
+                  "format": 0,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                }
+              ],
+              "direction": "ltr",
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0
+        }
+      },
+      "media": {
+        "id": 41,
+        "alt": "Raised garden beds in a city lot",
+        "caption": "Raised beds on a former parking lot",
+        "filename": "raised-beds.jpg",
+        "mimeType": "image/jpeg",
+        "filesize": 120000,
+        "width": 1600,
+        "height": 1067,
+        "url": "/api/media/file/raised-beds.jpg",
+        "thumbnailURL": null,
+        "createdAt": "2026-10-20T12:00:00.000Z",
+        "updatedAt": "2026-10-20T12:00:00.000Z"
+      },
+      "mediaPosition": "end",
+      "links": []
+    },
+    {
+      "id": "6720a1c0e3",
+      "blockType": "cardGrid",
+      "blockName": null,
+      "sectionOptions": {
+        "skin": "light",
+        "width": "default",
+        "paddingTop": "none",
+        "paddingBottom": "md",
+        "hidden": false,
+        "anchor": "programs"
+      },
+      "heading": "Programs",
+      "columns": "3",
+      "cards": [
+        {
+          "id": "c1",
+          "title": "Seed library",
+          "text": "Borrow seeds in spring, return saved seeds in fall.",
+          "image": {
+            "id": 42,
+            "alt": "Paper seed packets",
+            "caption": null,
+            "filename": "seeds.jpg",
+            "mimeType": "image/jpeg",
+            "filesize": 120000,
+            "width": 1200,
+            "height": 800,
+            "url": "/api/media/file/seeds.jpg",
+            "thumbnailURL": null,
+            "createdAt": "2026-10-20T12:00:00.000Z",
+            "updatedAt": "2026-10-20T12:00:00.000Z"
+          },
+          "enableLink": true,
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "reference": {
+              "relationTo": "pages",
+              "value": {
+                "id": 51,
+                "slug": "seed-library",
+                "title": "Browse seeds",
+                "breadcrumbs": [
+                  {
+                    "id": "b1",
+                    "doc": 50,
+                    "url": "/programs",
+                    "label": "Programs"
+                  },
+                  {
+                    "id": "b2",
+                    "doc": 51,
+                    "url": "/programs/seed-library",
+                    "label": "Browse seeds"
+                  }
+                ]
+              }
+            },
+            "url": null,
+            "label": "Browse seeds",
+            "appearance": "default"
+          }
+        },
+        {
+          "id": "c2",
+          "title": "Tool share",
+          "text": "Shovels, wheelbarrows and hoses for every member garden.",
+          "image": {
+            "id": 43,
+            "alt": "Garden tools hanging on a wall",
+            "caption": null,
+            "filename": "tools.jpg",
+            "mimeType": "image/jpeg",
+            "filesize": 120000,
+            "width": 1200,
+            "height": 800,
+            "url": "/api/media/file/tools.jpg",
+            "thumbnailURL": null,
+            "createdAt": "2026-10-20T12:00:00.000Z",
+            "updatedAt": "2026-10-20T12:00:00.000Z"
+          },
+          "enableLink": true,
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "reference": {
+              "relationTo": "pages",
+              "value": {
+                "id": 52,
+                "slug": "tool-share",
+                "title": "Reserve a tool",
+                "breadcrumbs": [
+                  {
+                    "id": "b1",
+                    "doc": 50,
+                    "url": "/programs",
+                    "label": "Programs"
+                  },
+                  {
+                    "id": "b2",
+                    "doc": 52,
+                    "url": "/programs/tool-share",
+                    "label": "Reserve a tool"
+                  }
+                ]
+              }
+            },
+            "url": null,
+            "label": "Reserve a tool",
+            "appearance": "default"
+          }
+        },
+        {
+          "id": "c3",
+          "title": "Youth growers",
+          "text": "After-school planting and harvest days.",
+          "image": null,
+          "enableLink": false,
+          "link": null
+        }
+      ]
+    },
+    {
+      "id": "6720a1c0e4",
+      "blockType": "blockquote",
+      "blockName": null,
+      "sectionOptions": {
+        "skin": "dark",
+        "width": "narrow",
+        "paddingTop": "lg",
+        "paddingBottom": "lg",
+        "hidden": false,
+        "anchor": null
+      },
+      "quote": "The garden is the first place on our block where everyone knows each other's names.",
+      "attribution": "Rosa Delgado",
+      "role": "Garden lead",
+      "image": {
+        "id": 44,
+        "alt": "Portrait of Rosa",
+        "caption": null,
+        "filename": "portrait.jpg",
+        "mimeType": "image/jpeg",
+        "filesize": 120000,
+        "width": 400,
+        "height": 400,
+        "url": "/api/media/file/portrait.jpg",
+        "thumbnailURL": null,
+        "createdAt": "2026-10-20T12:00:00.000Z",
+        "updatedAt": "2026-10-20T12:00:00.000Z"
+      }
+    },
+    {
+      "id": "6720a1c0e5",
+      "blockType": "mediaBlock",
+      "blockName": null,
+      "sectionOptions": {
+        "skin": "light",
+        "width": "full",
+        "paddingTop": "none",
+        "paddingBottom": "none",
+        "hidden": false,
+        "anchor": null
+      },
+      "media": {
+        "id": 45,
+        "alt": "Volunteers sorting a harvest",
+        "caption": "Fall harvest day",
+        "filename": "harvest.jpg",
+        "mimeType": "image/jpeg",
+        "filesize": 120000,
+        "width": 2400,
+        "height": 1200,
+        "url": "/api/media/file/harvest.jpg",
+        "thumbnailURL": null,
+        "createdAt": "2026-10-20T12:00:00.000Z",
+        "updatedAt": "2026-10-20T12:00:00.000Z"
+      }
+    },
+    {
+      "id": "6720a1c0e6",
+      "blockType": "cta",
+      "blockName": "Join",
+      "sectionOptions": {
+        "skin": "accent",
+        "width": "narrow",
+        "paddingTop": "md",
+        "paddingBottom": "md",
+        "hidden": false,
+        "anchor": "join"
+      },
+      "heading": "Start a garden on your block",
+      "richText": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "We bring soil, seeds and a mentor for the first season.",
+                  "format": 0,
+                  "style": "",
+                  "mode": "normal",
+                  "detail": 0
+                }
+              ],
+              "direction": "ltr",
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0
+        }
+      },
+      "links": [
+        {
+          "id": "l3",
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "reference": {
+              "relationTo": "pages",
+              "value": {
+                "id": 13,
+                "slug": "apply",
+                "title": "Apply now"
+              }
+            },
+            "url": null,
+            "label": "Apply now",
+            "appearance": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": "6720a1c0e7",
+      "blockType": "cta",
+      "blockName": null,
+      "sectionOptions": {
+        "skin": "light",
+        "width": "default",
+        "paddingTop": "md",
+        "paddingBottom": "md",
+        "hidden": true,
+        "anchor": null
+      },
+      "heading": "Winter volunteer drive",
+      "richText": null,
+      "links": []
+    },
+    {
+      "id": "6720a1c0e8",
+      "blockType": "legacySlider",
+      "blockName": null,
+      "sectionOptions": null
+    }
+  ],
+  "_status": "published",
+  "createdAt": "2026-10-20T12:00:00.000Z",
+  "updatedAt": "2026-10-28T09:30:00.000Z"
+}
