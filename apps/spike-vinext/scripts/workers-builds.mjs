@@ -81,11 +81,14 @@ const shared = {
   build_caching_enabled: true,
   build_command: "pnpm -w run verify",
   build_token_uuid: env.BUILD_TOKEN_UUID,
-  environment_variables: {
-    NODE_VERSION: readRepoFile(".nvmrc"),
-    PNPM_VERSION: pnpmVersion,
-    SKIP_DEPENDENCY_INSTALL: "1",
-  },
+  // The API takes each variable as { value, is_secret }, not a bare string.
+  environment_variables: Object.fromEntries(
+    Object.entries({
+      NODE_VERSION: readRepoFile(".nvmrc"),
+      PNPM_VERSION: pnpmVersion,
+      SKIP_DEPENDENCY_INSTALL: "1",
+    }).map(([name, value]) => [name, { is_secret: false, value }])
+  ),
   path_includes: [
     `${appDir}/*`,
     "packages/*",
