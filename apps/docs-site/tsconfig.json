@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["*.ts", "docs/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".blume", ".cloudflare"]
+}

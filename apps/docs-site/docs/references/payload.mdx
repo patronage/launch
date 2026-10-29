@@ -1,0 +1,33 @@
+---
+title: Payload
+description: Payload as one vinext app on Workers, with D1 as its database by default and Postgres through Hyperdrive kept as an option.
+---
+
+The Payload reference is a single app: the Payload admin, plus front-end pages that read content through Payload's Local API in the same Worker. There is no separate API call between the front-end and the CMS. It runs Payload 4 (beta) under vinext on Cloudflare Workers, with media in R2.
+
+## Database: D1 by default
+
+**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two get compared on real Workers once the app is deployed.
+
+|  | D1 | Postgres through Hyperdrive |
+| --- | --- | --- |
+| Status | Default | Option, `PAYLOAD_DB=postgres` |
+| Admin, uploads, drafts, REST and GraphQL | Pass | Pass |
+| Migrations on boot and the Payload CLI | Pass | Pass |
+| Extra work needed | None | A request-scoped connection pool (below) |
+| Measured on real Workers | Not yet | Not yet |
+
+Why D1 for now: both databases passed the same end-to-end browser test in local workerd, and D1 needs nothing extra. Postgres needs a connection pool that opens a connection per request, because workerd ties a socket to the request that opened it. Hyperdrive does the real pooling.
+
+No performance difference has been measured yet. Local runs say nothing about network latency, which is where the two will differ, so the comparison waits for a deploy.
+
+`PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
+
+## What else the research found
+
+- `vite dev` does not work with Payload yet. Develop with `vite build` and `vite preview` until it does.
+- Every Local API call made for a visitor passes the visitor's `user` and `overrideAccess: false` explicitly. Only trusted server code, such as seeding and migrations, overrides access.
+- There is no schema push on Workers. Every environment uses migrations, and the Worker applies pending ones on its first request.
+- Image cropping and focal points are off, because there is no `sharp` on Workers.
+
+The full write-up, with every check and workaround, is [Payload as one app under vinext on Workers](/research/payload-on-vinext).

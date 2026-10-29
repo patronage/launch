@@ -1,0 +1,15 @@
+[
+  {
+    "alt": "Raised garden beds in a city lot",
+    "caption": "Raised beds on a former parking lot",
+    "file": "raised-beds.jpg"
+  },
+  { "alt": "Paper seed packets", "file": "seeds.jpg" },
+  { "alt": "Garden tools hanging on a wall", "file": "tools.jpg" },
+  { "alt": "Portrait of Rosa", "file": "portrait.jpg" },
+  {
+    "alt": "Volunteers sorting a harvest",
+    "caption": "Fall harvest day",
+    "file": "harvest.jpg"
+  }
+]

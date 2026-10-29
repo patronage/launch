@@ -1,0 +1,11 @@
+{
+  "name": "@launch/demo-content",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./images.json": "./images.json",
+    "./images/*": "./images/*"
+  }
+}

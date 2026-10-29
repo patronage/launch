@@ -1,7 +1,8 @@
 /**
  * The Payload page document shape for the `layout` blocks field, as returned by
- * the Local API or REST at depth 1. Hand-written for the spike; a real app
- * would import these from `payload-types.ts`.
+ * the Local API or REST at depth 1. Field names follow @launch/content-model.
+ * Hand-written to mirror apps/payload's generated `payload-types.ts`, which a
+ * package cannot import.
  */
 
 /** Fields Payload stores on `link` and `autolink` nodes. */
@@ -55,7 +56,8 @@ export interface PayloadLink {
   reference?: PayloadReference | null;
   url?: string | null;
   label?: string | null;
-  appearance?: string | null;
+  /** primary, secondary or text; card links have none. */
+  variant?: string | null;
 }
 
 export interface PayloadMedia {
@@ -89,7 +91,7 @@ interface BlockBase<T extends string> {
 export interface ContentBlock extends BlockBase<"content"> {
   eyebrow?: string | null;
   heading?: string | null;
-  richText?: LexicalState | null;
+  body?: LexicalState | null;
   align?: string | null;
   links?: { id?: string | null; link: PayloadLink }[] | null;
 }
@@ -97,13 +99,13 @@ export interface ContentBlock extends BlockBase<"content"> {
 export interface ContentMediaBlock extends BlockBase<"contentMedia"> {
   eyebrow?: string | null;
   heading?: string | null;
-  richText?: LexicalState | null;
+  body?: LexicalState | null;
   media?: PayloadUpload;
   mediaPosition?: string | null;
   links?: { id?: string | null; link: PayloadLink }[] | null;
 }
 
-export interface MediaBlock extends BlockBase<"mediaBlock"> {
+export interface MediaBlock extends BlockBase<"media"> {
   media?: PayloadUpload;
 }
 
@@ -116,7 +118,6 @@ export interface CardGridBlock extends BlockBase<"cardGrid"> {
         title?: string | null;
         text?: string | null;
         image?: PayloadUpload;
-        enableLink?: boolean | null;
         link?: PayloadLink | null;
       }[]
     | null;
@@ -129,9 +130,9 @@ export interface BlockquoteBlock extends BlockBase<"blockquote"> {
   image?: PayloadUpload;
 }
 
-export interface CallToActionBlock extends BlockBase<"cta"> {
+export interface CallToActionBlock extends BlockBase<"callToAction"> {
   heading?: string | null;
-  richText?: LexicalState | null;
+  body?: LexicalState | null;
   links?: { id?: string | null; link: PayloadLink }[] | null;
 }
 

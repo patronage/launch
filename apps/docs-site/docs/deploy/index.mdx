@@ -1,0 +1,36 @@
+---
+title: Deploying to Workers
+description: Every app in Launch deploys as a Cloudflare Worker with the cf CLI, configured in cloudflare.config.ts, with no Wrangler config in the repo.
+---
+
+Every deployable app is its own Cloudflare Worker. None of them has a `wrangler.jsonc`, `wrangler.toml` or a Wrangler dependency; those file names are gitignored. Workers, bindings, secrets and Access applications are created through the `cf` CLI and the Cloudflare API, by scripts in each app.
+
+## The pattern
+
+1. **`cloudflare.config.ts`** holds the Worker's name, compatibility date, domains and bindings. It is the `cf` CLI's typed config, not a Wrangler file. The account comes from `CLOUDFLARE_ACCOUNT_ID`, never from the file.
+2. **Secrets** are declared by name with `bindings.secret()`. Values come from the shell at deploy time and from a gitignored `.env.local` locally, and are never written to a file in the repo.
+3. **The build writes Cloudflare Build Output** to `.cloudflare/output/`. The vinext apps get it from the Cloudflare Vite plugin.
+4. **`pnpm run deploy`** uploads that output with `cf deploy --prebuilt`, which creates the Worker on its first run and provisions any binding resources, such as a KV namespace, that do not exist yet. `pnpm run deploy --preview` runs `cf previews deploy --prebuilt` instead, which names a Worker Preview after the Git branch.
+5. **Workers Builds** runs those commands on every push. There are no GitHub Actions. See [Workers Builds](/deploy/workers-builds).
+
+```bash
+pnpm --filter web-wordpress run deploy             # production
+pnpm --filter web-wordpress run deploy --preview   # a Preview named after the branch
+pnpm --filter web-wordpress run deploy --dry-run   # build and check, upload nothing
+```
+
+Locally, sign in with `cf auth login`, or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+## Custom domains
+
+Set `WORKER_DOMAIN` when building and the next production deploy attaches it as the Worker's custom domain. The zone must be on the same account. `WORKER_DOMAIN_PREVIEWS=true` also serves each Preview at `<preview>.<domain>`; those hostnames are two levels below the zone, which a Free plan's Universal SSL certificate does not cover, so it is off by default. Previews always get a `workers.dev` URL.
+
+## This docs site
+
+The docs site is a static [Blume](https://useblume.dev) build, deployed the same way as an assets-only Worker: no Worker code, no bindings and no secrets. Blume drives its own Astro build rather than Vite's Cloudflare plugin, so `scripts/build-output.mjs` writes the Build Output from `dist/` with the same libraries the `cf` CLI uses, and the deploy then runs `cf deploy --prebuilt` like every other app.
+
+```bash
+pnpm --filter docs-site run deploy --dry-run
+```
+
+`htmlHandling` is `drop-trailing-slash`, because Blume links to each page without a trailing slash.
