@@ -1,5 +1,8 @@
 import { createPayloadAdapter } from "@launch/adapter-payload";
+import type { Image } from "@launch/content-model";
 import { imagePath } from "@launch/images";
+
+import type { Media } from "@/payload-types";
 
 /** Where Payload serves uploads; app/(frontend)/media serves them resized instead. */
 const MEDIA_FILES_PATH = "/api/media/file/";
@@ -12,3 +15,22 @@ export const mediaUrl = (src: string): string =>
 export const payloadAdapter = createPayloadAdapter({
   imageUrl: mediaUrl,
 });
+
+/**
+ * An upload field as the UI's image, or undefined when it is empty. At depth 1
+ * the field holds the Media document; a bare id means it was not populated.
+ */
+export const toImage = (
+  media: Media | number | null | undefined
+): Image | undefined => {
+  if (!(media instanceof Object) || !media.url) {
+    return undefined;
+  }
+
+  return {
+    alt: media.alt,
+    height: media.height ?? undefined,
+    src: mediaUrl(media.url),
+    width: media.width ?? undefined,
+  };
+};

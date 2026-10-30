@@ -23,7 +23,7 @@ export interface LexicalNode {
   mode?: "normal";
   start?: number;
   style?: string;
-  tag?: "ul";
+  tag?: "h2" | "h3" | "ul";
   text?: string;
   textFormat?: number;
   textStyle?: string;
@@ -69,6 +69,9 @@ const inline = (children: Inline[]): LexicalNode[] =>
 
 export const paragraph = (...children: Inline[]): LexicalNode =>
   element("paragraph", inline(children), { textFormat: 0, textStyle: "" });
+
+export const heading = (tag: "h2" | "h3", ...children: Inline[]): LexicalNode =>
+  element("heading", inline(children), { tag });
 
 export const bulletList = (...items: Inline[][]): LexicalNode =>
   element(

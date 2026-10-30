@@ -6,11 +6,14 @@ import type { Payload } from "payload";
 
 import type { ImageFile, PageSlug } from "./content";
 import { layouts, PAGES } from "./content";
+import type { AuthorName, CategorySlug } from "./posts";
+import { AUTHORS, CATEGORIES, posts } from "./posts";
 
 /**
- * Creates or updates the demo pages, their images and the site settings. Runs
- * again safely: pages are matched by slug and images by alt text, so a rerun
- * resets the demo content without duplicating it.
+ * Creates or updates the demo pages, news, their images and the site
+ * settings. Runs again safely: pages, posts and categories are matched by
+ * slug, authors by name and images by alt text, so a rerun resets the demo
+ * content without duplicating it.
  *
  * Payload 4 checks access in the Local API by default; seeding is trusted, so
  * every call passes `overrideAccess: true`.
@@ -123,6 +126,137 @@ const seedPage = async (
   return [page.slug, doc.id];
 };
 
+/** The id of the author or category whose field equals a value, if any. */
+const findId = async (
+  payload: Payload,
+  collection: "authors" | "categories",
+  field: string,
+  value: string
+): Promise<number | undefined> => {
+  const { docs } = await payload.find({
+    collection,
+    limit: 1,
+    overrideAccess: true,
+    where: { [field]: { equals: value } },
+  });
+
+  return docs[0]?.id;
+};
+
+const seedNews = async (
+  payload: Payload,
+  refs: { image: (file: ImageFile) => number; page: (slug: PageSlug) => number }
+): Promise<void> => {
+  const authorIds = new Map(
+    await Promise.all(
+      AUTHORS.map(async ({ bio, name, role, ...rest }) => {
+        const data = {
+          bio,
+          name,
+          photo: "image" in rest ? refs.image(rest.image) : null,
+          role,
+        };
+
+        const id = await findId(payload, "authors", "name", name);
+
+        const doc = id
+          ? await payload.update({
+              collection: "authors",
+              data,
+              id,
+              overrideAccess: true,
+            })
+          : await payload.create({
+              collection: "authors",
+              data,
+              overrideAccess: true,
+            });
+
+        return [name, doc.id] as const;
+      })
+    )
+  );
+
+  const categoryIds = new Map(
+    await Promise.all(
+      CATEGORIES.map(async (category) => {
+        const id = await findId(payload, "categories", "slug", category.slug);
+
+        const doc = id
+          ? await payload.update({
+              collection: "categories",
+              data: category,
+              id,
+              overrideAccess: true,
+            })
+          : await payload.create({
+              collection: "categories",
+              data: category,
+              overrideAccess: true,
+            });
+
+        return [category.slug, doc.id] as const;
+      })
+    )
+  );
+
+  const seedPosts = posts({
+    author: lookup<AuthorName>(authorIds, "author"),
+    category: lookup<CategorySlug>(categoryIds, "category"),
+    ...refs,
+  });
+
+  await inSequence(
+    seedPosts.map(({ draftOnly = false, pendingEdit, ...post }) => async () => {
+      const {
+        docs: [existing],
+      } = await payload.find({
+        collection: "posts",
+        draft: true,
+        limit: 1,
+        overrideAccess: true,
+        where: { slug: { equals: post.slug } },
+      });
+
+      const data = {
+        ...post,
+        _status: draftOnly ? ("draft" as const) : ("published" as const),
+        hero: post.hero ?? null,
+      };
+
+      const doc = existing
+        ? await payload.update({
+            collection: "posts",
+            data,
+            draft: draftOnly,
+            id: existing.id,
+            overrideAccess: true,
+          })
+        : await payload.create({
+            collection: "posts",
+            data,
+            draft: draftOnly,
+            overrideAccess: true,
+          });
+
+      if (pendingEdit) {
+        // A newer draft on top of the published post, for preview and versions.
+        await payload.update({
+          collection: "posts",
+          data: pendingEdit,
+          draft: true,
+          id: doc.id,
+          overrideAccess: true,
+        });
+      }
+    })
+  );
+
+  payload.logger.info(
+    `Seeded ${authorIds.size} authors, ${categoryIds.size} categories and ${seedPosts.length} posts`
+  );
+};
+
 export const seed = async (payload: Payload): Promise<void> => {
   // SAFETY: images.json is a list of DemoImage entries; JSON imports widen
   // the optional caption away, so TypeScript cannot check it itself.
@@ -170,6 +304,11 @@ export const seed = async (payload: Payload): Promise<void> => {
     })
   );
   payload.logger.info(`Seeded ${PAGES.length} pages`);
+
+  await seedNews(payload, {
+    image: lookup<ImageFile>(imageIds, "image"),
+    page: pageId,
+  });
 
   await payload.updateGlobal({
     data: { siteName: "Neighborhood Growers", tagline: "Grow food together" },

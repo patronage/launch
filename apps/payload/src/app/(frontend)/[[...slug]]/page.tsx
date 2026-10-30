@@ -6,14 +6,15 @@ import {
   Section,
   Typography,
 } from "@launch/ui";
-import { RichText } from "@payloadcms/richtext-lexical/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { LivePreviewRefresh } from "@/components/live-preview-refresh";
+import { PayloadRichText } from "@/components/rich-text";
 import { PAGE_QUERY } from "@/lib/page-query";
 import { getFrontendPayload } from "@/lib/payload";
 import { mediaUrl, payloadAdapter } from "@/lib/sections";
-import type { Media } from "@/payload-types";
+import type { Media, Page as PayloadPage } from "@/payload-types";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,13 @@ interface Props {
  * back the same path, so /home and /wrong-parent/child are not found.
  */
 const findPage = async (segments: string[]) => {
-  const { payload, user } = await getFrontendPayload();
+  const { draft, payload, user } = await getFrontendPayload();
   const path = `/${segments.join("/")}`;
 
   const { docs } = await payload.find({
     ...PAGE_QUERY,
     collection: "pages",
+    draft,
     limit: 1,
     overrideAccess: false,
     user,
@@ -92,17 +94,8 @@ export const generateMetadata = async ({ params }: Props) => {
   return page ? { title: page.title } : {};
 };
 
-const Page = async ({ params }: Props) => {
-  const { page, slug } = await pageFor(params);
-
-  if (!page) {
-    if (slug.length === 0) {
-      return <PageIndex />;
-    }
-
-    notFound();
-  }
-
+/** The page's sections, or its hero and rich text when it has none. */
+const PageBody = ({ page }: { page: PayloadPage }) => {
   if (page.layout?.length) {
     return <PageSections page={payloadAdapter.toPage(page)} />;
   }
@@ -130,11 +123,32 @@ const Page = async ({ params }: Props) => {
         )}
         {page.content && (
           <RichTextFrame className="max-w-3xl">
-            <RichText data={page.content} />
+            <PayloadRichText data={page.content} />
           </RichTextFrame>
         )}
       </Container>
     </Section>
+  );
+};
+
+const Page = async ({ params }: Props) => {
+  const { page, slug } = await pageFor(params);
+
+  if (!page) {
+    if (slug.length === 0) {
+      return <PageIndex />;
+    }
+
+    notFound();
+  }
+
+  const { draft } = await getFrontendPayload();
+
+  return (
+    <>
+      {draft && <LivePreviewRefresh />}
+      <PageBody page={page} />
+    </>
   );
 };
 

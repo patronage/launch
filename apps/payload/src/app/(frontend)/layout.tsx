@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { getFrontendPayload } from "@/lib/payload";
+import { NEWS_PATH } from "@/lib/posts";
 
 import "./styles.css";
 
@@ -43,6 +44,11 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
             </a>
           }
           brand={<Link href="/">{settings.siteName}</Link>}
+          nav={
+            <Link className={navLinkClass} href={NEWS_PATH}>
+              News
+            </Link>
+          }
         />
         <main className="flex-1">{children}</main>
         <SiteFooter>
