@@ -392,6 +392,33 @@ check "hook: server wp-config.php is untouched" grep -q server-config "$WEBROOT/
 git -C "$SRC" rm -q wordpress/wp-config.php
 git -C "$SRC" commit -qm unconfig
 
+# Payload paths that collide with the server's files are refused, and nothing is deleted.
+mkdir -p "$WEBROOT/wp-content/plugins/kept/data"
+write "$WEBROOT/wp-content/plugins/kept/data/keep.txt" server-data
+write "$SRC/wordpress/wp-content/plugins/kept/data" repo-file
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm collide-folder
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/master 2>&1 || true)"
+check "hook: a file over a server folder is refused" grep -q "wp-content/plugins/kept/data (a folder on the server)" <<<"$out"
+check "hook: a refused collision does not report DEPLOY_OK" bash -c '! grep -q DEPLOY_OK <<<"$1"' _ "$out"
+check "hook: a refused collision keeps the server folder's files" grep -q server-data "$WEBROOT/wp-content/plugins/kept/data/keep.txt"
+git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/data
+write "$WEBROOT/wp-content/plugins/blocker" server-file
+mkdir -p "$WORK/elsewhere"
+ln -s "$WORK/elsewhere" "$WEBROOT/wp-content/plugins/linked"
+write "$SRC/wordpress/wp-content/plugins/blocker/blocker.php"
+write "$SRC/wordpress/wp-content/plugins/linked/linked.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm collide-parents
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/master 2>&1 || true)"
+check "hook: a folder over a server file is refused" grep -q "wp-content/plugins/blocker/ (a file or link on the server)" <<<"$out"
+check "hook: a folder through a server link is refused" grep -q "wp-content/plugins/linked/ (a file or link on the server)" <<<"$out"
+check "hook: a refused collision writes nothing through the link" [ ! -e "$WORK/elsewhere/linked.php" ]
+check "hook: a refused collision keeps the server file" grep -q server-file "$WEBROOT/wp-content/plugins/blocker"
+git -C "$SRC" rm -q -r wordpress/wp-content/plugins/blocker wordpress/wp-content/plugins/linked
+git -C "$SRC" commit -qm uncollide
+rm -rf "$WEBROOT/wp-content/plugins/blocker" "$WEBROOT/wp-content/plugins/linked" "$WEBROOT/wp-content/plugins/kept/data"
+
 # A failed install must not report DEPLOY_OK.
 write "$SRC/wordpress/third.php"
 git -C "$SRC" add -A

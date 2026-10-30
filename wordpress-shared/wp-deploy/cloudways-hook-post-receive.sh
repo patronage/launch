@@ -95,14 +95,46 @@ deploy() {
   # owner may do, so it failed after writing every file. checkout-index only creates
   # folders that are missing and leaves existing ones alone.
   index="$GIT_DIR/deploy-index.$$"
-  rm -f "$index"
-  if ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" read-tree "$newrev${prefix:+:$WORDPRESS_FOLDER}" ||
-    ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" --work-tree="$TARGET" checkout-index -a -f; then
+  rm -f "$index" "$index.dirs" "$index.bad"
+  if ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" read-tree "$newrev${prefix:+:$WORDPRESS_FOLDER}"; then
     rm -f "$index"
+    echo "Reading $newrev failed"
+    return 1
+  fi
+
+  # checkout-index -f replaces whatever is in a file's way, deleting a folder of
+  # server-only files with it. Refuse the install when a payload file would land on
+  # a folder, or a payload folder on a file or a link.
+  while IFS= read -r -d '' path; do
+    if [ -d "$TARGET/$path" ] && [ ! -L "$TARGET/$path" ]; then
+      printf '    %s (a folder on the server)\n' "$path" >>"$index.bad"
+    fi
+    rel="$path"
+    while [ "${rel%/*}" != "$rel" ]; do
+      rel="${rel%/*}"
+      printf '%s\n' "$rel"
+    done >>"$index.dirs"
+  done < <(GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" ls-files -z)
+  if [ -s "$index.dirs" ]; then
+    sort -u "$index.dirs" | while IFS= read -r rel; do
+      if [ -L "$TARGET/$rel" ] || { [ -e "$TARGET/$rel" ] && [ ! -d "$TARGET/$rel" ]; }; then
+        printf '    %s/ (a file or link on the server)\n' "$rel"
+      fi
+    done >>"$index.bad"
+  fi
+  if [ -s "$index.bad" ]; then
+    echo "Refusing to install: payload paths collide with the server's files:"
+    cat "$index.bad"
+    rm -f "$index" "$index.dirs" "$index.bad"
+    return 1
+  fi
+
+  if ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" --work-tree="$TARGET" checkout-index -a -f; then
+    rm -f "$index" "$index.dirs" "$index.bad"
     echo "Extracting $newrev failed"
     return 1
   fi
-  rm -f "$index"
+  rm -f "$index" "$index.dirs" "$index.bad"
 
   [ -n "$oldrev" ] || return 0
   deleted="$(git --git-dir="$GIT_DIR" diff --name-only --no-renames --diff-filter=D "$oldrev" "$newrev" -- "${prefix:-.}")" ||
