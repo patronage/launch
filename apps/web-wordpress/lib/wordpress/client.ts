@@ -1,14 +1,13 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import { ACCESS_ASSERTION_HEADER } from "@patronage/access";
 import type { DocumentNode } from "graphql";
+import { cacheLife, cacheTag } from "next/cache";
 import { headers as incomingHeaders } from "next/headers";
 import { z } from "zod";
 
+import { smartCacheTags, WORDPRESS_CACHE_TAG } from "./cache-tags";
 import { wordpressEnv } from "./env";
 import { wordpressFetch } from "./fetch";
-
-/** Every WordPress fetch carries this tag; the revalidate route purges it on publish. */
-export const WORDPRESS_CACHE_TAG = "wordpress";
 
 interface FetchOptions {
   /**
@@ -16,6 +15,8 @@ interface FetchOptions {
    * context so the post's latest unsaved changes overlay it. Never cached.
    */
   previewDatabaseId?: number;
+  /** Tags for the cached read besides its Smart Cache keys, such as pathTag(). */
+  tags?: string[];
 }
 
 interface GraphQLResponse<Result> {
@@ -57,50 +58,8 @@ const previewAuthorization = (): string => {
   return `Basic ${btoa(`${previewUser}:${previewPassword}`)}`;
 };
 
-/**
- * Runs a typed WPGraphQL query. Public reads go through the fetch cache under
- * WORDPRESS_CACHE_TAG; preview reads authenticate with the application
- * password, send the X-GraphQL-Preview header and skip the cache.
- */
-export const wpQuery = async <
-  Result,
-  Variables extends Record<string, unknown>,
->(
-  document: TypedDocumentNode<Result, Variables>,
-  variables: Variables,
-  { previewDatabaseId }: FetchOptions = {}
-): Promise<Result> => {
-  const headers = new Headers({ "content-type": "application/json" });
-
-  const preview = previewDatabaseId !== undefined;
-
-  if (preview) {
-    headers.set("authorization", previewAuthorization());
-    // WPGraphQL 2's request-level preview context; it replaces the deprecated asPreview argument.
-    headers.set("x-graphql-preview", `database_id=${previewDatabaseId}`);
-  }
-
-  let previewJwt: string | null | undefined;
-
-  if (preview) {
-    const requestHeaders = await incomingHeaders();
-
-    previewJwt = requestHeaders.get(ACCESS_ASSERTION_HEADER);
-  }
-
-  const response = await wordpressFetch(
-    wordpressEnv().graphqlUrl,
-    {
-      body: JSON.stringify({ queryId: queryId(document), variables }),
-      headers,
-      method: "POST",
-      ...(preview
-        ? { cache: "no-store" }
-        : { next: { tags: [WORDPRESS_CACHE_TAG] } }),
-    },
-    previewJwt
-  );
-
+/** Throws on an HTTP or GraphQL error, so an error is never cached. */
+const readData = async <Result>(response: Response): Promise<Result> => {
   if (!response.ok) {
     throw new Error(
       `WPGraphQL answered ${response.status} ${response.statusText}`
@@ -122,4 +81,87 @@ export const wpQuery = async <
   }
 
   return body.data;
+};
+
+// Pages revalidate hourly as a safety net for a missed purge; so does the data.
+const WORDPRESS_CACHE_LIFE = { expire: 86_400, revalidate: 3600 };
+
+/**
+ * A public read, cached in the data cache per query ID and variables (as
+ * JSON, so the cache key is a plain string). It is
+ * tagged with WORDPRESS_CACHE_TAG, the WPGraphQL Smart Cache keys of the
+ * response and any extra tags; a page that renders it carries the same tags,
+ * so a purge of one post's key expires every read and page that showed it.
+ */
+const cachedQuery = async (
+  id: string,
+  variablesJson: string,
+  tags: string[]
+): Promise<{ data: unknown }> => {
+  "use cache";
+  cacheLife(WORDPRESS_CACHE_LIFE);
+
+  const response = await wordpressFetch(wordpressEnv().graphqlUrl, {
+    body: `{"queryId":${JSON.stringify(id)},"variables":${variablesJson}}`,
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+
+  const data = await readData(response);
+
+  cacheTag(
+    WORDPRESS_CACHE_TAG,
+    ...tags,
+    ...smartCacheTags(response.headers.get("x-graphql-keys"))
+  );
+
+  return { data };
+};
+
+/**
+ * Runs a typed WPGraphQL query. Public reads go through cachedQuery; preview
+ * reads authenticate with the application password, send the
+ * X-GraphQL-Preview header and skip the cache.
+ */
+export const wpQuery = async <
+  Result,
+  Variables extends Record<string, unknown>,
+>(
+  document: TypedDocumentNode<Result, Variables>,
+  variables: Variables,
+  { previewDatabaseId, tags = [] }: FetchOptions = {}
+): Promise<Result> => {
+  if (previewDatabaseId === undefined) {
+    const { data } = await cachedQuery(
+      queryId(document),
+      JSON.stringify(variables),
+      tags
+    );
+
+    // SAFETY: cachedQuery returns the data of this document's query.
+    return data as Result;
+  }
+
+  const headers = new Headers({
+    authorization: previewAuthorization(),
+    "content-type": "application/json",
+    // WPGraphQL 2's request-level preview context; it replaces the deprecated asPreview argument.
+    "x-graphql-preview": `database_id=${previewDatabaseId}`,
+  });
+
+  const requestHeaders = await incomingHeaders();
+
+  const response = await wordpressFetch(
+    wordpressEnv().graphqlUrl,
+    {
+      body: JSON.stringify({ queryId: queryId(document), variables }),
+      cache: "no-store",
+      headers,
+      method: "POST",
+    },
+    requestHeaders.get(ACCESS_ASSERTION_HEADER)
+  );
+
+  return readData<Result>(response);
 };

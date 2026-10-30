@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Headless Revalidate
  * Description: Tells the headless front-end to revalidate a page when its WordPress content is published, edited, renamed, unpublished or trashed.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: Patronage
  *
  * It does nothing until this environment's wp-config.php defines the first
@@ -28,7 +28,7 @@ if (!defined('ABSPATH')) {
   exit();
 }
 
-const PATRONAGE_HEADLESS_REVALIDATE_VERSION = '2.0.0';
+const PATRONAGE_HEADLESS_REVALIDATE_VERSION = '2.1.0';
 const PATRONAGE_HEADLESS_REVALIDATE_STATUS = 'patronage_headless_revalidate_last_send';
 
 const PATRONAGE_HEADLESS_REVALIDATE_EMPTY = [
@@ -377,6 +377,9 @@ if (defined('WP_CLI') && WP_CLI) {
   WP_CLI::add_command(
     'patronage-headless-revalidate',
     new class {
+      /** Seconds each check retries; set from --wait. */
+      private int $wait = 90;
+
       /**
        * Publishes, edits and trashes a test post, and checks the frontend after each.
        *
@@ -384,6 +387,11 @@ if (defined('WP_CLI') && WP_CLI) {
        * frontend serves it, serves the edited title after an edit, and answers
        * 404 once it is trashed. The post is always deleted afterwards. Exits
        * non-zero on any failure.
+       *
+       * Each check retries until it passes or --wait runs out, and reports how
+       * long the change took to show. A frontend on Workers KV can take a few
+       * seconds in the location that received the purge, and up to about a
+       * minute in other locations, because KV caches what it reads.
        *
        * Publishing a real post also runs everything else hooked to publishing:
        * search indexing, WPGraphQL Smart Cache list purges, sitemap pings,
@@ -399,6 +407,12 @@ if (defined('WP_CLI') && WP_CLI) {
        * : The post type to test with.
        * ---
        * default: post
+       * ---
+       *
+       * [--wait=<seconds>]
+       * : How long each check retries before it fails.
+       * ---
+       * default: 90
        * ---
        *
        * @when after_wp_load
@@ -422,6 +436,7 @@ if (defined('WP_CLI') && WP_CLI) {
             'Pretty permalinks are off (Settings > Permalinks), so posts have no frontend path to check',
           );
         }
+        $this->wait = max(0, (int) ($assoc_args['wait'] ?? 90));
         $token = 'HeadlessRevalidateVerify' . strtolower(wp_generate_password(12, false));
         $post_id = 0;
         $failure = null;
@@ -529,22 +544,44 @@ if (defined('WP_CLI') && WP_CLI) {
         );
       }
 
+      /** Retries the check every two seconds until it passes or $this->wait runs out. */
       private function expect(string $url, int $status, string $text = ''): void {
+        $started = microtime(true);
+        while (true) {
+          $problem = $this->check($url, $status, $text);
+          $elapsed = microtime(true) - $started;
+          if ($problem === null) {
+            WP_CLI::log(
+              "GET {$url}: {$status}" .
+                ($text !== '' ? ", shows {$text}" : '') .
+                sprintf(' (after %.1f s)', $elapsed),
+            );
+            return;
+          }
+          if ($elapsed >= $this->wait) {
+            throw new RuntimeException(sprintf('%s, still after %.0f s', $problem, $elapsed));
+          }
+          sleep(2);
+        }
+      }
+
+      /** Null when the URL answers as expected, otherwise what it answered. */
+      private function check(string $url, int $status, string $text): ?string {
         $response = wp_remote_get($url, [
           'timeout' => 30,
           'headers' => patronage_headless_revalidate_access_headers(),
         ]);
         if (is_wp_error($response)) {
-          throw new RuntimeException("GET {$url} failed: " . $response->get_error_message());
+          return "GET {$url} failed: " . $response->get_error_message();
         }
         $actual = (int) wp_remote_retrieve_response_code($response);
         if ($actual !== $status) {
-          throw new RuntimeException("GET {$url} answered {$actual}, expected {$status}");
+          return "GET {$url} answered {$actual}, expected {$status}";
         }
         if ($text !== '' && strpos(wp_remote_retrieve_body($response), $text) === false) {
-          throw new RuntimeException("GET {$url} answered {$status} without \"{$text}\"");
+          return "GET {$url} answered {$status} without \"{$text}\"";
         }
-        WP_CLI::log("GET {$url}: {$status}" . ($text !== '' ? ", shows {$text}" : ''));
+        return null;
       }
     },
   );
