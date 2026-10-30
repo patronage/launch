@@ -24,7 +24,12 @@ export default defineConfig({
     entrypoint: "vinext/server/fetch-handler",
     env: {
       ASSETS: bindings.assets(),
-      D1: !usePostgres && bindings.d1({ name: "launch-payload" }),
+      D1:
+        !usePostgres &&
+        bindings.d1({
+          id: "8503df2d-e2f5-45ec-8bf3-8fec186b2a95",
+          name: "launch-payload",
+        }),
       HYPERDRIVE:
         usePostgres &&
         bindings.hyperdrive({
@@ -37,7 +42,7 @@ export default defineConfig({
       R2: bindings.r2({ name: "launch-payload-media" }),
     },
     name: "launch-payload",
-    previewUrls: true,
+    previewUrls: false,
     workersDev: true,
   }),
 });

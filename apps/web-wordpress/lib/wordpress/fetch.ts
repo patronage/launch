@@ -1,0 +1,70 @@
+import {
+  accessFetch,
+  isAccessRejection,
+  verifyAccessJwt,
+} from "@patronage/access";
+
+import { wordpressEnv } from "./env";
+
+/** CMS reads share the Access transport, including original media requests. */
+export const wordpressFetch = async (
+  input: string,
+  init: RequestInit = {},
+  previewJwt?: string | null
+): Promise<Response> => {
+  const config = wordpressEnv();
+
+  if (new URL(input).origin !== new URL(config.origin).origin) {
+    throw new Error("WordPress credentials cannot be sent to another origin.");
+  }
+
+  // Local WordPress runs without Access. A partial token fails closed.
+  if (!(config.accessClientId || config.accessClientSecret)) {
+    return fetch(input, init);
+  }
+
+  if (!(config.accessClientId && config.accessClientSecret)) {
+    throw new Error("WordPress Access service token is incomplete.");
+  }
+
+  let forward;
+
+  if (previewJwt !== undefined) {
+    if (!config.accessProofSecret) {
+      throw new Error(
+        "WordPress previews need the Access gateway proof secret."
+      );
+    }
+
+    const verified = await verifyAccessJwt(previewJwt, {
+      audience: config.accessPreviewAudience,
+      teamDomain: config.accessTeamDomain,
+    });
+
+    if (!verified.ok || verified.identity.kind !== "user" || !previewJwt) {
+      throw new Error("WordPress previews require a verified Access user.");
+    }
+
+    forward = { jwt: previewJwt, proofSecret: config.accessProofSecret };
+  }
+
+  const response = await accessFetch(
+    input,
+    { ...init, redirect: "manual" },
+    {
+      forward,
+      serviceToken: {
+        clientId: config.accessClientId,
+        clientSecret: config.accessClientSecret,
+      },
+    }
+  );
+
+  if (isAccessRejection(response)) {
+    await response.body?.cancel();
+
+    throw new Error("Cloudflare Access refused the WordPress request.");
+  }
+
+  return response;
+};

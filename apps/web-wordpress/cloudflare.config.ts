@@ -25,6 +25,8 @@ export default defineConfig(({ isPreview }) => ({
       : [],
     entrypoint: "vinext/server/fetch-handler",
     env: {
+      ACCESS_PREVIEW_AUD: bindings.text(process.env.ACCESS_PREVIEW_AUD ?? ""),
+      ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
       ASSETS: bindings.assets(),
       // Values come from the shell at deploy time (scripts/deploy.mjs) and
       // from .env.local in local dev. They are never written to this file.
@@ -35,6 +37,9 @@ export default defineConfig(({ isPreview }) => ({
       VINEXT_KV_CACHE: bindings.kv(
         isPreview ? {} : { id: "d5b43cfa9e444ac2b772c7b042d6c641" }
       ),
+      WORDPRESS_ACCESS_CLIENT_ID: bindings.secret(),
+      WORDPRESS_ACCESS_CLIENT_SECRET: bindings.secret(),
+      WORDPRESS_ACCESS_PROOF_SECRET: bindings.secret(),
       WORDPRESS_PREVIEW_PASSWORD: bindings.secret(),
       WORDPRESS_PREVIEW_USER: bindings.secret(),
       WORDPRESS_URL: bindings.text(

@@ -22,6 +22,7 @@ import path from "node:path";
 import { readWorkerConfig, root, run, secretNames } from "./worker-config.mjs";
 
 const dryRun = process.argv.includes("--dry-run");
+const previewsEnabled = process.env.WORKER_PREVIEWS === "true";
 
 const required = [
   "CLOUDFLARE_ACCOUNT_ID",
@@ -60,7 +61,7 @@ const workerName = workerConfig.name;
 
 // Enabling branch builds before setting the separate Preview base secrets
 // produces Previews that upload successfully but cannot initialize Payload.
-if (!dryRun) {
+if (!dryRun && previewsEnabled) {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID)}/workers/workers/${encodeURIComponent(workerName)}`,
     { headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` } }
@@ -154,7 +155,7 @@ const body = {
     ...shared,
     deploy_command: "pnpm run deploy --preview",
   },
-  previews_enabled: true,
+  previews_enabled: previewsEnabled,
   production_settings: { ...shared, deploy_command: "pnpm run deploy" },
   script_tag: await lookupScriptTag(),
 };

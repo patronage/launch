@@ -1,8 +1,11 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
+import { ACCESS_ASSERTION_HEADER } from "@patronage/access";
 import type { DocumentNode } from "graphql";
+import { headers as incomingHeaders } from "next/headers";
 import { z } from "zod";
 
 import { wordpressEnv } from "./env";
+import { wordpressFetch } from "./fetch";
 
 /** Every WordPress fetch carries this tag; the revalidate route purges it on publish. */
 export const WORDPRESS_CACHE_TAG = "wordpress";
@@ -77,14 +80,26 @@ export const wpQuery = async <
     headers.set("x-graphql-preview", `database_id=${previewDatabaseId}`);
   }
 
-  const response = await fetch(wordpressEnv().graphqlUrl, {
-    body: JSON.stringify({ queryId: queryId(document), variables }),
-    headers,
-    method: "POST",
-    ...(preview
-      ? { cache: "no-store" }
-      : { next: { tags: [WORDPRESS_CACHE_TAG] } }),
-  });
+  let previewJwt: string | null | undefined;
+
+  if (preview) {
+    const requestHeaders = await incomingHeaders();
+
+    previewJwt = requestHeaders.get(ACCESS_ASSERTION_HEADER);
+  }
+
+  const response = await wordpressFetch(
+    wordpressEnv().graphqlUrl,
+    {
+      body: JSON.stringify({ queryId: queryId(document), variables }),
+      headers,
+      method: "POST",
+      ...(preview
+        ? { cache: "no-store" }
+        : { next: { tags: [WORDPRESS_CACHE_TAG] } }),
+    },
+    previewJwt
+  );
 
   if (!response.ok) {
     throw new Error(

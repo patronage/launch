@@ -2,6 +2,7 @@ import { sourcePath, serveImage } from "@launch/images";
 import { env } from "cloudflare:workers";
 
 import { wordpressEnv } from "@/lib/wordpress/env";
+import { wordpressFetch } from "@/lib/wordpress/fetch";
 import { UPLOADS_PATH } from "@/lib/wordpress/sections";
 
 interface Context {
@@ -17,7 +18,7 @@ export const GET = async (request: Request, { params }: Context) => {
   const path = sourcePath(segments);
 
   const original = path
-    ? await fetch(`${wordpressEnv().origin}${UPLOADS_PATH}${path}`)
+    ? await wordpressFetch(`${wordpressEnv().origin}${UPLOADS_PATH}${path}`)
     : null;
 
   return serveImage(request, original, env.IMAGES);

@@ -47,3 +47,13 @@ pnpm --filter web-wordpress codegen:schema
 ## Environment
 
 See `.env.example`. `HEADLESS_SECRET` must match WordPress's. The preview user's application password is only sent on preview requests, which are never cached.
+
+## CMS Access
+
+Production GraphQL and original-media requests use the same Cloudflare Access service token. Configure `WORDPRESS_ACCESS_CLIENT_ID`, `WORDPRESS_ACCESS_CLIENT_SECRET` and `WORDPRESS_ACCESS_PROOF_SECRET` as Worker runtime secrets. Set the public build variables `ACCESS_TEAM_DOMAIN` and `ACCESS_PREVIEW_AUD` for the preview Access application. Local WordPress can run without the service token.
+
+Protect `/api/preview` and `/preview` on each active frontend hostname. Preview reads verify the editor's Access assertion, forward it with a gateway proof, and retain the WordPress application password and `no-store` behavior. The proof secret must match `PATRONAGE_ACCESS_PROOF_SECRET` in WordPress.
+
+Deploy the frontend and test its CMS reads before enabling the WordPress origin guard. Then configure the CMS Access application, the origin AUD, and the CLI cron described in [Access lockdown](../../docs/spikes/05-access-lockdown.md). Confirm public reads, editor previews, original media and origin denials after lockdown.
+
+`pnpm run secrets` and production deploys upload values through stdin and suppress responses when values are supplied. `pnpm run secrets --preview-base` updates the separate Preview base secrets through the API, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`; existing previews need their secrets updated separately. Dry runs never pass secret values to `cf`.
