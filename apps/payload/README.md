@@ -59,10 +59,11 @@ pnpm run secrets            # update runtime secrets once the Worker exists
 The deploy uses `cf deploy --prebuilt`. On the first production deploy, it passes the declared secrets from the environment through stdin, because `cf` cannot set secrets before the Worker exists. Dry runs exclude their values. Later deploys without values in the environment retain the stored secrets; keep them out of Workers Builds variables. `pnpm run secrets` updates them separately once the Worker exists. Both commands suppress output when uploading values and report only names or a failure exit status; check authentication and retry on failure.
 
 After the first deploy, record the provisioned D1 database id and R2 bucket in `cloudflare.config.ts`. The Worker applies pending migrations on its first request. Open `/admin` to create the first user. This runs live as `launch-payload` (2026-10-30), with the D1 id pinned. Two Workers-only fixes keep it running:
+
 - `src/lib/payload-config.ts` loads the config on the first request, not at startup, because the eager load read D1 during startup validation.
 - `src/lib/worker-crypto.ts` hashes passwords with PBKDF2 through `@noble/hashes`, because Workers' native crypto caps the iteration count below Payload's.
 
-`scripts/config-startup.test.mjs` covers both. Re-test remote sign-up and login after each Payload upgrade.
+`scripts/config-startup.test.mjs` covers both. Re-test remote sign-up and login after each Payload upgrade. Not yet checked live: the full editing and GraphQL flow that `pnpm smoke` covers locally, which must not run against the seeded production database.
 
 `pnpm run deploy --preview` uploads a Worker Preview for the current branch. The D1 and R2 bindings currently use the same names as production: treat them as shared data. Run `pnpm smoke` only against a fresh, isolated database, because it creates and changes content.
 

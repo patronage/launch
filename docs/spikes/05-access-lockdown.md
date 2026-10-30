@@ -58,7 +58,7 @@ editor  ──► Access login ──► web Worker /preview ──service token
 ## Follow-ups
 
 - **Live run (done, 2026-10-30).** Three Access applications: the WordPress CMS hostname; the front end's `/preview` and `/api/preview` paths on both its custom domain and its workers.dev host; and Payload's `/admin` and `/api`. The front end reads published content and media with a service token (`WORDPRESS_ACCESS_CLIENT_ID`, `WORDPRESS_ACCESS_CLIENT_SECRET`) and signs forwarded editor JWTs with `WORDPRESS_ACCESS_PROOF_SECRET`, all set as Worker secrets with `cf`. Results:
-  - Public pages and media load.
+  - Public pages and media load. Resized media first failed with Images error `9432` until Cloudflare Images was enabled on the account's plan; check that before a first deploy.
   - An editor's preview of a draft works.
   - A direct request to the PHP origin without Access gets 403.
   - Signed-out requests to wp-admin and the Payload admin and API redirect to the Access login.

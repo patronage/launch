@@ -59,5 +59,5 @@ All three Workers (`launch-vinext-wordpress`, `launch-payload`, `launch-docs`) d
 
 Still open:
 
-- How Previews get secrets. A new Preview copies the Worker's Previews base secrets when it is created; `apps/payload` sets them with `pnpm run secrets --preview-base`. Until a Worker has them, its Previews render, but revalidation and draft mode fail. The `apps/web-wordpress` Previews built so far are not full CMS preview environments.
+- How Previews get secrets. A new Preview copies the Worker's Previews base secrets when it is created; `apps/payload` sets them with `pnpm run secrets --preview-base`. Until a Worker has them, `apps/web-wordpress` Previews render, but revalidation and draft mode fail. A Payload Preview cannot start without `PAYLOAD_SECRET` at all, which is why its `builds:configure` refuses to turn branch builds on until the base secrets exist. The `apps/web-wordpress` Previews built so far are not full CMS preview environments.
 - Putting Previews behind Access (step 7 above).
