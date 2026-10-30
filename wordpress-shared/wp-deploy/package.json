@@ -1,0 +1,8 @@
+{
+  "name": "@launch/wp-deploy",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "bash tests/test_deploy.sh"
+  }
+}

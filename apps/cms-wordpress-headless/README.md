@@ -7,6 +7,7 @@ WordPress as an editing tool and a GraphQL API for [`apps/web-wordpress`](../web
 - `composer.json` and `composer.lock`: WPGraphQL, WPGraphQL Smart Cache, WPGraphQL for ACF, [Secure Custom Fields](https://github.com/WordPress/secure-custom-fields), [Extended ACF](https://github.com/vinkla/extended-acf) and [Extended CPTs](https://github.com/johnbillion/extended-cpts). Composer installs them into `wp-content/plugins/`, which is gitignored.
 - `wp-content/themes/patronage-headless/`: registers the primary menu, the ACF field groups in `fields/` (see [Fields](#fields)) and post types with their admin list columns in `inc/post-types.php`, points the editor's Preview button at the front-end with a signed link, redirects visitors of WordPress's own front-end to the headless site, and locks WPGraphQL to the front-end's registered queries (`inc/persisted-queries.php`, `graphql-documents.json`).
 - `wp-content/mu-plugins/patronage-headless-revalidate.php`: tells the front-end which paths and tags to revalidate when content is published, edited, moved, unpublished or trashed.
+- `_build/`: deploys to Cloudways with [wp-deploy](../../wordpress-shared/wp-deploy/README.md), and a sample `wp-config.php` block for hosted environments. See [`_build/README.md`](_build/README.md).
 - `bin/setup.sh` and `bin/seed.sh`: install, configure and seed invented demo content (`seed/seed.php`, with images from [`packages/demo-content`](../../packages/demo-content)).
 
 ## Run it

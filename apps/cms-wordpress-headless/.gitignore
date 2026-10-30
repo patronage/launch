@@ -1,0 +1,2 @@
+# Copied from wordpress-shared/patronage-access by bin/build.sh for deploys.
+wp-content/mu-plugins/patronage-access.php
