@@ -1,5 +1,7 @@
 import type {
   Block,
+  Form,
+  FormField,
   Image,
   Link,
   LinkVariant,
@@ -10,6 +12,7 @@ import type {
 } from "@launch/content-model";
 import {
   compact,
+  FORM_FIELD_TYPES,
   oneOf,
   slugify,
   toColumns,
@@ -24,6 +27,9 @@ import { isPopulatedPage, renderLexical } from "./lexical";
 import type {
   LayoutBlock,
   LexicalState,
+  FormBlock as PayloadFormBlock,
+  PayloadForm,
+  PayloadFormField,
   PayloadLink,
   PayloadMedia,
   PayloadPage,
@@ -50,7 +56,19 @@ export interface PayloadAdapterOptions {
   homeSlug?: string;
   /** Replaces the built-in Lexical renderer, e.g. with Payload's own `RichText`. */
   renderRichText?: (state: LexicalState) => ReactNode | undefined;
+  /** Where form sections post their submissions. */
+  formAction?: string;
 }
+
+/** True when a form relationship holds the populated doc rather than its id. */
+const isPopulatedForm = (
+  value: PayloadForm | number | string | null | undefined
+): value is PayloadForm => value instanceof Object;
+
+const toFieldType = (
+  blockType: string
+): FormField<ReactNode>["type"] | undefined =>
+  FORM_FIELD_TYPES.find((type) => type === blockType);
 
 /** True when an upload field holds the populated doc rather than its id (depth 0). */
 const isPopulatedMedia = (upload: PayloadUpload): upload is PayloadMedia =>
@@ -63,6 +81,7 @@ const KNOWN_BLOCKS = new Set<string>([
   "cardGrid",
   "blockquote",
   "callToAction",
+  "form",
 ]);
 
 const isKnownBlock = (
@@ -85,6 +104,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
   const serverUrl = options.serverUrl?.replace(/\/+$/u, "") ?? "";
   const imageUrl = options.imageUrl ?? ((src: string) => src);
   const homeSlug = options.homeSlug ?? "home";
+  const formAction = options.formAction ?? "/forms/submit";
 
   /** Path for a page doc: the last nested-docs breadcrumb, else `/slug`. */
   const pagePath = (doc: PayloadPageRef | PayloadPage): string | undefined => {
@@ -170,6 +190,72 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
       image: img,
     });
   };
+
+  /** A form-builder field, or undefined for types the UI does not draw. */
+  const formField = (
+    field: PayloadFormField
+  ): FormField<ReactNode> | undefined => {
+    const type = toFieldType(field.blockType);
+
+    if (!type || (type !== "message" && !field.name)) {
+      return undefined;
+    }
+
+    const defaultValue =
+      field.defaultValue === null || field.defaultValue === undefined
+        ? undefined
+        : String(field.defaultValue);
+
+    return compact({
+      defaultValue,
+      label: field.label ?? undefined,
+      message: type === "message" ? richText(field.message) : undefined,
+      name: field.name ?? "",
+      options:
+        type === "select"
+          ? (field.options ?? []).flatMap((option) =>
+              option.value
+                ? [{ label: option.label ?? option.value, value: option.value }]
+                : []
+            )
+          : undefined,
+      required: field.required === true,
+      type,
+      width: field.width ?? undefined,
+    });
+  };
+
+  const form = (value: PayloadForm): Form<ReactNode> =>
+    compact({
+      action: formAction,
+      // Redirect confirmations are not drawn yet; they fall back to the default.
+      confirmation:
+        value.confirmationType === "message"
+          ? richText(value.confirmationMessage)
+          : undefined,
+      fields: (value.fields ?? []).flatMap((field) => {
+        const mapped = formField(field);
+
+        return mapped ? [mapped] : [];
+      }),
+      id: String(value.id),
+      submitLabel: value.submitButtonLabel || "Submit",
+    });
+
+  /** A form section, or undefined when its form was not populated. */
+  const formBlock = (
+    value: PayloadFormBlock,
+    id: string
+  ): Block<ReactNode> | undefined =>
+    isPopulatedForm(value.form)
+      ? compact({
+          body: richText(value.body),
+          form: form(value.form),
+          heading: value.heading ?? undefined,
+          id,
+          type: "form",
+        })
+      : undefined;
 
   const block = (
     value: LayoutBlock,
@@ -267,6 +353,10 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
           links: links(value.links),
           type: "callToAction",
         });
+      }
+
+      case "form": {
+        return formBlock(value, id);
       }
 
       default: {

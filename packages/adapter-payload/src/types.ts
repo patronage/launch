@@ -136,7 +136,38 @@ export interface CallToActionBlock extends BlockBase<"callToAction"> {
   links?: { id?: string | null; link: PayloadLink }[] | null;
 }
 
+/** A field block in the form-builder plugin's `fields`. */
+export interface PayloadFormField {
+  id?: string | null;
+  blockType: string;
+  name?: string | null;
+  label?: string | null;
+  required?: boolean | null;
+  width?: number | null;
+  /** Text for most fields; a boolean for checkboxes. */
+  defaultValue?: string | number | boolean | null;
+  options?: { label?: string | null; value?: string | null }[] | null;
+  message?: LexicalState | null;
+}
+
+/** A form-builder `forms` document. */
+export interface PayloadForm {
+  id: number | string;
+  fields?: PayloadFormField[] | null;
+  submitButtonLabel?: string | null;
+  confirmationType?: string | null;
+  confirmationMessage?: LexicalState | null;
+}
+
+export interface FormBlock extends BlockBase<"form"> {
+  heading?: string | null;
+  body?: LexicalState | null;
+  /** The populated form at depth >= 1, otherwise its id. */
+  form?: PayloadForm | number | string | null;
+}
+
 export type LayoutBlock =
+  | FormBlock
   | ContentBlock
   | ContentMediaBlock
   | MediaBlock

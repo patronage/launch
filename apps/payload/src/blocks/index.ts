@@ -35,27 +35,29 @@ const heading = { name: "heading", type: "text" } as const;
  * draws. The default editor also allows uploads, relationships and blocks,
  * which would save but never reach the page.
  */
+export const sectionBodyEditor = lexicalEditor({
+  features: () => [
+    ParagraphFeature(),
+    HeadingFeature({ enabledHeadingSizes: ["h2", "h3", "h4"] }),
+    BoldFeature(),
+    ItalicFeature(),
+    UnderlineFeature(),
+    StrikethroughFeature(),
+    InlineCodeFeature(),
+    SubscriptFeature(),
+    SuperscriptFeature(),
+    LinkFeature({ enabledCollections: ["pages"] }),
+    UnorderedListFeature(),
+    OrderedListFeature(),
+    BlockquoteFeature(),
+    HorizontalRuleFeature(),
+    FixedToolbarFeature(),
+    InlineToolbarFeature(),
+  ],
+});
+
 const body = {
-  editor: lexicalEditor({
-    features: () => [
-      ParagraphFeature(),
-      HeadingFeature({ enabledHeadingSizes: ["h2", "h3", "h4"] }),
-      BoldFeature(),
-      ItalicFeature(),
-      UnderlineFeature(),
-      StrikethroughFeature(),
-      InlineCodeFeature(),
-      SubscriptFeature(),
-      SuperscriptFeature(),
-      LinkFeature({ enabledCollections: ["pages"] }),
-      UnorderedListFeature(),
-      OrderedListFeature(),
-      BlockquoteFeature(),
-      HorizontalRuleFeature(),
-      FixedToolbarFeature(),
-      InlineToolbarFeature(),
-    ],
-  }),
+  editor: sectionBodyEditor,
   name: "body",
   type: "richText",
 } as const;
@@ -152,6 +154,27 @@ export const CallToAction: Block = {
   slug: "callToAction",
 };
 
+export const FormSection: Block = {
+  fields: [
+    heading,
+    body,
+    {
+      admin: {
+        description: "Build forms under Forms in the sidebar.",
+      },
+      name: "form",
+      relationTo: "forms",
+      required: true,
+      type: "relationship",
+    },
+    sectionOptions,
+  ],
+  // The default name, `Form`, would clash with the forms collection's type.
+  interfaceName: "FormSection",
+  labels: { plural: "Forms", singular: "Form" },
+  slug: "form",
+};
+
 export const sectionBlocks = [
   Content,
   ContentMedia,
@@ -159,4 +182,5 @@ export const sectionBlocks = [
   CardGrid,
   Blockquote,
   CallToAction,
+  FormSection,
 ];

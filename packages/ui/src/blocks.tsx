@@ -4,6 +4,7 @@ import type {
   CardGridBlock,
   ContentBlock,
   ContentMediaBlock,
+  FormBlock,
   MediaBlock,
 } from "@launch/content-model";
 import type { ReactNode } from "react";
@@ -14,6 +15,7 @@ import {
   CardFooter,
   CardHeader,
 } from "./components/card";
+import { Form } from "./components/form";
 import { Typography } from "./components/typography";
 import { Figure, Img, LinkList, RichText } from "./primitives";
 import { cn } from "./utils";
@@ -206,5 +208,23 @@ export const CallToAction = ({
       headingLevel={headingLevel}
       links={block.links}
     />
+  </div>
+);
+
+/** Heading and intro above a CMS-defined form, at reading width. */
+export const FormSection = ({
+  block,
+  headingLevel = "h2",
+}: BlockProps<FormBlock<ReactNode>>) => (
+  <div className="flex max-w-2xl flex-col gap-10">
+    {block.heading || block.body ? (
+      <Copy
+        body={block.body}
+        heading={block.heading}
+        headingLevel={headingLevel}
+        links={[]}
+      />
+    ) : null}
+    <Form form={block.form} />
   </div>
 );

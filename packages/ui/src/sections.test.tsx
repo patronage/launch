@@ -41,6 +41,33 @@ const page: Page<ReactNode> = {
       },
       options: DEFAULT_SECTION_OPTIONS,
     },
+    {
+      block: {
+        form: {
+          action: "/forms/submit",
+          fields: [
+            { label: "Email", name: "email", required: true, type: "email" },
+            {
+              name: "topic",
+              options: [{ label: "Seeds", value: "seeds" }],
+              required: false,
+              type: "select",
+            },
+            {
+              message: <p>Fine print</p>,
+              name: "",
+              required: false,
+              type: "message",
+            },
+          ],
+          id: "1",
+          submitLabel: "Send",
+        },
+        id: "d",
+        type: "form",
+      },
+      options: DEFAULT_SECTION_OPTIONS,
+    },
   ],
   title: "Test",
 };
@@ -76,5 +103,20 @@ describe(PageSections, () => {
 
   it("adds rel to new-tab links", () => {
     expect(html).toContain('rel="noopener noreferrer" target="_blank"');
+  });
+
+  it("renders form fields with labels tied to their inputs", () => {
+    const label = /<label class="[^"]*" for="(?<id>[^"]+)">Email/u.exec(html);
+
+    expect(label).not.toBeNull();
+    expect(html).toMatch(
+      new RegExp(
+        `<input [^>]*id="${label?.groups?.id}" required="" name="email"`,
+        "u"
+      )
+    );
+    expect(html).toContain('<option value="seeds">Seeds</option>');
+    expect(html).toContain("<p>Fine print</p>");
+    expect(html).toContain(">Send</button>");
   });
 });

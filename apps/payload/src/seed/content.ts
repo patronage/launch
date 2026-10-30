@@ -1,4 +1,5 @@
 import type { Link, Page, SectionOptions } from "../payload-types";
+import type { FormTitle } from "./forms";
 import { bulletList, pageLink, paragraph, richText, text } from "./lexical";
 
 /**
@@ -31,6 +32,7 @@ export type ImageFile =
 export interface SeedRefs {
   page: (slug: PageSlug) => number;
   image: (file: ImageFile) => number;
+  form: (title: FormTitle) => number;
 }
 
 type Layout = NonNullable<Page["layout"]>;
@@ -69,7 +71,20 @@ const intro = (
   sectionOptions: options(value),
 });
 
+const formSection = (
+  formId: number,
+  heading?: string,
+  body?: string
+): Layout[number] => ({
+  blockType: "form",
+  body: body ? richText(paragraph(body)) : null,
+  form: formId,
+  heading: heading ?? null,
+  sectionOptions: options({ paddingTop: "none" }),
+});
+
 export const layouts = ({
+  form,
   image,
   page,
 }: SeedRefs): Record<PageSlug, Layout> => ({
@@ -78,11 +93,17 @@ export const layouts = ({
       "Apply for a garden",
       "Tell us about the lot and the neighbors who want to grow there. We reply within two weeks."
     ),
+    formSection(form("Garden application")),
   ],
   "get-involved": [
     intro(
       "Get involved",
       "Volunteer on a harvest day, mentor a new garden or join the seed library."
+    ),
+    formSection(
+      form("Volunteer sign-up"),
+      "Volunteer with us",
+      "Tell us how you'd like to help and we'll match you with a garden."
     ),
     {
       blockType: "callToAction",

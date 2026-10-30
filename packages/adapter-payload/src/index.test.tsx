@@ -83,6 +83,72 @@ describe("Payload adapter", () => {
     expect(shallow.path).toBe("/about");
     expect(shallow.sections).toStrictEqual([]);
   });
+
+  it("maps a populated form and drops one left as an id", () => {
+    const { sections } = createPayloadAdapter({
+      formAction: "/submit",
+    }).toPage({
+      id: 3,
+      layout: [
+        {
+          blockType: "form",
+          form: {
+            confirmationType: "redirect",
+            fields: [
+              {
+                blockType: "text",
+                label: "Name",
+                name: "name",
+                required: true,
+              },
+              {
+                blockType: "select",
+                name: "size",
+                options: [{ label: "Small", value: "s" }, { value: "" }],
+                width: 50,
+              },
+              { blockType: "checkbox", defaultValue: true, name: "news" },
+              { blockType: "payment", name: "amount" },
+              { blockType: "email" },
+            ],
+            id: 7,
+            submitButtonLabel: "",
+          },
+          heading: "Sign up",
+        },
+        { blockType: "form", form: 7 },
+      ],
+      slug: "join",
+    });
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.block).toStrictEqual({
+      form: {
+        action: "/submit",
+        fields: [
+          { label: "Name", name: "name", required: true, type: "text" },
+          {
+            name: "size",
+            options: [{ label: "Small", value: "s" }],
+            required: false,
+            type: "select",
+            width: 50,
+          },
+          {
+            defaultValue: "true",
+            name: "news",
+            required: false,
+            type: "checkbox",
+          },
+        ],
+        id: "7",
+        submitLabel: "Submit",
+      },
+      heading: "Sign up",
+      id: "form-0",
+      type: "form",
+    });
+  });
 });
 
 const text = (value: string, format = 0) => ({
