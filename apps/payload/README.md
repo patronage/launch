@@ -4,7 +4,8 @@ One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://gith
 
 - Database: D1, which is the chosen database for the demo. Postgres through Hyperdrive is an option (`PAYLOAD_DB=postgres`).
 - Media: R2
-- Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `media`; global: `site-settings`
+- Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `posts` with `authors` and `categories`, `media`; global: `site-settings`
+- Preview: pages and posts autosave drafts, and editors see them through the admin's preview button and Live Preview (see below)
 - Page sections: the `layout` blocks field holds one block per section type in `@launch/content-model` (`content`, `contentMedia`, `media`, `cardGrid`, `blockquote`, `callToAction`), each with a shared `sectionOptions` group. Field names match the content model and the WordPress ACF page builder, so `@launch/adapter-payload` only maps rich text, links and media.
 
 Findings and open problems are in [docs/spikes/05-payload-on-vinext.md](../../docs/spikes/05-payload-on-vinext.md).
@@ -25,7 +26,7 @@ pnpm build && pnpm preview  # http://localhost:4173/admin
 
 ### Demo content
 
-`pnpm seed` creates the invented Neighborhood Growers site that the WordPress seed also creates: a home page with every section type (plus one hidden section), the pages it links to (`get-involved`, `apply`, `guide`, `programs`, `programs/seed-library`, `programs/tool-share`), five placeholder images from `packages/demo-content`, and the site settings. Pages are published. Running it again resets that content without duplicating it: pages match by slug and images by alt text. It works with `PAYLOAD_DB=postgres` too.
+`pnpm seed` creates the invented Neighborhood Growers site that the WordPress seed also creates: a home page with every section type (plus one hidden section), the pages it links to (`get-involved`, `apply`, `guide`, `programs`, `programs/seed-library`, `programs/tool-share`), five placeholder images from `packages/demo-content`, and the site settings. Pages are published. It also seeds the news: three authors, four categories and six posts. One post is a draft, and one published post has a newer draft, so preview and version history have something to show. Running it again resets that content without duplicating it: pages, posts and categories match by slug, authors by name and images by alt text. It works with `PAYLOAD_DB=postgres` too.
 
 The seed lives in `src/seed/`: `content.ts` is the page content, `lexical.ts` builds the rich text.
 
@@ -74,6 +75,8 @@ Branch builds are off by default. To opt in, set `WORKER_PREVIEWS=true` when con
 ## How it fits together
 
 - `src/app/(frontend)/[[...slug]]/page.tsx` serves every page by path. It reads the page through the Local API at depth 1 (`src/lib/page-query.ts`), checks the path against its nested-docs breadcrumbs, and renders the layout blocks with `PageSections` from `@launch/ui` through `@launch/adapter-payload`. Pages without blocks show the hero and rich text. `/` lists the pages until one has the slug `home`.
+- `src/app/(frontend)/news` lists published posts, featured first, then newest first. Each post is at `/news/<slug>`. A top-level page with the slug `news` would be hidden behind the listing.
+- Preview: the preview button and Live Preview open `/next/preview?path=…` (`src/lib/preview.ts`). For a logged-in editor, that route turns on draft mode and redirects to the path. Front-end reads pass `draft: true` only when draft mode is on and the reader is logged in (`src/lib/payload.ts`), so the cookie alone shows nothing. In Live Preview, `LivePreviewRefresh` re-renders the page each time the document autosaves.
 - `src/app/(frontend)/media/[...path]` serves media resized by the Cloudflare Images binding (`@launch/images`). It gets the original from Payload's own file endpoint in-process, so Payload keeps its R2 keys and access rules. vinext's `/_next/image` only resizes files in `public/` on Workers.
 
 - `cloudflare.config.ts` declares the Worker and its bindings for the `cf` CLI and the Cloudflare Vite plugin. There is no Wrangler config.

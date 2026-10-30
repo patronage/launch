@@ -228,6 +228,9 @@ importers:
       '@payloadcms/db-postgres':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(supports-color@10.2.2)
+      '@payloadcms/live-preview-react':
+        specifier: 4.0.0-beta.6
+        version: 4.0.0-beta.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@payloadcms/next':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/react@19.3.0)(graphql@16.14.2)(monaco-editor@0.57.0)(next@16.4.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@24.12.3)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
@@ -358,7 +361,7 @@ importers:
         version: 2.0.0-beta.v.7(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261023.1)
       '@graphql-codegen/cli':
         specifier: 7.4.6
-        version: 7.4.6(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)
+        version: 7.4.6(@parcel/watcher@2.5.1)(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)
       '@graphql-codegen/client-preset':
         specifier: 6.2.3
         version: 6.2.3(graphql@17.0.2)
@@ -448,7 +451,7 @@ importers:
     devDependencies:
       '@graphql-codegen/cli':
         specifier: 7.4.6
-        version: 7.4.6(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)
+        version: 7.4.6(@parcel/watcher@2.5.1)(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)
       '@graphql-codegen/typescript':
         specifier: 6.1.2
         version: 6.1.2(graphql@17.0.2)
@@ -3114,6 +3117,15 @@ packages:
     peerDependencies:
       graphql: ^16.8.1
       payload: 4.0.0-beta.6
+
+  '@payloadcms/live-preview-react@4.0.0-beta.6':
+    resolution: {integrity: sha512-MgEQasAjYpz7wUEw7VKcBZEs6HkUM0uWgSMlqlJDd1ixWyx2ExNclY5vOrC47bWQgRLiF2OQht5tv1xgev6oRQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.1 || ^19.1.2 || ^19.2.1
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.1 || ^19.1.2 || ^19.2.1
+
+  '@payloadcms/live-preview@4.0.0-beta.6':
+    resolution: {integrity: sha512-jxroreBsg9f3on3ye2qUapPdcRarRSenQgWJtCx6c0AHed+D5FgihzeiWtDjK+mCzNbrYYfpgHCJnwMLzIZAwA==}
 
   '@payloadcms/next@4.0.0-beta.6':
     resolution: {integrity: sha512-arkEmZKAm0OC1qSnnbMEeKfEfM3Pp3Nic6Xf6eLZWck6o9Kwh6KQdlm1id9k1Hy52VC3YuQd58jjl+AOun1+aA==}
@@ -9865,7 +9877,7 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-codegen/cli@7.4.6(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)':
+  '@graphql-codegen/cli@7.4.6(@parcel/watcher@2.5.1)(@types/node@26.6.6)(crossws@0.3.5)(graphql@17.0.2)(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
       '@babel/generator': 7.29.12
       '@babel/template': 7.29.7
@@ -9903,6 +9915,8 @@ snapshots:
       tslib: 2.8.1
       yaml: 2.9.1
       yargs: 18.2.0
+    optionalDependencies:
+      '@parcel/watcher': 2.5.1
     transitivePeerDependencies:
       - '@fastify/websocket'
       - '@types/node'
@@ -11277,6 +11291,14 @@ snapshots:
       tsx: 4.23.15
     transitivePeerDependencies:
       - typescript
+
+  '@payloadcms/live-preview-react@4.0.0-beta.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+    dependencies:
+      '@payloadcms/live-preview': 4.0.0-beta.6
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+
+  '@payloadcms/live-preview@4.0.0-beta.6': {}
 
   '@payloadcms/next@4.0.0-beta.6(@types/react@19.3.0)(graphql@16.14.2)(monaco-editor@0.57.0)(next@16.4.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@24.12.3)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:

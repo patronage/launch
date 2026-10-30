@@ -62,24 +62,32 @@ export type SupportedTimezones =
   | 'Pacific/Fiji';
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_6C432CED".
+ * via the `definition` "LexicalNodes_BA98D6E7".
  */
-export type LexicalNodes_6C432CED =
+export type LexicalNodes_BA98D6E7 =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_6C432CED>
+  | SerializedParagraphNode<LexicalNodes_BA98D6E7>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_6C432CED>
+  | SerializedQuoteNode<LexicalNodes_BA98D6E7>
   | SerializedRelationshipNode<
-      'users' | 'pages' | 'payload-kv' | 'payload-locked-documents' | 'payload-preferences' | 'payload-migrations'
+      | 'users'
+      | 'pages'
+      | 'posts'
+      | 'authors'
+      | 'categories'
+      | 'payload-kv'
+      | 'payload-locked-documents'
+      | 'payload-preferences'
+      | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_6C432CED, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_6C432CED, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_6C432CED>
-  | SerializedListItemNode<LexicalNodes_6C432CED>
-  | SerializedHeadingNode<LexicalNodes_6C432CED>;
+  | SerializedAutoLinkNode<LexicalNodes_BA98D6E7, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_BA98D6E7, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_BA98D6E7>
+  | SerializedListItemNode<LexicalNodes_BA98D6E7>
+  | SerializedHeadingNode<LexicalNodes_BA98D6E7>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_8BE519DA".
@@ -117,6 +125,9 @@ export interface Config {
   collections: {
     users: User;
     pages: Page;
+    posts: Post;
+    authors: Author;
+    categories: Category;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -128,6 +139,9 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    authors: AuthorsSelect<false> | AuthorsSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -220,7 +234,7 @@ export interface Page {
   title: string;
   slug: string;
   hero?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_6C432CED> | null;
+  content?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
   /**
    * Page sections, rendered in order.
    */
@@ -442,6 +456,85 @@ export interface CallToActionSection {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  /**
+   * The post's address: /news/<slug>.
+   */
+  slug: string;
+  /**
+   * One or two sentences for the listing and link previews.
+   */
+  excerpt?: string | null;
+  hero?: (number | null) | Media;
+  content?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
+  publishedAt: string;
+  authors?: (number | Author)[] | null;
+  categories?: (number | Category)[] | null;
+  /**
+   * Featured posts lead the news listing.
+   */
+  featured?: boolean | null;
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors".
+ */
+export interface Author {
+  id: number;
+  name: string;
+  /**
+   * Shown under the name, e.g. Garden lead.
+   */
+  role?: string | null;
+  photo?: (number | null) | Media;
+  bio?: string | null;
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  title: string;
+  slug: string;
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -471,6 +564,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'authors';
+        value: number | Author;
+      } | null)
+    | ({
+        relationTo: 'categories';
+        value: number | Category;
       } | null)
     | ({
         relationTo: 'media';
@@ -735,6 +840,52 @@ export interface CallToActionSectionSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  excerpt?: T;
+  hero?: T;
+  content?: T;
+  publishedAt?: T;
+  authors?: T;
+  categories?: T;
+  featured?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors_select".
+ */
+export interface AuthorsSelect<T extends boolean = true> {
+  name?: T;
+  role?: T;
+  photo?: T;
+  bio?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories_select".
+ */
+export interface CategoriesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -881,7 +1032,7 @@ export interface CollectionsWidget {
 export interface CollectionQueryWidget {
   data?: {
     title?: string | null;
-    relatedCollection: 'users' | 'pages' | 'media';
+    relatedCollection: 'users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media';
     where?:
       | {
           [k: string]: unknown;
@@ -903,7 +1054,7 @@ export interface CollectionQueryWidget {
  */
 export interface ActivityWidget {
   data?: {
-    excludedCollections?: ('users' | 'pages' | 'media')[] | null;
+    excludedCollections?: ('users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media')[] | null;
   };
   width: 'small' | 'medium' | 'large' | 'x-large' | 'full';
 }

@@ -1,6 +1,13 @@
 import type { CollectionConfig } from "payload";
 
 import { sectionBlocks } from "../blocks";
+import { previewable } from "../lib/preview";
+import { payloadAdapter } from "../lib/sections";
+import type { Page } from "../payload-types";
+
+const preview = previewable<Page>((doc) =>
+  payloadAdapter.pagePath({ ...doc, id: doc.id ?? "" })
+);
 
 export const Pages: CollectionConfig = {
   access: {
@@ -8,6 +15,7 @@ export const Pages: CollectionConfig = {
     read: ({ req }) => (req.user ? true : { _status: { equals: "published" } }),
   },
   admin: {
+    ...preview.admin,
     useAsTitle: "title",
   },
   fields: [
@@ -27,7 +35,5 @@ export const Pages: CollectionConfig = {
     },
   ],
   slug: "pages",
-  versions: {
-    drafts: true,
-  },
+  versions: preview.versions,
 };

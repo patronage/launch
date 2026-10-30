@@ -7,8 +7,11 @@ import { r2Storage } from "@payloadcms/storage-r2";
 import { env } from "cloudflare:workers";
 import { buildConfig } from "payload";
 
+import { Authors } from "./collections/authors";
+import { Categories } from "./collections/categories";
 import { Media } from "./collections/media";
 import { Pages } from "./collections/pages";
+import { Posts } from "./collections/posts";
 import { Users } from "./collections/users";
 import { database } from "./db";
 import { SiteSettings } from "./globals/site-settings";
@@ -24,7 +27,7 @@ export default buildConfig({
     },
     user: Users.slug,
   },
-  collections: [Users, Pages, Media],
+  collections: [Users, Pages, Posts, Authors, Categories, Media],
   db: await database(),
   editor: lexicalEditor(),
   globals: [SiteSettings],
