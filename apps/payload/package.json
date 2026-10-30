@@ -15,13 +15,15 @@
     "seed": "pnpm payload run scripts/seed.ts",
     "record-fixture": "pnpm payload run scripts/record-fixture.ts",
     "secrets": "node scripts/secrets.mjs",
-    "builds:configure": "node scripts/workers-builds.mjs"
+    "builds:configure": "node scripts/workers-builds.mjs",
+    "test": "node --test scripts/config-startup.test.mjs"
   },
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",
     "@launch/content-model": "workspace:*",
     "@launch/images": "workspace:*",
     "@launch/ui": "workspace:*",
+    "@noble/hashes": "2.4.0",
     "@payloadcms/db-d1-sqlite": "4.0.0-beta.6",
     "@payloadcms/db-postgres": "4.0.0-beta.6",
     "@payloadcms/next": "4.0.0-beta.6",
