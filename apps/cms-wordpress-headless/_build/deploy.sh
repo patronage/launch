@@ -1,0 +1,1 @@
+../../../wordpress-shared/wp-deploy/deploy.sh
