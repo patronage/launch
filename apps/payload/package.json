@@ -7,13 +7,15 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vinext-cloudflare deploy",
+    "deploy": "node scripts/deploy.mjs",
     "payload": "cross-env NODE_OPTIONS=\"--no-deprecation --import=./scripts/register-node-hooks.mjs\" payload",
     "typecheck": "cf workers types && tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "generate": "pnpm payload generate:types && pnpm payload generate:importmap",
     "seed": "pnpm payload run scripts/seed.ts",
-    "record-fixture": "pnpm payload run scripts/record-fixture.ts"
+    "record-fixture": "pnpm payload run scripts/record-fixture.ts",
+    "secrets": "node scripts/secrets.mjs",
+    "builds:configure": "node scripts/workers-builds.mjs"
   },
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",

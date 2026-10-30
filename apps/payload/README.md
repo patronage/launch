@@ -45,6 +45,25 @@ pnpm payload migrate
 pnpm build && pnpm preview
 ```
 
+## Deploy
+
+Export `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for the target account, plus a fresh `PAYLOAD_SECRET` for the remote Worker, then run from this app:
+
+```sh
+pnpm run deploy --dry-run   # build and check without uploading secret values
+pnpm run deploy             # first production deploy, with PAYLOAD_SECRET in the environment
+pnpm run secrets --dry-run  # build and list secret names only
+pnpm run secrets            # update runtime secrets once the Worker exists
+```
+
+The deploy uses `cf deploy --prebuilt`. On the first production deploy, it passes the declared secrets from the environment through stdin, because `cf` cannot set secrets before the Worker exists. Dry runs exclude their values. Later deploys without values in the environment retain the stored secrets; keep them out of Workers Builds variables. `pnpm run secrets` updates them separately once the Worker exists. Both commands suppress output when uploading values and report only names or a failure exit status; check authentication and retry on failure.
+
+After the first deploy, record the provisioned D1 database id and R2 bucket in `cloudflare.config.ts`. The Worker applies pending migrations on its first request. Open `/admin` to create the first user. Remote deployment and migration behavior still need a live check.
+
+`pnpm run deploy --preview` uploads a Worker Preview for the current branch. The D1 and R2 bindings currently use the same names as production: treat them as shared data. Run `pnpm smoke` only against a fresh, isolated database, because it creates and changes content.
+
+`pnpm run builds:configure` connects an existing Worker to Workers Builds. It needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `BUILD_TOKEN_UUID`, `GITHUB_OWNER_ID` and `GITHUB_REPO_ID`. Optional `PAYLOAD_DB`, `HYPERDRIVE_ID` and `WORKER_DOMAIN` become build variables. It runs a frozen install and lint for the workspace, followed by typechecks and tests for this app and its dependencies. See [Workers Builds](../../docs/spikes/11-workers-builds.md) for the setup sequence.
+
 ## How it fits together
 
 - `src/app/(frontend)/[[...slug]]/page.tsx` serves every page by path. It reads the page through the Local API at depth 1 (`src/lib/page-query.ts`), checks the path against its nested-docs breadcrumbs, and renders the layout blocks with `PageSections` from `@launch/ui` through `@launch/adapter-payload`. Pages without blocks show the hero and rich text. `/` lists the pages until one has the slug `home`.
@@ -69,4 +88,6 @@ pnpm build && pnpm preview
 | `pnpm record-fixture` | Record the seeded home page as the Payload adapter's fixture |
 | `pnpm smoke [url]` | Browser smoke test against a fresh database |
 | `pnpm typecheck` | Generate Worker types and run `tsc` |
-| `pnpm deploy` | `vinext-cloudflare deploy` (not yet exercised, see Spike 1) |
+| `pnpm run deploy [--preview] [--dry-run]` | Build, then deploy the prebuilt Worker with `cf` |
+| `pnpm run secrets [--dry-run]` | Upload runtime secrets from the environment; dry run lists only names |
+| `pnpm run builds:configure [--dry-run]` | Configure production and branch preview builds for the existing Worker |
