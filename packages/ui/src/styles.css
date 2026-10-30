@@ -67,12 +67,13 @@
   }
 }
 
-@layer components {
-  /*
-   * Rich text from the adapters, styled with @tailwindcss/typography and
-   * coloured by the section around it.
-   */
-  .prose-section {
+/*
+ * Rich text from the adapters, styled with @tailwindcss/typography and
+ * coloured by the section around it. These rules sit in the utilities layer
+ * with `.prose` doubled up, so they outrank the plugin's own `.prose` rules.
+ */
+@layer utilities {
+  .prose.prose-section {
     --tw-prose-body: var(--section-foreground);
     --tw-prose-headings: var(--section-heading);
     --tw-prose-lead: var(--section-muted);
@@ -88,7 +89,7 @@
     --tw-prose-th-borders: var(--section-border);
     --tw-prose-td-borders: var(--section-border);
   }
-  .prose-section a {
+  .prose.prose-section a {
     text-decoration-color: var(--section-accent);
     text-underline-offset: 0.2em;
   }
@@ -100,10 +101,10 @@
   .l-rich-raw {
     display: contents;
   }
-  .prose-section > .l-rich-raw > :first-child {
+  .prose.prose-section > .l-rich-raw > :first-child {
     margin-top: 0;
   }
-  .prose-section > .l-rich-raw > :last-child {
+  .prose.prose-section > .l-rich-raw > :last-child {
     margin-bottom: 0;
   }
 }
