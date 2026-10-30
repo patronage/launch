@@ -12,7 +12,7 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0002](0002-plain-pnpm-workspaces.md) | Plain pnpm workspaces, exact pins, `minimumReleaseAge` 3h now and 72h as the goal |
 | [0003](0003-cloudflare-config-through-cf-cli.md) | No Wrangler files; `cloudflare.config.ts` plus cf CLI and API scripts |
 | [0004](0004-local-verification-and-workers-builds.md) | No GitHub Actions; `pnpm verify` locally, deploys and previews on Workers Builds |
-| [0005](0005-vinext-front-ends-on-workers.md) | vinext 1.4.x Front-ends on Workers with KV caching; WPGraphQL, no REST Front-end |
+| [0005](0005-vinext-front-ends-on-workers.md) | vinext 1.4.x Front-ends on Workers; KV caching for WordPress; WPGraphQL, no REST Front-end |
 | [0006](0006-separate-wordpress-installs.md) | Separate headless and Timber WordPress installs |
 | [0007](0007-payload-single-app-on-d1.md) | Payload 4 as one app on the Local API, D1 by default, Postgres via Hyperdrive as an option |
 | [0008](0008-cms-neutral-content-model.md) | CMS-neutral Content model, one Adapter per CMS, rich text stays CMS-specific |

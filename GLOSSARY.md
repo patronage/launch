@@ -6,7 +6,7 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Reference site**: One complete, deployable pairing of a CMS and a front-end that renders the Demo site, such as headless WordPress with its vinext front-end. _Avoid_: Starter, template, example app
 
-**Demo site**: The invented site every Reference site renders, with the same pages and content in each CMS. Its source is `packages/demo-content`. _Avoid_: Sample site, test site, client site
+**Demo site**: The invented site every Reference site renders. Each CMS's Seed loads the same core pages; shared images live in `packages/demo-content`. _Avoid_: Sample site, test site, client site
 
 **CMS**: The editing system behind a Reference site: WordPress (headless or Timber) or Payload. Its admin and API sit behind Cloudflare Access. _Avoid_: Backend, admin (for the whole system)
 
@@ -32,7 +32,7 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Page Builder**: The CMS field that holds a Page's Sections: ACF flexible content in WordPress, a blocks field in Payload. _Avoid_: Flexible content (outside WordPress code), layout builder
 
-**Design tokens**: The Tailwind-free CSS custom properties in `packages/ui` (colours, Skins, type scale) that every Reference site can load, including Timber WordPress. _Avoid_: Theme variables
+**Design tokens**: The Tailwind-free CSS custom properties in `packages/ui/src/tokens.css` (font families, colours, Skins, spacing) that every Reference site can load, including Timber WordPress. The type scale is Tailwind classes in the UI package, not tokens. _Avoid_: Theme variables
 
 **Access lockdown**: Putting a CMS's admin and API behind a Cloudflare Access application so only the public Front-end is open. _Avoid_: Auth wall, SSO (for the whole pattern)
 
