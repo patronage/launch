@@ -2,7 +2,7 @@
 
 `deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder.
 
-This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.5.1 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.5.2 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
@@ -234,6 +234,7 @@ The fake WP Engine gateway strips quotes and has no `git`, like the real one. Th
 
 ## Changelog
 
+- **2.5.2**: The Cloudways hook writes files with `git checkout-index` from a temporary index instead of `git archive | tar`. GNU tar sets the mode of every folder in the archive even with `--no-overwrite-dir`, and only a folder's owner may do that, so deploys still failed after writing every file. `checkout-index` creates missing folders and leaves existing ones alone. Because it replaces whatever is in a file's way, the hook first refuses the install when a payload file would land on a server folder, or a payload folder on a server file or link, so it never deletes server-only files. It writes every tracked file, ignoring `export-ignore` and `export-subst` in `.gitattributes`, which matches what the deploy verifies. Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.5.1**: The Cloudways hook no longer fails after installing every file because it can't reset the mode and times of `wp-content`, `wp-content/plugins` and `wp-content/themes`. Cloudways gives those folders to the application user, not the SSH user the hook runs as. With GNU tar, the hook now leaves the metadata of existing folders alone (`--no-overwrite-dir`). Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.5.0**: The Cloudways hook installs a WordPress folder at any depth. It stripped one folder, so a WordPress app two folders down, such as `apps/site/`, landed in `public_html/site/`. Reinstall the hook (`install-hook`) on every Cloudways environment; deploys stop until you do. A first deploy to Cloudways or Kinsta now checks every file it pushed, instead of skipping the check. The script's own SSH calls run `GIT_SSH_COMMAND` through the shell, as git does, so quoted arguments in it (a key path with spaces, a `ProxyCommand`) work.
 - **2.4.1**: No behavior change. The canonical copy moved to `wordpress-shared/wp-deploy` in patronage/launch; the header and docs say so.
