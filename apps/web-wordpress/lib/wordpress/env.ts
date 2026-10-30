@@ -13,6 +13,11 @@ export const wordpressEnv = () => {
   const origin = url.replace(TRAILING_SLASH, "");
 
   return {
+    accessClientId: process.env.WORDPRESS_ACCESS_CLIENT_ID ?? "",
+    accessClientSecret: process.env.WORDPRESS_ACCESS_CLIENT_SECRET ?? "",
+    accessPreviewAudience: process.env.ACCESS_PREVIEW_AUD ?? "",
+    accessProofSecret: process.env.WORDPRESS_ACCESS_PROOF_SECRET ?? "",
+    accessTeamDomain: process.env.ACCESS_TEAM_DOMAIN ?? "",
     graphqlUrl: `${origin}/graphql`,
     origin,
     previewPassword: process.env.WORDPRESS_PREVIEW_PASSWORD ?? "",

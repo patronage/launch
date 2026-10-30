@@ -103,9 +103,13 @@ const shared = {
       PNPM_VERSION: pnpmVersion,
       SKIP_DEPENDENCY_INSTALL: "1",
       ...Object.fromEntries(
-        ["WORDPRESS_URL", "WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"].flatMap(
-          (name) => (env[name] ? [[name, env[name]]] : [])
-        )
+        [
+          "WORDPRESS_URL",
+          "WORKER_DOMAIN",
+          "WORKER_DOMAIN_PREVIEWS",
+          "ACCESS_TEAM_DOMAIN",
+          "ACCESS_PREVIEW_AUD",
+        ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])
   ),
