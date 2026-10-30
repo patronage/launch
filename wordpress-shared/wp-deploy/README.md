@@ -2,7 +2,7 @@
 
 `deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder.
 
-This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.5.0 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.5.1 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
@@ -234,6 +234,7 @@ The fake WP Engine gateway strips quotes and has no `git`, like the real one. Th
 
 ## Changelog
 
+- **2.5.1**: The Cloudways hook no longer fails after installing every file because it can't reset the mode and times of `wp-content`, `wp-content/plugins` and `wp-content/themes`. Cloudways gives those folders to the application user, not the SSH user the hook runs as. With GNU tar, the hook now leaves the metadata of existing folders alone (`--no-overwrite-dir`). Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.5.0**: The Cloudways hook installs a WordPress folder at any depth. It stripped one folder, so a WordPress app two folders down, such as `apps/site/`, landed in `public_html/site/`. Reinstall the hook (`install-hook`) on every Cloudways environment; deploys stop until you do. A first deploy to Cloudways or Kinsta now checks every file it pushed, instead of skipping the check. The script's own SSH calls run `GIT_SSH_COMMAND` through the shell, as git does, so quoted arguments in it (a key path with spaces, a `ProxyCommand`) work.
 - **2.4.1**: No behavior change. The canonical copy moved to `wordpress-shared/wp-deploy` in patronage/launch; the header and docs say so.
 - **2.4.0**: New `verify <target> [--from <ref>]` reruns a deploy's checks, and on WP Engine its stale-file removal, without pushing. A deploy commit with no parent carries a `Replaces: <commit>` trailer naming the server's commit it replaced, which `verify` uses like a parent. After the host has installed the push, a failure prints `deploy completed; verification failed` and exits 2 instead of 1; on WP Engine, only a file check that matches proves the install. A failure after the script confirms the server's branch is the pushed commit (on Cloudways, also after `DEPLOY_OK`), or after a push it can't confirm, names the `verify` command. SSH sessions, including git's, set `ServerAliveInterval=15` and `ServerAliveCountMax=4`, so a dropped connection no longer hangs the deploy.

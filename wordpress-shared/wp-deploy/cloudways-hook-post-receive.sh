@@ -87,9 +87,16 @@ deploy() {
     return 1
   fi
 
+  # On Cloudways, wp-content and its plugins and themes folders belong to the
+  # application user, not the SSH user this hook runs as. GNU tar would write
+  # every file, then fail resetting those folders' mode and times, so it leaves
+  # the metadata of folders that already exist alone.
+  tar_keep_dirs=""
+  if tar --version 2>/dev/null | grep -q 'GNU tar'; then tar_keep_dirs="--no-overwrite-dir"; fi
   # Archive the WordPress folder's own tree, so its files land at the webroot
   # however many folders deep it sits in the repo.
-  git --git-dir="$GIT_DIR" archive "$newrev${prefix:+:$WORDPRESS_FOLDER}" | tar -x -f - ||
+  # shellcheck disable=SC2086
+  git --git-dir="$GIT_DIR" archive "$newrev${prefix:+:$WORDPRESS_FOLDER}" | tar -x $tar_keep_dirs -f - ||
     { echo "Extracting $newrev failed"; return 1; }
 
   [ -n "$oldrev" ] || return 0

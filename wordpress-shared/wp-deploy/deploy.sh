@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wp-deploy 2.5.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# wp-deploy 2.5.1 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
 # Sites vendor this file unchanged. Put site settings in _build/deploy.env.
 #
@@ -57,7 +57,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.5.0"
+WP_DEPLOY_VERSION="2.5.1"
 
 BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$BUILD_DIR")"
