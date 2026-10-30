@@ -8,7 +8,7 @@ pnpm --filter web-wordpress dev              # http://localhost:3000, in local w
 pnpm --filter web-wordpress build && pnpm --filter web-wordpress start   # the built Worker (vite preview)
 ```
 
-It deploys as the Cloudflare Worker `launch-vinext-wordpress`, configured in `cloudflare.config.ts` for the `cf` CLI (no Wrangler config), with the Spike 1 setup from `apps/spike-vinext`: ISR pages and fetch data in the `VINEXT_KV_CACHE` KV namespace, so a revalidation reaches every isolate, and the Images binding, which resizes WordPress uploads at `/media`.
+It deploys as the Cloudflare Worker `launch-vinext-wordpress`, configured in `cloudflare.config.ts` for the `cf` CLI (no Wrangler config), with the setup from Spike 1 ([`docs/spikes/02-vinext-on-workers.md`](../../docs/spikes/02-vinext-on-workers.md)): ISR pages and fetch data in the `VINEXT_KV_CACHE` KV namespace, so a revalidation reaches every isolate, and the Images binding, which resizes WordPress uploads at `/media`.
 
 ```sh
 pnpm --filter web-wordpress run deploy             # vite build, then cf deploy --prebuilt
