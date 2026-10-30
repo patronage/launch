@@ -1,0 +1,39 @@
+{
+  "data": {
+    "page": {
+      "title": "Starter guide",
+      "uri": "/guide/",
+      "hero": {
+        "variant": ["freeform"],
+        "title": "Your first season",
+        "eyebrow": "Starter guide",
+        "skin": "light",
+        "align": "center",
+        "subhead": null,
+        "body": "<p>Everything a new garden needs in its first season, from a <strong>soil test</strong> to a watering rota.</p>\n<p><span data-launch-block=\"{&quot;type&quot;:&quot;button&quot;,&quot;link&quot;:{&quot;href&quot;:&quot;https://cms.example.com/apply/&quot;,&quot;label&quot;:&quot;Apply for a garden&quot;,&quot;newTab&quot;:false,&quot;variant&quot;:&quot;primary&quot;}}\"></span> <span data-launch-block=\"{&quot;type&quot;:&quot;button&quot;,&quot;link&quot;:{&quot;href&quot;:&quot;https://example.org/starter-checklist.pdf&quot;,&quot;label&quot;:&quot;Download the checklist&quot;,&quot;newTab&quot;:true,&quot;variant&quot;:&quot;secondary&quot;}}\"></span></p>\n<div data-launch-block=\"{&quot;type&quot;:&quot;embed&quot;,&quot;url&quot;:&quot;https://www.youtube.com/watch?v=aqz-KE-bpKQ&quot;,&quot;caption&quot;:&quot;A three-minute tour of a first-season garden.&quot;}\"></div>\n",
+        "image": null,
+        "links": null
+      },
+      "pageBuilder": {
+        "sections": [
+          {
+            "__typename": "PageBuilderSectionsContentLayout",
+            "sectionOptions": {
+              "skin": "light",
+              "width": "narrow",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": null,
+              "hidden": false
+            },
+            "eyebrow": null,
+            "heading": "Test the soil first",
+            "body": "<p>Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel.</p>\n<div data-launch-block=\"{&quot;type&quot;:&quot;pullquote&quot;,&quot;quote&quot;:&quot;Test first, plant second. Raised beds fix almost anything the test finds.&quot;,&quot;attribution&quot;:&quot;Rosa Delgado, garden lead&quot;}\"></div>\n<div data-launch-block=\"{&quot;type&quot;:&quot;image&quot;,&quot;media&quot;:{&quot;image&quot;:{&quot;src&quot;:&quot;https://cms.example.com/wp-content/uploads/2026/10/raised-beds.jpg&quot;,&quot;alt&quot;:&quot;Raised garden beds in a city lot&quot;,&quot;width&quot;:1600,&quot;height&quot;:1067},&quot;caption&quot;:&quot;Raised beds on a former parking lot&quot;}}\"></div>\n<p>Once the beds are built, set a watering rota before the first hot week. <span data-launch-block=\"{&quot;type&quot;:&quot;button&quot;,&quot;link&quot;:{&quot;href&quot;:&quot;https://cms.example.com/get-involved/&quot;,&quot;label&quot;:&quot;Find a mentor&quot;,&quot;newTab&quot;:false,&quot;variant&quot;:&quot;text&quot;}}\"></span></p>\n",
+            "align": "start",
+            "links": null
+          }
+        ]
+      }
+    }
+  }
+}

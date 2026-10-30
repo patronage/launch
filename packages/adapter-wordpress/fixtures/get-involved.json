@@ -1,0 +1,152 @@
+{
+  "data": {
+    "page": {
+      "title": "Get involved",
+      "uri": "/get-involved/",
+      "hero": {
+        "variant": ["split"],
+        "title": null,
+        "eyebrow": "Volunteer",
+        "skin": "light",
+        "align": "start",
+        "subhead": "Volunteer on a harvest day, mentor a new garden or join the seed library.",
+        "body": null,
+        "image": {
+          "node": {
+            "sourceUrl": "https://cms.example.com/wp-content/uploads/2026/10/harvest.jpg",
+            "altText": "Volunteers sorting a harvest",
+            "caption": "<p>Fall harvest day</p>\n",
+            "mediaDetails": {
+              "width": 2400,
+              "height": 1200
+            }
+          }
+        },
+        "links": [
+          {
+            "link": {
+              "title": "Sign up below",
+              "url": "https://cms.example.com/get-involved/",
+              "target": ""
+            },
+            "variant": "primary"
+          }
+        ]
+      },
+      "pageBuilder": {
+        "sections": [
+          {
+            "__typename": "PageBuilderSectionsFormLayout",
+            "sectionOptions": {
+              "skin": "light",
+              "width": "default",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": null,
+              "hidden": false
+            },
+            "heading": "Volunteer with us",
+            "body": "<p>Tell us how you'd like to help and we'll match you with a garden.</p>\n",
+            "form": {
+              "id": "3",
+              "submitLabel": "Sign up",
+              "confirmation": "<p>Thanks for signing up. We'll email you before the next volunteer day.</p>\n",
+              "fields": [
+                {
+                  "type": "text",
+                  "name": "name",
+                  "label": "Your name",
+                  "required": true,
+                  "width": 50,
+                  "defaultValue": null,
+                  "options": null,
+                  "message": null
+                },
+                {
+                  "type": "email",
+                  "name": "email",
+                  "label": "Email",
+                  "required": true,
+                  "width": 50,
+                  "defaultValue": null,
+                  "options": null,
+                  "message": null
+                },
+                {
+                  "type": "select",
+                  "name": "interest",
+                  "label": "I'd like to help with",
+                  "required": false,
+                  "width": 50,
+                  "defaultValue": null,
+                  "options": [
+                    {
+                      "label": "Harvest days",
+                      "value": "Harvest days"
+                    },
+                    {
+                      "label": "Mentoring a new garden",
+                      "value": "Mentoring a new garden"
+                    },
+                    {
+                      "label": "Seed library",
+                      "value": "Seed library"
+                    },
+                    {
+                      "label": "Tool share",
+                      "value": "Tool share"
+                    }
+                  ],
+                  "message": null
+                },
+                {
+                  "type": "textarea",
+                  "name": "note",
+                  "label": "Anything we should know?",
+                  "required": false,
+                  "width": null,
+                  "defaultValue": null,
+                  "options": null,
+                  "message": null
+                },
+                {
+                  "type": "checkbox",
+                  "name": "newsletter",
+                  "label": "Send me the monthly newsletter",
+                  "required": false,
+                  "width": null,
+                  "defaultValue": null,
+                  "options": null,
+                  "message": null
+                }
+              ]
+            }
+          },
+          {
+            "__typename": "PageBuilderSectionsCallToActionLayout",
+            "sectionOptions": {
+              "skin": "accent",
+              "width": "narrow",
+              "paddingTop": "md",
+              "paddingBottom": "md",
+              "anchor": null,
+              "hidden": false
+            },
+            "heading": "Ready to start?",
+            "body": null,
+            "links": [
+              {
+                "link": {
+                  "title": "Apply now",
+                  "url": "https://cms.example.com/apply/",
+                  "target": ""
+                },
+                "variant": "primary"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

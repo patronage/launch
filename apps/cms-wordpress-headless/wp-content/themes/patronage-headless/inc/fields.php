@@ -26,6 +26,7 @@ add_action('acf/init', function (): void {
     error_log('Extended ACF is missing: run composer install in apps/cms-wordpress-headless');
     return;
   }
+  require_once __DIR__ . '/field-helpers.php';
   foreach (glob(get_template_directory() . '/fields/*.php') ?: [] as $file) {
     require_once $file;
   }

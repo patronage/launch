@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { wordpressHomeFixture } from "../fixtures";
+import {
+  wordpressGetInvolvedFixture,
+  wordpressGuideFixture,
+  wordpressHomeFixture,
+} from "../fixtures";
 import { createWordPressAdapter } from "./index";
 
 const adapter = createWordPressAdapter({
@@ -115,5 +119,108 @@ describe("WordPress adapter", () => {
 
   it("returns undefined for a missing page", () => {
     expect(adapter.toPage({ data: { page: null } })).toBeUndefined();
+  });
+
+  it("leaves the hero out of a page without a variant", () => {
+    expect(page.hero).toBeUndefined();
+  });
+});
+
+describe("WordPress heroes and forms", () => {
+  const getInvolved = adapter.toPage(wordpressGetInvolvedFixture);
+
+  it("maps a hero, defaulting its title to the page title", () => {
+    expect(getInvolved?.hero).toMatchObject({
+      eyebrow: "Volunteer",
+      image: { alt: "Volunteers sorting a harvest" },
+      links: [{ href: "/get-involved", label: "Sign up below" }],
+      skin: "light",
+      title: "Get involved",
+      variant: "split",
+    });
+    expect(getInvolved?.path).toBe("/get-involved");
+  });
+
+  it("maps a Formidable form and posts it to the form action", () => {
+    const block = getInvolved?.sections[0]?.block;
+    const form = block?.type === "form" ? block.form : undefined;
+
+    expect(form).toMatchObject({
+      action: "/forms/submit",
+      submitLabel: "Sign up",
+    });
+    expect(
+      form?.fields.map((field) => [field.name, field.width])
+    ).toStrictEqual([
+      ["name", 50],
+      ["email", 50],
+      ["interest", 50],
+      ["note", undefined],
+      ["newsletter", undefined],
+    ]);
+    expect(renderToStaticMarkup(form?.confirmation)).toContain(
+      "before the next volunteer day"
+    );
+  });
+});
+
+describe("WordPress rich-text blocks", () => {
+  const blocks: unknown[] = [];
+
+  const withBlocks = createWordPressAdapter({
+    cmsOrigin: "https://cms.example.com",
+    renderRichTextBlock: (block) => {
+      blocks.push(block);
+
+      return <aside data-type={block.type} />;
+    },
+  }).toPage(wordpressGuideFixture);
+
+  const body = (value: typeof withBlocks) => {
+    const block = value?.sections[0]?.block;
+
+    return renderToStaticMarkup(block?.type === "content" ? block.body : null);
+  };
+
+  it("draws each block where it sits, a button inside its paragraph", () => {
+    expect(body(withBlocks)).toContain(
+      'set a watering rota before the first hot week. <aside data-type="button"></aside></p>'
+    );
+    expect(renderToStaticMarkup(withBlocks?.hero?.body)).toContain(
+      '<aside data-type="embed"></aside>'
+    );
+  });
+
+  it("maps blocks to the content model, with site-relative links", () => {
+    expect(blocks).toContainEqual({
+      attribution: "Rosa Delgado, garden lead",
+      quote:
+        "Test first, plant second. Raised beds fix almost anything the test finds.",
+      type: "pullquote",
+    });
+    expect(blocks).toContainEqual({
+      link: {
+        href: "/get-involved",
+        label: "Find a mentor",
+        newTab: false,
+        variant: "text",
+      },
+      type: "button",
+    });
+    expect(blocks).toContainEqual(
+      expect.objectContaining({
+        media: expect.objectContaining({
+          caption: "Raised beds on a former parking lot",
+        }),
+        type: "image",
+      })
+    );
+  });
+
+  it("leaves blocks out without a block renderer", () => {
+    const markup = body(adapter.toPage(wordpressGuideFixture));
+
+    expect(markup).not.toContain("data-launch-block");
+    expect(markup).toContain("Before anything goes in the ground");
   });
 });

@@ -11,7 +11,8 @@
     "wordpress/secure-custom-fields": "6.9.7",
     "wp-graphql/wp-graphql-smart-cache": "2.3.4",
     "vinkla/extended-acf": "14.6.2",
-    "johnbillion/extended-cpts": "5.1.0"
+    "johnbillion/extended-cpts": "5.1.0",
+    "wordpress-plugin/formidable": "7.0"
   },
   "repositories": [
     {
@@ -68,6 +69,21 @@
         "dist": {
           "type": "zip",
           "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+        },
+        "require": {
+          "composer/installers": "^2.2"
+        }
+      }
+    },
+    {
+      "type": "package",
+      "package": {
+        "name": "wordpress-plugin/formidable",
+        "version": "7.0",
+        "type": "wordpress-plugin",
+        "dist": {
+          "type": "zip",
+          "url": "https://downloads.wordpress.org/plugin/formidable.7.0.zip"
         },
         "require": {
           "composer/installers": "^2.2"

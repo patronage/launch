@@ -20,20 +20,9 @@ export const ContentFields = graphql(`
         }
       }
     }
-    ... on WithAcfHero {
-      hero {
-        eyebrow
-        headline
-        intro
-        cta {
-          title
-          url
-          target
-        }
-      }
-    }
-    # Shared with @launch/adapter-wordpress, which maps it to the content model.
+    # Shared with @launch/adapter-wordpress, which maps them to the content model.
     ... on Page {
+      ...PageHeroFields
       ...PageBuilderFields
     }
   }

@@ -1,7 +1,17 @@
 import { createPayloadAdapter } from "@launch/adapter-payload";
-import { payloadHomeFixture } from "@launch/adapter-payload/fixtures";
+import {
+  payloadGetInvolvedFixture,
+  payloadGuideFixture,
+  payloadHomeFixture,
+} from "@launch/adapter-payload/fixtures";
 import { createWordPressAdapter } from "@launch/adapter-wordpress";
-import { wordpressHomeFixture } from "@launch/adapter-wordpress/fixtures";
+import {
+  wordpressGetInvolvedFixture,
+  wordpressGuideFixture,
+  wordpressHomeFixture,
+} from "@launch/adapter-wordpress/fixtures";
+import type { RichTextBlock as RichTextBlockModel } from "@launch/content-model";
+import { RichTextBlock } from "@launch/ui";
 
 /**
  * Both CMSs store the same invented images under different URLs. A front-end
@@ -22,21 +32,45 @@ export const placeholderImage = (src: string): string => {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 
-export const wordpressPage = () => {
+const renderRichTextBlock = (block: RichTextBlockModel) => (
+  <RichTextBlock block={block} />
+);
+
+/** The recorded pages, the same seeded page from each CMS. */
+export const FIXTURES = {
+  "get-involved": {
+    payload: payloadGetInvolvedFixture,
+    wordpress: wordpressGetInvolvedFixture,
+  },
+  guide: { payload: payloadGuideFixture, wordpress: wordpressGuideFixture },
+  home: { payload: payloadHomeFixture, wordpress: wordpressHomeFixture },
+} as const;
+
+export type FixtureName = keyof typeof FIXTURES;
+
+export const FIXTURE_NAMES = [
+  "home",
+  "guide",
+  "get-involved",
+] as const satisfies FixtureName[];
+
+export const wordpressPage = (name: FixtureName = "home") => {
   const page = createWordPressAdapter({
     cmsOrigin: "https://cms.example.com",
     imageUrl: placeholderImage,
-  }).toPage(wordpressHomeFixture);
+    renderRichTextBlock,
+  }).toPage(FIXTURES[name].wordpress);
 
   if (!page) {
-    throw new Error("WordPress fixture has no page");
+    throw new Error(`WordPress fixture ${name} has no page`);
   }
 
   return page;
 };
 
-export const payloadPage = () =>
+export const payloadPage = (name: FixtureName = "home") =>
   createPayloadAdapter({
     imageUrl: placeholderImage,
+    renderRichTextBlock,
     serverUrl: "https://cms.example.com",
-  }).toPage(payloadHomeFixture);
+  }).toPage(FIXTURES[name].payload);

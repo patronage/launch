@@ -11,6 +11,8 @@ if (!defined('ABSPATH')) {
 require_once __DIR__ . '/inc/frontend.php';
 require_once __DIR__ . '/inc/preview.php';
 require_once __DIR__ . '/inc/fields.php';
+require_once __DIR__ . '/inc/rich-text-blocks.php';
+require_once __DIR__ . '/inc/forms.php';
 require_once __DIR__ . '/inc/post-types.php';
 require_once __DIR__ . '/inc/persisted-queries.php';
 require_once __DIR__ . '/inc/cache-tags.php';

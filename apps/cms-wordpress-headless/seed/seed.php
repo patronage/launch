@@ -2,10 +2,12 @@
 /**
  * Seeds invented demo content, run by bin/seed.sh with `wp eval-file`.
  *
- * The pages are the Neighborhood Growers site that the Payload app seeds too:
- * a home page with every Page Builder layout once (plus a hidden section), the
- * pages it links to (get-involved, apply, guide, programs and its two
- * children), an about page, a post, and a draft for trying previews.
+ * The pages are the Neighborhood Growers site that the Payload app seeds too
+ * (apps/payload/src/seed): a home page with every Page Builder layout but the
+ * form once (plus a hidden section), the pages it links to with one hero
+ * variant each, two Formidable forms placed in form sections, rich-text
+ * blocks on the starter guide, and, in WordPress only, an about page, a post
+ * and a draft for trying previews.
  * Images come from packages/demo-content, mounted at /demo-content.
  *
  * Pages that already exist are left alone, so editors' changes survive a
@@ -132,13 +134,24 @@ function patronage_seed_sections(int $id, array $sections): void {
   update_field('sections', $sections, $id);
 }
 
+/** A page's hero. $hero overrides the field defaults; fields it leaves out are empty. */
 function patronage_seed_hero(int $id, array $hero): void {
+  $hero += [
+    'title' => '',
+    'eyebrow' => '',
+    'skin' => 'light',
+    'align' => 'start',
+    'subhead' => '',
+    'body' => '',
+    'image' => '',
+    'links' => [],
+  ];
   foreach ($hero as $name => $value) {
     update_field($name, $value, $id);
   }
 }
 
-function patronage_seed_page(string $slug, string $title, array $sections, int $parent = 0): int {
+function patronage_seed_page(string $slug, string $title, array $sections, int $parent = 0, ?array $hero = null): int {
   [$id, $created] = patronage_seed_post([
     'post_name' => $slug,
     'post_title' => $title,
@@ -146,35 +159,133 @@ function patronage_seed_page(string $slug, string $title, array $sections, int $
   ]);
   if ($created) {
     patronage_seed_sections($id, $sections);
+    if ($hero) {
+      patronage_seed_hero($id, $hero);
+    }
   }
   return $id;
 }
 
-/** A short page: one content section. */
-function patronage_seed_simple_page(
-  string $slug,
-  string $title,
-  string $eyebrow,
-  string $body,
-  array $links = [],
-  int $parent = 0,
-): int {
-  return patronage_seed_page(
-    $slug,
-    $title,
-    [
-      patronage_seed_section(
-        'content',
-        ['eyebrow' => $eyebrow, 'heading' => $title, 'body' => $body, 'links' => $links, 'align' => 'start'],
-        ['width' => 'narrow', 'padding_top' => 'lg'],
-      ),
-    ],
-    $parent,
-  );
+/** A content section with a heading and one paragraph. */
+function patronage_seed_intro(string $heading, string $body): array {
+  return patronage_seed_section('content', [
+    'eyebrow' => '',
+    'heading' => $heading,
+    'body' => "<p>{$body}</p>",
+    'links' => [],
+    'align' => 'start',
+  ]);
+}
+
+/**
+ * Creates a Formidable form with its fields unless one has its key. Field
+ * keys start with the form's key, which the theme strips back off (see
+ * inc/forms.php). Returns the form ID.
+ */
+function patronage_seed_form(string $key, string $name, string $submit, string $success, array $fields): int {
+  $existing = FrmForm::get_id_by_key($key);
+  if ($existing) {
+    return (int) $existing;
+  }
+
+  $form = FrmForm::create([
+    'form_key' => $key,
+    'name' => $name,
+    'description' => '',
+    'status' => 'published',
+    'options' => ['submit_value' => $submit, 'success_msg' => $success],
+  ]);
+  foreach ($fields as $order => $field) {
+    $values = FrmFieldsHelper::setup_new_vars($field['type'], $form);
+    $values['field_key'] = "{$key}_{$field['name']}";
+    $values['name'] = $field['label'];
+    $values['required'] = empty($field['required']) ? 0 : 1;
+    $values['field_order'] = $order + 1;
+    $values['options'] = $field['options'] ?? $values['options'];
+    if (isset($field['width'])) {
+      $values['field_options']['classes'] = $field['width'];
+    }
+    FrmField::create($values);
+  }
+  return (int) $form;
+}
+
+/** The Neighborhood Growers forms, as the Payload seed's form-builder forms. */
+function patronage_seed_forms(): array {
+  // Formidable creates its tables on its first admin request; WP-CLI has none.
+  FrmAppController::install();
+
+  $text = fn(string $name, string $label, bool $required = true, string $width = 'frm_full') => [
+    'type' => 'text',
+    'name' => $name,
+    'label' => $label,
+    'required' => $required,
+    'width' => $width,
+  ];
+  $email = fn(string $name, string $label) => [
+    'type' => 'email',
+    'name' => $name,
+    'label' => $label,
+    'required' => true,
+    'width' => 'frm_half',
+  ];
+  $textarea = fn(string $name, string $label, bool $required = false) => [
+    'type' => 'textarea',
+    'name' => $name,
+    'label' => $label,
+    'required' => $required,
+  ];
+  $select = fn(string $name, string $label, array $options, bool $required = true) => [
+    'type' => 'select',
+    'name' => $name,
+    'label' => $label,
+    'options' => $options,
+    'required' => $required,
+    'width' => 'frm_half',
+  ];
+  // One box: Formidable saves its one choice when it is ticked.
+  $checkbox = fn(string $name, string $label) => [
+    'type' => 'checkbox',
+    'name' => $name,
+    'label' => $label,
+    'options' => ['Yes'],
+  ];
+
+  return [
+    'application' => patronage_seed_form(
+      'application',
+      'Garden application',
+      'Send application',
+      'Thanks for applying. A garden mentor will be in touch within two weeks to set up a visit to the lot.',
+      [
+        $text('name', 'Your name', true, 'frm_half'),
+        $email('email', 'Email'),
+        $text('lotAddress', 'Lot address or nearest intersection'),
+        $select('neighborhood', 'Neighborhood', ['Eastside', 'Mill Creek', 'Riverside', 'Downtown', 'Other']),
+        $select('neighbors', 'Neighbors ready to garden', ['1–4', '5–9', '10 or more']),
+        $textarea('about', 'Tell us about the lot and who wants to grow there', true),
+        $checkbox('permission', "We have, or can get, the owner's permission"),
+      ],
+    ),
+    'volunteer' => patronage_seed_form(
+      'volunteer',
+      'Volunteer sign-up',
+      'Sign up',
+      "Thanks for signing up. We'll email you before the next volunteer day.",
+      [
+        $text('name', 'Your name', true, 'frm_half'),
+        $email('email', 'Email'),
+        $select('interest', "I'd like to help with", ['Harvest days', 'Mentoring a new garden', 'Seed library', 'Tool share'], false),
+        $textarea('note', 'Anything we should know?'),
+        $checkbox('newsletter', 'Send me the monthly newsletter'),
+      ],
+    ),
+  ];
 }
 
 patronage_seed_remove_samples();
 $url = fn(string $path): string => home_url($path);
+$forms = patronage_seed_forms();
 
 $home = patronage_seed_page('home', 'Home', [
   patronage_seed_section(
@@ -259,19 +370,40 @@ $home = patronage_seed_page('home', 'Home', [
   ),
 ]);
 
-$get_involved = patronage_seed_simple_page(
+$get_involved = patronage_seed_page(
   'get-involved',
   'Get involved',
-  'Volunteer',
-  '<p>Join a workday, adopt a bed, or help run the seed library. No experience needed.</p>',
-  [['link' => patronage_seed_link('Apply for a garden', $url('/apply/')), 'variant' => 'primary']],
+  [
+    patronage_seed_section('form', [
+      'heading' => 'Volunteer with us',
+      'body' => "<p>Tell us how you'd like to help and we'll match you with a garden.</p>",
+      'form_id' => $forms['volunteer'],
+    ]),
+    patronage_seed_section(
+      'call_to_action',
+      [
+        'heading' => 'Ready to start?',
+        'body' => '',
+        'links' => [['link' => patronage_seed_link('Apply now', $url('/apply/')), 'variant' => 'primary']],
+      ],
+      ['skin' => 'accent', 'width' => 'narrow'],
+    ),
+  ],
+  hero: [
+    'variant' => 'split',
+    'eyebrow' => 'Volunteer',
+    'subhead' => 'Volunteer on a harvest day, mentor a new garden or join the seed library.',
+    'image' => patronage_seed_image('harvest.jpg'),
+    'links' => [['link' => patronage_seed_link('Sign up below', $url('/get-involved/')), 'variant' => 'primary']],
+  ],
 );
 
-$programs = patronage_seed_page('programs', 'Programs', [
-  patronage_seed_section(
-    'card_grid',
-    [
-      'heading' => 'Programs',
+$programs = patronage_seed_page(
+  'programs',
+  'Programs',
+  [
+    patronage_seed_section('card_grid', [
+      'heading' => 'Share what we have',
       'columns' => '2',
       'cards' => [
         [
@@ -287,51 +419,110 @@ $programs = patronage_seed_page('programs', 'Programs', [
           'link' => patronage_seed_link('Reserve a tool', $url('/programs/tool-share/')),
         ],
       ],
-    ],
-    ['padding_top' => 'lg'],
-  ),
-]);
+    ]),
+  ],
+  hero: [
+    'variant' => 'media',
+    'subhead' => 'Shared resources for every member garden, run by volunteers.',
+    'image' => patronage_seed_image('tools.jpg'),
+  ],
+);
 
-patronage_seed_simple_page(
+patronage_seed_page(
   'seed-library',
   'Seed library',
-  'Programs',
-  '<p>Take a packet in spring and bring back saved seeds after the harvest. Every variety is grown by a member garden.</p>',
-  [],
+  [
+    patronage_seed_intro(
+      'How the library works',
+      'Pick up to five packets each spring. In the fall, bring back seed saved from your best plants, labeled with the crop, variety and garden.',
+    ),
+    patronage_seed_intro(
+      'Where to find it',
+      'The library lives in the shed at the Elm Street garden, open Saturday mornings from April to October.',
+    ),
+  ],
   $programs,
+  [
+    'variant' => 'home',
+    'eyebrow' => 'Programs',
+    'subhead' => 'Borrow seeds in spring and return saved seeds in fall, so the library grows every year.',
+    'image' => patronage_seed_image('seeds.jpg'),
+    'skin' => 'dark',
+    'links' => [['link' => patronage_seed_link('Start a garden', $url('/apply/')), 'variant' => 'primary']],
+  ],
 );
 
-patronage_seed_simple_page(
+// No hero: the page opens with its first section's heading as the <h1>.
+patronage_seed_page(
   'tool-share',
   'Tool share',
-  'Programs',
-  '<p>Member gardens borrow shovels, wheelbarrows and hoses from the shed for up to a week.</p>',
-  [],
+  [
+    patronage_seed_intro(
+      'Tool share',
+      'Reserve shovels, wheelbarrows and hoses for a work day. Pick up and return at the garden shed.',
+    ),
+  ],
   $programs,
 );
 
-patronage_seed_simple_page(
+$raised_beds = patronage_seed_image('raised-beds.jpg');
+patronage_seed_page(
   'guide',
   'Starter guide',
-  'How a garden starts',
-  '<p>Find a lot, ask who owns it, and gather five neighbors who can each give two hours a week. We help with the rest.</p>',
-  [['link' => patronage_seed_link('Apply now', $url('/apply/')), 'variant' => 'primary']],
+  [
+    patronage_seed_section(
+      'content',
+      [
+        'eyebrow' => '',
+        'heading' => 'Test the soil first',
+        'body' =>
+          '<p>Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel.</p>' .
+          "\n\n" .
+          '[launch_pullquote attribution="Rosa Delgado, garden lead"]Test first, plant second. Raised beds fix almost anything the test finds.[/launch_pullquote]' .
+          "\n\n" .
+          '[launch_image id="' . $raised_beds . '"]' .
+          "\n\n" .
+          '<p>Once the beds are built, set a watering rota before the first hot week. [launch_button url="/get-involved/" label="Find a mentor" variant="text"]</p>',
+        'links' => [],
+        'align' => 'start',
+      ],
+      ['width' => 'narrow'],
+    ),
+  ],
+  hero: [
+    'variant' => 'freeform',
+    'eyebrow' => 'Starter guide',
+    'title' => 'Your first season',
+    'align' => 'center',
+    'body' =>
+      '<p>Everything a new garden needs in its first season, from a <strong>soil test</strong> to a watering rota.</p>' .
+      "\n\n" .
+      '<p>[launch_button url="/apply/" label="Apply for a garden" variant="primary"] [launch_button url="https://example.org/starter-checklist.pdf" label="Download the checklist" variant="secondary" new_tab="1"]</p>' .
+      "\n\n" .
+      '[launch_embed url="https://www.youtube.com/watch?v=aqz-KE-bpKQ" caption="A three-minute tour of a first-season garden."]',
+  ],
 );
 
-patronage_seed_simple_page(
+patronage_seed_page(
   'apply',
   'Apply now',
-  'Start a garden',
-  '<p>Tell us about the lot and the neighbors who will tend it. We reply within two weeks.</p>',
+  [patronage_seed_section('form', ['heading' => '', 'body' => '', 'form_id' => $forms['application']])],
+  hero: [
+    'variant' => 'simple',
+    'eyebrow' => 'Garden applications',
+    'title' => 'Apply for a garden',
+    'subhead' => 'Tell us about the lot and the neighbors who want to grow there. We reply within two weeks.',
+  ],
 );
 
 [$about, $about_created] = patronage_seed_post(['post_name' => 'about', 'post_title' => 'About']);
 if ($about_created) {
   patronage_seed_hero($about, [
+    'variant' => 'simple',
     'eyebrow' => 'About',
-    'headline' => 'About Neighborhood Growers',
-    'intro' => 'A fictional group that exists only in this demo.',
-    'cta' => patronage_seed_link('Read the news', $url('/news/hello-headless/')),
+    'title' => 'About Neighborhood Growers',
+    'subhead' => 'A fictional group that exists only in this demo.',
+    'links' => [['link' => patronage_seed_link('Read the news', $url('/news/hello-headless/')), 'variant' => 'primary']],
   ]);
   patronage_seed_sections($about, [
     patronage_seed_section(
