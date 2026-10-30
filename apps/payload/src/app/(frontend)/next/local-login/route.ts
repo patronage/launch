@@ -13,11 +13,21 @@ import { getPayloadConfig } from "@/lib/payload-config";
 /**
  * Signs in as the first admin user and opens the admin, with no password.
  * It issues the same session and token as Payload's own login. Answers only
- * on the developer's machine; anywhere else it is not found.
+ * on the developer's machine; anywhere else it is not found. It takes a POST
+ * from the admin's own login page, so another site cannot sign the developer
+ * in by sending their browser here.
  */
-export const GET = async (request: NextRequest): Promise<Response> => {
+export const POST = async (request: NextRequest): Promise<Response> => {
   if (!isLocalRequest(request.headers)) {
     return new Response("Not found.", { status: 404 });
+  }
+
+  const site = request.headers.get("sec-fetch-site");
+
+  if (site !== null && site !== "same-origin") {
+    return new Response("Sign in from the admin's login page.", {
+      status: 403,
+    });
   }
 
   const payload = await getPayload({ config: getPayloadConfig() });

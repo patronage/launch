@@ -5,7 +5,7 @@ import { firstUser, isLocalRequest, LOCAL_LOGIN_PATH } from "@/lib/local-login";
 import { getPayloadConfig } from "@/lib/payload-config";
 
 /**
- * Above the admin's login form on a developer's machine: a link that signs
+ * Above the admin's login form on a developer's machine: a button that signs
  * in as the first admin user. Through a tunnel or in production it draws
  * nothing.
  */
@@ -23,13 +23,17 @@ export const LocalLoginLink = async () => {
   }
 
   return (
-    <p style={{ marginBottom: "1.5rem" }}>
-      <a
+    <form
+      action={LOCAL_LOGIN_PATH}
+      method="post"
+      style={{ marginBottom: "1.5rem" }}
+    >
+      <button
         className="btn btn--style-secondary btn--size-medium"
-        href={LOCAL_LOGIN_PATH}
+        type="submit"
       >
         Continue as {user.email}
-      </a>
-    </p>
+      </button>
+    </form>
   );
 };
