@@ -12,6 +12,15 @@ export default defineConfig({
     },
     compatibilityDate: "2026-10-29",
     compatibilityFlags: ["nodejs_compat"],
+    domains: process.env.WORKER_DOMAIN
+      ? [
+          {
+            hostname: process.env.WORKER_DOMAIN,
+            previews: false,
+            production: true,
+          },
+        ]
+      : [],
     entrypoint: "vinext/server/fetch-handler",
     env: {
       ASSETS: bindings.assets(),
@@ -28,5 +37,7 @@ export default defineConfig({
       R2: bindings.r2({ name: "launch-payload-media" }),
     },
     name: "launch-payload",
+    previewUrls: true,
+    workersDev: true,
   }),
 });

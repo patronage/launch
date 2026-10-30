@@ -10,7 +10,7 @@ const previewsOnDomain = process.env.WORKER_DOMAIN_PREVIEWS === "true";
 
 // The cf CLI's typed Worker config, in place of wrangler.jsonc (see
 // docs/spikes/02-vinext-on-workers.md). The account comes from CLOUDFLARE_ACCOUNT_ID.
-export default defineConfig({
+export default defineConfig(({ isPreview }) => ({
   worker: defineWorker({
     assets: {
       htmlHandling: "none",
@@ -30,9 +30,11 @@ export default defineConfig({
       // from .env.local in local dev. They are never written to this file.
       HEADLESS_SECRET: bindings.secret(),
       IMAGES: bindings.images(),
-      // Created on first deploy by `cf deploy --provision`. Holds ISR pages
-      // and fetch data, so a revalidation reaches every isolate.
-      VINEXT_KV_CACHE: bindings.kv(),
+      // Production adopts the namespace created by the first deploy attempt.
+      // Previews keep their existing configuration without this resource id.
+      VINEXT_KV_CACHE: bindings.kv(
+        isPreview ? {} : { id: "d5b43cfa9e444ac2b772c7b042d6c641" }
+      ),
       WORDPRESS_PREVIEW_PASSWORD: bindings.secret(),
       WORDPRESS_PREVIEW_USER: bindings.secret(),
       WORDPRESS_URL: bindings.text(
@@ -45,4 +47,4 @@ export default defineConfig({
     previewUrls: true,
     workersDev: true,
   }),
-});
+}));
