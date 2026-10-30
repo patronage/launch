@@ -15,7 +15,22 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 
 - `apps/*`: deployable apps (CMS installs, vinext front-ends, the MCP Worker, the docs-site).
 - `packages/*`: shared libraries (content model, UI, Access helpers, MCP core and backends).
-- `docs/`: engineering docs for contributors and agents. Spike findings go in `docs/spikes/`, which the public docs site (`apps/docs-site`) publishes as written.
+- `docs/`: engineering docs for contributors and agents. Decisions go in `docs/adr/`, spike findings in `docs/spikes/` (which the public docs site, `apps/docs-site`, publishes as written), and agent skill config in `docs/agents/`.
+- `GLOSSARY.md`: the domain vocabulary. Use its terms in code, issues and PRs.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub issues in `patronage/launch`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` plus `docs/adr/`. Read both before domain work, and flag any conflict with an ADR. See `docs/agents/domain.md`.
 
 ## Commands
 
