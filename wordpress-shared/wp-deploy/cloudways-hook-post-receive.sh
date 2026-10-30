@@ -87,11 +87,10 @@ deploy() {
     return 1
   fi
 
-  if [ -n "$prefix" ]; then
-    git --git-dir="$GIT_DIR" archive "$newrev" "$WORDPRESS_FOLDER" | tar -x --strip-components=1 -f -
-  else
-    git --git-dir="$GIT_DIR" archive "$newrev" | tar -x -f -
-  fi || { echo "Extracting $newrev failed"; return 1; }
+  # Archive the WordPress folder's own tree, so its files land at the webroot
+  # however many folders deep it sits in the repo.
+  git --git-dir="$GIT_DIR" archive "$newrev${prefix:+:$WORDPRESS_FOLDER}" | tar -x -f - ||
+    { echo "Extracting $newrev failed"; return 1; }
 
   [ -n "$oldrev" ] || return 0
   deleted="$(git --git-dir="$GIT_DIR" diff --name-only --no-renames --diff-filter=D "$oldrev" "$newrev" -- "${prefix:-.}")" ||

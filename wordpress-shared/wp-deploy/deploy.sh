@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wp-deploy 2.4.1 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# wp-deploy 2.5.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
 # Sites vendor this file unchanged. Put site settings in _build/deploy.env.
 #
@@ -57,7 +57,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.4.1"
+WP_DEPLOY_VERSION="2.5.0"
 
 BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$BUILD_DIR")"
@@ -345,10 +345,9 @@ SSH_KEEPALIVE=(-o ServerAliveInterval=15 -o ServerAliveCountMax=4)
 # The script, its arguments and its input all travel on stdin to `bash -s`,
 # never in the SSH command: WP Engine's SSH gateway strips quotes from commands.
 # Uses GIT_SSH_COMMAND when set, so git and these calls share one SSH setup.
+# Like git, it runs the command through the shell, so quoted arguments in it survive.
 remote_shell() {
-  local -a ssh_cmd
-  read -r -a ssh_cmd <<<"${GIT_SSH_COMMAND:-ssh}"
-  "${ssh_cmd[@]}" -o ConnectTimeout=15 "${SSH_KEEPALIVE[@]}" \
+  sh -c "${GIT_SSH_COMMAND:-ssh}"' "$@"' ssh -o ConnectTimeout=15 "${SSH_KEEPALIVE[@]}" \
     ${SSH_PORT:+-p "$SSH_PORT"} "$SSH_HOST" bash -s
 }
 
@@ -752,7 +751,8 @@ deploy_cloudways() {
   verify_remote_ref "$prev"
   mark_pushed "$prev"
   mark_installed
-  verify_files "$prev"
+  # A first deploy is checked against the empty tree: every file in it.
+  verify_files "${prev:-$(git hash-object -t tree /dev/null)}"
 }
 
 # Kinsta's hook is the host's `checkout -f` and reports nothing, so success is
@@ -773,7 +773,8 @@ deploy_kinsta() {
   mark_pushed "$prev"
   verify_kinsta_checkout
   mark_installed
-  verify_files "$prev"
+  # A first deploy is checked against the empty tree: every file in it.
+  verify_files "${prev:-$(git hash-object -t tree /dev/null)}"
 }
 
 # The hook checks out with the server repo's index, so after a successful

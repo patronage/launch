@@ -46,4 +46,6 @@ if [[ -n "$nested_git" ]]; then
 fi
 
 # WordPress loads only top-level mu-plugin files, so copy the shared plugin in.
-cp ../../wordpress-shared/patronage-access/patronage-access.php wp-content/mu-plugins/patronage-access.php
+# Read it from HEAD: the deploy's clean-tree check covers only this folder, and
+# the deploy commit names HEAD as its source.
+git show HEAD:./../../wordpress-shared/patronage-access/patronage-access.php >wp-content/mu-plugins/patronage-access.php

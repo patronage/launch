@@ -7,7 +7,7 @@
 #   1. unit checks (list parsing, remote transport, hook, verification, audit, packaging)
 #   2. end-to-end deploys for every host (cloudways, wpengine, kinsta) and layout
 #      (WordPress at the repo root, in wordpress/ with wordpress/_build, and in
-#      wordpress/ with _build/ at the repo root)
+#      wordpress/ with _build/ at the repo root, and two folders down in apps/site/)
 set -euo pipefail
 
 BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -109,6 +109,18 @@ check "git transport defaults to ssh with keepalives" [ "$got" = "ssh -o ServerA
 got="$(unset GIT_SSH_COMMAND; GIT_SSH=/usr/local/bin/my-ssh ssh_cmd_of)"
 check "git transport leaves a GIT_SSH program alone" [ -z "$got" ]
 unset -f ssh_cmd_of
+
+# The script's own SSH calls run GIT_SSH_COMMAND through the shell, as git does.
+mkdir -p "$WORK/ssh dir"
+printf '#!/bin/bash\nprintf "[%%s]" "$@"\n' >"$WORK/ssh dir/print-args"
+chmod +x "$WORK/ssh dir/print-args"
+# The checks above replace remote_shell, so read the real one from the script.
+got="$(
+  eval "$(sed -n '/^remote_shell() {/,/^}/p' "$BUILD_DIR/deploy.sh")"
+  GIT_SSH_COMMAND="'$WORK/ssh dir/print-args' -i '/keys/my key'" SSH_HOST=host.invalid SSH_PORT="" remote_shell </dev/null
+)"
+check "remote SSH keeps quoted arguments in GIT_SSH_COMMAND" grep -q '^\[-i\]\[/keys/my key\]\[-o\]\[ConnectTimeout=15\]' <<<"$got"
+check "remote SSH ends with the host and bash -s" grep -q '\[host.invalid\]\[bash\]\[-s\]$' <<<"$got"
 
 # WP Engine's own mu-plugins count as server-managed; site mu-plugins don't.
 unmatched=""
@@ -625,6 +637,7 @@ no_source_commits() {
 #   layout root:      WordPress at the repo root, _build/ at the root
 #   layout subfolder: WordPress in wordpress/, wordpress/_build/ (the template layout)
 #   layout detached:  WordPress in wordpress/, _build/ at the repo root (DEPLOY_WORDPRESS_DIR)
+#   layout nested:    WordPress two folders down, in apps/site/ with apps/site/_build (a monorepo app)
 run_case() {
   local host="$1" layout="$2" name="$1/$2" before="$failures" case_dir repo wp build webroot branch target out status prefix env_extra=""
   echo "# case $name"
@@ -636,6 +649,7 @@ run_case() {
     root) wp="$repo" build="$repo/_build" prefix="" ;;
     subfolder) wp="$repo/wordpress" build="$repo/wordpress/_build" prefix="wordpress/" ;;
     detached) wp="$repo/wordpress" build="$repo/_build" prefix="wordpress/" env_extra="DEPLOY_WORDPRESS_DIR=wordpress" ;;
+    nested) wp="$repo/apps/site" build="$repo/apps/site/_build" prefix="apps/site/" ;;
   esac
   branch=master
   [ "$layout" != root ] || branch=main
@@ -764,6 +778,7 @@ run_case() {
   check "$name: first deploy succeeds" [ "$status" = 0 ]
   [ "$status" = 0 ] || printf '%s\n' "$out" | sed 's/^/    | /'
   check "$name: first deploy reports complete" grep -q "Deploy to staging complete" <<<"$out"
+  [ "$host" = wpengine ] || check "$name: first deploy verifies every file" grep -q "Verified [0-9]* changed paths" <<<"$out"
   check "$name: WordPress files land at the webroot" bash -c '[ -f "$1/wp-content/plugins/real/real.php" ] && [ -f "$1/index.php" ]' _ "$webroot"
   check "$name: build output is deployed" [ -f "$webroot/wp-content/themes/t/dist/app.js" ]
   check "$name: no nested wordpress/ folder" [ ! -e "$webroot/wordpress" ]
@@ -912,6 +927,9 @@ for host in cloudways wpengine kinsta; do
 done
 run_case kinsta detached
 run_case cloudways detached
+for host in cloudways wpengine kinsta; do
+  run_case "$host" nested
+done
 
 # Kinsta failure modes: a push the hook ignores, a bad remote, a rejected push.
 export FAKE_ROOT="$WORK/case-kinsta-subfolder/server"

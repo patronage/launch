@@ -2,7 +2,7 @@
 
 `deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder.
 
-This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.4.1 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.5.0 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
@@ -105,6 +105,7 @@ The script works out the layout from where the WordPress folder sits in the Git 
 | WordPress in a subfolder, `_build/` inside it | `wordpress/_build/` | `.` (default) | WP Engine and Kinsta get a commit holding only `wordpress/`. Cloudways gets the whole packaged commit, and its hook extracts `wordpress/`. |
 | WordPress at the repo root | `_build/` at the root | `.` (default) | The whole packaged commit |
 | `_build/` at the root, WordPress in a subfolder | `_build/` next to `wordpress/` | `wordpress` | Same as the first row |
+| WordPress deeper in a monorepo, `_build/` inside it | `apps/site/_build/` | `.` (default) | Same as the first row, at any depth |
 
 Include and exclude entries are always relative to the WordPress folder.
 
@@ -220,7 +221,7 @@ pnpm --filter @launch/wp-deploy test     # or: bash tests/test_deploy.sh, from t
 
 The tests deploy to fake servers through a fake `ssh`. Nothing touches a real host. They cover:
 
-- every host (Cloudways, WP Engine, Kinsta) with WordPress at the repo root, in `wordpress/` with `wordpress/_build/`, and (for Kinsta and Cloudways) in `wordpress/` with `_build/` at the root
+- every host (Cloudways, WP Engine, Kinsta) with WordPress at the repo root, in `wordpress/` with `wordpress/_build/`, and (for Kinsta and Cloudways) in `wordpress/` with `_build/` at the root, and in `apps/site/` with `apps/site/_build/`
 - per case: a dry run, install-hook (Cloudways) or remote preparation (WP Engine), two deploys, file verification, removal of deleted files, protected paths, and the audit
 - the "Not managed by composer" audit section and the local `plugins` report, WP Engine's managed mu-plugins, the no-plugin-file warning, and composer.json requirements missing from composer.lock
 - `prune` on every host and layout: what it removes and keeps, the backup, the audit afterwards, and a second run with nothing to remove
@@ -233,6 +234,7 @@ The fake WP Engine gateway strips quotes and has no `git`, like the real one. Th
 
 ## Changelog
 
+- **2.5.0**: The Cloudways hook installs a WordPress folder at any depth. It stripped one folder, so a WordPress app two folders down, such as `apps/site/`, landed in `public_html/site/`. Reinstall the hook (`install-hook`) on every Cloudways environment; deploys stop until you do. A first deploy to Cloudways or Kinsta now checks every file it pushed, instead of skipping the check. The script's own SSH calls run `GIT_SSH_COMMAND` through the shell, as git does, so quoted arguments in it (a key path with spaces, a `ProxyCommand`) work.
 - **2.4.1**: No behavior change. The canonical copy moved to `wordpress-shared/wp-deploy` in patronage/launch; the header and docs say so.
 - **2.4.0**: New `verify <target> [--from <ref>]` reruns a deploy's checks, and on WP Engine its stale-file removal, without pushing. A deploy commit with no parent carries a `Replaces: <commit>` trailer naming the server's commit it replaced, which `verify` uses like a parent. After the host has installed the push, a failure prints `deploy completed; verification failed` and exits 2 instead of 1; on WP Engine, only a file check that matches proves the install. A failure after the script confirms the server's branch is the pushed commit (on Cloudways, also after `DEPLOY_OK`), or after a push it can't confirm, names the `verify` command. SSH sessions, including git's, set `ServerAliveInterval=15` and `ServerAliveCountMax=4`, so a dropped connection no longer hangs the deploy.
 - **2.3.0**: On WP Engine, a deploy removes files from the server only when the server's previous commit is a wp-deploy commit. A first deploy over WP Engine's own commit deleted WordPress core: WP Engine had committed an "Upgraded WordPress" snapshot of the webroot, and the deploy removed every file in it that wasn't in the payload. Against any other commit the deploy now removes nothing and prints a warning that names the commit and points to `audit` and `prune`. Deploy commits from 2.0.0 to 2.2.2 have no trailer, so the first 2.3.0 deploy after one removes nothing either. On WP Engine, `--dry-run` reads the server's commit when the Git remote settings are there and lists the files the deploy would remove. The placeholder commit for an empty install carries the trailer.
