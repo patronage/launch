@@ -4,7 +4,7 @@ Issue: [#11](https://github.com/patronage/launch/issues/11). Builds on the `cf` 
 
 ## Status
 
-The recipe and scripts are written and their API requests validate with `--dry-run`, but nothing has run against a Cloudflare account yet: this work was done without account credentials. The production deploy and the first preview URL are still to do, in the order under "First run".
+Live. Workers Builds builds and deploys `apps/web-wordpress`, `apps/payload` and `apps/docs-site` from `main`, and branch Previews build for `apps/web-wordpress` (`apps/payload` has branch builds off by default). What the runs settled and what is still open is at the end.
 
 ## How it works
 
@@ -29,7 +29,7 @@ Preview deploys use Worker Previews (`cf previews deploy`). Each branch gets its
 
 1. One time for the repo: install the Cloudflare GitHub app on `patronage/launch` from the dashboard (Workers & Pages, Create, connect GitHub). This is the only dashboard step.
 2. Deploy once from a machine, so the Worker and its KV namespace exist: `pnpm run deploy`.
-3. Set runtime secrets: `REVALIDATE_SECRET=… PREVIEW_SECRET=… pnpm run secrets`.
+3. Set the runtime secrets that `cloudflare.config.ts` declares with `pnpm run secrets`, values from the environment. Never add them as build variables.
 4. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids (`gh api repos/patronage/launch --jq '.owner.id, .id'`).
 5. `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
 6. Push a branch and check that its Preview URL comes up, then merge and check production.
@@ -45,13 +45,19 @@ Set `WORKER_DOMAIN` as a build variable (for example `launch-wordpress.<zone>`),
 - Each Preview keeps its own copy of the build settings, taken when the Preview is created. Changing `previews_base_config` only affects new Previews; send the update again with `--patch-existing-previews true` to change the ones that already exist.
 - Watch paths decide whether a push builds at all. A change to only the root `.nvmrc` or `package.json` does not start one.
 - The first Preview build passed (`pnpm -w run verify` plus `cf previews deploy`), so Workers Builds accepts `cf previews deploy` as the preview command.
+- The build image has no PHP, so the full `pnpm verify` fails on the WordPress installs' checks. Build commands run the frozen install and lint for the workspace, then typecheck and test only the app and its dependencies.
+- `cf deploy` refuses to run while a declared secret is unset, and its automatic provisioning fails with `[10014]` when a KV namespace of the same title exists but no deployed version binds it. That happens after a failed first deploy; bind the existing namespace by id in `cloudflare.config.ts` instead.
 - That Preview came back with no URL, because the Worker, created in the dashboard, had workers.dev turned off. `cloudflare.config.ts` now sets `workersDev` and `previewUrls`, and the next production deploy applies them.
 
-## Things to confirm on the first run
+## Settled by the production runs
 
-These come from reading the docs and the `cf` CLI's API schema, not from a run:
+All three Workers (`launch-vinext-wordpress`, `launch-payload`, `launch-docs`) deploy from `main` through Workers Builds as of 2026-10-30.
 
-- Whether Workers Builds puts `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the build environment. The docs say a build token is generated and used by the deploy command, but only list `CI`, `WORKERS_CI`, `WORKERS_CI_BRANCH`, `WORKERS_CI_COMMIT_SHA` and `WORKERS_CI_BUILD_UUID`. If the account id is missing, set it as a build variable.
-- Whether `cf deploy` without `--secrets-file` keeps the secrets already on the Worker, as Wrangler does. The deploy script relies on that in CI, where secret values are not in the build environment.
-- How Previews get secrets. The docs say a new Preview copies the Worker's base Preview secrets when it is created; the `cf` CLI has no command for those yet (Wrangler's is `wrangler preview base-config secret put`). The API behind it needs finding. Until then, a Preview without secrets still renders, but revalidation and draft mode return 401.
-- Whether Previews share the production KV namespace. If they do, a Preview could serve or clear production cache entries; giving the Preview build its own namespace through `isPreview` would fix that.
+- Workers Builds gives the deploy command working Cloudflare credentials: `cf deploy` runs with no account id or token set as build variables.
+- `cf deploy` without `--secrets-file` keeps the secrets already on the Worker. Production builds deploy with no secret values in the build environment.
+- Previews use their own KV namespace: `apps/web-wordpress` binds the production namespace by id only when the build is not a Preview.
+
+Still open:
+
+- How Previews get secrets. A new Preview copies the Worker's Previews base secrets when it is created; `apps/payload` sets them with `pnpm run secrets --preview-base`. Until a Worker has them, its Previews render, but revalidation and draft mode fail. The `apps/web-wordpress` Previews built so far are not full CMS preview environments.
+- Putting Previews behind Access (step 7 above).
