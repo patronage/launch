@@ -4933,7 +4933,8 @@ type Post implements Node &
   NodeWithComments &
   NodeWithTrackbacks &
   NodeWithRevisions &
-  MenuItemLinkable {
+  MenuItemLinkable &
+  WithAcfHero {
   "The ancestors of the content node."
   ancestors(
     "The number of items to return after the referenced \"after\" cursor"
@@ -5089,6 +5090,9 @@ type Post implements Node &
 
   "Whether the post object is password protected."
   hasPassword: Boolean
+
+  "Fields of the Hero ACF Field Group"
+  hero: Hero
 
   "The globally unique identifier of the post object."
   id: ID!

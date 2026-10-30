@@ -21,18 +21,15 @@ add_filter('timber/twig', function (\Twig\Environment $twig): \Twig\Environment 
 function patronage_timber_render(): void {
   $context = \Timber\Timber::context();
 
-  if (is_singular('page')) {
-    $post = \Timber\Timber::get_post();
-    $context['post'] = $post;
-    $context['page'] = patronage_timber_page($post->ID, is_preview());
-    \Timber\Timber::render(['page-' . $post->slug . '.twig', 'page.twig'], $context);
-    return;
-  }
-
   if (is_singular()) {
     $post = \Timber\Timber::get_post();
     $context['post'] = $post;
-    \Timber\Timber::render(['single-' . $post->post_type . '.twig', 'single.twig'], $context);
+    // Pages have a hero and sections, posts a hero; either may have neither.
+    $context['page'] = patronage_timber_page($post->ID, is_preview());
+    $views = is_singular('page')
+      ? ['page-' . $post->slug . '.twig', 'page.twig']
+      : ['single-' . $post->post_type . '.twig', 'single.twig'];
+    \Timber\Timber::render($views, $context);
     return;
   }
 
