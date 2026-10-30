@@ -8,6 +8,7 @@ import {
   CardGrid,
   Content,
   ContentMedia,
+  FormSection,
   MediaOnly,
 } from "./blocks";
 import { Container } from "./components/container";
@@ -63,6 +64,10 @@ export const BlockRenderer = ({
 
     case "callToAction": {
       return <CallToAction block={block} {...level} />;
+    }
+
+    case "form": {
+      return <FormSection block={block} {...level} />;
     }
 
     default: {

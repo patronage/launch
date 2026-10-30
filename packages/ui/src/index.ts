@@ -6,6 +6,8 @@ export * from "./components/card";
 
 export * from "./components/container";
 
+export * from "./components/form";
+
 export * from "./components/section";
 
 export * from "./components/site-chrome";

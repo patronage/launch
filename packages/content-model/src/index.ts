@@ -124,13 +124,67 @@ export interface CallToActionBlock<R> extends BlockBase<"callToAction"> {
   links: Link[];
 }
 
+/** Input types a form field can take. `message` is text between inputs. */
+export const FORM_FIELD_TYPES = [
+  "text",
+  "email",
+  "textarea",
+  "number",
+  "select",
+  "checkbox",
+  "message",
+] as const;
+
+export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
+
+export interface FormFieldOption {
+  label: string;
+  value: string;
+}
+
+export interface FormField<R> {
+  type: FormFieldType;
+  /** The submitted value's key. Empty for `message`. */
+  name: string;
+  label?: string;
+  required: boolean;
+  /** Percent of the row, e.g. 50 for two fields side by side. */
+  width?: number;
+  defaultValue?: string;
+  /** For `select`. */
+  options?: FormFieldOption[];
+  /** For `message`. */
+  message?: R;
+}
+
+/**
+ * A form as the CMS defines it. The UI posts `{ formId, values }` as JSON to
+ * `action`, where `values` maps each field's name to its value; each app owns
+ * that endpoint and turns it into its CMS's submission.
+ */
+export interface Form<R> {
+  id: string;
+  action: string;
+  fields: FormField<R>[];
+  submitLabel: string;
+  /** Shown in place of the form after a successful submission. */
+  confirmation?: R;
+}
+
+export interface FormBlock<R> extends BlockBase<"form"> {
+  heading?: string;
+  body?: R;
+  form: Form<R>;
+}
+
 export type Block<R> =
   | ContentBlock<R>
   | ContentMediaBlock<R>
   | MediaBlock
   | CardGridBlock
   | BlockquoteBlock
-  | CallToActionBlock<R>;
+  | CallToActionBlock<R>
+  | FormBlock<R>;
 
 export type BlockType = Block<unknown>["type"];
 

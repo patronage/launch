@@ -234,6 +234,9 @@ importers:
       '@payloadcms/next':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/react@19.3.0)(graphql@16.14.2)(monaco-editor@0.57.0)(next@16.4.2(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@24.12.3)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      '@payloadcms/plugin-form-builder':
+        specifier: 4.0.0-beta.6
+        version: 4.0.0-beta.6(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
       '@payloadcms/plugin-nested-docs':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))
@@ -273,6 +276,9 @@ importers:
       vinext:
         specifier: 1.4.0
         version: 1.4.0(22cabd9d8cb075865377095bd2ea0380)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.v.7
@@ -3137,6 +3143,13 @@ packages:
 
   '@payloadcms/plugin-cloud-storage@4.0.0-beta.6':
     resolution: {integrity: sha512-DksFR7F9B+RmrVhM5A3w7djZ785UmuRIcjQE/fMUSpP5FnBXeeR5GQV2fX1uRKr4dZlQ2oLxWkwgOAYCj8Kzng==}
+    peerDependencies:
+      payload: 4.0.0-beta.6
+      react: ^19.0.1 || ^19.1.2 || ^19.2.1
+      react-dom: ^19.0.1 || ^19.1.2 || ^19.2.1
+
+  '@payloadcms/plugin-form-builder@4.0.0-beta.6':
+    resolution: {integrity: sha512-fcs/iXG41WwCyesw5AEKqO0W8GsfIgvr3Z3Bv5B+4qZo5HumvbyeICegaJAalWhYe7GkQc1zPTADC8VkQH+u/g==}
     peerDependencies:
       payload: 4.0.0-beta.6
       react: ^19.0.1 || ^19.1.2 || ^19.2.1
@@ -11335,6 +11348,21 @@ snapshots:
       find-node-modules: 2.1.3
       payload: 4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)
       range-parser: 1.3.0
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+    transitivePeerDependencies:
+      - '@types/react'
+      - date-fns-tz
+      - monaco-editor
+      - supports-color
+      - typescript
+
+  '@payloadcms/plugin-form-builder@4.0.0-beta.6(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)':
+    dependencies:
+      '@payloadcms/translations': 4.0.0-beta.6
+      '@payloadcms/ui': 4.0.0-beta.6(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      escape-html: 1.0.3
+      payload: 4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
     transitivePeerDependencies:

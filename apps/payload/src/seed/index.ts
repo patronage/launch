@@ -6,13 +6,15 @@ import type { Payload } from "payload";
 
 import type { ImageFile, PageSlug } from "./content";
 import { layouts, PAGES } from "./content";
+import type { FormTitle } from "./forms";
+import { formData, FORMS } from "./forms";
 import type { AuthorName, CategorySlug } from "./posts";
 import { AUTHORS, CATEGORIES, posts } from "./posts";
 
 /**
  * Creates or updates the demo pages, news, their images and the site
  * settings. Runs again safely: pages, posts and categories are matched by
- * slug, authors by name and images by alt text, so a rerun resets the demo
+ * slug, authors and forms by name or title and images by alt text, so a rerun resets the demo
  * content without duplicating it.
  *
  * Payload 4 checks access in the Local API by default; seeding is trusted, so
@@ -288,7 +290,43 @@ export const seed = async (payload: Payload): Promise<void> => {
 
   const pageId = lookup<PageSlug>(pageIds, "page");
 
+  // Forms have no slug, so they match by title.
+  const formIds = new Map(
+    await Promise.all(
+      FORMS.map(async (form) => {
+        const {
+          docs: [existing],
+        } = await payload.find({
+          collection: "forms",
+          limit: 1,
+          overrideAccess: true,
+          where: { title: { equals: form.title } },
+        });
+
+        const data = formData(form);
+
+        const doc = existing
+          ? await payload.update({
+              collection: "forms",
+              data,
+              id: existing.id,
+              overrideAccess: true,
+            })
+          : await payload.create({
+              collection: "forms",
+              data,
+              overrideAccess: true,
+            });
+
+        return [form.title, doc.id] as const;
+      })
+    )
+  );
+
+  payload.logger.info(`Seeded ${formIds.size} forms`);
+
   const content = layouts({
+    form: lookup<FormTitle>(formIds, "form"),
     image: lookup<ImageFile>(imageIds, "image"),
     page: pageId,
   });
