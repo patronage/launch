@@ -1,0 +1,29 @@
+{#
+  A title over the block editor's content, for posts and for pages without
+  sections (the Hero and RichText fallback in apps/web-wordpress's
+  ContentView). Takes: post, byline.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+<article>
+  <header class="{{ ui.section('lg', 'sm') }}" data-component="section" data-skin="light">
+    <div class="{{ ui.container() }}">
+      <div class="flex max-w-3xl flex-col gap-5">
+        <h1 class="{{ ui.type('h1') }}">{{ post.title }}</h1>
+        {% if post.post_excerpt %}
+          <p class="{{ ui.type('lead') }}">{{ post.post_excerpt }}</p>
+        {% endif %}
+        {% if byline %}
+          <p class="{{ ui.type('muted') }}">
+            {{- post.author.name }} · <time datetime="{{ post.date('c') }}">{{ post.date('F j, Y') }}</time>
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+  <div class="{{ ui.section('none', 'lg') }}" data-skin="light">
+    <div class="{{ ui.container() }}">
+      {{ p.rich_text(post.content, 'max-w-3xl') }}
+    </div>
+  </div>
+</article>

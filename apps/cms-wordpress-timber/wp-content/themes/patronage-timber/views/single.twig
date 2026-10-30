@@ -1,0 +1,5 @@
+{# A post (or any other single item): title, byline and content. #}
+{% extends 'layout.twig' %}
+{% block content %}
+  {% include 'partials/article.twig' with {post: post, byline: post.post_type == 'post'} only %}
+{% endblock %}

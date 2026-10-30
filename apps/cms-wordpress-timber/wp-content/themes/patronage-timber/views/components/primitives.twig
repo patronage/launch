@@ -1,0 +1,54 @@
+{#
+  @launch/ui's primitives.tsx in Twig: links as buttons, images, figures and
+  the rich-text wrapper. Each takes the content model's shapes, as mapped by
+  inc/content.php.
+#}
+{% import 'components/ui.twig' as ui %}
+
+{% macro link_button(link, extra = '') %}
+  {%- import 'components/ui.twig' as ui -%}
+  {%- set variants = {primary: 'default', secondary: 'outline', text: 'link'} -%}
+  <a class="{{ ui.button(variants[link.variant] ?? 'default', 'lg', extra) }}"
+    data-variant="{{ link.variant }}"
+    href="{{ link.href }}"
+    {%- if link.newTab %} rel="noopener noreferrer" target="_blank"{% endif %}>
+    {{- link.label -}}
+  </a>
+{% endmacro %}
+
+{% macro link_list(links, extra = '') %}
+  {%- if links is not empty -%}
+    <ul class="{{ cx('flex flex-wrap items-center gap-3', extra) }}">
+      {%- for link in links %}
+        <li>{{ _self.link_button(link) }}</li>
+      {%- endfor %}
+    </ul>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro img(image, extra = '', loading = 'lazy', sizes = '100vw', alt = null) %}
+  <img alt="{{ alt ?? image.alt }}"
+    class="{{ cx('block h-auto max-w-full', extra) }}"
+    decoding="async"
+    {%- if image.height %} height="{{ image.height }}"{% endif %}
+    loading="{{ loading }}"
+    src="{{ image.src }}"
+    {%- if image.srcset %} srcset="{{ image.srcset }}" sizes="{{ sizes }}"{% endif %}
+    {%- if image.width %} width="{{ image.width }}"{% endif %} />
+{% endmacro %}
+
+{% macro figure(media, extra = '', sizes = '100vw') %}
+  <figure class="{{ cx('m-0', extra) }}">
+    {{ _self.img(media.image, 'w-full rounded-xl', 'lazy', sizes) }}
+    {%- if media.caption %}
+      <figcaption class="text-section-muted mt-3 text-sm">{{ media.caption }}</figcaption>
+    {%- endif %}
+  </figure>
+{% endmacro %}
+
+{% macro rich_text(html, extra = '') %}
+  {%- import 'components/ui.twig' as ui -%}
+  {%- if html is not empty -%}
+    <div class="{{ ui.prose(extra) }}">{{ html|rich }}</div>
+  {%- endif -%}
+{% endmacro %}

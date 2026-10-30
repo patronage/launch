@@ -1,0 +1,10 @@
+{# CallToActionBlock: centred heading, text and buttons. #}
+<div class="mx-auto max-w-3xl">
+  {% include 'components/copy.twig' with {
+    heading: block.heading,
+    body: block.body,
+    links: block.links,
+    align: 'center',
+    heading_level: heading_level
+  } only %}
+</div>

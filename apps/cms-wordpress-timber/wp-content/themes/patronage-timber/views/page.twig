@@ -1,0 +1,18 @@
+{#
+  A page: its hero and Page Builder sections (PageSections in
+  packages/ui/src/sections.tsx). A page with neither shows its title and the
+  block editor's content, as a post does.
+#}
+{% extends 'layout.twig' %}
+{% block content %}
+  {% if page.hero %}
+    {% include 'heroes/hero.twig' with {hero: page.hero, skin: page.heroSkin, joins_next: page.heroJoinsNext} only %}
+  {% endif %}
+  {% for section in page.sections %}
+    {% include 'sections/section.twig' with {section: section} only %}
+  {% else %}
+    {% if not page.hero %}
+      {% include 'partials/article.twig' with {post: post} only %}
+    {% endif %}
+  {% endfor %}
+{% endblock %}

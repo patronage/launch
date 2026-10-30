@@ -1,0 +1,48 @@
+{
+  "name": "patronage/launch-cms-wordpress-timber",
+  "description": "Traditional WordPress for Launch, rendered by a Timber theme. Plugins and libraries are installed by Composer and never committed.",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.2",
+    "composer/installers": "2.3.0",
+    "timber/timber": "2.5.1",
+    "wordpress/secure-custom-fields": "6.9.7",
+    "vinkla/extended-acf": "14.6.2",
+    "johnbillion/extended-cpts": "5.1.0"
+  },
+  "repositories": [
+    {
+      "type": "package",
+      "package": {
+        "name": "wordpress/secure-custom-fields",
+        "version": "6.9.7",
+        "type": "wordpress-plugin",
+        "dist": {
+          "type": "zip",
+          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+        },
+        "require": {
+          "composer/installers": "^2.2"
+        }
+      }
+    }
+  ],
+  "config": {
+    "vendor-dir": "wp-content/plugins/composer-libs",
+    "preferred-install": "dist",
+    "allow-plugins": {
+      "composer/installers": true
+    },
+    "platform": {
+      "php": "8.3"
+    }
+  },
+  "extra": {
+    "installer-paths": {
+      "wp-content/plugins/{$name}/": [
+        "type:wordpress-plugin"
+      ]
+    }
+  }
+}

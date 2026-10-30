@@ -1,0 +1,44 @@
+{# The news list, archives and search results. #}
+{% extends 'layout.twig' %}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% block content %}
+  <section class="{{ ui.section('lg', 'lg') }}" data-component="section" data-skin="light">
+    <div class="{{ ui.container('default', 'flex flex-col gap-10') }}">
+      <h1 class="{{ ui.type('h1') }}">{{ title }}</h1>
+      {% if posts is not empty %}
+        <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {% for item in posts %}
+            {% set image = item.thumbnail ? function('patronage_timber_image', item.thumbnail.id, 'medium_large') : null %}
+            <li class="flex">
+              <div class="{{ cx('bg-card text-card-foreground flex w-full flex-col gap-5 overflow-hidden rounded-xl border py-6', image ? 'pt-0') }}">
+                {% if image %}
+                  {{ p.img(image, 'aspect-3/2 w-full object-cover', 'lazy', '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw') }}
+                {% endif %}
+                <div class="grid auto-rows-min items-start gap-1.5 px-6">
+                  <p class="{{ ui.type('muted') }}"><time datetime="{{ item.date('c') }}">{{ item.date('F j, Y') }}</time></p>
+                  <h2 class="{{ ui.type('h4') }}"><a class="hover:underline" href="{{ item.link }}">{{ item.title }}</a></h2>
+                  {% if item.excerpt %}
+                    <div class="text-muted-foreground text-base leading-relaxed">{{ item.excerpt({words: 30, read_more: false}) }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if pagination.pages|length > 1 %}
+          <nav aria-label="Pagination" class="flex flex-wrap items-center gap-2">
+            {% if pagination.prev %}
+              <a class="{{ ui.button('outline', 'default') }}" href="{{ pagination.prev.link }}">Newer</a>
+            {% endif %}
+            {% if pagination.next %}
+              <a class="{{ ui.button('outline', 'default') }}" href="{{ pagination.next.link }}">Older</a>
+            {% endif %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <p class="{{ ui.type('lead') }}">Nothing here yet.</p>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

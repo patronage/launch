@@ -1,0 +1,50 @@
+{#
+  The page's hero in its variant (PageHero in packages/ui/src/hero.tsx). It
+  holds the page's only <h1>. A hero that joins the next section (same skin)
+  drops its bottom padding; the full-bleed home hero keeps its own.
+  Takes: hero, skin, joins_next.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set bottom = joins_next ? 'none' : (hero.variant == 'split' ? 'lg' : 'md') %}
+
+{% if hero.variant == 'home' %}
+  <section class="{{ ui.section('lg', 'lg', 'flex min-h-[70vh] items-end overflow-hidden') }}"
+    data-component="section" data-hero="home" data-skin="{{ skin }}">
+    {% if hero.image %}
+      {{ p.img(hero.image, 'absolute inset-0 size-full object-cover', 'eager') }}
+      <div aria-hidden="true" class="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-black/10"></div>
+    {% endif %}
+    <div class="{{ ui.container('default', 'relative') }}" data-component="container">
+      {% include 'heroes/copy.twig' with {hero: hero} only %}
+    </div>
+  </section>
+
+{% elseif hero.variant == 'split' %}
+  <section class="{{ ui.section('lg', bottom) }}" data-component="section" data-hero="split" data-skin="{{ skin }}">
+    <div class="{{ ui.container('default', 'grid items-center gap-10 md:grid-cols-2 lg:gap-16') }}" data-component="container">
+      {% include 'heroes/copy.twig' with {hero: hero|merge({align: 'start'}), display: 'd2'} only %}
+      {% if hero.image %}
+        {{ p.img(hero.image, 'aspect-4/3 w-full rounded-xl object-cover', 'eager', '(min-width: 768px) 50vw, 100vw') }}
+      {% endif %}
+    </div>
+  </section>
+
+{% elseif hero.variant == 'media' %}
+  <section class="{{ ui.section('lg', bottom) }}" data-component="section" data-hero="media" data-skin="{{ skin }}">
+    <div class="{{ ui.container('default', 'flex flex-col gap-12') }}" data-component="container">
+      {% include 'heroes/copy.twig' with {hero: hero, display: 'd2'} only %}
+      {% if hero.image %}
+        {{ p.img(hero.image, 'aspect-21/9 w-full rounded-xl object-cover', 'eager') }}
+      {% endif %}
+    </div>
+  </section>
+
+{% else %}
+  {# simple and freeform: copy only; freeform adds the editor's rich text. #}
+  <section class="{{ ui.section('lg', bottom) }}" data-component="section" data-hero="{{ hero.variant }}" data-skin="{{ skin }}">
+    <div class="{{ ui.container() }}" data-component="container">
+      {% include 'heroes/copy.twig' with {hero: hero, display: hero.variant == 'freeform' ? 'd1' : 'd2'} only %}
+    </div>
+  </section>
+{% endif %}

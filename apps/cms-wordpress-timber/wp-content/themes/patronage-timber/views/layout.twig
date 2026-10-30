@@ -1,0 +1,51 @@
+{#
+  The document: head, the site header and footer (SiteHeader and SiteFooter
+  in packages/ui/src/components/site-chrome.tsx) and the page's content.
+#}
+{% import 'components/ui.twig' as ui %}
+<!doctype html>
+<html {{ function('get_language_attributes')|raw }}>
+  <head>
+    <meta charset="{{ site.charset }}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {{ function('wp_head') }}
+  </head>
+  <body class="{{ cx('flex min-h-svh flex-col', body_class) }}">
+    {{ function('wp_body_open') }}
+    <a class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2"
+      href="#main">Skip to content</a>
+    <header class="bg-background/85 supports-backdrop-filter:bg-background/70 sticky top-0 z-40 border-b backdrop-blur" data-skin="light">
+      <div class="{{ ui.container('default', 'flex min-h-16 flex-wrap items-center gap-x-8 gap-y-2 py-3') }}">
+        <div class="font-display text-lg font-semibold tracking-tight">
+          <a href="{{ home_url }}">{{ site.name }}</a>
+        </div>
+        {% if menu and menu.items %}
+          <nav aria-label="Primary" class="flex flex-wrap items-center gap-x-6 gap-y-1">
+            {% for item in menu.items %}
+              <a class="{{ cx('text-muted-foreground hover:text-foreground text-sm font-medium transition-colors', item.current ? 'text-foreground') }}"
+                href="{{ item.link }}"
+                {%- if item.current %} aria-current="page"{% endif %}
+                {%- if item.target == '_blank' %} rel="noopener noreferrer" target="_blank"{% endif %}>
+                {{- item.title -}}
+              </a>
+            {% endfor %}
+          </nav>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="flex-1" id="main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-muted border-t" data-skin="light">
+      <div class="{{ ui.container('default', 'text-muted-foreground flex flex-wrap items-center justify-between gap-4 py-10 text-sm') }}">
+        <span>{{ site.name }}</span>
+        {% if site.description %}
+          <span>{{ site.description }}</span>
+        {% endif %}
+      </div>
+    </footer>
+    {{ function('wp_footer') }}
+  </body>
+</html>

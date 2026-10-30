@@ -1,0 +1,10 @@
+/*
+ * Tailwind entry for the Timber theme, built to dist/main.css by the app's
+ * build:css script. It shares @launch/ui's design tokens and Tailwind theme
+ * (not its React components), and scans only this theme's views and PHP.
+ */
+@import "tailwindcss";
+@import "@launch/ui/theme.css";
+
+@source "../views";
+@source "../inc";
