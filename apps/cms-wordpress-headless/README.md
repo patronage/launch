@@ -43,15 +43,27 @@ Secure Custom Fields is the GPL fork of ACF that includes the field types the Pa
 | Concern | WordPress side | Front-end side |
 | --- | --- | --- |
 | Content | WPGraphQL at `/graphql` | `lib/wordpress/client.ts`, typed by codegen |
-| Revalidation | mu-plugin sends `PUT /api/revalidate/` with `{paths, tags}` and `X-Headless-Secret-Key` | `app/api/revalidate/route.ts` calls `revalidatePath` and `revalidateTag` |
+| Revalidation | mu-plugin sends `PUT /api/revalidate/` with `{paths, tags}` and `X-Headless-Secret-Key`; the theme adds every key Smart Cache purges as a tag (`inc/cache-tags.php`) | reads are tagged with their `X-GraphQL-Keys` (`lib/wordpress/cache-tags.ts`); `app/api/revalidate/route.ts` calls `revalidateTag` and `revalidatePath` |
 | Locked queries | Smart Cache in "only allowed" mode; the theme registers `graphql-documents.json` on the next request after it changes, or with `wp patronage-headless documents` | requests send only `{queryId, variables}`; `pnpm --filter web-wordpress documents` writes the manifest |
 | Preview | theme rewrites the Preview link to `/api/preview/?token=…`, an HMAC of the post ID and an expiry | `app/api/preview/route.ts` checks it, enables draft mode, renders `/preview/<id>/` with the application password and the `X-GraphQL-Preview` header |
 
-Check the revalidation round trip against a running front-end (it publishes, edits and trashes a test post):
+### Cache tags
+
+The front-end caches each WPGraphQL read under the WPGraphQL Smart Cache keys in its `X-GraphQL-Keys` header: the global ID of every post, term, menu item, user and settings group it used, plus `list:<type>` keys. Pages carry the tags of the reads they render. When something changes, Smart Cache purges its keys (`graphql_purge`), and `inc/cache-tags.php` queues each one with the mu-plugin. So editing one page expires that page and any page that shows it (a card linking to it, an image it uses), and leaves the rest cached. A menu change expires every page, because every page renders the menu.
+
+- `graphql:Query` and "Purge Cache Now" go out as `wordpress`, the tag on every read.
+- A post that a menu item links to also sends `list:menuitem`, because the menu item takes its label and URL from the post, while the menu read carries only the menu item's key.
+- Each changed post's paths still go out too. The front-end expires the content read for each path, which is what replaces a cached "not found" when a post is published at that URL.
+- Smart Cache's own object cache is turned off. A response it serves from there carries no node keys, and the front-end only asks WordPress on a miss anyway.
+- Settings changes purge only options registered with `register_setting()`. WordPress registers its own on admin and REST requests; the theme does it for WP-CLI too.
+
+Check the revalidation round trip against a running front-end (it publishes, edits and trashes a test post, and reports how long each change took to show):
 
 ```sh
 pnpm --filter cms-wordpress-headless wp -- patronage-headless-revalidate verify
 ```
+
+Each check retries for up to `--wait` seconds (90 by default). On Workers, KV caches what it reads in each location, so a change can take a few seconds to show where the purge landed and up to about a minute elsewhere.
 
 When WordPress runs in Docker it reaches the front-end at `HEADLESS_FRONTEND_INTERNAL_URL` (default `http://host.docker.internal:3000`), so the front-end listens on port 3000 on all interfaces (`pnpm --filter web-wordpress start` already does) and allows that host name (`vite.config.ts`).
 

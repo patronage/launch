@@ -13,6 +13,7 @@ require_once __DIR__ . '/inc/preview.php';
 require_once __DIR__ . '/inc/fields.php';
 require_once __DIR__ . '/inc/post-types.php';
 require_once __DIR__ . '/inc/persisted-queries.php';
+require_once __DIR__ . '/inc/cache-tags.php';
 
 add_action('after_setup_theme', function (): void {
   add_theme_support('title-tag');

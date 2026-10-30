@@ -2,6 +2,7 @@ import { cache } from "react";
 
 import type { ContentFieldsFragment } from "@/gql/graphql";
 
+import { pathTag } from "./cache-tags";
 import { wpQuery } from "./client";
 import { ContentByUriQuery, PreviewContentQuery } from "./queries";
 
@@ -10,7 +11,11 @@ export type Content = ContentFieldsFragment;
 /** The published page or post at a front-end path, or null. Deduped per request. */
 export const getContentByUri = cache(
   async (uri: string): Promise<Content | null> => {
-    const { nodeByUri } = await wpQuery(ContentByUriQuery, { uri });
+    const { nodeByUri } = await wpQuery(
+      ContentByUriQuery,
+      { uri },
+      { tags: [pathTag(uri)] }
+    );
 
     // SAFETY: nodeByUri also returns terms, users and content types, which come
     // back as {} because the query only selects ContentNode fields. A

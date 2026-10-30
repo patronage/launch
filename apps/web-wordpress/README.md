@@ -21,7 +21,7 @@ pnpm --filter web-wordpress run builds:configure   # point Workers Builds at thi
 
 ## Layout
 
-- `app/[[...slug]]/page.tsx`: every published page and post, looked up by URI. Cached (ISR) until WordPress revalidates it, with an hourly fallback.
+- `app/[[...slug]]/page.tsx`: every published page and post, looked up by URI. Cached (ISR) until WordPress revalidates it, with an hourly fallback. Public reads are `"use cache"` entries tagged with WPGraphQL Smart Cache keys (`lib/wordpress/client.ts`, `cache-tags.ts`), so an edit expires only the pages that used the changed post; GraphQL errors are never cached. See [Cache tags](../cms-wordpress-headless/README.md#cache-tags).
 - `app/preview/[id]/page.tsx`: drafts and unsaved changes, only in draft mode.
 - `app/api/revalidate`, `app/api/preview`, `app/api/exit-preview`: the routes WordPress calls or links to.
 - `lib/wordpress/`: the GraphQL client, queries and preview-token check.
