@@ -67,7 +67,9 @@ function patronage_fields_image_model(int $id): ?array {
 function patronage_fields_rich_text_block(string $tag, array $atts, ?string $content): ?array {
   switch ($tag) {
     case 'launch_button':
-      $url = trim((string) ($atts['url'] ?? ''));
+      // esc_url_raw drops protocols WordPress does not allow, such as
+      // javascript:, which an author without unfiltered_html could type here.
+      $url = esc_url_raw(trim((string) ($atts['url'] ?? '')));
       $label = patronage_fields_text($atts['label'] ?? '');
       if ($url === '' || $label === null) {
         return null;

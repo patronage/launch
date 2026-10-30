@@ -26,9 +26,10 @@
   {%- endif -%}
 {% endmacro %}
 
+{#- h-auto unless the caller sets a height (size-*, h-*), which it would override. -#}
 {% macro img(image, extra = '', loading = 'lazy', sizes = '100vw', alt = null) %}
   <img alt="{{ alt ?? image.alt }}"
-    class="{{ cx('block h-auto max-w-full', extra) }}"
+    class="{{ cx('block max-w-full', extra matches '/(^|\\s)(size|h)-/' ? '' : 'h-auto', extra) }}"
     decoding="async"
     {%- if image.height %} height="{{ image.height }}"{% endif %}
     loading="{{ loading }}"

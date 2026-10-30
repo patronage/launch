@@ -10,6 +10,15 @@ if (!defined('ABSPATH')) {
 add_filter('timber/twig', function (\Twig\Environment $twig): \Twig\Environment {
   // Rich text WordPress has already filtered (wpautop, shortcodes, kses on save).
   $twig->addFilter(new \Twig\TwigFilter('rich', fn(?string $html): string => (string) $html, ['is_safe' => ['html']]));
+  // WordPress's plain text (titles, the site name, excerpts) arrives with HTML
+  // entities from wptexturize and friends, and archive titles with tags. Decode
+  // it to text so autoescaping prints it once.
+  $twig->addFilter(
+    new \Twig\TwigFilter(
+      'text',
+      fn($value): string => html_entity_decode(wp_strip_all_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+    ),
+  );
   // Joins class names and drops empty ones, like @launch/ui's cn().
   $twig->addFunction(
     new \Twig\TwigFunction('cx', fn(...$classes): string => implode(' ', array_filter(array_map('trim', array_map('strval', $classes))))),

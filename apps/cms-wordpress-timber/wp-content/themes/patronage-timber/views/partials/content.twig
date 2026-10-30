@@ -20,7 +20,7 @@
     <header class="{{ ui.section('lg', 'sm') }}" data-component="section" data-skin="light">
       <div class="{{ ui.container() }}">
         <div class="flex max-w-3xl flex-col gap-5">
-          <h1 class="{{ ui.type('h1') }}">{{ post.title }}</h1>
+          <h1 class="{{ ui.type('h1') }}">{{ post.title|text }}</h1>
           {% if is_post %}{% include 'partials/byline.twig' with {post: post} only %}{% endif %}
         </div>
       </div>

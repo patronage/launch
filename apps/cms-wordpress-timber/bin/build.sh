@@ -53,5 +53,6 @@ pnpm build:css
 # mu-plugins/patronage-fields.php loads them from this folder.
 rm -rf wp-content/mu-plugins/patronage-fields
 mkdir -p wp-content/mu-plugins/patronage-fields
-git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-fields patronage-fields.php post-types.php fields |
+git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-fields \
+  patronage-fields.php field-helpers.php post-types.php rich-text-blocks.php forms.php fields |
   tar -x -C wp-content/mu-plugins/patronage-fields

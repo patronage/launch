@@ -75,9 +75,14 @@ function patronage_timber_link(mixed $link, mixed $variant = 'primary'): ?array 
   if ($label === null) {
     return null;
   }
+  // esc_url_raw drops protocols WordPress does not allow, such as javascript:.
+  $url = esc_url_raw((string) $link['url']);
+  if ($url === '') {
+    return null;
+  }
   return [
     'label' => $label,
-    'href' => patronage_timber_href((string) $link['url']),
+    'href' => patronage_timber_href($url),
     'newTab' => ($link['target'] ?? '') === '_blank',
     'variant' => patronage_timber_one_of(PATRONAGE_TIMBER_LINK_VARIANTS, $variant, 'primary'),
   ];
@@ -280,7 +285,9 @@ function patronage_timber_hero(int $post_id): ?array {
     [
       'variant' => $variant,
       'eyebrow' => patronage_timber_text($hero['eyebrow'] ?? null),
-      'title' => patronage_timber_text($hero['title'] ?? null) ?? get_the_title($post_id),
+      'title' =>
+        patronage_timber_text($hero['title'] ?? null) ??
+        html_entity_decode(wp_strip_all_tags(get_the_title($post_id)), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
       'subhead' => $variant === 'freeform' ? null : patronage_timber_text($hero['subhead'] ?? null),
       'body' => $variant === 'freeform' ? patronage_timber_rich($hero['body'] ?? null) : null,
       'image' => $image,
