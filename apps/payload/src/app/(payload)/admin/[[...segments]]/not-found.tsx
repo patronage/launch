@@ -1,7 +1,7 @@
-/* THIS FILE WAS GENERATED AUTOMATICALLY BY PAYLOAD. MODIFY AT YOUR OWN RISK. */
+// Payload adapter: load configuration only in the request context.
 import type { Metadata } from 'next'
 
-import config from '@payload-config'
+import { getPayloadConfig } from "@/lib/payload-config";
 import { NotFoundPage, generatePageMetadata } from '@payloadcms/next/views'
 import { importMap } from '../importMap'
 
@@ -15,9 +15,9 @@ type Args = {
 }
 
 export const generateMetadata = ({ params, searchParams }: Args): Promise<Metadata> =>
-  generatePageMetadata({ config, params, searchParams })
+  generatePageMetadata({ config: getPayloadConfig(), params, searchParams })
 
 const NotFound = ({ params, searchParams }: Args) =>
-  NotFoundPage({ config, params, searchParams, importMap })
+  NotFoundPage({ config: getPayloadConfig(), params, searchParams, importMap })
 
 export default NotFound

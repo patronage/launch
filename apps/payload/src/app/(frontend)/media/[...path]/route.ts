@@ -1,13 +1,14 @@
 import { serveImage, sourcePath } from "@launch/images";
-import config from "@payload-config";
 import { REST_GET } from "@payloadcms/next/routes";
 import { env } from "cloudflare:workers";
+
+import { payloadRoute } from "@/lib/payload-config";
 
 interface Context {
   params: Promise<{ path: string[] }>;
 }
 
-const payloadRest = REST_GET(config);
+const payloadRest = payloadRoute(REST_GET);
 
 /**
  * Media resized by the Cloudflare Images binding. The original comes from
