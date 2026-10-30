@@ -7,6 +7,7 @@ import type {
   LinkVariant,
   Media,
   Page,
+  RichTextBlock,
   Section,
   SectionOptions,
 } from "@launch/content-model";
@@ -35,6 +36,7 @@ import type {
   PayloadPage,
   PayloadPageRef,
   PayloadReference,
+  PayloadRichTextBlock,
   PayloadSectionOptions,
   PayloadUpload,
   UnknownBlock,
@@ -58,6 +60,11 @@ export interface PayloadAdapterOptions {
   renderRichText?: (state: LexicalState) => ReactNode | undefined;
   /** Where form sections post their submissions. */
   formAction?: string;
+  /**
+   * Draws a block placed in rich text, e.g. with @launch/ui's `RichTextBlock`.
+   * Without it, the built-in renderer leaves blocks out.
+   */
+  renderRichTextBlock?: (block: RichTextBlock) => ReactNode;
 }
 
 /** True when a form relationship holds the populated doc rather than its id. */
@@ -125,14 +132,6 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
     // At depth 0 the value is only an id; there is no path to build without another query.
     isPopulatedPage(ref.value) ? pagePath(ref.value) : undefined;
 
-  const renderRichText =
-    options.renderRichText ??
-    ((state: LexicalState) => renderLexical(state, { resolveDoc }));
-
-  const richText = (
-    state: LexicalState | null | undefined
-  ): ReactNode | undefined => (state ? renderRichText(state) : undefined);
-
   const link = (
     value: PayloadLink | null | undefined,
     variant?: LinkVariant
@@ -190,6 +189,73 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
       image: img,
     });
   };
+
+  /** A rich-text block as the content model's, or undefined when incomplete. */
+  const richTextBlock = (
+    block: PayloadRichTextBlock
+  ): RichTextBlock | undefined => {
+    switch (block.blockType) {
+      case "button": {
+        const target = link(block.link);
+
+        return target && { link: target, type: "button" };
+      }
+
+      case "image": {
+        const found = media(block.image);
+
+        return (
+          found && {
+            media: compact({
+              ...found,
+              caption: block.caption?.trim() || found.caption,
+            }),
+            type: "image",
+          }
+        );
+      }
+
+      case "pullquote": {
+        return block.quote
+          ? compact({
+              attribution: block.attribution ?? undefined,
+              quote: block.quote,
+              type: "pullquote",
+            })
+          : undefined;
+      }
+
+      case "embed": {
+        return block.url
+          ? compact({
+              caption: block.caption?.trim() || undefined,
+              type: "embed",
+              url: block.url,
+            })
+          : undefined;
+      }
+
+      default: {
+        // Blocks this adapter does not know are left out.
+        return undefined;
+      }
+    }
+  };
+
+  const renderBlock = (block: PayloadRichTextBlock): ReactNode => {
+    const found = richTextBlock(block);
+
+    return found && options.renderRichTextBlock?.(found);
+  };
+
+  const renderRichText =
+    options.renderRichText ??
+    ((state: LexicalState) =>
+      renderLexical(state, { renderBlock, resolveDoc }));
+
+  const richText = (
+    state: LexicalState | null | undefined
+  ): ReactNode | undefined => (state ? renderRichText(state) : undefined);
 
   /** A form-builder field, or undefined for types the UI does not draw. */
   const formField = (
@@ -383,5 +449,5 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
     return { path: pagePath(doc) ?? "/", sections, title: doc.title ?? "" };
   };
 
-  return { pagePath, toPage };
+  return { pagePath, richTextBlock, toPage };
 };

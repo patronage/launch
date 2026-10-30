@@ -1,9 +1,13 @@
-import type { Page } from "@launch/content-model";
+import type {
+  Page,
+  RichTextBlock as RichTextBlockModel,
+} from "@launch/content-model";
 import { DEFAULT_SECTION_OPTIONS } from "@launch/content-model";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { RichTextBlock } from "./rich-text-blocks";
 import { PageSections } from "./sections";
 
 const page: Page<ReactNode> = {
@@ -128,5 +132,56 @@ describe(PageSections, () => {
     expect(html).toContain('<option value="seeds">Seeds</option>');
     expect(html).toContain("<p>Fine print</p>");
     expect(html).toContain(">Send</button>");
+  });
+});
+
+const draw = (block: RichTextBlockModel) =>
+  renderToStaticMarkup(<RichTextBlock block={block} />);
+
+describe(RichTextBlock, () => {
+  it("plays YouTube and Vimeo without tracking cookies", () => {
+    expect(
+      draw({
+        type: "embed",
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      })
+    ).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
+    expect(
+      draw({ type: "embed", url: "https://vimeo.com/76979871" })
+    ).toContain('src="https://player.vimeo.com/video/76979871?dnt=1"');
+  });
+
+  it("draws an X post with X's widget", () => {
+    expect(
+      draw({ type: "embed", url: "https://x.com/payloadcms/status/1234567890" })
+    ).toContain('<blockquote class="twitter-tweet" data-dnt="true">');
+  });
+
+  it("links other URLs instead of framing them, and drops non-https ones", () => {
+    const html = draw({
+      caption: "Report",
+      type: "embed",
+      url: "https://example.org/r",
+    });
+
+    expect(html).not.toContain("<iframe");
+    expect(html).toContain('href="https://example.org/r"');
+    expect(draw({ type: "embed", url: "http://example.org/r" })).toBe("");
+  });
+
+  it("draws an inline button as a lone link", () => {
+    expect(
+      draw({
+        link: {
+          href: "/apply",
+          label: "Apply",
+          newTab: false,
+          variant: "primary",
+        },
+        type: "button",
+      })
+    ).toMatch(
+      /^<a class="[^"]*" data-variant="primary" href="\/apply">Apply<\/a>$/u
+    );
   });
 });

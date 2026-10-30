@@ -21,6 +21,7 @@ import type { Block, Field } from "payload";
 
 import { link, links } from "../fields/link";
 import { sectionOptions } from "../fields/section-options";
+import { richTextBlocks } from "../rich-text/blocks";
 
 /**
  * One block per section type in @launch/content-model, with the same slugs and
@@ -66,6 +67,7 @@ export const sectionBodyEditor = lexicalEditor({
     OrderedListFeature(),
     BlockquoteFeature(),
     HorizontalRuleFeature(),
+    richTextBlocks(),
     FixedToolbarFeature(),
     InlineToolbarFeature(),
   ],

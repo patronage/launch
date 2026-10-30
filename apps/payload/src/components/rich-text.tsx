@@ -1,3 +1,5 @@
+import type { PayloadRichTextBlock } from "@launch/adapter-payload";
+import { RichTextBlock } from "@launch/ui";
 import type { SerializedEditorState } from "@payloadcms/richtext-lexical/lexical";
 import type { JSXConvertersFunction } from "@payloadcms/richtext-lexical/react";
 import { LinkJSXConverter, RichText } from "@payloadcms/richtext-lexical/react";
@@ -40,9 +42,22 @@ const internalHref = ({ linkNode }: { linkNode: LinkNode }): string => {
   return "#";
 };
 
+/** Draws a rich-text block through the adapter's mapping, as section bodies do. */
+const block = ({ node }: { node: { fields: object } }) => {
+  // SAFETY: Payload stores a block's fields under the block config in
+  // rich-text/blocks.ts, which PayloadRichTextBlock mirrors.
+  const found = payloadAdapter.richTextBlock(
+    node.fields as PayloadRichTextBlock
+  );
+
+  return found ? <RichTextBlock block={found} /> : null;
+};
+
 const converters: JSXConvertersFunction = ({ defaultConverters }) => ({
   ...defaultConverters,
   ...LinkJSXConverter({ internalDocToHref: internalHref }),
+  blocks: { embed: block, image: block, pullquote: block },
+  inlineBlocks: { button: block },
 });
 
 /** Payload's rich text renderer, with internal links resolved to paths. */

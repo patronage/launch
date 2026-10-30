@@ -66,6 +66,45 @@ export interface Media {
   caption?: string;
 }
 
+// Rich-text blocks -----------------------------------------------------------
+
+/**
+ * Blocks an editor can place inside rich text. The adapter maps them from its
+ * CMS and hands each to the app, which draws it with @launch/ui's
+ * `RichTextBlock`; the rest of the rich text stays the adapter's own `R`.
+ */
+
+/** A button between or inside paragraphs. */
+export interface ButtonEmbed {
+  type: "button";
+  link: Link;
+}
+
+export interface ImageEmbed {
+  type: "image";
+  media: Media;
+}
+
+export interface PullquoteEmbed {
+  type: "pullquote";
+  /** Plain text. */
+  quote: string;
+  attribution?: string;
+}
+
+/** A video or social post, by its page URL. The UI picks the player. */
+export interface UrlEmbed {
+  type: "embed";
+  url: string;
+  caption?: string;
+}
+
+export type RichTextBlock =
+  | ButtonEmbed
+  | ImageEmbed
+  | PullquoteEmbed
+  | UrlEmbed;
+
 // Blocks -------------------------------------------------------------------
 
 interface BlockBase<T extends string> {

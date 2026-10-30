@@ -11,6 +11,24 @@ const LINK_BUTTON = {
   text: cn(buttonVariants({ size: "lg", variant: "link" })),
 } satisfies Record<LinkVariant, string>;
 
+/** A link styled as a button in its variant. */
+export const LinkButton = ({
+  className,
+  link,
+}: {
+  className?: string;
+  link: Link;
+}) => (
+  <a
+    className={cn(LINK_BUTTON[link.variant], className)}
+    data-variant={link.variant}
+    href={link.href}
+    {...(link.newTab ? { rel: "noopener noreferrer", target: "_blank" } : {})}
+  >
+    {link.label}
+  </a>
+);
+
 export const LinkList = ({
   className,
   links,
@@ -26,16 +44,7 @@ export const LinkList = ({
     <ul className={cn("flex flex-wrap items-center gap-3", className)}>
       {links.map((link) => (
         <li key={`${link.href}|${link.label}`}>
-          <a
-            className={LINK_BUTTON[link.variant]}
-            data-variant={link.variant}
-            href={link.href}
-            {...(link.newTab
-              ? { rel: "noopener noreferrer", target: "_blank" }
-              : {})}
-          >
-            {link.label}
-          </a>
+          <LinkButton link={link} />
         </li>
       ))}
     </ul>

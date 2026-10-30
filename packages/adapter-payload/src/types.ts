@@ -26,7 +26,8 @@ export interface LexicalNode {
   format?: number | string;
   tag?: string;
   listType?: "bullet" | "number" | "check";
-  fields?: LexicalLinkFields;
+  /** Link fields on `link` nodes; the block's fields on `block` and `inlineBlock` nodes. */
+  fields?: LexicalLinkFields | PayloadRichTextBlock;
 }
 
 export interface LexicalState {
@@ -188,3 +189,38 @@ export interface PayloadPage {
   breadcrumbs?: PayloadBreadcrumb[] | null;
   layout?: (LayoutBlock | UnknownBlock)[] | null;
 }
+
+// Rich-text blocks ------------------------------------------------------------
+
+interface RichTextBlockBase<T extends string> {
+  id?: string | null;
+  blockType: T;
+  blockName?: string | null;
+}
+
+export interface PayloadButtonEmbed extends RichTextBlockBase<"button"> {
+  link?: PayloadLink | null;
+}
+
+export interface PayloadImageEmbed extends RichTextBlockBase<"image"> {
+  image?: PayloadUpload;
+  /** Overrides the media document's own caption. */
+  caption?: string | null;
+}
+
+export interface PayloadPullquoteEmbed extends RichTextBlockBase<"pullquote"> {
+  quote?: string | null;
+  attribution?: string | null;
+}
+
+export interface PayloadUrlEmbed extends RichTextBlockBase<"embed"> {
+  url?: string | null;
+  caption?: string | null;
+}
+
+/** A block in rich text, as Payload stores it on the node's `fields`. */
+export type PayloadRichTextBlock =
+  | PayloadButtonEmbed
+  | PayloadImageEmbed
+  | PayloadPullquoteEmbed
+  | PayloadUrlEmbed;

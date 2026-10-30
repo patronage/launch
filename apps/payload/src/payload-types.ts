@@ -62,16 +62,18 @@ export type SupportedTimezones =
   | 'Pacific/Fiji';
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_BA98D6E7".
+ * via the `definition` "LexicalNodes_BABF1D5B".
  */
-export type LexicalNodes_BA98D6E7 =
+export type LexicalNodes_BABF1D5B =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_BA98D6E7>
+  | SerializedParagraphNode<LexicalNodes_BABF1D5B>
+  | SerializedBlockNode<RichTextImage | RichTextPullquote | RichTextEmbed>
+  | SerializedInlineBlockNode<RichTextButton>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_BA98D6E7>
+  | SerializedQuoteNode<LexicalNodes_BABF1D5B>
   | SerializedRelationshipNode<
       | 'users'
       | 'pages'
@@ -83,27 +85,29 @@ export type LexicalNodes_BA98D6E7 =
       | 'payload-preferences'
       | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_BA98D6E7, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_BA98D6E7, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_BA98D6E7>
-  | SerializedListItemNode<LexicalNodes_BA98D6E7>
-  | SerializedHeadingNode<LexicalNodes_BA98D6E7>;
+  | SerializedAutoLinkNode<LexicalNodes_BABF1D5B, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_BABF1D5B, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_BABF1D5B>
+  | SerializedListItemNode<LexicalNodes_BABF1D5B>
+  | SerializedHeadingNode<LexicalNodes_BABF1D5B>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_8BE519DA".
+ * via the `definition` "LexicalNodes_34AB5352".
  */
-export type LexicalNodes_8BE519DA =
+export type LexicalNodes_34AB5352 =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_8BE519DA>
+  | SerializedParagraphNode<LexicalNodes_34AB5352>
+  | SerializedBlockNode<RichTextImage | RichTextPullquote | RichTextEmbed>
+  | SerializedInlineBlockNode<RichTextButton>
   | SerializedHorizontalRuleNode
-  | SerializedQuoteNode<LexicalNodes_8BE519DA>
-  | SerializedListNode<LexicalNodes_8BE519DA>
-  | SerializedListItemNode<LexicalNodes_8BE519DA>
-  | SerializedAutoLinkNode<LexicalNodes_8BE519DA, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_8BE519DA, LexicalLinkFields>
-  | SerializedHeadingNode<LexicalNodes_8BE519DA, 'h2' | 'h3' | 'h4'>;
+  | SerializedQuoteNode<LexicalNodes_34AB5352>
+  | SerializedListNode<LexicalNodes_34AB5352>
+  | SerializedListItemNode<LexicalNodes_34AB5352>
+  | SerializedAutoLinkNode<LexicalNodes_34AB5352, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_34AB5352, LexicalLinkFields>
+  | SerializedHeadingNode<LexicalNodes_34AB5352, 'h2' | 'h3' | 'h4'>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -238,7 +242,7 @@ export interface Page {
   title: string;
   slug: string;
   hero?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
+  content?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
   /**
    * Page sections, rendered in order.
    */
@@ -319,7 +323,7 @@ export interface Media {
 export interface ContentSection {
   eyebrow?: string | null;
   heading?: string | null;
-  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
+  body?: LexicalRichText<LexicalNodes_34AB5352> | null;
   align?: ('start' | 'center') | null;
   links?:
     | {
@@ -372,7 +376,7 @@ export interface SectionOptions {
 export interface ContentMediaSection {
   eyebrow?: string | null;
   heading?: string | null;
-  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
+  body?: LexicalRichText<LexicalNodes_34AB5352> | null;
   media: number | Media;
   mediaPosition?: ('start' | 'end') | null;
   links?:
@@ -452,7 +456,7 @@ export interface BlockquoteSection {
  */
 export interface CallToActionSection {
   heading: string;
-  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
+  body?: LexicalRichText<LexicalNodes_34AB5352> | null;
   links?:
     | {
         link: Link;
@@ -470,7 +474,7 @@ export interface CallToActionSection {
  */
 export interface FormSection {
   heading?: string | null;
-  body?: LexicalRichText<LexicalNodes_8BE519DA> | null;
+  body?: LexicalRichText<LexicalNodes_34AB5352> | null;
   /**
    * Build forms under Forms in the sidebar.
    */
@@ -490,7 +494,7 @@ export interface Form {
   fields?: (Checkbox | Email | Message | Number | Select | Text | Textarea)[] | null;
   submitButtonLabel?: string | null;
   confirmationType?: ('message' | 'redirect') | null;
-  confirmationMessage?: LexicalRichText<LexicalNodes_8BE519DA>;
+  confirmationMessage?: LexicalRichText<LexicalNodes_34AB5352>;
   redirect?: {
     type?: ('reference' | 'custom') | null;
     reference?: {
@@ -507,7 +511,7 @@ export interface Form {
         replyTo?: string | null;
         emailFrom?: string | null;
         subject: string;
-        message?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
+        message?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
         id?: string | null;
       }[]
     | null;
@@ -554,7 +558,7 @@ export interface Email {
  * via the `definition` "Message".
  */
 export interface Message {
-  message?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
+  message?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'message';
@@ -639,7 +643,7 @@ export interface Post {
    */
   excerpt?: string | null;
   hero?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_BA98D6E7> | null;
+  content?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
   publishedAt: string;
   authors?: (number | Author)[] | null;
   categories?: (number | Category)[] | null;
@@ -1421,6 +1425,54 @@ export interface UploadDropzoneWidget {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextImage".
+ */
+export interface RichTextImage {
+  id: string;
+  blockType: 'image';
+  image: number | Media;
+  /**
+   * Leave empty to use the image's own caption.
+   */
+  caption?: string | null;
+  blockName?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextPullquote".
+ */
+export interface RichTextPullquote {
+  id: string;
+  blockType: 'pullquote';
+  quote: string;
+  attribution?: string | null;
+  blockName?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextEmbed".
+ */
+export interface RichTextEmbed {
+  id: string;
+  blockType: 'embed';
+  /**
+   * A YouTube or Vimeo video, or a post on X. Other URLs show as a link.
+   */
+  url: string;
+  caption?: string | null;
+  blockName?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextButton".
+ */
+export interface RichTextButton {
+  id: string;
+  blockType: 'button';
+  link: Link;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {
@@ -1477,6 +1529,20 @@ export interface SerializedParagraphNode<TChildren> extends SerializedLexicalEle
   textFormat: number;
   textStyle: string;
 }
+
+export type SerializedBlockNode<TFields extends { blockType: string }> = TFields extends unknown ? {
+  type: 'block';
+  format: LexicalElementFormat;
+  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
+  version: number;
+  fields: { id: string; blockName?: string | null } & Omit<TFields, 'id' | 'blockName'>;
+} : never;
+export type SerializedInlineBlockNode<TFields extends { blockType: string }> = TFields extends unknown ? {
+  type: 'inlineBlock';
+  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
+  version: number;
+  fields: { id: string } & Omit<TFields, 'id'>;
+} : never;
 
 export interface SerializedHorizontalRuleNode {
   type: 'horizontalrule';

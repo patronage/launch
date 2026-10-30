@@ -16,6 +16,8 @@ export * from "./components/typography";
 
 export * from "./primitives";
 
+export * from "./rich-text-blocks";
+
 export * from "./sections";
 
 export * from "./utils";

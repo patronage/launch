@@ -17,6 +17,7 @@ import { Users } from "./collections/users";
 import { database } from "./db";
 import { formOverrides } from "./forms";
 import { SiteSettings } from "./globals/site-settings";
+import { richTextBlocks } from "./rich-text/blocks";
 
 // import.meta.dirname is undefined in workerd, so derive it from the URL.
 // oxlint-disable-next-line unicorn/prefer-import-meta-properties
@@ -31,7 +32,9 @@ export default buildConfig({
   },
   collections: [Users, Pages, Posts, Authors, Categories, Media],
   db: await database(),
-  editor: lexicalEditor(),
+  editor: lexicalEditor({
+    features: ({ defaultFeatures }) => [...defaultFeatures, richTextBlocks()],
+  }),
   globals: [SiteSettings],
   plugins: [
     // Forms and their submissions. Field types are limited to what

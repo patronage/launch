@@ -201,3 +201,91 @@ describe(renderLexical, () => {
     ).toBe("kept");
   });
 });
+
+describe("rich-text blocks", () => {
+  const drawn = createPayloadAdapter({
+    renderRichTextBlock: (block) => <i data-block={block.type} />,
+    serverUrl: "https://cms.example.com",
+  });
+
+  it("maps each block to the content model", () => {
+    expect(
+      drawn.richTextBlock({
+        blockType: "image",
+        caption: " ",
+        image: { alt: "Beds", caption: "Own", id: 1, url: "/a.jpg" },
+      })
+    ).toStrictEqual({
+      media: {
+        caption: "Own",
+        image: { alt: "Beds", src: "https://cms.example.com/a.jpg" },
+      },
+      type: "image",
+    });
+    expect(
+      drawn.richTextBlock({
+        blockType: "button",
+        link: { label: "Go", type: "custom", url: "/go", variant: "secondary" },
+      })
+    ).toStrictEqual({
+      link: { href: "/go", label: "Go", newTab: false, variant: "secondary" },
+      type: "button",
+    });
+    expect(drawn.richTextBlock({ blockType: "pullquote" })).toBeUndefined();
+    expect(
+      drawn.richTextBlock({ blockType: "image", image: 3 })
+    ).toBeUndefined();
+  });
+
+  it("hands block and inline-block nodes to renderRichTextBlock", () => {
+    const body = drawn.toPage({
+      ...payloadHomeFixture,
+      layout: [
+        {
+          blockType: "content",
+          body: state(
+            {
+              fields: { blockType: "embed", url: "https://youtu.be/abc123" },
+              type: "block",
+              version: 1,
+            },
+            {
+              children: [
+                text("Then "),
+                {
+                  fields: {
+                    blockType: "button",
+                    link: { label: "Go", type: "custom", url: "/go" },
+                  },
+                  type: "inlineBlock",
+                  version: 1,
+                },
+              ],
+              type: "paragraph",
+              version: 1,
+            }
+          ),
+          id: "x",
+        },
+      ],
+    }).sections[0]?.block;
+
+    expect(
+      body?.type === "content" && renderToStaticMarkup(<div>{body.body}</div>)
+    ).toBe(
+      '<div><i data-block="embed"></i><p>Then <i data-block="button"></i></p></div>'
+    );
+  });
+
+  it("leaves blocks out without renderRichTextBlock", () => {
+    expect(
+      render(
+        state({
+          fields: { blockType: "pullquote", quote: "Q" },
+          type: "block",
+          version: 1,
+        })
+      )
+    ).toBe("");
+  });
+});
