@@ -19,7 +19,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { readWorkerConfig, root, run } from "./worker-config.mjs";
+import { readWorkerConfig, root, run, secretNames } from "./worker-config.mjs";
 
 const dryRun = process.argv.includes("--dry-run");
 
@@ -55,7 +55,31 @@ const [, pnpmVersion] = JSON.parse(
 
 run("pnpm", ["exec", "vite", "build"]);
 
-const workerName = readWorkerConfig().name;
+const workerConfig = readWorkerConfig();
+const workerName = workerConfig.name;
+
+// Enabling branch builds before setting the separate Preview base secrets
+// produces Previews that upload successfully but cannot initialize Payload.
+if (!dryRun) {
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID)}/workers/workers/${encodeURIComponent(workerName)}`,
+    { headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` } }
+  );
+
+  const body = await response.json();
+  const bindings = body.result?.previews_base_config?.env ?? {};
+
+  const missingSecrets = secretNames(workerConfig).filter(
+    (name) => bindings[name]?.type !== "secret_text"
+  );
+
+  if (!response.ok || body.success !== true || missingSecrets.length > 0) {
+    console.error(
+      "Set Preview base secrets with pnpm run secrets --preview-base before configuring Builds."
+    );
+    process.exit(1);
+  }
+}
 
 const lookupScriptTag = async () => {
   if (dryRun) {

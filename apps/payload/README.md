@@ -62,7 +62,9 @@ After the first deploy, record the provisioned D1 database id and R2 bucket in `
 
 `pnpm run deploy --preview` uploads a Worker Preview for the current branch. The D1 and R2 bindings currently use the same names as production: treat them as shared data. Run `pnpm smoke` only against a fresh, isolated database, because it creates and changes content.
 
-`pnpm run builds:configure` connects an existing Worker to Workers Builds. It needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `BUILD_TOKEN_UUID`, `GITHUB_OWNER_ID` and `GITHUB_REPO_ID`. Optional `PAYLOAD_DB`, `HYPERDRIVE_ID` and `WORKER_DOMAIN` become build variables. It runs a frozen install and lint for the workspace, followed by typechecks and tests for this app and its dependencies. See [Workers Builds](../../docs/spikes/11-workers-builds.md) for the setup sequence.
+Before enabling branch builds, export a `PAYLOAD_SECRET` for previews and run `pnpm run secrets --preview-base` with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Production secrets do not populate [Previews Base](https://developers.cloudflare.com/workers/previews/configuration/#secrets). New previews inherit its secrets; changing the base does not update existing previews. `--dry-run` still lists only names and sends no request.
+
+`pnpm run builds:configure` connects an existing Worker to Workers Builds and refuses to enable branch builds until its Preview base secrets exist. It needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `BUILD_TOKEN_UUID`, `GITHUB_OWNER_ID` and `GITHUB_REPO_ID`. Optional `PAYLOAD_DB`, `HYPERDRIVE_ID` and `WORKER_DOMAIN` become build variables. It runs a frozen install and lint for the workspace, followed by typechecks and tests for this app and its dependencies. See [Workers Builds](../../docs/spikes/11-workers-builds.md) for the setup sequence.
 
 ## How it fits together
 
@@ -89,5 +91,5 @@ After the first deploy, record the provisioned D1 database id and R2 bucket in `
 | `pnpm smoke [url]` | Browser smoke test against a fresh database |
 | `pnpm typecheck` | Generate Worker types and run `tsc` |
 | `pnpm run deploy [--preview] [--dry-run]` | Build, then deploy the prebuilt Worker with `cf` |
-| `pnpm run secrets [--dry-run]` | Upload runtime secrets from the environment; dry run lists only names |
+| `pnpm run secrets [--preview-base] [--dry-run]` | Upload production or Preview base secrets from the environment; dry run lists only names |
 | `pnpm run builds:configure [--dry-run]` | Configure production and branch preview builds for the existing Worker |

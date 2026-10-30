@@ -26,6 +26,47 @@ if (process.argv.includes("--dry-run")) {
   process.exit(0);
 }
 
+if (process.argv.includes("--preview-base")) {
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+
+  if (!(account && token)) {
+    console.error("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.");
+    process.exit(1);
+  }
+
+  // Same merge-patch endpoint used by Cloudflare's Preview base secret CLI.
+  // Omitted bindings are preserved; the response is never logged.
+  try {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/workers/workers/${encodeURIComponent(worker.name)}`,
+      {
+        body: JSON.stringify({ previews_base_config: { env: secrets } }),
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/merge-patch+json",
+        },
+        method: "PATCH",
+      }
+    );
+
+    const body = await response.json();
+
+    if (!response.ok || body.success !== true) {
+      console.error(
+        `Preview base secret upload failed (HTTP ${response.status}).`
+      );
+      process.exit(1);
+    }
+  } catch {
+    console.error("Preview base secret upload failed.");
+    process.exit(1);
+  }
+
+  console.log(`Set in Previews Base: ${names.join(", ")}`);
+  process.exit(0);
+}
+
 const result = spawnSync(
   "pnpm",
   [
