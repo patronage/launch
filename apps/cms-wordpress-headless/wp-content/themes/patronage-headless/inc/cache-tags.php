@@ -55,7 +55,19 @@ if (function_exists('patronage_headless_revalidate_queue_tags')) {
     patronage_headless_revalidate_queue_tags([PATRONAGE_HEADLESS_CACHE_ALL_TAG]);
   });
 
-  // Smart Cache purges each changed post's own keys above. The mu-plugin's
-  // default per-post tag is `wordpress`, which would expire every page.
-  add_filter('patronage_headless_revalidate_post_tags', '__return_empty_array');
+  // Smart Cache purges each changed post's own keys above, so the mu-plugin's
+  // default per-post tag, `wordpress`, which would expire every page, is
+  // dropped. A menu item that links to the post takes its label and URL from
+  // the post, but the menu read carries only the menu item's key: send
+  // list:menuitem, which that read carries, when the post is in a menu.
+  add_filter(
+    'patronage_headless_revalidate_post_tags',
+    function ($tags, WP_Post $post): array {
+      return wp_get_associated_nav_menu_items($post->ID, 'post_type', $post->post_type)
+        ? ['list:menuitem']
+        : [];
+    },
+    10,
+    2,
+  );
 }

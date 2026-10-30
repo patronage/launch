@@ -37,6 +37,12 @@ describe(pathTag, () => {
     );
   });
 
+  it("matches WordPress's lowercase percent escapes to encodeURIComponent's", () => {
+    expect(pathTag("/%e6%97%a5")).toBe(
+      pathTag(`/${encodeURIComponent("日")}/`)
+    );
+  });
+
   it("keeps the home page as /", () => {
     expect(pathTag("/")).toBe("path:/");
   });

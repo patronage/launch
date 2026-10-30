@@ -7,6 +7,7 @@ export const WORDPRESS_CACHE_TAG = "wordpress";
 
 const PATH_TAG_PREFIX = "path:";
 const TRAILING_SLASHES = /\/+$/u;
+const PERCENT_ESCAPE = /%[\da-f]{2}/giu;
 const QUERY_HASH = /^[\da-f]{64}$/u;
 const WHITESPACE = /\s+/u;
 
@@ -34,7 +35,13 @@ export const smartCacheTags = (header: string | null): string[] => [
  * The tag for a front-end path, on the content read of that path. A path with
  * nothing published at it has no node keys, so this tag is what replaces its
  * cached "not found" when a post is published there. Trailing slashes are
- * dropped, so /about/ (a WordPress URI) and /about (what WordPress sends) match.
+ * dropped, so /about/ (a WordPress URI) and /about (what WordPress sends) match,
+ * and percent escapes are uppercased: WordPress writes them in lowercase,
+ * encodeURIComponent in uppercase.
  */
 export const pathTag = (path: string): string =>
-  `${PATH_TAG_PREFIX}${path.replace(TRAILING_SLASHES, "") || "/"}`;
+  `${PATH_TAG_PREFIX}${
+    path
+      .replaceAll(PERCENT_ESCAPE, (escape) => escape.toUpperCase())
+      .replace(TRAILING_SLASHES, "") || "/"
+  }`;

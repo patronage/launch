@@ -52,6 +52,7 @@ Secure Custom Fields is the GPL fork of ACF that includes the field types the Pa
 The front-end caches each WPGraphQL read under the WPGraphQL Smart Cache keys in its `X-GraphQL-Keys` header: the global ID of every post, term, menu item, user and settings group it used, plus `list:<type>` keys. Pages carry the tags of the reads they render. When something changes, Smart Cache purges its keys (`graphql_purge`), and `inc/cache-tags.php` queues each one with the mu-plugin. So editing one page expires that page and any page that shows it (a card linking to it, an image it uses), and leaves the rest cached. A menu change expires every page, because every page renders the menu.
 
 - `graphql:Query` and "Purge Cache Now" go out as `wordpress`, the tag on every read.
+- A post that a menu item links to also sends `list:menuitem`, because the menu item takes its label and URL from the post, while the menu read carries only the menu item's key.
 - Each changed post's paths still go out too. The front-end expires the content read for each path, which is what replaces a cached "not found" when a post is published at that URL.
 - Smart Cache's own object cache is turned off. A response it serves from there carries no node keys, and the front-end only asks WordPress on a miss anyway.
 - Settings changes purge only options registered with `register_setting()`. WordPress registers its own on admin and REST requests; the theme does it for WP-CLI too.
