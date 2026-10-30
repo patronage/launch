@@ -13,8 +13,8 @@ import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
 import { PAGE_QUERY } from "@/lib/page-query";
 import { getFrontendPayload } from "@/lib/payload";
-import { mediaUrl, payloadAdapter } from "@/lib/sections";
-import type { Media, Page as PayloadPage } from "@/payload-types";
+import { payloadAdapter, toImage } from "@/lib/sections";
+import type { Page as PayloadPage } from "@/payload-types";
 
 export const dynamic = "force-dynamic";
 
@@ -94,14 +94,18 @@ export const generateMetadata = async ({ params }: Props) => {
   return page ? { title: page.title } : {};
 };
 
-/** The page's sections, or its hero and rich text when it has none. */
+/**
+ * The page's hero and sections. A page with neither falls back to its title,
+ * hero image and rich text, as an article.
+ */
 const PageBody = ({ page }: { page: PayloadPage }) => {
-  if (page.layout?.length) {
-    return <PageSections page={payloadAdapter.toPage(page)} />;
+  const model = payloadAdapter.toPage(page);
+
+  if (model.hero || model.sections.length > 0) {
+    return <PageSections page={model} />;
   }
 
-  // SAFETY: depth 1 populates the upload, so hero is a Media document or empty.
-  const hero = page.hero as Media | null | undefined;
+  const image = toImage(page.hero?.image);
 
   return (
     <Section as="article" paddingBottom="lg" paddingTop="lg">
@@ -109,18 +113,7 @@ const PageBody = ({ page }: { page: PayloadPage }) => {
         <Typography className="max-w-3xl" variant="h1">
           {page.title}
         </Typography>
-        {hero?.url && (
-          <Figure
-            media={{
-              image: {
-                alt: hero.alt,
-                height: hero.height ?? undefined,
-                src: mediaUrl(hero.url),
-                width: hero.width ?? undefined,
-              },
-            }}
-          />
-        )}
+        {image && <Figure media={{ image }} />}
         {page.content && (
           <RichTextFrame className="max-w-3xl">
             <PayloadRichText data={page.content} />

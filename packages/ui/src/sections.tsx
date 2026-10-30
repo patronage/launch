@@ -18,6 +18,7 @@ import {
 } from "./blocks";
 import { Container } from "./components/container";
 import { Section } from "./components/section";
+import { heroSkin, PageHero } from "./hero";
 
 /** A CMS section: its options become a Section and Container around the block. */
 export const PageSection = ({
@@ -98,20 +99,28 @@ export const collapsedOptions = <R,>(
     : section.options;
 
 /**
- * Renders a page's visible sections. The first section's heading becomes the
- * page's <h1> unless `firstHeadingIsTitle` is false (for pages with their own hero).
+ * Renders a page's hero and visible sections. The hero holds the page's <h1>;
+ * without one, the first section's heading becomes the <h1> unless
+ * `firstHeadingIsTitle` is false (for pages that draw their own title).
  */
 export const PageSections = ({
   page,
-  firstHeadingIsTitle = true,
+  firstHeadingIsTitle,
 }: {
   page: Page<ReactNode>;
   firstHeadingIsTitle?: boolean;
 }) => {
   const sections = visibleSections(page);
+  const sectionHoldsTitle = firstHeadingIsTitle ?? page.hero === undefined;
 
   return (
     <>
+      {page.hero ? (
+        <PageHero
+          hero={page.hero}
+          joinsNext={sections[0]?.options.skin === heroSkin(page.hero)}
+        />
+      ) : null}
       {sections.map((section, index) => (
         <PageSection
           key={section.block.id}
@@ -119,7 +128,7 @@ export const PageSections = ({
         >
           <BlockRenderer
             block={section.block}
-            headingLevel={index === 0 && firstHeadingIsTitle ? "h1" : "h2"}
+            headingLevel={index === 0 && sectionHoldsTitle ? "h1" : "h2"}
           />
         </PageSection>
       ))}

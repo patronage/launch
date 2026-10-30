@@ -5,7 +5,7 @@ import images from "@launch/demo-content/images.json" with { type: "json" };
 import type { Payload } from "payload";
 
 import type { ImageFile, PageSlug } from "./content";
-import { layouts, PAGES } from "./content";
+import { heroes, layouts, PAGES } from "./content";
 import type { FormTitle } from "./forms";
 import { formData, FORMS } from "./forms";
 import type { AuthorName, CategorySlug } from "./posts";
@@ -325,17 +325,26 @@ export const seed = async (payload: Payload): Promise<void> => {
 
   payload.logger.info(`Seeded ${formIds.size} forms`);
 
-  const content = layouts({
+  const refs = {
     form: lookup<FormTitle>(formIds, "form"),
     image: lookup<ImageFile>(imageIds, "image"),
     page: pageId,
-  });
+  };
+
+  const content = layouts(refs);
+
+  const pageHeroes = heroes(refs);
 
   await inSequence(
     PAGES.map((page) => async () => {
       await payload.update({
         collection: "pages",
-        data: { _status: "published", layout: content[page.slug] },
+        data: {
+          _status: "published",
+          // A page without a seeded hero has its hero cleared.
+          hero: pageHeroes[page.slug] ?? { variant: null },
+          layout: content[page.slug],
+        },
         id: pageId(page.slug),
         overrideAccess: true,
       });

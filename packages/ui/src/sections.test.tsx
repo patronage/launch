@@ -185,3 +185,32 @@ describe(RichTextBlock, () => {
     );
   });
 });
+
+describe("PageSections with a hero", () => {
+  const withHero = renderToStaticMarkup(
+    <PageSections
+      page={{
+        ...page,
+        hero: {
+          align: "start",
+          links: [],
+          skin: "dark",
+          title: "Welcome",
+          variant: "simple",
+        },
+      }}
+    />
+  );
+
+  it("gives the hero the only h1", () => {
+    expect(withHero.match(/<h1/gu)).toHaveLength(1);
+    expect(withHero).toMatch(/<h1 class="[^"]*">Welcome<\/h1>/u);
+    expect(withHero).toMatch(/<h2 class="[^"]*">Hello<\/h2>/u);
+  });
+
+  it("joins the hero to a first section with the same skin", () => {
+    expect(withHero).toMatch(
+      /<section class="[^"]*pb-0[^"]*" data-component="section" data-skin="dark" data-hero="simple">/u
+    );
+  });
+});

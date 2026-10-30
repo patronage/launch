@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { payloadHomeFixture } from "../fixtures";
 import { createPayloadAdapter } from "./index";
 import { renderLexical } from "./lexical";
-import type { LexicalNode, LexicalState } from "./types";
+import type { LexicalNode, LexicalState, PayloadHero } from "./types";
 
 const adapter = createPayloadAdapter({ serverUrl: "https://cms.example.com" });
 const page = adapter.toPage(payloadHomeFixture);
@@ -287,5 +287,53 @@ describe("rich-text blocks", () => {
         })
       )
     ).toBe("");
+  });
+});
+
+const withHero = (hero: PayloadHero) =>
+  adapter.toPage({ ...payloadHomeFixture, hero }).hero;
+
+describe("heroes", () => {
+  it("has no hero without a variant", () => {
+    expect(withHero({ title: "Kept" })).toBeUndefined();
+  });
+
+  it("maps the hero, defaulting the title to the page's", () => {
+    expect(
+      withHero({
+        body: state({
+          children: [text("Hidden")],
+          type: "paragraph",
+          version: 1,
+        }),
+        image: { alt: "Beds", id: 1, url: "/a.jpg" },
+        subhead: "Sub",
+        variant: "split",
+      })
+    ).toStrictEqual({
+      align: "start",
+      image: { alt: "Beds", src: "https://cms.example.com/a.jpg" },
+      links: [],
+      skin: "light",
+      subhead: "Sub",
+      title: payloadHomeFixture.title,
+      variant: "split",
+    });
+  });
+
+  it("draws rich text only in a free-form hero", () => {
+    const hero = withHero({
+      body: state({ children: [text("Body")], type: "paragraph", version: 1 }),
+      image: { alt: "Beds", id: 1, url: "/a.jpg" },
+      subhead: "Dropped",
+      title: "Free",
+      variant: "freeform",
+    });
+
+    expect(hero?.subhead).toBeUndefined();
+    expect(hero?.image).toBeUndefined();
+    expect(renderToStaticMarkup(<div>{hero?.body}</div>)).toBe(
+      "<div><p>Body</p></div>"
+    );
   });
 });

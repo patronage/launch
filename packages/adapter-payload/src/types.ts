@@ -182,11 +182,25 @@ export interface UnknownBlock {
   sectionOptions?: PayloadSectionOptions | null;
 }
 
+export interface PayloadHero {
+  /** Empty for a page without a hero. */
+  variant?: string | null;
+  title?: string | null;
+  eyebrow?: string | null;
+  skin?: string | null;
+  align?: string | null;
+  subhead?: string | null;
+  body?: LexicalState | null;
+  image?: PayloadUpload;
+  links?: { id?: string | null; link: PayloadLink }[] | null;
+}
+
 export interface PayloadPage {
   id: number | string;
   title?: string | null;
   slug?: string | null;
   breadcrumbs?: PayloadBreadcrumb[] | null;
+  hero?: PayloadHero | null;
   layout?: (LayoutBlock | UnknownBlock)[] | null;
 }
 

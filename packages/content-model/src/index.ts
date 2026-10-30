@@ -233,10 +233,44 @@ export interface Section<R> {
   block: Block<R>;
 }
 
+// Heroes ---------------------------------------------------------------------
+
+/**
+ * Hero layouts. `home` sets the title over a full-bleed image, `split` puts
+ * the copy beside the image, `media` sets the image below the copy, `simple`
+ * has no image, and `freeform` gives the editor rich text under the title.
+ */
+export const HERO_VARIANTS = [
+  "home",
+  "split",
+  "media",
+  "simple",
+  "freeform",
+] as const;
+
+export type HeroVariant = (typeof HERO_VARIANTS)[number];
+
+/** The top of a page. Its title is the page's <h1>. */
+export interface Hero<R> {
+  variant: HeroVariant;
+  eyebrow?: string;
+  title: string;
+  /** Plain text. */
+  subhead?: string;
+  image?: Image;
+  links: Link[];
+  skin: Skin;
+  align: "start" | "center";
+  /** Rich text under the title; only `freeform` heroes have it. */
+  body?: R;
+}
+
 export interface Page<R> {
   title: string;
   /** Site-relative path, e.g. `/about`. */
   path: string;
+  /** A page without one opens with its first section's heading as the <h1>. */
+  hero?: Hero<R>;
   sections: Section<R>[];
 }
 
@@ -274,6 +308,11 @@ const COLUMN_COUNTS = { "2": 2, "3": 3, "4": 4 } as const;
 
 export const toColumns = (value: SelectValue): CardGridBlock["columns"] =>
   COLUMN_COUNTS[oneOf(["2", "3", "4"] as const, value, "3")];
+
+export const toHeroVariant = (value: SelectValue): HeroVariant | undefined =>
+  HERO_VARIANTS.find(
+    (variant) => variant === (Array.isArray(value) ? value[0] : value)
+  );
 
 export const toLinkVariant = (value: SelectValue): LinkVariant =>
   oneOf(LINK_VARIANTS, value, "primary");

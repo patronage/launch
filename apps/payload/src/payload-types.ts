@@ -62,6 +62,22 @@ export type SupportedTimezones =
   | 'Pacific/Fiji';
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LexicalNodes_FF751C9B".
+ */
+export type LexicalNodes_FF751C9B =
+  | SerializedTextNode
+  | SerializedTabNode
+  | SerializedLineBreakNode
+  | SerializedParagraphNode<LexicalNodes_FF751C9B>
+  | SerializedBlockNode<RichTextImage | RichTextPullquote | RichTextEmbed>
+  | SerializedInlineBlockNode<RichTextButton>
+  | SerializedListNode<LexicalNodes_FF751C9B>
+  | SerializedListItemNode<LexicalNodes_FF751C9B>
+  | SerializedAutoLinkNode<LexicalNodes_FF751C9B, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_FF751C9B, LexicalLinkFields>
+  | SerializedHeadingNode<LexicalNodes_FF751C9B, 'h2' | 'h3'>;
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_BABF1D5B".
  */
 export type LexicalNodes_BABF1D5B =
@@ -241,7 +257,7 @@ export interface Page {
   id: number;
   title: string;
   slug: string;
-  hero?: (number | null) | Media;
+  hero?: PageHero;
   content?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
   /**
    * Page sections, rendered in order.
@@ -277,6 +293,35 @@ export interface Page {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageHero".
+ */
+export interface PageHero {
+  /**
+   * Leave empty for no hero.
+   */
+  variant?: ('home' | 'split' | 'media' | 'simple' | 'freeform') | null;
+  /**
+   * Defaults to the page title.
+   */
+  title?: string | null;
+  eyebrow?: string | null;
+  skin?: ('light' | 'dark' | 'accent') | null;
+  align?: ('start' | 'center') | null;
+  subhead?: string | null;
+  /**
+   * Headings, buttons, images and videos under the title.
+   */
+  body?: LexicalRichText<LexicalNodes_FF751C9B> | null;
+  image?: (number | null) | Media;
+  links?:
+    | {
+        link: Link;
+        id?: string | null;
+      }[]
+    | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -318,6 +363,21 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "Link".
+ */
+export interface Link {
+  type: 'reference' | 'custom';
+  newTab?: boolean | null;
+  label?: string | null;
+  variant?: ('primary' | 'secondary' | 'text') | null;
+  reference?: {
+    relationTo: 'pages';
+    value: number | Page;
+  } | null;
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ContentSection".
  */
 export interface ContentSection {
@@ -335,21 +395,6 @@ export interface ContentSection {
   id?: string | null;
   blockName?: string | null;
   blockType: 'content';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "Link".
- */
-export interface Link {
-  type: 'reference' | 'custom';
-  newTab?: boolean | null;
-  label?: string | null;
-  variant?: ('primary' | 'secondary' | 'text') | null;
-  reference?: {
-    relationTo: 'pages';
-    value: number | Page;
-  } | null;
-  url?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -883,7 +928,7 @@ export interface UsersSelect<T extends boolean = true> {
 export interface PagesSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
-  hero?: T;
+  hero?: T | PageHeroSelect<T>;
   content?: T;
   layout?:
     | T
@@ -913,6 +958,38 @@ export interface PagesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageHero_select".
+ */
+export interface PageHeroSelect<T extends boolean = true> {
+  variant?: T;
+  title?: T;
+  eyebrow?: T;
+  skin?: T;
+  align?: T;
+  subhead?: T;
+  body?: T;
+  image?: T;
+  links?:
+    | T
+    | {
+        link?: T | LinkSelect<T>;
+        id?: T;
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "Link_select".
+ */
+export interface LinkSelect<T extends boolean = true> {
+  type?: T;
+  newTab?: T;
+  label?: T;
+  variant?: T;
+  reference?: T;
+  url?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "ContentSection_select".
  */
 export interface ContentSectionSelect<T extends boolean = true> {
@@ -929,18 +1006,6 @@ export interface ContentSectionSelect<T extends boolean = true> {
   sectionOptions?: T | SectionOptionsSelect<T>;
   id?: T;
   blockName?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "Link_select".
- */
-export interface LinkSelect<T extends boolean = true> {
-  type?: T;
-  newTab?: T;
-  label?: T;
-  variant?: T;
-  reference?: T;
-  url?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1544,6 +1609,61 @@ export type SerializedInlineBlockNode<TFields extends { blockType: string }> = T
   fields: { id: string } & Omit<TFields, 'id'>;
 } : never;
 
+export interface SerializedListNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
+  type: 'list';
+  checked?: boolean;
+  listType: 'number' | 'bullet' | 'check';
+  start: number;
+  tag: 'ul' | 'ol';
+}
+
+export interface SerializedListItemNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
+  type: 'listitem';
+  checked?: boolean;
+  value: number;
+}
+
+export interface LexicalLinkFields {
+  [k: string]: unknown;
+  doc?: {
+    relationTo: string;
+    value: Config['db']['defaultIDType'] | { [k: string]: unknown; id: Config['db']['defaultIDType'] };
+  } | null;
+  linkType: 'custom' | 'internal';
+  newTab: boolean;
+  url?: string;
+}
+export interface SerializedLinkNode<TChildren, TFields = LexicalLinkFields> extends SerializedLexicalElementBase<TChildren> {
+  type: 'link';
+  fields: TFields;
+  id?: string;
+}
+export interface SerializedAutoLinkNode<TChildren, TFields = LexicalLinkFields> extends SerializedLexicalElementBase<TChildren> {
+  type: 'autolink';
+  fields: TFields;
+}
+
+export interface SerializedHeadingNode<
+  TChildren,
+  TTag extends 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+> extends SerializedLexicalElementBase<TChildren> {
+  type: 'heading';
+  tag: TTag;
+}
+
+/** Shape of a Lexical `richText` field. */
+export interface LexicalRichText<TNode> {
+  root: {
+    children: TNode[];
+    direction: LexicalElementDirection;
+    format: LexicalElementFormat;
+    indent: number;
+    type: 'root';
+    /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
+    version: number;
+  };
+}
+
 export interface SerializedHorizontalRuleNode {
   type: 'horizontalrule';
   /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
@@ -1579,61 +1699,6 @@ export type SerializedRelationshipNode<TSlugs extends keyof Config['collections'
     value: Config['collections'][TSlug]['id'] | Config['collections'][TSlug];
   };
 }[TSlugs];
-
-export interface LexicalLinkFields {
-  [k: string]: unknown;
-  doc?: {
-    relationTo: string;
-    value: Config['db']['defaultIDType'] | { [k: string]: unknown; id: Config['db']['defaultIDType'] };
-  } | null;
-  linkType: 'custom' | 'internal';
-  newTab: boolean;
-  url?: string;
-}
-export interface SerializedLinkNode<TChildren, TFields = LexicalLinkFields> extends SerializedLexicalElementBase<TChildren> {
-  type: 'link';
-  fields: TFields;
-  id?: string;
-}
-export interface SerializedAutoLinkNode<TChildren, TFields = LexicalLinkFields> extends SerializedLexicalElementBase<TChildren> {
-  type: 'autolink';
-  fields: TFields;
-}
-
-export interface SerializedListNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
-  type: 'list';
-  checked?: boolean;
-  listType: 'number' | 'bullet' | 'check';
-  start: number;
-  tag: 'ul' | 'ol';
-}
-
-export interface SerializedListItemNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
-  type: 'listitem';
-  checked?: boolean;
-  value: number;
-}
-
-export interface SerializedHeadingNode<
-  TChildren,
-  TTag extends 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
-> extends SerializedLexicalElementBase<TChildren> {
-  type: 'heading';
-  tag: TTag;
-}
-
-/** Shape of a Lexical `richText` field. */
-export interface LexicalRichText<TNode> {
-  root: {
-    children: TNode[];
-    direction: LexicalElementDirection;
-    format: LexicalElementFormat;
-    indent: number;
-    type: 'root';
-    /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-    version: number;
-  };
-}
 
 
 declare module 'payload' {

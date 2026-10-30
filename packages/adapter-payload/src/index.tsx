@@ -1,6 +1,8 @@
 import type {
   Block,
   Form,
+  Hero,
+  HeroVariant,
   FormField,
   Image,
   Link,
@@ -17,6 +19,7 @@ import {
   oneOf,
   slugify,
   toColumns,
+  toHeroVariant,
   toLinkVariant,
   toSkin,
   toSpacing,
@@ -31,6 +34,7 @@ import type {
   FormBlock as PayloadFormBlock,
   PayloadForm,
   PayloadFormField,
+  PayloadHero,
   PayloadLink,
   PayloadMedia,
   PayloadPage,
@@ -66,6 +70,17 @@ export interface PayloadAdapterOptions {
    */
   renderRichTextBlock?: (block: RichTextBlock) => ReactNode;
 }
+
+type HeroField = "body" | "image" | "subhead";
+
+/** The optional fields each hero variant draws, as the admin shows them. */
+const HERO_FIELDS = {
+  freeform: ["body"],
+  home: ["subhead", "image"],
+  media: ["subhead", "image"],
+  simple: ["subhead"],
+  split: ["subhead", "image"],
+} satisfies Record<HeroVariant, HeroField[]>;
 
 /** True when a form relationship holds the populated doc rather than its id. */
 const isPopulatedForm = (
@@ -431,6 +446,34 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
     }
   };
 
+  /** The page's hero, or undefined when it has no variant. */
+  const hero = (
+    value: PayloadHero | null | undefined,
+    pageTitle: string
+  ): Hero<ReactNode> | undefined => {
+    const variant = toHeroVariant(value?.variant);
+
+    if (!(value && variant)) {
+      return undefined;
+    }
+
+    // Each variant draws only its own fields; the rest may linger from another.
+    const draws = (field: HeroField) =>
+      HERO_FIELDS[variant].some((drawn) => drawn === field);
+
+    return compact({
+      align: oneOf(["start", "center"] as const, value.align, "start"),
+      body: draws("body") ? richText(value.body) : undefined,
+      eyebrow: value.eyebrow ?? undefined,
+      image: draws("image") ? image(value.image) : undefined,
+      links: links(value.links),
+      skin: toSkin(value.skin),
+      subhead: draws("subhead") ? (value.subhead ?? undefined) : undefined,
+      title: value.title?.trim() || pageTitle,
+      variant,
+    });
+  };
+
   const toPage = (doc: PayloadPage): Page<ReactNode> => {
     const sections: Section<ReactNode>[] = [];
 
@@ -446,7 +489,14 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
       }
     }
 
-    return { path: pagePath(doc) ?? "/", sections, title: doc.title ?? "" };
+    const title = doc.title ?? "";
+
+    return compact({
+      hero: hero(doc.hero, title),
+      path: pagePath(doc) ?? "/",
+      sections,
+      title,
+    });
   };
 
   return { pagePath, richTextBlock, toPage };

@@ -1,4 +1,10 @@
-import type { ContentSection } from "../payload-types";
+import type {
+  ContentSection,
+  RichTextButton,
+  RichTextEmbed,
+  RichTextImage,
+  RichTextPullquote,
+} from "../payload-types";
 
 /**
  * Small builders for the Lexical JSON that Payload's editor stores, so the seed
@@ -16,7 +22,12 @@ export interface LexicalNode {
   children?: LexicalNode[];
   detail?: number;
   direction?: "ltr";
-  fields?: LinkFields;
+  fields?:
+    | LinkFields
+    | RichTextButton
+    | RichTextEmbed
+    | RichTextImage
+    | RichTextPullquote;
   format: number | "";
   indent?: number;
   listType?: "bullet";
@@ -29,7 +40,7 @@ export interface LexicalNode {
   textStyle?: string;
   type: string;
   value?: number;
-  version: 1;
+  version: 1 | 2;
 }
 
 /** Lexical's text format bitmask values. */
@@ -92,10 +103,43 @@ export const pageLink = (label: string, pageId: number): LexicalNode =>
     },
   });
 
+let blockCount = 0;
+
+/**
+ * Block ids in Lexical are the editor's own; the seed numbers them in order,
+ * so running it again writes the same ids.
+ */
+const blockId = () => {
+  blockCount += 1;
+
+  return `seed${String(blockCount).padStart(20, "0")}`;
+};
+
+/** An image, pullquote or embed between paragraphs. */
+export const block = (
+  fields:
+    | Omit<RichTextEmbed, "id">
+    | Omit<RichTextImage, "id">
+    | Omit<RichTextPullquote, "id">
+): LexicalNode => ({
+  fields: { ...fields, blockName: "", id: blockId() },
+  format: "",
+  type: "block",
+  version: 2,
+});
+
+/** A button inside a paragraph. */
+export const button = (link: RichTextButton["link"]): LexicalNode => ({
+  fields: { blockType: "button", id: blockId(), link },
+  format: "",
+  type: "inlineBlock",
+  version: 1,
+});
+
 type RichText = NonNullable<ContentSection["body"]>;
 
-export const richText = (...children: LexicalNode[]): RichText =>
-  // SAFETY: the builders above emit the serialized shape of Payload's default
-  // Lexical nodes (root, paragraph, list, listitem, link, text), which is what
-  // `RichText` describes node by node.
-  ({ root: element("root", children) }) as RichText;
+export const richText = <T = RichText>(...children: LexicalNode[]): T =>
+  // SAFETY: the builders above emit the serialized shape of Payload's Lexical
+  // nodes (root, paragraph, list, listitem, link, text, block, inlineBlock),
+  // which is what each editor's rich-text type describes node by node.
+  ({ root: element("root", children) }) as T;
