@@ -6,11 +6,11 @@ import {
   Section,
   Typography,
 } from "@launch/ui";
-import { RichText } from "@payloadcms/richtext-lexical/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
+import { PayloadRichText } from "@/components/rich-text";
 import { PAGE_QUERY } from "@/lib/page-query";
 import { getFrontendPayload } from "@/lib/payload";
 import { mediaUrl, payloadAdapter } from "@/lib/sections";
@@ -123,7 +123,7 @@ const PageBody = ({ page }: { page: PayloadPage }) => {
         )}
         {page.content && (
           <RichTextFrame className="max-w-3xl">
-            <RichText data={page.content} />
+            <PayloadRichText data={page.content} />
           </RichTextFrame>
         )}
       </Container>

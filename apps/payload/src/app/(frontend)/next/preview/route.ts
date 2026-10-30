@@ -18,15 +18,18 @@ export const GET = async (req: NextRequest): Promise<Response> => {
     });
   }
 
-  const path = req.nextUrl.searchParams.get("path");
+  const path = req.nextUrl.searchParams.get("path") ?? "";
+  const { origin } = req.nextUrl;
+  // Resolve the path the way a browser would, so "//host", "/\\host" and
+  // control characters that browsers strip cannot point it off this site.
+  const target = new URL(path, origin);
 
-  // Only paths on this site: "//host" and "/\host" would leave it.
-  if (!path?.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+  if (!path.startsWith("/") || target.origin !== origin) {
     return new Response("Expected a path on this site.", { status: 400 });
   }
 
   const draft = await draftMode();
 
   draft.enable();
-  redirect(path);
+  redirect(`${target.pathname}${target.search}${target.hash}`);
 };

@@ -5,11 +5,11 @@ import {
   Section,
   Typography,
 } from "@launch/ui";
-import { RichText } from "@payloadcms/richtext-lexical/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
+import { PayloadRichText } from "@/components/rich-text";
 import { getFrontendPayload } from "@/lib/payload";
 import { formatDate, NEWS_PATH } from "@/lib/posts";
 import { toImage } from "@/lib/sections";
@@ -97,7 +97,7 @@ const PostPage = async ({ params }: Props) => {
           {hero ? <Figure media={{ image: hero }} /> : null}
           {post.content ? (
             <RichTextFrame>
-              <RichText data={post.content} />
+              <PayloadRichText data={post.content} />
             </RichTextFrame>
           ) : null}
         </Container>
