@@ -6,7 +6,7 @@ Issue: [#2](https://github.com/patronage/launch/issues/2). The spike app, `apps/
 
 Yes. vinext 1.4 deploys to Workers through the new `cf` CLI with no Wrangler at all: Wrangler is not even in the dependency tree. Worker settings live in `cloudflare.config.ts`, the `cf` CLI's typed config file, and `cf deploy --prebuilt` uploads the Cloudflare Build Output that `vite build` writes to `.cloudflare/output/`. This is now vinext's default setup (`create-vinext-app` and `vinext init --platform=cloudflare`); the Wrangler path is the opt-in `--legacy-wrangler-cloudflare-init`.
 
-Every feature the front-ends need worked in local workerd (`vite preview`), with one caveat on remote images and one on edge caching, below. A live deploy has not been run yet because this environment has no Cloudflare credentials; `pnpm run deploy --dry-run` passes, so the remaining step is one run with a token.
+Every feature the front-ends need worked in local workerd (`vite preview`), with one caveat on remote images and one on edge caching, below. The pattern is now live: `apps/web-wordpress` deploys this way as the `launch-vinext-wordpress` Worker at https://launch-wordpress.patronage.dev, and `apps/payload` and `apps/docs-site` use the same `cf deploy --prebuilt` path (2026-10-30).
 
 ## Versions tested
 

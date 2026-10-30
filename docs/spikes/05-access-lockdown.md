@@ -13,7 +13,7 @@ The pattern has four layers, and the first three are now code in this repo:
 | CMS verifies | WordPress: an origin guard that rejects requests without a valid `Cf-Access-Jwt-Assertion`, and REST/WPGraphQL authentication from a forwarded JWT. Payload: a custom auth strategy | `wordpress-shared/patronage-access`, `packages/access/payload` |
 | Editor SSO | Editors reach wp-admin or the Payload admin through Access | Payload: the strategy above. WordPress: not ported yet (see follow-ups) |
 
-Everything is unit-tested (38 TypeScript tests, two PHP suites, one shared known-answer vector for the gateway proof). Nothing has run against a live Access team yet: this environment has no Cloudflare credentials and no WordPress or Payload install. The live loop waits on spikes 3 and 4 and on an API token.
+Everything is unit-tested (38 TypeScript tests, two PHP suites, one shared known-answer vector for the gateway proof). The live run passed on 2026-10-30, with the WordPress CMS, its front-end previews and the Payload admin and API each behind their own Access application (see Live run below).
 
 ## How a request flows
 
@@ -57,7 +57,14 @@ editor  ──► Access login ──► web Worker /preview ──service token
 
 ## Follow-ups
 
-- **Live run.** Needs a Cloudflare account ID and an API token with the permissions above, a demo hostname, and the WordPress install from spike 3. Then: provision, set Worker secrets with `wrangler secret put`, and check the four cases (public read, preview as editor, direct origin hit refused, forged proof refused).
+- **Live run (done, 2026-10-30).** Three Access applications: the WordPress CMS hostname; the front end's `/preview` and `/api/preview` paths on both its custom domain and its workers.dev host; and Payload's `/admin` and `/api`. The front end reads published content and media with a service token (`WORDPRESS_ACCESS_CLIENT_ID`, `WORDPRESS_ACCESS_CLIENT_SECRET`) and signs forwarded editor JWTs with `WORDPRESS_ACCESS_PROOF_SECRET`, all set as Worker secrets with `cf`. Results:
+  - Public pages and media load. Resized media first failed with Images error `9432` until Cloudflare Images was enabled on the account's plan; check that before a first deploy.
+  - An editor's preview of a draft works.
+  - A direct request to the PHP origin without Access gets 403.
+  - Signed-out requests to wp-admin and the Payload admin and API redirect to the Access login.
+  - A forged JWT or proof sent with a valid service token gets 401.
+  - WP cron runs from the system scheduler with `DISABLE_WP_CRON`, as the loopback finding above predicts.
+- **Static uploads.** The origin guard runs in PHP, so files the web server serves directly from `wp-content/uploads` skip it. Close that at the host, or with a Tunnel where the host allows one.
 - **wp-admin SSO.** Logging editors into wp-admin from their Access JWT (open as a PR in the old WordPress repo) belongs in this plugin next, so editors do not log in twice.
 - **Payload against a real instance**, once spike 4 settles where Payload runs.
 - **Docs-site pages**: one per layer in the table above.
