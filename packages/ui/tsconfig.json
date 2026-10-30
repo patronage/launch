@@ -1,5 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "types": ["react", "react-dom"] },
+  "compilerOptions": {
+    "types": ["react", "react-dom"],
+    // Aliases in components.json, so `shadcn add` output typechecks here.
+    "paths": {
+      "@launch/ui/components/*": ["./src/components/*"],
+      "@launch/ui/utils": ["./src/utils.ts"]
+    }
+  },
   "include": ["src"]
 }

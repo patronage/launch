@@ -10,25 +10,25 @@ import {
   ContentMedia,
   MediaOnly,
 } from "./blocks";
+import { Container } from "./components/container";
+import { Section } from "./components/section";
 
-export const Section = ({
+/** A CMS section: its options become a Section and Container around the block. */
+export const PageSection = ({
   options,
   children,
 }: {
   options: SectionOptions;
   children: ReactNode;
 }) => (
-  <section
-    className="l-section"
-    data-pb={options.paddingBottom}
-    data-pt={options.paddingTop}
-    data-skin={options.skin}
+  <Section
     id={options.slug}
+    paddingBottom={options.paddingBottom}
+    paddingTop={options.paddingTop}
+    skin={options.skin}
   >
-    <div className="l-container" data-width={options.width}>
-      {children}
-    </div>
-  </section>
+    <Container width={options.width}>{children}</Container>
+  </Section>
 );
 
 export const BlockRenderer = ({
@@ -87,12 +87,12 @@ export const PageSections = ({
 }) => (
   <>
     {visibleSections(page).map((section, index) => (
-      <Section key={section.block.id} options={section.options}>
+      <PageSection key={section.block.id} options={section.options}>
         <BlockRenderer
           block={section.block}
           headingLevel={index === 0 && firstHeadingIsTitle ? "h1" : "h2"}
         />
-      </Section>
+      </PageSection>
     ))}
   </>
 );

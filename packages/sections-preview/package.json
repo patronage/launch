@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsx --tsconfig ../../tsconfig.base.json src/build.tsx",
+    "build": "tailwindcss -i src/styles.css -o dist/styles.css --minify && tsx --tsconfig ../../tsconfig.base.json src/build.tsx",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
@@ -17,6 +17,7 @@
     "react-dom": "19.2.9"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
     "@types/node": "22.18.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",

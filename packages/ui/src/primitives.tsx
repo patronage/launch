@@ -1,17 +1,33 @@
-import type { Image, Link, Media } from "@launch/content-model";
+import type { Image, Link, LinkVariant, Media } from "@launch/content-model";
 import type { ReactNode } from "react";
 
-export const LinkList = ({ links }: { links: Link[] }) => {
+import { buttonVariants } from "./components/button";
+import { cn } from "./utils";
+
+const LINK_BUTTON = {
+  primary: buttonVariants({ size: "lg", variant: "default" }),
+  secondary: buttonVariants({ size: "lg", variant: "outline" }),
+  // cn() lets the link variant's zero padding win over the size's.
+  text: cn(buttonVariants({ size: "lg", variant: "link" })),
+} satisfies Record<LinkVariant, string>;
+
+export const LinkList = ({
+  className,
+  links,
+}: {
+  className?: string;
+  links: Link[];
+}) => {
   if (links.length === 0) {
     return null;
   }
 
   return (
-    <ul className="l-links">
+    <ul className={cn("flex flex-wrap items-center gap-3", className)}>
       {links.map((link) => (
         <li key={`${link.href}|${link.label}`}>
           <a
-            className="l-link"
+            className={LINK_BUTTON[link.variant]}
             data-variant={link.variant}
             href={link.href}
             {...(link.newTab
@@ -27,14 +43,17 @@ export const LinkList = ({ links }: { links: Link[] }) => {
 };
 
 export const Img = ({
+  className,
   image,
   loading = "lazy",
 }: {
+  className?: string;
   image: Image;
   loading?: "lazy" | "eager";
 }) => (
   <img
     alt={image.alt}
+    className={cn("block h-auto max-w-full", className)}
     decoding="async"
     height={image.height}
     loading={loading}
@@ -43,34 +62,43 @@ export const Img = ({
   />
 );
 
-export const Figure = ({ media }: { media: Media }) => (
-  <figure className="l-media">
-    <Img image={media.image} />
-    {media.caption ? <figcaption>{media.caption}</figcaption> : null}
+export const Figure = ({
+  className,
+  media,
+}: {
+  className?: string;
+  media: Media;
+}) => (
+  <figure className={cn("m-0", className)}>
+    <Img className="w-full rounded-xl" image={media.image} />
+    {media.caption ? (
+      <figcaption className="text-section-muted mt-3 text-sm">
+        {media.caption}
+      </figcaption>
+    ) : null}
   </figure>
 );
 
 /** Wrapper for adapter-rendered rich text. The UI never parses it. */
-export const RichText = ({ children }: { children?: ReactNode }) => {
+export const RichText = ({
+  children,
+  className,
+}: {
+  children?: ReactNode;
+  className?: string;
+}) => {
   if (children === undefined || children === null) {
     return null;
   }
 
-  return <div className="l-rich">{children}</div>;
-};
-
-export const Heading = ({
-  as: Tag = "h2",
-  className = "l-title",
-  children,
-}: {
-  as?: "h1" | "h2" | "h3";
-  className?: string;
-  children?: ReactNode;
-}) => {
-  if (!children) {
-    return null;
-  }
-
-  return <Tag className={className}>{children}</Tag>;
+  return (
+    <div
+      className={cn(
+        "prose-section prose prose-lg prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight max-w-none",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
 };

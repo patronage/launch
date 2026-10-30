@@ -1,5 +1,4 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 
 import type { Page } from "@launch/content-model";
@@ -9,16 +8,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { payloadPage, wordpressPage } from "./pages";
 
-const require = createRequire(import.meta.url);
-
-const css = ["@launch/ui/tokens.css", "@launch/ui/sections.css"]
-  .map((specifier) => readFileSync(require.resolve(specifier), "utf-8"))
-  .join("\n");
-
 const out = path.join(import.meta.dirname, "..", "dist");
 
+// Compiled by the Tailwind CLI in the build script, before this runs.
+const css = readFileSync(path.join(out, "styles.css"), "utf-8");
+
 const htmlDocument = (title: string, body: string): string =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>body{margin:0}${css}</style></head><body>${body}</body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>${css}</style></head><body>${body}</body></html>`;
 
 const renderPage = (page: Page<ReactNode>, source: string): string =>
   htmlDocument(

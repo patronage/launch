@@ -39,9 +39,10 @@ const PreviewPage = async ({ params }: Props) => {
 
   return (
     <>
-      <p className="preview-banner">
+      <p className="px-gutter bg-amber-100 py-2 text-sm text-amber-950">
         Previewing {state}.{" "}
         <a
+          className="font-medium underline underline-offset-4"
           href={`/api/exit-preview/?path=${encodeURIComponent(exitPath(content.uri))}`}
         >
           Exit preview

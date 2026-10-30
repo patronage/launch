@@ -1,4 +1,11 @@
-import { PageSections } from "@launch/ui";
+import {
+  Container,
+  Figure,
+  PageSections,
+  RichText as RichTextFrame,
+  Section,
+  Typography,
+} from "@launch/ui";
 import { RichText } from "@payloadcms/richtext-lexical/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -53,20 +60,23 @@ const PageIndex = async () => {
   });
 
   return (
-    <section className="l-section" data-pb="lg" data-pt="lg" data-skin="light">
-      <div className="l-container l-content" data-width="narrow">
-        <h1 className="l-display">Pages</h1>
-        <ul data-testid="pages">
+    <Section paddingBottom="lg" paddingTop="lg">
+      <Container className="flex flex-col gap-8">
+        <Typography variant="h1">Pages</Typography>
+        <ul className="grid max-w-3xl divide-y border-y" data-testid="pages">
           {pages.docs.map((page) => (
             <li key={page.id}>
-              <Link href={payloadAdapter.pagePath(page) ?? "/"}>
+              <Link
+                className="hover:text-section-accent block py-3 font-medium"
+                href={payloadAdapter.pagePath(page) ?? "/"}
+              >
                 {page.title}
               </Link>
             </li>
           ))}
         </ul>
-      </div>
-    </section>
+      </Container>
+    </Section>
   );
 };
 
@@ -101,26 +111,30 @@ const Page = async ({ params }: Props) => {
   const hero = page.hero as Media | null | undefined;
 
   return (
-    <article className="l-section" data-pb="lg" data-pt="lg" data-skin="light">
-      <div className="l-container l-content" data-width="narrow">
-        <h1 className="l-display">{page.title}</h1>
+    <Section as="article" paddingBottom="lg" paddingTop="lg">
+      <Container className="flex flex-col gap-10">
+        <Typography className="max-w-3xl" variant="h1">
+          {page.title}
+        </Typography>
         {hero?.url && (
-          <figure className="l-media">
-            <img
-              alt={hero.alt}
-              height={hero.height ?? undefined}
-              src={mediaUrl(hero.url)}
-              width={hero.width ?? undefined}
-            />
-          </figure>
+          <Figure
+            media={{
+              image: {
+                alt: hero.alt,
+                height: hero.height ?? undefined,
+                src: mediaUrl(hero.url),
+                width: hero.width ?? undefined,
+              },
+            }}
+          />
         )}
         {page.content && (
-          <div className="l-rich">
+          <RichTextFrame className="max-w-3xl">
             <RichText data={page.content} />
-          </div>
+          </RichTextFrame>
         )}
-      </div>
-    </article>
+      </Container>
+    </Section>
   );
 };
 

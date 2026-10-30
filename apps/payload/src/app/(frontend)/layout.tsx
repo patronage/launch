@@ -1,10 +1,9 @@
+import { FontLinks, navLinkClass, SiteFooter, SiteHeader } from "@launch/ui";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { getFrontendPayload } from "@/lib/payload";
 
-import "@launch/ui/tokens.css";
-import "@launch/ui/sections.css";
 import "./styles.css";
 
 export const generateMetadata = async () => {
@@ -33,19 +32,23 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
 
   return (
     <html lang="en">
-      <body>
-        <header className="site-header">
-          <Link className="site-title" href="/">
-            {settings.siteName}
-          </Link>
-          {settings.tagline && (
-            <span className="site-tagline">{settings.tagline}</span>
-          )}
-          <a className="site-admin" href="/admin">
-            {user ? `Admin (${user.email})` : "Admin"}
-          </a>
-        </header>
-        <main>{children}</main>
+      <head>
+        <FontLinks />
+      </head>
+      <body className="flex min-h-svh flex-col">
+        <SiteHeader
+          actions={
+            <a className={navLinkClass} href="/admin">
+              {user ? `Admin (${user.email})` : "Admin"}
+            </a>
+          }
+          brand={<Link href="/">{settings.siteName}</Link>}
+        />
+        <main className="flex-1">{children}</main>
+        <SiteFooter>
+          <span>{settings.siteName}</span>
+          {settings.tagline ? <span>{settings.tagline}</span> : null}
+        </SiteFooter>
       </body>
     </html>
   );
