@@ -48,14 +48,19 @@ const page: Page<ReactNode> = {
 describe(PageSections, () => {
   const html = renderToStaticMarkup(<PageSections page={page} />);
 
-  it("applies section options as attributes", () => {
-    expect(html).toContain(
-      '<section class="l-section" data-pb="md" data-pt="md" data-skin="dark" id="intro">'
+  it("applies section options as attributes and classes", () => {
+    expect(html).toMatch(
+      /<section class="[^"]*pb-section-md pt-section-md[^"]*" data-component="section" data-skin="dark" id="intro">/u
+    );
+    expect(html).toMatch(
+      /<div class="mx-auto w-full px-gutter max-w-6xl" data-component="container" data-width="default">/u
     );
   });
 
   it("makes the first heading the h1 and later ones h2", () => {
-    expect(html).toContain('<h1 class="l-display">Hello</h1>');
+    expect(html).toMatch(
+      /<h1 class="[^"]*text-section-heading[^"]*">Hello<\/h1>/u
+    );
     expect(html).not.toContain("<h2");
   });
 
@@ -64,7 +69,9 @@ describe(PageSections, () => {
   });
 
   it("passes rich text through untouched", () => {
-    expect(html).toContain('<div class="l-rich"><p>Body</p></div>');
+    expect(html).toMatch(
+      /<div class="prose-section [^"]*"><p>Body<\/p><\/div>/u
+    );
   });
 
   it("adds rel to new-tab links", () => {

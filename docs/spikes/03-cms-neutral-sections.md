@@ -11,7 +11,7 @@ Issue: [#3](https://github.com/patronage/launch/issues/3)
 | Package | What it holds |
 | --- | --- |
 | `packages/content-model` | Types for `SectionOptions`, `Link`, `Image`, `Media`, six blocks and `Page<R>`, plus coercion helpers (`oneOf`, `toSkin`, `toColumns`, `slugify`, `compact`). No runtime dependencies. |
-| `packages/ui` | Props-only React components (`PageSections`, `Section`, `BlockRenderer`, one component per block) and two stylesheets: `tokens.css` (palette, skins, type scale, spacing, widths) and `sections.css`. |
+| `packages/ui` | Props-only React components (`PageSections`, `Section`, `BlockRenderer`, one component per block) and two stylesheets: `tokens.css` (palette, skins, type scale, spacing, widths) and `sections.css`. Since rebuilt on shadcn/ui and Tailwind 4; see [`packages/ui`](../../packages/ui/README.md). |
 | `packages/adapter-wordpress` | `createWordPressAdapter({ cmsOrigin })`, the WPGraphQL query (`fixtures/query.graphql`) and a recorded-style response fixture. |
 | `packages/adapter-payload` | `createPayloadAdapter({ serverUrl })`, a small Lexical renderer, and a page document fixture at depth 1. |
 | `packages/sections-preview` | The parity test and a static side-by-side page: `pnpm --filter @launch/sections-preview build`, then open `packages/sections-preview/dist/index.html`. |
@@ -30,7 +30,7 @@ The page decides heading levels, not the block: the first visible section's head
 
 ### Tokens
 
-`tokens.css` defines a palette, then remaps it into `--skin-*` variables under `[data-skin]`. Components read only `--skin-*`, so any block takes the skin of the section around it. The type scale is five named roles (`--type-small`, `--type-body`, `--type-lead`, `--type-title`, `--type-display`), fluid with `clamp()`, and is not tied to heading levels. The Timber install can use `tokens.css` as is.
+`tokens.css` defines a palette, then remaps it into `--skin-*` variables under `[data-skin]`. Components read only `--skin-*`, so any block takes the skin of the section around it. The type scale is five named roles (`--type-small`, `--type-body`, `--type-lead`, `--type-title`, `--type-display`), fluid with `clamp()`, and is not tied to heading levels. The Timber install can use `tokens.css` as is. (Later rebuilt: the skins now remap shadcn/ui's colour variables plus a `--section-*` layer, and the type scale moved into the `Typography` component.)
 
 ## What could not be shared
 

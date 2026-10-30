@@ -9,6 +9,7 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 - **No Wrangler config files.** Do not add `wrangler.json`, `wrangler.jsonc` or `wrangler.toml` (they are gitignored). Workers, bindings, secrets, Access applications and service tokens are created through the Cloudflare CLI and API by scripts in the repo.
 - **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
 - **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
+- **Front-end UI is shadcn/ui on Tailwind 4, in `packages/ui`.** Build pages from its `Section`, `Container` and `Typography` primitives and shadcn components rather than app-local CSS; add new shadcn components to the package (see `packages/ui/README.md`).
 
 ## Layout
 

@@ -1,7 +1,11 @@
+import { Container, Section, Typography } from "@launch/ui";
+
 const NotFound = () => (
-  <div className="not-found">
-    <h1 className="l-display">Page not found</h1>
-  </div>
+  <Section paddingBottom="lg" paddingTop="lg">
+    <Container width="narrow">
+      <Typography variant="h1">Page not found</Typography>
+    </Container>
+  </Section>
 );
 
 export default NotFound;

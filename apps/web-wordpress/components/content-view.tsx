@@ -1,4 +1,11 @@
-import { PageSections } from "@launch/ui";
+import {
+  buttonVariants,
+  Container,
+  PageSections,
+  RichText,
+  Section,
+  Typography,
+} from "@launch/ui";
 
 import type { Content } from "@/lib/wordpress/content";
 import { toSectionsPage } from "@/lib/wordpress/sections";
@@ -11,33 +18,34 @@ const Hero = ({ content }: { content: Content }) => {
   const hero = "hero" in content ? content.hero : null;
 
   return (
-    <header className="l-section" data-pb="sm" data-pt="lg" data-skin="light">
-      <div className="l-container l-content" data-width="default">
-        {hero?.eyebrow && <p className="l-eyebrow">{hero.eyebrow}</p>}
-        <h1 className="l-display">{hero?.headline || title}</h1>
-        {hero?.intro && <p className="l-lead">{hero.intro}</p>}
-        {content.__typename === "Post" && (
-          <p className="post-meta">
-            {content.author?.node.name}
-            {content.date && ` · ${formatDate(content.date)}`}
-          </p>
-        )}
-        {hero?.cta?.url && (
-          <ul className="l-links">
-            <li>
+    <Section as="header" paddingBottom="sm" paddingTop="lg">
+      <Container>
+        <div className="flex max-w-3xl flex-col gap-5">
+          {hero?.eyebrow && (
+            <Typography variant="eyebrow">{hero.eyebrow}</Typography>
+          )}
+          <Typography variant="h1">{hero?.headline || title}</Typography>
+          {hero?.intro && <Typography variant="lead">{hero.intro}</Typography>}
+          {content.__typename === "Post" && (
+            <Typography variant="muted">
+              {content.author?.node.name}
+              {content.date && ` · ${formatDate(content.date)}`}
+            </Typography>
+          )}
+          {hero?.cta?.url && (
+            <div className="mt-2">
               <a
-                className="l-link"
-                data-variant="primary"
+                className={buttonVariants({ size: "lg" })}
                 href={hero.cta.url}
                 target={hero.cta.target || undefined}
               >
                 {hero.cta.title || hero.cta.url}
               </a>
-            </li>
-          </ul>
-        )}
-      </div>
-    </header>
+            </div>
+          )}
+        </div>
+      </Container>
+    </Section>
   );
 };
 
@@ -62,20 +70,17 @@ export const ContentView = ({ content }: { content: Content }) => {
         <PageSections firstHeadingIsTitle={false} page={sections} />
       ) : (
         html && (
-          <div
-            className="l-section"
-            data-pb="lg"
-            data-pt="sm"
-            data-skin="light"
-          >
-            <div className="l-container" data-width="narrow">
-              <div
-                className="l-rich"
-                // oxlint-disable-next-line react/no-danger -- block editor HTML, written by signed-in editors (see docs/spikes/03-cms-neutral-sections.md).
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            </div>
-          </div>
+          <Section as="div" paddingBottom="lg" paddingTop="none">
+            <Container>
+              <RichText className="max-w-3xl">
+                <div
+                  className="l-rich-raw"
+                  // oxlint-disable-next-line react/no-danger -- block editor HTML, written by signed-in editors (see docs/spikes/03-cms-neutral-sections.md).
+                  dangerouslySetInnerHTML={{ __html: html }}
+                />
+              </RichText>
+            </Container>
+          </Section>
         )
       )}
     </article>

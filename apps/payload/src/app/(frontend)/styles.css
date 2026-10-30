@@ -1,31 +1,4 @@
-/* Site chrome around the shared sections. Reads @launch/ui tokens only. */
-body {
-  background: var(--skin-bg);
-  color: var(--skin-fg);
-  font-family: var(--font-body);
-  line-height: var(--leading-body);
-  margin: 0;
-}
-.site-header {
-  align-items: baseline;
-  border-bottom: 1px solid var(--skin-line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-inline: auto;
-  max-width: var(--width-wide);
-  padding: var(--space-3) var(--gutter);
-}
-.site-header a {
-  color: inherit;
-  text-decoration: none;
-}
-.site-title {
-  font-weight: 700;
-}
-.site-tagline {
-  color: var(--skin-muted);
-}
-.site-admin {
-  margin-inline-start: auto;
-}
+/* Tailwind entry: @launch/ui's tokens, theme and components, plus the front-end's files. */
+@import "@launch/ui/styles.css";
+
+@source "./";

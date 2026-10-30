@@ -1,4 +1,5 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import { kvDataAdapter } from "@vinext/cloudflare/cache/kv-data-adapter";
 import { imagesOptimizer } from "@vinext/cloudflare/images/images-optimizer";
 import vinext from "vinext";
@@ -9,6 +10,7 @@ const allowedHosts = ["host.docker.internal"];
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     vinext({
       // Pages (ISR) and data (fetch) both live in KV, so the revalidate
       // route's revalidateTag() and revalidatePath() clear them in one place.

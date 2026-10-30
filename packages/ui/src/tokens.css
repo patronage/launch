@@ -1,80 +1,135 @@
 /*
- * Design tokens. Override these per site; components only read variables.
+ * Design tokens: plain CSS custom properties, no Tailwind. styles.css maps
+ * them into Tailwind's theme for the React front-ends; the Timber install can
+ * load this file on its own.
  *
- * Type scale is deliberately short and named by role, not by heading level:
- * a section heading can be an <h2> or <h3> and still use `--type-title`.
+ * The colour variables use shadcn/ui's names (--background, --primary, ...),
+ * so shadcn components work unchanged. The --section-* variables are the
+ * Patronage section layer: Typography and the blocks read them, and each skin
+ * below remaps both sets, so anything inside a section takes its skin.
  */
 :root {
-  /* Palette */
-  --color-ink: #14161a;
-  --color-paper: #ffffff;
-  --color-muted: #5b6270;
-  --color-line: #e3e5ea;
-  --color-brand: #2f5bea;
-  --color-brand-ink: #ffffff;
-  --color-surface: #f5f6f8;
+  /* Palette (OKLCH). Override these per site. */
+  --ink: oklch(0.21 0.02 255);
+  --ink-soft: oklch(0.29 0.025 255);
+  --slate: oklch(0.52 0.025 255);
+  --mist: oklch(0.965 0.006 240);
+  --mist-deep: oklch(0.925 0.01 240);
+  --white: oklch(1 0 0);
+  /* Patronage cyan (#00baee) and a deeper shade that holds AA on white. */
+  --brand: oklch(0.73 0.14 229);
+  --brand-deep: oklch(0.5 0.13 240);
 
   /* Type */
-  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
-  --type-small: 0.875rem;
-  --type-body: 1rem;
-  --type-lead: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
-  --type-title: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem);
-  --type-display: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem);
-  --leading-tight: 1.15;
-  --leading-body: 1.6;
+  --typeface-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --typeface-display: var(--typeface-sans);
+  --typeface-mono:
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  /* Space */
-  --space-1: 0.5rem;
-  --space-2: 1rem;
-  --space-3: 1.5rem;
-  --space-4: 2.5rem;
-  --space-section-sm: clamp(2rem, 1.5rem + 2vw, 3rem);
-  --space-section-md: clamp(3rem, 2rem + 4vw, 5.5rem);
-  --space-section-lg: clamp(4.5rem, 3rem + 6vw, 8rem);
-  --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
-
-  /* Container widths */
-  --width-narrow: 42rem;
-  --width-default: 64rem;
-  --width-wide: 80rem;
+  /* Section padding steps (SectionOptions paddingTop / paddingBottom). */
+  --section-space-sm: clamp(2rem, 1.5rem + 2vw, 3rem);
+  --section-space-md: clamp(3.5rem, 2.5rem + 4vw, 6rem);
+  --section-space-lg: clamp(5rem, 3.5rem + 6vw, 9rem);
+  --gutter: clamp(1.25rem, 0.75rem + 2.5vw, 3rem);
 
   /* Shape */
-  --radius: 0.5rem;
+  --radius: 0.625rem;
+
+  /* shadcn/ui colours: light */
+  --background: var(--white);
+  --foreground: var(--ink);
+  --card: var(--mist);
+  --card-foreground: var(--ink);
+  --popover: var(--white);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--white);
+  --secondary: var(--mist-deep);
+  --secondary-foreground: var(--ink);
+  --muted: var(--mist);
+  --muted-foreground: var(--slate);
+  --accent: var(--mist-deep);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.21 0.02 255 / 12%);
+  --input: oklch(0.21 0.02 255 / 18%);
+  --ring: oklch(0.73 0.14 229 / 60%);
+
+  /* Section layer */
+  --section-background: var(--background);
+  --section-foreground: var(--foreground);
+  --section-heading: var(--foreground);
+  --section-muted: var(--muted-foreground);
+  --section-accent: var(--brand-deep);
+  --section-border: var(--border);
 }
 
-/*
- * Skins remap the semantic colours. Components use only --skin-* variables, so
- * any block inherits the skin of the section around it.
- */
-[data-skin],
-:root {
-  --skin-bg: var(--color-paper);
-  --skin-fg: var(--color-ink);
-  --skin-muted: var(--color-muted);
-  --skin-line: var(--color-line);
-  --skin-card: var(--color-surface);
-  --skin-action-bg: var(--color-brand);
-  --skin-action-fg: var(--color-brand-ink);
+/* Skins: SectionOptions.skin, set as data-skin by <Section>. */
+[data-skin="light"] {
+  --background: var(--white);
+  --foreground: var(--ink);
+  --card: var(--mist);
+  --card-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--white);
+  --secondary: var(--mist-deep);
+  --secondary-foreground: var(--ink);
+  --muted: var(--mist);
+  --muted-foreground: var(--slate);
+  --accent: var(--mist-deep);
+  --accent-foreground: var(--ink);
+  --border: oklch(0.21 0.02 255 / 12%);
+  --input: oklch(0.21 0.02 255 / 18%);
+  --section-accent: var(--brand-deep);
 }
 
 [data-skin="dark"] {
-  --skin-bg: var(--color-ink);
-  --skin-fg: var(--color-paper);
-  --skin-muted: #b5bac4;
-  --skin-line: #2c3038;
-  --skin-card: #1f2228;
-  --skin-action-bg: var(--color-paper);
-  --skin-action-fg: var(--color-ink);
+  --background: var(--ink);
+  --foreground: oklch(0.97 0.005 240);
+  --card: var(--ink-soft);
+  --card-foreground: var(--white);
+  --primary: var(--brand);
+  --primary-foreground: var(--ink);
+  --secondary: var(--ink-soft);
+  --secondary-foreground: var(--white);
+  --muted: var(--ink-soft);
+  --muted-foreground: oklch(0.78 0.015 250);
+  --accent: var(--ink-soft);
+  --accent-foreground: var(--white);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --section-heading: var(--white);
+  --section-accent: var(--brand);
 }
 
+/* Brand background. Ink text: white on the cyan is under 3:1. */
 [data-skin="accent"] {
-  --skin-bg: var(--color-brand);
-  --skin-fg: var(--color-brand-ink);
-  --skin-muted: rgb(255 255 255 / 0.8);
-  --skin-line: rgb(255 255 255 / 0.25);
-  --skin-card: rgb(255 255 255 / 0.1);
-  --skin-action-bg: var(--color-brand-ink);
-  --skin-action-fg: var(--color-brand);
+  --background: var(--brand);
+  --foreground: var(--ink);
+  --card: oklch(1 0 0 / 22%);
+  --card-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--white);
+  --secondary: oklch(1 0 0 / 30%);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(1 0 0 / 22%);
+  --muted-foreground: oklch(0.21 0.02 255 / 82%);
+  --accent: oklch(1 0 0 / 30%);
+  --accent-foreground: var(--ink);
+  --border: oklch(0.21 0.02 255 / 18%);
+  --input: oklch(0.21 0.02 255 / 24%);
+  --section-heading: var(--ink);
+  --section-accent: var(--ink);
+}
+
+/* Skins reset the section layer from the remapped colours. */
+[data-skin] {
+  --section-background: var(--background);
+  --section-foreground: var(--foreground);
+  --section-muted: var(--muted-foreground);
+  --section-border: var(--border);
+}
+[data-skin="light"] {
+  --section-heading: var(--foreground);
 }

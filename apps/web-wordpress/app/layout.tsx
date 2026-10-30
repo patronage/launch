@@ -1,11 +1,10 @@
+import { FontLinks, navLinkClass, SiteFooter, SiteHeader } from "@launch/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { getLayout } from "@/lib/wordpress/layout";
 
-import "@launch/ui/tokens.css";
-import "@launch/ui/sections.css";
 import "./globals.css";
 
 export const generateMetadata = async (): Promise<Metadata> => {
@@ -18,28 +17,32 @@ export const generateMetadata = async (): Promise<Metadata> => {
 };
 
 const RootLayout = async ({ children }: { children: ReactNode }) => {
-  const { siteTitle, menu } = await getLayout();
+  const { siteTitle, tagline, menu } = await getLayout();
 
   return (
     <html lang="en">
-      <body>
-        <header className="site-header">
-          <Link href="/" className="site-title">
-            {siteTitle}
-          </Link>
-          <nav aria-label="Primary">
-            {menu.map((item) => (
-              <Link
-                key={item.id}
-                href={item.uri ?? "/"}
-                target={item.target ?? undefined}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <main>{children}</main>
+      <head>
+        <FontLinks />
+      </head>
+      <body className="flex min-h-svh flex-col">
+        <SiteHeader
+          brand={<Link href="/">{siteTitle}</Link>}
+          nav={menu.map((item) => (
+            <Link
+              className={navLinkClass}
+              href={item.uri ?? "/"}
+              key={item.id}
+              target={item.target ?? undefined}
+            >
+              {item.label}
+            </Link>
+          ))}
+        />
+        <main className="flex-1">{children}</main>
+        <SiteFooter>
+          <span>{siteTitle}</span>
+          {tagline ? <span>{tagline}</span> : null}
+        </SiteFooter>
       </body>
     </html>
   );
