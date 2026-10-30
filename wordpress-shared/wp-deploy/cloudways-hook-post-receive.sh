@@ -87,17 +87,22 @@ deploy() {
     return 1
   fi
 
-  # On Cloudways, wp-content and its plugins and themes folders belong to the
-  # application user, not the SSH user this hook runs as. GNU tar would write
-  # every file, then fail resetting those folders' mode and times, so it leaves
-  # the metadata of folders that already exist alone.
-  tar_keep_dirs=""
-  if tar --version 2>/dev/null | grep -q 'GNU tar'; then tar_keep_dirs="--no-overwrite-dir"; fi
-  # Archive the WordPress folder's own tree, so its files land at the webroot
-  # however many folders deep it sits in the repo.
-  # shellcheck disable=SC2086
-  git --git-dir="$GIT_DIR" archive "$newrev${prefix:+:$WORDPRESS_FOLDER}" | tar -x $tar_keep_dirs -f - ||
-    { echo "Extracting $newrev failed"; return 1; }
+  # Write the WordPress folder's files into the webroot with git itself, from a
+  # temporary index of that folder's own tree, so they land at the webroot however
+  # many folders deep it sits in the repo. On Cloudways, wp-content and its plugins
+  # and themes folders belong to the application user, not the SSH user this hook
+  # runs as. tar sets the mode of every folder in the archive, which only a folder's
+  # owner may do, so it failed after writing every file. checkout-index only creates
+  # folders that are missing and leaves existing ones alone.
+  index="$GIT_DIR/deploy-index.$$"
+  rm -f "$index"
+  if ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" read-tree "$newrev${prefix:+:$WORDPRESS_FOLDER}" ||
+    ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" --work-tree="$TARGET" checkout-index -a -f; then
+    rm -f "$index"
+    echo "Extracting $newrev failed"
+    return 1
+  fi
+  rm -f "$index"
 
   [ -n "$oldrev" ] || return 0
   deleted="$(git --git-dir="$GIT_DIR" diff --name-only --no-renames --diff-filter=D "$oldrev" "$newrev" -- "${prefix:-.}")" ||

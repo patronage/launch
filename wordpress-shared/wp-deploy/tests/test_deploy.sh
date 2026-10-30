@@ -177,7 +177,8 @@ write "$WEBROOT/wp-config.php" server-config
 write "$WEBROOT/wp-content/uploads/2026/photo.jpg"
 write "$WEBROOT/wp-content/plugins/server-only/server-only.php"
 # Cloudways gives these folders to the application user, so the hook's SSH user
-# can't change their mode. A mode the archive doesn't carry shows whether tar touched it.
+# can't change their mode. A mode the payload doesn't carry shows whether the hook
+# touched it.
 chmod 750 "$WEBROOT/wp-content/plugins"
 
 SRC="$WORK/src"
@@ -197,10 +198,8 @@ rev="$(git -C "$SRC" rev-parse HEAD)"
 check "hook: first push reports DEPLOY_OK" grep -q "DEPLOY_OK $rev" <<<"$out"
 check "hook: first push extracts files" [ -f "$WEBROOT/wp-content/plugins/removed/inc/deep.php" ]
 check "hook: first push keeps server wp-config.php" grep -q server-config "$WEBROOT/wp-config.php"
-# GNU tar is what Cloudways runs; other tars don't take --no-overwrite-dir.
-if tar --version 2>/dev/null | grep -q 'GNU tar'; then
-  check "hook: existing folders keep their mode" [ "$(stat -c %a "$WEBROOT/wp-content/plugins" 2>/dev/null || stat -f %Lp "$WEBROOT/wp-content/plugins")" = 750 ]
-fi
+check "hook: existing folders keep their mode" [ "$(stat -c %a "$WEBROOT/wp-content/plugins" 2>/dev/null || stat -f %Lp "$WEBROOT/wp-content/plugins")" = 750 ]
+check "hook: removes its temporary index" bash -c '! ls "$1"/deploy-index.* >/dev/null 2>&1' _ "$BARE"
 
 git -C "$SRC" rm -q -r wordpress/wp-content/plugins/removed wordpress/.htaccess
 git -C "$SRC" mv wordpress/old-name.php wordpress/new-name.php
