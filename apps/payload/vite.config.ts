@@ -50,6 +50,11 @@ export default defineConfig({
       },
     }),
   ],
+  preview: {
+    // Lets a Cloudflare quick tunnel (`cloudflared tunnel --url
+    // http://localhost:4173`) serve the local demo; Vite rejects other hosts.
+    allowedHosts: [".trycloudflare.com"],
+  },
   resolve: {
     alias: {
       // See src/og-stub.ts.
