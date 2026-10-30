@@ -107,7 +107,11 @@ function patronage_fields_rich_text_block(string $tag, array $atts, ?string $con
 
     case 'launch_embed':
       $url = trim((string) ($atts['url'] ?? ''));
-      if (!wp_http_validate_url($url)) {
+      // A syntax check only: wp_http_validate_url() resolves the host, which
+      // costs a DNS lookup on every render and fails wherever DNS is blocked.
+      // The UI decides what to frame from the URL itself.
+      $parts = wp_parse_url($url);
+      if (!$parts || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])) {
         return null;
       }
       return array_filter([

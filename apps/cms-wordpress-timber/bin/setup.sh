@@ -29,7 +29,7 @@ if ! wp core is-installed 2>/dev/null; then
     --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
 fi
 
-wp plugin activate secure-custom-fields
+wp plugin activate secure-custom-fields formidable
 wp theme activate patronage-timber
 wp plugin delete akismet hello 2>/dev/null || true
 

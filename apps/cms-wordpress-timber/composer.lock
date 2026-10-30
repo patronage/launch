@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "23b4d7c6c87afa7471a256981d2d9767",
+    "content-hash": "05720cf12f251c75111264b22f503aba",
     "packages": [
         {
             "name": "composer/installers",
@@ -1083,6 +1083,18 @@
                 "source": "https://github.com/vinkla/extended-acf/tree/14.6.2"
             },
             "time": "2026-01-22T13:29:00+00:00"
+        },
+        {
+            "name": "wordpress-plugin/formidable",
+            "version": "7.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://downloads.wordpress.org/plugin/formidable.7.0.zip"
+            },
+            "require": {
+                "composer/installers": "^2.2"
+            },
+            "type": "wordpress-plugin"
         },
         {
             "name": "wordpress/secure-custom-fields",

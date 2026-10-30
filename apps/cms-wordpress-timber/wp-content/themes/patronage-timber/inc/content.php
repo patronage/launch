@@ -258,9 +258,14 @@ function patronage_timber_visible_sections(array $sections, bool $preview = fals
  * variant chosen means no hero, and the first section's heading is the <h1>.
  */
 function patronage_timber_hero(int $post_id): ?array {
-  $hero = function_exists('get_field') ? get_field('hero', $post_id) : null;
-  if (!is_array($hero)) {
+  if (!function_exists('get_field')) {
     return null;
+  }
+  // The Hero group's fields sit at the top level of the page (WPGraphQL
+  // groups them as `hero`).
+  $hero = [];
+  foreach (['variant', 'title', 'eyebrow', 'skin', 'align', 'subhead', 'body', 'image', 'links'] as $name) {
+    $hero[$name] = get_field($name, $post_id);
   }
   $variant = patronage_timber_one_of(PATRONAGE_TIMBER_HERO_VARIANTS, $hero['variant'] ?? null, '');
   if ($variant === '') {

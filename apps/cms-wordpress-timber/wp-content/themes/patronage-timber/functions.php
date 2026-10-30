@@ -14,6 +14,7 @@ require_once __DIR__ . '/inc/timber.php';
 require_once __DIR__ . '/inc/assets.php';
 require_once __DIR__ . '/inc/content.php';
 require_once __DIR__ . '/inc/forms.php';
+require_once __DIR__ . '/inc/rich-text.php';
 require_once __DIR__ . '/inc/render.php';
 
 add_action('after_setup_theme', function (): void {
