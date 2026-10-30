@@ -42,10 +42,33 @@ const youtubeId = (url: URL): string | undefined => {
   return id && VIDEO_ID.test(id) ? id : undefined;
 };
 
-const vimeoId = (url: URL): string | undefined => {
-  const id = url.pathname.split("/").findLast(Boolean);
+const VIMEO_HOSTS = new Set(["vimeo.com", "www.vimeo.com", "player.vimeo.com"]);
 
-  return id && /^\d+$/u.test(id) ? id : undefined;
+const VIMEO_HASH = /^[\da-f]+$/u;
+
+/**
+ * A Vimeo player URL from a page, share or player URL. Unlisted videos only
+ * play with their privacy hash: /<id>/<hash> on a share URL, ?h= on others.
+ */
+const vimeoPlayer = (url: URL): string | undefined => {
+  const segments = url.pathname.split("/").filter(Boolean);
+  const index = segments.findIndex((segment) => /^\d+$/u.test(segment));
+  const id = segments[index];
+
+  if (!id) {
+    return undefined;
+  }
+
+  const hash = url.searchParams.get("h") ?? segments[index + 1];
+  const player = new URL(`https://player.vimeo.com/video/${id}`);
+
+  player.searchParams.set("dnt", "1");
+
+  if (hash && VIMEO_HASH.test(hash)) {
+    player.searchParams.set("h", hash);
+  }
+
+  return player.href;
 };
 
 /** True for an X (Twitter) post: /<user>/status/<id>. */
@@ -79,13 +102,10 @@ export const playerFor = (value: string): Player | undefined => {
     };
   }
 
-  const vimeo = url.hostname.endsWith("vimeo.com") ? vimeoId(url) : undefined;
+  const vimeo = VIMEO_HOSTS.has(url.hostname) ? vimeoPlayer(url) : undefined;
 
   if (vimeo) {
-    return {
-      kind: "video",
-      src: `https://player.vimeo.com/video/${vimeo}?dnt=1`,
-    };
+    return { kind: "video", src: vimeo };
   }
 
   if (X_HOSTS.has(url.hostname) && isXPost(url)) {

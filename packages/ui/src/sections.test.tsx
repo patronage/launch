@@ -149,6 +149,14 @@ describe(RichTextBlock, () => {
     expect(
       draw({ type: "embed", url: "https://vimeo.com/76979871" })
     ).toContain('src="https://player.vimeo.com/video/76979871?dnt=1"');
+    expect(
+      draw({ type: "embed", url: "https://vimeo.com/76979871/abc123def" })
+    ).toContain(
+      'src="https://player.vimeo.com/video/76979871?dnt=1&amp;h=abc123def"'
+    );
+    expect(
+      draw({ type: "embed", url: "https://notvimeo.com/76979871" })
+    ).not.toContain("<iframe");
   });
 
   it("draws an X post with X's widget", () => {

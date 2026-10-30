@@ -1,6 +1,7 @@
 import {
   Container,
   Figure,
+  PageHero,
   PageSections,
   RichText as RichTextFrame,
   Section,
@@ -94,15 +95,38 @@ export const generateMetadata = async ({ params }: Props) => {
   return page ? { title: page.title } : {};
 };
 
+/** The page's rich text, for pages without sections. */
+const PageContent = ({ page }: { page: PayloadPage }) =>
+  page.content ? (
+    <RichTextFrame className="max-w-3xl">
+      <PayloadRichText data={page.content} />
+    </RichTextFrame>
+  ) : null;
+
 /**
- * The page's hero and sections. A page with neither falls back to its title,
- * hero image and rich text, as an article.
+ * The page's hero and sections. A page without sections shows its rich text
+ * under the hero, or under its title and hero image as an article.
  */
 const PageBody = ({ page }: { page: PayloadPage }) => {
   const model = payloadAdapter.toPage(page);
 
-  if (model.hero || model.sections.length > 0) {
+  if (model.sections.length > 0) {
     return <PageSections page={model} />;
+  }
+
+  if (model.hero) {
+    return (
+      <>
+        <PageHero hero={model.hero} />
+        {page.content && (
+          <Section paddingBottom="lg" paddingTop="md">
+            <Container>
+              <PageContent page={page} />
+            </Container>
+          </Section>
+        )}
+      </>
+    );
   }
 
   const image = toImage(page.hero?.image);
@@ -114,11 +138,7 @@ const PageBody = ({ page }: { page: PayloadPage }) => {
           {page.title}
         </Typography>
         {image && <Figure media={{ image }} />}
-        {page.content && (
-          <RichTextFrame className="max-w-3xl">
-            <PayloadRichText data={page.content} />
-          </RichTextFrame>
-        )}
+        <PageContent page={page} />
       </Container>
     </Section>
   );
