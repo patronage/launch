@@ -1,7 +1,6 @@
 # Tracked files that are for local development and deploys, not the webroot.
 _build/
 bin/
-seed/
 .env.example
 .gitignore
 README.md

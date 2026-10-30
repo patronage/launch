@@ -1,7 +1,7 @@
 <?php
 /**
  * Field builders shared by the field groups in fields/, loaded by
- * inc/fields.php before them.
+ * patronage-fields.php before them.
  */
 
 use Extended\ACF\Fields\ButtonGroup;
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 /** Every layout's section options, in a tab after its content. */
-function patronage_headless_section_options(): array {
+function patronage_fields_section_options(): array {
   $spacing = ['none' => 'None', 'sm' => 'Small', 'md' => 'Medium', 'lg' => 'Large'];
 
   return [
@@ -60,7 +60,7 @@ function patronage_headless_section_options(): array {
 }
 
 /** Buttons under a section's text. */
-function patronage_headless_links(): Repeater {
+function patronage_fields_links(): Repeater {
   return Repeater::make('Links', 'links')
     ->layout('table')
     ->button('Add link')
@@ -74,21 +74,21 @@ function patronage_headless_links(): Repeater {
     ]);
 }
 
-function patronage_headless_image(string $label, string $name): Image {
+function patronage_fields_image(string $label, string $name): Image {
   return Image::make($label, $name)->format('array')->previewSize('medium')->library('all');
 }
 
-function patronage_headless_layout(string $label, string $name, array $fields): Layout {
+function patronage_fields_layout(string $label, string $name, array $fields): Layout {
   return Layout::make($label, $name)
     ->layout('block')
-    ->fields([Tab::make('Content', 'content_tab'), ...$fields, ...patronage_headless_section_options()]);
+    ->fields([Tab::make('Content', 'content_tab'), ...$fields, ...patronage_fields_section_options()]);
 }
 
 /**
  * Rich text. Buttons, images, pullquotes and embeds go in as the shortcodes
- * in inc/rich-text-blocks.php.
+ * in rich-text-blocks.php.
  */
-function patronage_headless_body(string $label = 'Body', string $name = 'body'): WYSIWYGEditor {
+function patronage_fields_body(string $label = 'Body', string $name = 'body'): WYSIWYGEditor {
   return WYSIWYGEditor::make($label, $name)
     ->tabs('visual')
     ->toolbar('basic')

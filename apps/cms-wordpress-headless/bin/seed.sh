@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Seeds invented demo content (seed/seed.php). Skips pages that exist.
+# Seeds invented demo content (wordpress-shared/patronage-fields/seed, mounted
+# at /seed). Skips pages that exist.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

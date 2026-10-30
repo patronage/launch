@@ -1,2 +1,4 @@
 # Copied from wordpress-shared/patronage-access by bin/build.sh for deploys.
 wp-content/mu-plugins/patronage-access.php
+# Copied from wordpress-shared/patronage-fields by bin/build.sh (and bind-mounted by Docker).
+wp-content/mu-plugins/patronage-fields/

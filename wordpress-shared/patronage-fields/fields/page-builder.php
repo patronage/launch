@@ -10,7 +10,7 @@
  *
  * Choice fields are button groups, which WPGraphQL returns as a string;
  * select fields come back as one-item lists. Section options and the other
- * shared field builders are in inc/field-helpers.php.
+ * shared field builders are in field-helpers.php.
  */
 
 use Extended\ACF\Fields\ButtonGroup;
@@ -28,6 +28,8 @@ if (!defined('ABSPATH')) {
 
 register_extended_field_group([
   'title' => 'Page Builder',
+  // The key predates this shared folder. ACF derives the stored field keys
+  // from it, so changing it would orphan existing content.
   'key' => 'patronage_headless_page_builder',
   'show_in_graphql' => true,
   'graphql_field_name' => 'pageBuilder',
@@ -40,22 +42,22 @@ register_extended_field_group([
     FlexibleContent::make('Sections', 'sections')
       ->button('Add section')
       ->layouts([
-        patronage_headless_layout('Content', 'content', [
+        patronage_fields_layout('Content', 'content', [
           Text::make('Eyebrow', 'eyebrow'),
           Text::make('Heading', 'heading'),
-          patronage_headless_body(),
-          patronage_headless_links(),
+          patronage_fields_body(),
+          patronage_fields_links(),
           ButtonGroup::make('Align', 'align')
             ->choices(['start' => 'Start', 'center' => 'Center'])
             ->default('start')
             ->format('value'),
         ]),
-        patronage_headless_layout('Content and media', 'content_media', [
+        patronage_fields_layout('Content and media', 'content_media', [
           Text::make('Eyebrow', 'eyebrow'),
           Text::make('Heading', 'heading'),
-          patronage_headless_body(),
-          patronage_headless_links(),
-          patronage_headless_image('Media', 'media')
+          patronage_fields_body(),
+          patronage_fields_links(),
+          patronage_fields_image('Media', 'media')
             ->helperText('The image caption, if any, is shown under it.')
             ->required(),
           ButtonGroup::make('Media position', 'media_position')
@@ -63,12 +65,12 @@ register_extended_field_group([
             ->default('end')
             ->format('value'),
         ]),
-        patronage_headless_layout('Media', 'media', [
-          patronage_headless_image('Media', 'media')
+        patronage_fields_layout('Media', 'media', [
+          patronage_fields_image('Media', 'media')
             ->helperText('The image caption, if any, is shown under it.')
             ->required(),
         ]),
-        patronage_headless_layout('Card grid', 'card_grid', [
+        patronage_fields_layout('Card grid', 'card_grid', [
           Text::make('Heading', 'heading'),
           ButtonGroup::make('Columns', 'columns')
             ->choices(['2' => '2', '3' => '3', '4' => '4'])
@@ -81,24 +83,24 @@ register_extended_field_group([
             ->fields([
               Text::make('Title', 'title')->required(),
               Textarea::make('Text', 'text')->rows(3)->helperText('Plain text.'),
-              patronage_headless_image('Image', 'image'),
+              patronage_fields_image('Image', 'image'),
               Link::make('Link', 'link')->format('array'),
             ]),
         ]),
-        patronage_headless_layout('Blockquote', 'blockquote', [
+        patronage_fields_layout('Blockquote', 'blockquote', [
           Textarea::make('Quote', 'quote')->rows(4)->required()->helperText('Plain text.'),
           Text::make('Attribution', 'attribution')->wrapper(['width' => 50]),
           Text::make('Role', 'role')->wrapper(['width' => 50]),
-          patronage_headless_image('Image', 'image'),
+          patronage_fields_image('Image', 'image'),
         ]),
-        patronage_headless_layout('Call to action', 'call_to_action', [
+        patronage_fields_layout('Call to action', 'call_to_action', [
           Text::make('Heading', 'heading')->required(),
-          patronage_headless_body(),
-          patronage_headless_links(),
+          patronage_fields_body(),
+          patronage_fields_links(),
         ]),
-        patronage_headless_layout('Form', 'form', [
+        patronage_fields_layout('Form', 'form', [
           Text::make('Heading', 'heading'),
-          patronage_headless_body(),
+          patronage_fields_body(),
           Select::make('Form', 'form_id')
             ->helperText('A form from Forms (Formidable). Its fields, button label and success message come from there.')
             ->format('value')

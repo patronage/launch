@@ -5,8 +5,8 @@ This install deploys with [wp-deploy](../../../wordpress-shared/wp-deploy/README
 | File | Purpose |
 | --- | --- |
 | `deploy.env` | Committed settings: Cloudways, branch `main`, and `bin/build.sh` as the build step |
-| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) and `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) |
-| `.deploy_exclude.txt` | Keeps the local tooling (`bin/`, `seed/`, Docker and Composer files, this folder) out of the webroot |
+| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) and `wp-content/mu-plugins/patronage-fields/` (copied from [`wordpress-shared/patronage-fields`](../../../wordpress-shared/patronage-fields)) |
+| `.deploy_exclude.txt` | Keeps the local tooling (`bin/`, Docker and Composer files, this folder) out of the webroot |
 | `wp-config-environment.php` | Sample block for each environment's `wp-config.php`: `HEADLESS_*`, revalidation and Access constants |
 
 The repo is public, so the Cloudways server IPs, application paths and SSH users go in `.env` next to this folder (gitignored), not in `deploy.env`. `.env.example` lists the names.

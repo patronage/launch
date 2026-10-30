@@ -21,3 +21,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0011](0011-cms-behind-cloudflare-access.md) | Every CMS behind Cloudflare Access; read-only Service tokens |
 | [0012](0012-one-mcp-worker.md) | One MCP Worker with a backend package per CMS |
 | [0013](0013-wordpress-deploy-kit.md) | The WordPress deploy kit lives in `wordpress-shared/wp-deploy` |
+| [0015](0015-shared-wordpress-fields.md) | Field groups, post types and seed in `wordpress-shared/patronage-fields`, shared by both WordPress installs |

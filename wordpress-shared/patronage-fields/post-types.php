@@ -1,7 +1,7 @@
 <?php
 /**
  * Post types and their admin list columns, defined in PHP with Extended CPTs
- * (johnbillion/extended-cpts, a Composer library loaded by inc/fields.php).
+ * (johnbillion/extended-cpts, a Composer library loaded by patronage-fields.php).
  *
  * Register a new post type here with register_extended_post_type() on init;
  * set 'show_in_graphql', 'graphql_single_name' and 'graphql_plural_name' so
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 /** Columns every list shares, after the title. */
-function patronage_headless_admin_cols_base(): array {
+function patronage_fields_admin_cols_base(): array {
   return [
     'title' => 'title',
     'author' => 'author',
@@ -28,7 +28,7 @@ function patronage_headless_admin_cols_base(): array {
 }
 
 /** Adds list columns to a post type that is already registered. */
-function patronage_headless_extend_post_type(string $post_type, array $admin_cols): void {
+function patronage_fields_extend_post_type(string $post_type, array $admin_cols): void {
   $object = get_post_type_object($post_type);
   if (!$object || !function_exists('register_extended_post_type')) {
     return;
@@ -49,8 +49,8 @@ function patronage_headless_extend_post_type(string $post_type, array $admin_col
 add_action(
   'init',
   function (): void {
-    patronage_headless_extend_post_type('page', [
-      ...patronage_headless_admin_cols_base(),
+    patronage_fields_extend_post_type('page', [
+      ...patronage_fields_admin_cols_base(),
       'sections' => [
         'title' => 'Sections',
         // ACF stores a flexible content field as the list of its rows' layouts.
@@ -61,8 +61,8 @@ add_action(
       ],
     ]);
 
-    patronage_headless_extend_post_type('post', [
-      ...patronage_headless_admin_cols_base(),
+    patronage_fields_extend_post_type('post', [
+      ...patronage_fields_admin_cols_base(),
       'categories' => ['taxonomy' => 'category', 'sortable' => false],
       'published' => [
         'title' => 'Published',

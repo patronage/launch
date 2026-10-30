@@ -11,7 +11,8 @@
  * Images come from packages/demo-content, mounted at /demo-content.
  *
  * Pages that already exist are left alone, so editors' changes survive a
- * rerun. `pnpm --filter cms-wordpress-headless reset` starts from scratch.
+ * rerun. Each install's `reset` script (e.g. `pnpm --filter cms-wordpress-timber
+ * reset`) starts from scratch.
  */
 
 if (!defined('WP_CLI') || !WP_CLI) {

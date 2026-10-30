@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the files a deploy adds to git's: the production plugins and libraries
-# from composer.lock, and the shared Access mu-plugin. _build/deploy.sh runs it
-# as DEPLOY_BUILD_TASK, and _build/.deploy_include.txt adds its output.
+# from composer.lock, and the shared Access and fields mu-plugins.
+# _build/deploy.sh runs it as DEPLOY_BUILD_TASK, and _build/.deploy_include.txt adds its output.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -49,3 +49,10 @@ fi
 # Read it from HEAD: the deploy's clean-tree check covers only this folder, and
 # the deploy commit names HEAD as its source.
 git show HEAD:./../../wordpress-shared/patronage-access/patronage-access.php >wp-content/mu-plugins/patronage-access.php
+
+# The shared field groups and post types, minus their seed. The committed
+# mu-plugins/patronage-fields.php loads them from this folder.
+rm -rf wp-content/mu-plugins/patronage-fields
+mkdir -p wp-content/mu-plugins/patronage-fields
+git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-fields patronage-fields.php post-types.php fields |
+  tar -x -C wp-content/mu-plugins/patronage-fields
