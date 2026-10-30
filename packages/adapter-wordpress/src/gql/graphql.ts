@@ -27,7 +27,14 @@ export type PageBuilderLinksFragment = { variant: string | null, link: { title: 
 
 export type PageBuilderSectionOptionsFragment = { skin: string | null, width: string | null, paddingTop: string | null, paddingBottom: string | null, anchor: string | null, hidden: boolean | null };
 
-export type PageHeroFieldsFragment = { hero: { variant: Array<string | null> | null, title: string | null, eyebrow: string | null, skin: string | null, align: string | null, subhead: string | null, body: string | null, image: { node: { sourceUrl: string | null, altText: string | null, caption: string | null, mediaDetails: { width: number | null, height: number | null } | null } } | null, links: Array<{ variant: string | null, link: { title: string | null, url: string | null, target: string | null } | null } | null> | null } | null };
+type PageHeroFields_Page_Fragment = { hero: { variant: Array<string | null> | null, title: string | null, eyebrow: string | null, skin: string | null, align: string | null, subhead: string | null, body: string | null, image: { node: { sourceUrl: string | null, altText: string | null, caption: string | null, mediaDetails: { width: number | null, height: number | null } | null } } | null, links: Array<{ variant: string | null, link: { title: string | null, url: string | null, target: string | null } | null } | null> | null } | null };
+
+type PageHeroFields_Post_Fragment = { hero: { variant: Array<string | null> | null, title: string | null, eyebrow: string | null, skin: string | null, align: string | null, subhead: string | null, body: string | null, image: { node: { sourceUrl: string | null, altText: string | null, caption: string | null, mediaDetails: { width: number | null, height: number | null } | null } } | null, links: Array<{ variant: string | null, link: { title: string | null, url: string | null, target: string | null } | null } | null> | null } | null };
+
+export type PageHeroFieldsFragment =
+  | PageHeroFields_Page_Fragment
+  | PageHeroFields_Post_Fragment
+;
 
 export type PageBuilderFormFragment = { id: string, submitLabel: string, confirmation: string | null, fields: Array<{ type: string, name: string, label: string | null, required: boolean, width: number | null, defaultValue: string | null, message: string | null, options: Array<{ label: string, value: string }> | null }> };
 

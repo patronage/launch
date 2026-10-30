@@ -27,7 +27,7 @@ pnpm --filter web-wordpress run builds:configure   # point Workers Builds at thi
 - `app/forms/submit`: where form sections post `{ formId, values }`. It caps the body size, checks the shape and passes the values to the theme's Formidable route with the shared secret; WordPress checks each value against its field and saves the entry (see [Forms](../cms-wordpress-headless/README.md#forms)).
 - `lib/wordpress/`: the GraphQL client, queries and preview-token check.
 - `app/media/[...path]`: WordPress uploads, resized by the Cloudflare Images binding (`@launch/images`). vinext's `/_next/image` only resizes files in `public/` on Workers, so the adapter's `imageUrl` points every upload here instead.
-- `lib/wordpress/sections.ts` and `components/content-view.tsx`: a page's hero and Page Builder sections go through `@launch/adapter-wordpress` to `PageSections` from `@launch/ui`, with rich-text blocks drawn by its `RichTextBlock`. Posts, and pages with neither, show their title and the block editor's HTML.
+- `lib/wordpress/sections.ts` and `components/content-view.tsx`: a page or post's hero and a page's Page Builder sections go through `@launch/adapter-wordpress` to `PageSections` from `@launch/ui`, with rich-text blocks drawn by its `RichTextBlock`. Without a hero, the title heads the page; block editor HTML follows when there are no sections.
 
 ## GraphQL types and registered queries
 

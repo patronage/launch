@@ -19,6 +19,7 @@ export const ContentFields = graphql(`
           name
         }
       }
+      ...PageHeroFields
     }
     # Shared with @launch/adapter-wordpress, which maps them to the content model.
     ... on Page {

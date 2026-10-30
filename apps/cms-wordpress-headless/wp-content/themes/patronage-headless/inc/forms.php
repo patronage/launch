@@ -12,6 +12,10 @@
  *   and the shared secret in X-Headless-Secret-Key, checks each value against
  *   its field and saves a Formidable entry.
  *
+ * Pages read their form at render time, so changing a form in Formidable
+ * expires every page (the `wordpress` tag; form edits are rare), like a menu
+ * change does.
+ *
  * A field's submitted name is its Formidable field key. Keys are unique
  * across all forms, so a key that starts with its form's key and an
  * underscore (`volunteer_email`) is named without that prefix (`email`).
@@ -277,3 +281,13 @@ add_action('rest_api_init', function (): void {
     },
   ]);
 });
+
+if (function_exists('patronage_headless_revalidate_queue_tags')) {
+  // Saving a form in Formidable's builder or settings updates the form and
+  // its fields together; deleting a field outside a save has its own hook.
+  foreach (['frm_update_form', 'frm_destroy_form', 'frm_before_destroy_field'] as $hook) {
+    add_action($hook, function (): void {
+      patronage_headless_revalidate_queue_tags([PATRONAGE_HEADLESS_CACHE_ALL_TAG]);
+    });
+  }
+}

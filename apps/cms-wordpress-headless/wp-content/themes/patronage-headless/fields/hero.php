@@ -1,8 +1,9 @@
 <?php
 /**
- * Hero: the top of a page, shaped after `Hero` in packages/content-model and
- * the Payload app's hero group. With no variant the page has no hero, and
- * its first section's heading is the <h1>. Each variant shows only the
+ * Hero: the top of a page or post, shaped after `Hero` in
+ * packages/content-model and the Payload app's hero group. With no variant
+ * there is no hero: a page opens with its first section's heading as the
+ * <h1>, and a post with its title. Each variant shows only the
  * fields it draws, and the adapter ignores any left over from another.
  */
 
@@ -32,7 +33,7 @@ register_extended_field_group([
   'map_graphql_types_from_location_rules' => true,
   'position' => 'acf_after_title',
   'style' => 'default',
-  'location' => [Location::where('post_type', '==', 'page')],
+  'location' => [Location::where('post_type', '==', 'page'), Location::where('post_type', '==', 'post')],
   'fields' => [
     Select::make('Variant', 'variant')
       ->choices([
@@ -72,3 +73,39 @@ register_extended_field_group([
     patronage_headless_links()->conditionalLogic($patronage_headless_any_hero),
   ],
 ]);
+
+/**
+ * Moves heroes saved with the old fields (headline, intro, cta) to a simple
+ * hero, once, so content entered before the variants keeps its hero. The old
+ * values stay in post meta.
+ */
+add_action('init', function (): void {
+  if ((int) get_option('patronage_headless_hero_version') >= 2) {
+    return;
+  }
+  $ids = get_posts([
+    'post_type' => ['page', 'post'],
+    'post_status' => 'any',
+    'numberposts' => -1,
+    'fields' => 'ids',
+    'meta_query' => [
+      'relation' => 'OR',
+      ['key' => 'headline', 'value' => '', 'compare' => '!='],
+      ['key' => 'intro', 'value' => '', 'compare' => '!='],
+      ['key' => 'cta', 'value' => '', 'compare' => '!='],
+    ],
+  ]);
+  foreach ($ids as $id) {
+    if (get_post_meta($id, 'variant', true)) {
+      continue;
+    }
+    $cta = maybe_unserialize(get_post_meta($id, 'cta', true));
+    update_field('variant', 'simple', $id);
+    update_field('title', (string) get_post_meta($id, 'headline', true), $id);
+    update_field('subhead', (string) get_post_meta($id, 'intro', true), $id);
+    if (is_array($cta) && !empty($cta['url'])) {
+      update_field('links', [['link' => $cta, 'variant' => 'primary']], $id);
+    }
+  }
+  update_option('patronage_headless_hero_version', 2);
+});
