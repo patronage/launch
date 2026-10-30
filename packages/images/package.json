@@ -1,0 +1,19 @@
+{
+  "name": "@launch/images",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Serves CMS images through the Cloudflare Images binding, so adapters' imageUrl option can point every image at one same-origin route.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}

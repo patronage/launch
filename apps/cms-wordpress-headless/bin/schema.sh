@@ -9,4 +9,6 @@ docker compose run --rm -T cli sh -c \
   'wp graphql generate-static-schema --output=/tmp/schema.graphql >/dev/null 2>&1 && cat /tmp/schema.graphql' \
   >../web-wordpress/schema.graphql.tmp
 mv ../web-wordpress/schema.graphql.tmp ../web-wordpress/schema.graphql
+# Format it as `pnpm lint` expects.
+(cd ../.. && pnpm exec oxfmt apps/web-wordpress/schema.graphql >/dev/null)
 echo "Wrote apps/web-wordpress/schema.graphql"

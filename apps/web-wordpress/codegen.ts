@@ -8,6 +8,8 @@ const config: CodegenConfig = {
     "app/**/*.{ts,tsx}",
     "lib/**/*.{ts,tsx}",
     "components/**/*.{ts,tsx}",
+    // The Page Builder fragment the adapter is typed against.
+    "../../packages/adapter-wordpress/src/page-builder.graphql",
   ],
   generates: {
     "gql/": {

@@ -1,66 +1,32 @@
 <?php
 /**
- * Field groups the front-end queries, registered in PHP so they live in git.
- * They use ACF (free) field types only.
+ * Loads the ACF field groups in fields/, written with Extended ACF
+ * (vinkla/extended-acf), so field definitions live in git as PHP. Field JSON
+ * is neither loaded nor saved: editing fields in wp-admin changes nothing.
+ *
+ * Extended ACF and Extended CPTs (inc/post-types.php) are Composer libraries,
+ * installed into wp-content/plugins/composer-libs with the plugins and
+ * loaded here.
  */
 
 if (!defined('ABSPATH')) {
   exit();
 }
 
-add_action('acf/include_fields', function (): void {
-  if (!function_exists('acf_add_local_field_group')) {
+$patronage_headless_autoload = WP_CONTENT_DIR . '/plugins/composer-libs/autoload.php';
+if (is_readable($patronage_headless_autoload)) {
+  require_once $patronage_headless_autoload;
+}
+
+add_filter('acf/settings/load_json', '__return_empty_array');
+add_filter('acf/settings/save_json', '__return_false');
+
+add_action('acf/init', function (): void {
+  if (!function_exists('register_extended_field_group')) {
+    error_log('Extended ACF is missing: run composer install in apps/cms-wordpress-headless');
     return;
   }
-
-  acf_add_local_field_group([
-    'key' => 'group_patronage_headless_hero',
-    'title' => 'Hero',
-    'show_in_graphql' => true,
-    'graphql_field_name' => 'hero',
-    'map_graphql_types_from_location_rules' => true,
-    'position' => 'acf_after_title',
-    'location' => [
-      [['param' => 'post_type', 'operator' => '==', 'value' => 'page']],
-      [['param' => 'post_type', 'operator' => '==', 'value' => 'post']],
-    ],
-    'fields' => [
-      [
-        'key' => 'field_patronage_headless_hero_eyebrow',
-        'label' => 'Eyebrow',
-        'name' => 'eyebrow',
-        'type' => 'text',
-        'show_in_graphql' => true,
-        'graphql_field_name' => 'eyebrow',
-      ],
-      [
-        'key' => 'field_patronage_headless_hero_headline',
-        'label' => 'Headline',
-        'name' => 'headline',
-        'type' => 'text',
-        'instructions' => 'Defaults to the title.',
-        'show_in_graphql' => true,
-        'graphql_field_name' => 'headline',
-      ],
-      [
-        'key' => 'field_patronage_headless_hero_intro',
-        'label' => 'Intro',
-        'name' => 'intro',
-        'type' => 'textarea',
-        'rows' => 3,
-        'new_lines' => '',
-        'show_in_graphql' => true,
-        'graphql_field_name' => 'intro',
-      ],
-      [
-        'key' => 'field_patronage_headless_hero_cta',
-        'label' => 'Call to action',
-        'name' => 'cta',
-        'type' => 'link',
-        'return_format' => 'array',
-        'show_in_graphql' => true,
-        'graphql_field_name' => 'cta',
-      ],
-    ],
-  ]);
+  foreach (glob(get_template_directory() . '/fields/*.php') ?: [] as $file) {
+    require_once $file;
+  }
 });

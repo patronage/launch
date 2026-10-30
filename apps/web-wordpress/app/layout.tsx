@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import { getLayout } from "@/lib/wordpress/layout";
 
+import "@launch/ui/tokens.css";
+import "@launch/ui/sections.css";
 import "./globals.css";
 
 export const generateMetadata = async (): Promise<Metadata> => {

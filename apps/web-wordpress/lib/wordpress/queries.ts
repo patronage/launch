@@ -32,6 +32,10 @@ export const ContentFields = graphql(`
         }
       }
     }
+    # Shared with @launch/adapter-wordpress, which maps it to the content model.
+    ... on Page {
+      ...PageBuilderFields
+    }
   }
 `);
 

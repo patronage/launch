@@ -1,0 +1,31 @@
+---
+title: Workers Builds
+description: How each app builds and deploys on push with Cloudflare Workers Builds, with Preview URLs for every branch and no GitHub Actions.
+---
+
+Each deployable app is connected to Cloudflare Workers Builds on its own, so a push to `main` deploys production and a push to any other branch deploys a Worker Preview named after the branch.
+
+| Setting | Value |
+| --- | --- |
+| Root directory | the app folder, such as `apps/web-wordpress` |
+| Watch paths | the app folder, `packages/*`, `pnpm-lock.yaml` and `pnpm-workspace.yaml`, so a change to another app does not rebuild this one |
+| Build command | `pnpm -w run verify`, so a failing check stops the deploy |
+| Production deploy | `pnpm run deploy`, on `main` |
+| Preview deploy | `pnpm run deploy --preview`, on every other branch |
+| Build variables | `NODE_VERSION` from `.nvmrc`, `PNPM_VERSION` from the root `packageManager`, `SKIP_DEPENDENCY_INSTALL=1` |
+
+`SKIP_DEPENDENCY_INSTALL` is set because an app folder has no lockfile of its own; `pnpm verify` does the install from the workspace root instead.
+
+## Connect an app
+
+Each app's `pnpm run builds:configure` creates this configuration through the Workers Builds API. It reads the Worker name from `cloudflare.config.ts` and the Node and pnpm versions from the repo, so the only inputs are ids.
+
+1. Once for the repo, install the Cloudflare GitHub app on it from the dashboard. This is the only dashboard step.
+2. Deploy once from your machine, so the Worker exists: `pnpm run deploy`.
+3. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids.
+4. Run `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
+5. Push a branch and check that its Preview comes up, then merge and check production.
+
+Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
+
+The full write-up, including what the first run taught, is in [Workers Builds and preview URLs](/research/workers-builds).

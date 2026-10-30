@@ -23,5 +23,7 @@ export default defineConfig({
     }),
   ],
   preview: { allowedHosts },
+  // packages/* pin their own React for tests; the app must render with one copy.
+  resolve: { dedupe: ["react", "react-dom"] },
   server: { allowedHosts },
 });

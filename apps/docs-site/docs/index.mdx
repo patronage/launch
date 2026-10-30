@@ -1,0 +1,35 @@
+---
+title: Launch
+description: Reference sites from Patronage for running a CMS behind Cloudflare Access, with fast front-ends on Cloudflare Workers.
+---
+
+Launch is Patronage's open-source monorepo of reference sites. Each one renders the same invented demo site from a different CMS, and in every case the CMS admin and API sit behind Cloudflare Access while only the public site is open.
+
+| Reference | CMS | Front-end |
+| --- | --- | --- |
+| Headless WordPress | WordPress with WPGraphQL | vinext on Workers |
+| Payload | Payload, one app on the Local API | vinext on Workers |
+| Traditional WordPress | WordPress with a Timber theme | The theme itself |
+
+<Callout type="note">
+  Launch is early. The work so far is a set of research spikes, written up under
+  [Research](/research). The source is on
+  [GitHub](https://github.com/patronage/launch).
+</Callout>
+
+## Where to start
+
+<CardGroup cols={2}>
+  <Card title="Getting started" href="/getting-started">
+    Clone the repo, install, and run the checks.
+  </Card>
+  <Card title="Architecture" href="/architecture">
+    How the apps and shared packages fit together.
+  </Card>
+  <Card title="Deploying to Workers" href="/deploy">
+    Every Worker deploys with the `cf` CLI and no Wrangler config.
+  </Card>
+  <Card title="Decisions" href="/decisions">
+    The choices made so far, and the ones still open.
+  </Card>
+</CardGroup>
