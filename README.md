@@ -19,7 +19,7 @@ In every case the CMS admin and API sit behind Cloudflare Access, and only the p
 ```
 apps/       Deployable apps: CMS installs, vinext front-ends, MCP Worker, docs-site
 packages/   Shared libraries: content model, UI, Access helpers, MCP core and backends
-docs/       Engineering docs; spike findings in docs/spikes/
+docs/       Engineering docs: decisions in docs/adr/, spike findings in docs/spikes/
 ```
 
 ## Getting started
