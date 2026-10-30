@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { sectionBlocks } from "../blocks";
+import { hero } from "../fields/hero";
 import { previewable } from "../lib/preview";
 import { payloadAdapter } from "../lib/sections";
 import type { Page } from "../payload-types";
@@ -21,7 +22,7 @@ export const Pages: CollectionConfig = {
   fields: [
     { name: "title", required: true, type: "text" },
     { index: true, name: "slug", required: true, type: "text", unique: true },
-    { name: "hero", relationTo: "media", type: "upload" },
+    hero,
     { name: "content", type: "richText" },
     {
       admin: {

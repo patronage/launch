@@ -14,7 +14,11 @@ export * from "./components/site-chrome";
 
 export * from "./components/typography";
 
+export { PageHero } from "./hero";
+
 export * from "./primitives";
+
+export { Embed, playerFor, Pullquote, RichTextBlock } from "./rich-text-blocks";
 
 export * from "./sections";
 

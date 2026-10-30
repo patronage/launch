@@ -1,4 +1,9 @@
-import type { Block, Page, SectionOptions } from "@launch/content-model";
+import type {
+  Block,
+  Page,
+  Section as PageSectionModel,
+  SectionOptions,
+} from "@launch/content-model";
 import { visibleSections } from "@launch/content-model";
 import type { ReactNode } from "react";
 
@@ -13,6 +18,7 @@ import {
 } from "./blocks";
 import { Container } from "./components/container";
 import { Section } from "./components/section";
+import { heroSkin, PageHero } from "./hero";
 
 /** A CMS section: its options become a Section and Container around the block. */
 export const PageSection = ({
@@ -80,24 +86,52 @@ export const BlockRenderer = ({
 };
 
 /**
- * Renders a page's visible sections. The first section's heading becomes the
- * page's <h1> unless `firstHeadingIsTitle` is false (for pages with their own hero).
+ * The options a section renders with. Two sections with the same skin read as
+ * one band, so the first drops its bottom padding and the second's top
+ * padding sets the gap between them.
+ */
+export const collapsedOptions = <R,>(
+  section: PageSectionModel<R>,
+  next: PageSectionModel<R> | undefined
+): SectionOptions =>
+  next?.options.skin === section.options.skin
+    ? { ...section.options, paddingBottom: "none" }
+    : section.options;
+
+/**
+ * Renders a page's hero and visible sections. The hero holds the page's <h1>;
+ * without one, the first section's heading becomes the <h1> unless
+ * `firstHeadingIsTitle` is false (for pages that draw their own title).
  */
 export const PageSections = ({
   page,
-  firstHeadingIsTitle = true,
+  firstHeadingIsTitle,
 }: {
   page: Page<ReactNode>;
   firstHeadingIsTitle?: boolean;
-}) => (
-  <>
-    {visibleSections(page).map((section, index) => (
-      <PageSection key={section.block.id} options={section.options}>
-        <BlockRenderer
-          block={section.block}
-          headingLevel={index === 0 && firstHeadingIsTitle ? "h1" : "h2"}
+}) => {
+  const sections = visibleSections(page);
+  const sectionHoldsTitle = firstHeadingIsTitle ?? page.hero === undefined;
+
+  return (
+    <>
+      {page.hero ? (
+        <PageHero
+          hero={page.hero}
+          joinsNext={sections[0]?.options.skin === heroSkin(page.hero)}
         />
-      </PageSection>
-    ))}
-  </>
-);
+      ) : null}
+      {sections.map((section, index) => (
+        <PageSection
+          key={section.block.id}
+          options={collapsedOptions(section, sections[index + 1])}
+        >
+          <BlockRenderer
+            block={section.block}
+            headingLevel={index === 0 && sectionHoldsTitle ? "h1" : "h2"}
+          />
+        </PageSection>
+      ))}
+    </>
+  );
+};

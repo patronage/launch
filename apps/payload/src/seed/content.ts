@@ -1,6 +1,14 @@
-import type { Link, Page, SectionOptions } from "../payload-types";
+import type { Link, Page, PageHero, SectionOptions } from "../payload-types";
 import type { FormTitle } from "./forms";
-import { bulletList, pageLink, paragraph, richText, text } from "./lexical";
+import {
+  block,
+  bulletList,
+  button,
+  pageLink,
+  paragraph,
+  richText,
+  text,
+} from "./lexical";
 
 /**
  * The invented Neighborhood Growers site, the same content the WordPress seed
@@ -80,7 +88,87 @@ const formSection = (
   body: body ? richText(paragraph(body)) : null,
   form: formId,
   heading: heading ?? null,
-  sectionOptions: options({ paddingTop: "none" }),
+  sectionOptions: options(),
+});
+
+const urlLink = (label: string, url: string, variant: Link["variant"]) => ({
+  label,
+  newTab: true,
+  type: "custom" as const,
+  url,
+  variant,
+});
+
+/**
+ * A hero on every page but the home page, which opens with its intro section
+ * as the WordPress seed's does, and the tool share, which shows a page
+ * without one. Each variant appears once.
+ */
+export const heroes = ({
+  image,
+  page,
+}: SeedRefs): Partial<Record<PageSlug, PageHero>> => ({
+  apply: {
+    eyebrow: "Garden applications",
+    subhead:
+      "Tell us about the lot and the neighbors who want to grow there. We reply within two weeks.",
+    title: "Apply for a garden",
+    variant: "simple",
+  },
+  "get-involved": {
+    eyebrow: "Volunteer",
+    image: image("harvest.jpg"),
+    links: [toPage("Sign up below", page("get-involved"))],
+    subhead:
+      "Volunteer on a harvest day, mentor a new garden or join the seed library.",
+    variant: "split",
+  },
+  guide: {
+    align: "center",
+    body: richText<PageHero["body"]>(
+      paragraph(
+        "Everything a new garden needs in its first season, from a ",
+        text("soil test", "bold"),
+        " to a watering rota."
+      ),
+      paragraph(
+        button({
+          ...pageRef("Apply for a garden", page("apply")),
+          variant: "primary",
+        }),
+        " ",
+        button(
+          urlLink(
+            "Download the checklist",
+            "https://example.org/starter-checklist.pdf",
+            "secondary"
+          )
+        )
+      ),
+      block({
+        blockType: "embed",
+        caption: "A three-minute tour of a first-season garden.",
+        url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      })
+    ),
+    eyebrow: "Starter guide",
+    title: "Your first season",
+    variant: "freeform",
+  },
+  programs: {
+    image: image("tools.jpg"),
+    subhead: "Shared resources for every member garden, run by volunteers.",
+    variant: "media",
+  },
+  "seed-library": {
+    eyebrow: "Programs",
+    image: image("seeds.jpg"),
+    links: [toPage("Start a garden", page("apply"))],
+    skin: "dark",
+    subhead:
+      "Borrow seeds in spring and return saved seeds in fall, so the library grows every year.",
+    variant: "home",
+  },
 });
 
 export const layouts = ({
@@ -88,18 +176,8 @@ export const layouts = ({
   image,
   page,
 }: SeedRefs): Record<PageSlug, Layout> => ({
-  apply: [
-    intro(
-      "Apply for a garden",
-      "Tell us about the lot and the neighbors who want to grow there. We reply within two weeks."
-    ),
-    formSection(form("Garden application")),
-  ],
+  apply: [formSection(form("Garden application"))],
   "get-involved": [
-    intro(
-      "Get involved",
-      "Volunteer on a harvest day, mentor a new garden or join the seed library."
-    ),
     formSection(
       form("Volunteer sign-up"),
       "Volunteer with us",
@@ -113,10 +191,36 @@ export const layouts = ({
     },
   ],
   guide: [
-    intro(
-      "Starter guide",
-      "Everything a new garden needs in its first season, from soil tests to a watering rota."
-    ),
+    {
+      align: "start",
+      blockType: "content",
+      body: richText(
+        paragraph(
+          "Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel."
+        ),
+        block({
+          attribution: "Rosa Delgado, garden lead",
+          blockType: "pullquote",
+          quote:
+            "Test first, plant second. Raised beds fix almost anything the test finds.",
+        }),
+        block({
+          blockType: "image",
+          caption: "",
+          image: image("raised-beds.jpg"),
+        }),
+        paragraph(
+          "Once the beds are built, set a watering rota before the first hot week. ",
+          button({
+            ...pageRef("Find a mentor", page("get-involved")),
+            variant: "text",
+          })
+        )
+      ),
+      heading: "Test the soil first",
+      links: [],
+      sectionOptions: options({ width: "narrow" }),
+    },
   ],
   home: [
     {
@@ -237,15 +341,35 @@ export const layouts = ({
     },
   ],
   programs: [
-    intro(
-      "Programs",
-      "Shared resources for every member garden, run by volunteers."
-    ),
+    {
+      blockType: "cardGrid",
+      cards: [
+        {
+          image: image("seeds.jpg"),
+          link: pageRef("Browse seeds", page("seed-library")),
+          text: "Borrow seeds in spring, return saved seeds in fall.",
+          title: "Seed library",
+        },
+        {
+          image: image("tools.jpg"),
+          link: pageRef("Reserve a tool", page("tool-share")),
+          text: "Shovels, wheelbarrows and hoses for every member garden.",
+          title: "Tool share",
+        },
+      ],
+      columns: "2",
+      heading: "Share what we have",
+      sectionOptions: options(),
+    },
   ],
   "seed-library": [
     intro(
-      "Seed library",
-      "Borrow seeds in spring and return saved seeds in fall, so the library grows every year."
+      "How the library works",
+      "Pick up to five packets each spring. In the fall, bring back seed saved from your best plants, labeled with the crop, variety and garden."
+    ),
+    intro(
+      "Where to find it",
+      "The library lives in the shed at the Elm Street garden, open Saturday mornings from April to October."
     ),
   ],
   "tool-share": [

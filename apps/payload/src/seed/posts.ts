@@ -1,7 +1,9 @@
 import type { Post } from "../payload-types";
 import type { ImageFile, PageSlug } from "./content";
 import {
+  block,
   bulletList,
+  button,
   heading,
   pageLink,
   paragraph,
@@ -92,6 +94,20 @@ export const posts = ({
         "If your block has an empty lot and five neighbors who want to grow, ",
         pageLink("apply now", page("apply")),
         ". Applications for this round close December 15."
+      ),
+      block({
+        blockType: "embed",
+        caption: "What a build day looks like, start to finish.",
+        url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      }),
+      paragraph(
+        button({
+          label: "Apply for a garden",
+          newTab: false,
+          reference: { relationTo: "pages", value: page("apply") },
+          type: "reference",
+          variant: "primary",
+        })
       )
     ),
     excerpt:
@@ -118,6 +134,17 @@ export const posts = ({
         ["Harvest on a dry day and spread the seed on paper for a week."],
         ["Label everything: crop, variety, garden and year."]
       ),
+      block({
+        attribution: "Marcus Webb, seed library coordinator",
+        blockType: "pullquote",
+        quote:
+          "Every packet you return becomes three packets for someone else.",
+      }),
+      block({
+        blockType: "image",
+        caption: "Packets ready for the spring swap",
+        image: image("seeds.jpg"),
+      }),
       heading("h2", "Bringing seed back"),
       paragraph(
         "Drop labeled envelopes in the return box at any member garden, or bring them to the ",
@@ -148,7 +175,12 @@ export const posts = ({
         "If you're thinking about a garden on your block, read the ",
         pageLink("starter guide", page("guide")),
         ". It's everything I wish I'd known in year one."
-      )
+      ),
+      block({
+        blockType: "embed",
+        caption: "The embed block takes posts on X as well as videos.",
+        url: "https://x.com/jack/status/20",
+      })
     ),
     excerpt:
       "Seven years after the first raised bed, the Elm Street garden harvested more than half a ton of food this season.",

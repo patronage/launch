@@ -2,10 +2,12 @@ import { Fragment } from "react";
 import type { ReactNode } from "react";
 
 import type {
+  LexicalLinkFields,
   LexicalNode,
   LexicalState,
   PayloadPageRef,
   PayloadReference,
+  PayloadRichTextBlock,
 } from "./types";
 
 /**
@@ -18,7 +20,18 @@ import type {
 export interface LexicalRenderOptions {
   /** Turns an internal link's document into a site path. */
   resolveDoc: (doc: PayloadReference) => string | undefined;
+  /** Draws a block placed in the rich text. Without it, blocks are left out. */
+  renderBlock?: (block: PayloadRichTextBlock) => ReactNode;
 }
+
+/** True for a block's fields, which name their block type; link fields do not. */
+export const isRichTextBlock = (
+  fields: LexicalNode["fields"]
+): fields is PayloadRichTextBlock =>
+  fields instanceof Object && "blockType" in fields;
+
+const linkFields = (node: LexicalNode): LexicalLinkFields =>
+  isRichTextBlock(node.fields) ? {} : (node.fields ?? {});
 
 /** Lexical text format flags, innermost wrapper first. */
 const TEXT_FORMATS = [
@@ -62,7 +75,7 @@ const renderLink = (
   children: ReactNode,
   options: LexicalRenderOptions
 ): ReactNode => {
-  const fields = node.fields ?? {};
+  const fields = linkFields(node);
 
   const href =
     fields.linkType === "internal" && fields.doc
@@ -135,6 +148,13 @@ const renderNode = (
 
     case "horizontalrule": {
       return <hr key={key} />;
+    }
+
+    case "block":
+    case "inlineBlock": {
+      return isRichTextBlock(node.fields) ? (
+        <Fragment key={key}>{options.renderBlock?.(node.fields)}</Fragment>
+      ) : null;
     }
 
     default: {

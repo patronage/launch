@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { payloadHomeFixture } from "../fixtures";
 import { createPayloadAdapter } from "./index";
 import { renderLexical } from "./lexical";
-import type { LexicalNode, LexicalState } from "./types";
+import type { LexicalNode, LexicalState, PayloadHero } from "./types";
 
 const adapter = createPayloadAdapter({ serverUrl: "https://cms.example.com" });
 const page = adapter.toPage(payloadHomeFixture);
@@ -199,5 +199,141 @@ describe(renderLexical, () => {
     expect(
       render(state({ children: [text("kept")], type: "mystery", version: 1 }))
     ).toBe("kept");
+  });
+});
+
+describe("rich-text blocks", () => {
+  const drawn = createPayloadAdapter({
+    renderRichTextBlock: (block) => <i data-block={block.type} />,
+    serverUrl: "https://cms.example.com",
+  });
+
+  it("maps each block to the content model", () => {
+    expect(
+      drawn.richTextBlock({
+        blockType: "image",
+        caption: " ",
+        image: { alt: "Beds", caption: "Own", id: 1, url: "/a.jpg" },
+      })
+    ).toStrictEqual({
+      media: {
+        caption: "Own",
+        image: { alt: "Beds", src: "https://cms.example.com/a.jpg" },
+      },
+      type: "image",
+    });
+    expect(
+      drawn.richTextBlock({
+        blockType: "button",
+        link: { label: "Go", type: "custom", url: "/go", variant: "secondary" },
+      })
+    ).toStrictEqual({
+      link: { href: "/go", label: "Go", newTab: false, variant: "secondary" },
+      type: "button",
+    });
+    expect(drawn.richTextBlock({ blockType: "pullquote" })).toBeUndefined();
+    expect(
+      drawn.richTextBlock({ blockType: "image", image: 3 })
+    ).toBeUndefined();
+  });
+
+  it("hands block and inline-block nodes to renderRichTextBlock", () => {
+    const body = drawn.toPage({
+      ...payloadHomeFixture,
+      layout: [
+        {
+          blockType: "content",
+          body: state(
+            {
+              fields: { blockType: "embed", url: "https://youtu.be/abc123" },
+              type: "block",
+              version: 1,
+            },
+            {
+              children: [
+                text("Then "),
+                {
+                  fields: {
+                    blockType: "button",
+                    link: { label: "Go", type: "custom", url: "/go" },
+                  },
+                  type: "inlineBlock",
+                  version: 1,
+                },
+              ],
+              type: "paragraph",
+              version: 1,
+            }
+          ),
+          id: "x",
+        },
+      ],
+    }).sections[0]?.block;
+
+    expect(
+      body?.type === "content" && renderToStaticMarkup(<div>{body.body}</div>)
+    ).toBe(
+      '<div><i data-block="embed"></i><p>Then <i data-block="button"></i></p></div>'
+    );
+  });
+
+  it("leaves blocks out without renderRichTextBlock", () => {
+    expect(
+      render(
+        state({
+          fields: { blockType: "pullquote", quote: "Q" },
+          type: "block",
+          version: 1,
+        })
+      )
+    ).toBe("");
+  });
+});
+
+const withHero = (hero: PayloadHero) =>
+  adapter.toPage({ ...payloadHomeFixture, hero }).hero;
+
+describe("heroes", () => {
+  it("has no hero without a variant", () => {
+    expect(withHero({ title: "Kept" })).toBeUndefined();
+  });
+
+  it("maps the hero, defaulting the title to the page's", () => {
+    expect(
+      withHero({
+        body: state({
+          children: [text("Hidden")],
+          type: "paragraph",
+          version: 1,
+        }),
+        image: { alt: "Beds", id: 1, url: "/a.jpg" },
+        subhead: "Sub",
+        variant: "split",
+      })
+    ).toStrictEqual({
+      align: "start",
+      image: { alt: "Beds", src: "https://cms.example.com/a.jpg" },
+      links: [],
+      skin: "light",
+      subhead: "Sub",
+      title: payloadHomeFixture.title,
+      variant: "split",
+    });
+  });
+
+  it("draws rich text only in a free-form hero", () => {
+    const hero = withHero({
+      body: state({ children: [text("Body")], type: "paragraph", version: 1 }),
+      image: { alt: "Beds", id: 1, url: "/a.jpg" },
+      subhead: "Dropped",
+      title: "Free",
+      variant: "freeform",
+    });
+
+    expect(hero?.subhead).toBeUndefined();
+    expect(hero?.image).toBeUndefined();
+    expect(renderToStaticMarkup(<div>{hero?.body}</div>)).toBe(
+      "<div><p>Body</p></div>"
+    );
   });
 });

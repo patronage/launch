@@ -17,15 +17,31 @@ import {
   UnorderedListFeature,
   lexicalEditor,
 } from "@payloadcms/richtext-lexical";
-import type { Block } from "payload";
+import type { Block, Field } from "payload";
 
 import { link, links } from "../fields/link";
 import { sectionOptions } from "../fields/section-options";
+import { richTextBlocks } from "../rich-text/blocks";
 
 /**
  * One block per section type in @launch/content-model, with the same slugs and
- * field names. `sectionOptions` comes last so the content leads in the admin.
+ * field names. Each block's content and its section options sit on separate
+ * tabs, so the content leads in the admin.
  */
+
+/**
+ * A block's fields on a Content tab and its section options on an Options
+ * tab. The tabs are unnamed, so the stored data keeps its shape.
+ */
+const tabbed = (fields: Field[]): Field[] => [
+  {
+    tabs: [
+      { fields, label: "Content" },
+      { fields: [sectionOptions], label: "Options" },
+    ],
+    type: "tabs",
+  },
+];
 
 const eyebrow = { name: "eyebrow", type: "text" } as const;
 const heading = { name: "heading", type: "text" } as const;
@@ -51,6 +67,7 @@ export const sectionBodyEditor = lexicalEditor({
     OrderedListFeature(),
     BlockquoteFeature(),
     HorizontalRuleFeature(),
+    richTextBlocks(),
     FixedToolbarFeature(),
     InlineToolbarFeature(),
   ],
@@ -66,7 +83,7 @@ const upload = (name: string, required = false) =>
   ({ name, relationTo: "media", required, type: "upload" }) as const;
 
 export const Content: Block = {
-  fields: [
+  fields: tabbed([
     eyebrow,
     heading,
     body,
@@ -77,14 +94,13 @@ export const Content: Block = {
       type: "select",
     },
     links,
-    sectionOptions,
-  ],
+  ]),
   interfaceName: "ContentSection",
   slug: "content",
 };
 
 export const ContentMedia: Block = {
-  fields: [
+  fields: tabbed([
     eyebrow,
     heading,
     body,
@@ -96,14 +112,13 @@ export const ContentMedia: Block = {
       type: "select",
     },
     links,
-    sectionOptions,
-  ],
+  ]),
   interfaceName: "ContentMediaSection",
   slug: "contentMedia",
 };
 
 export const MediaSection: Block = {
-  fields: [upload("media", true), sectionOptions],
+  fields: tabbed([upload("media", true)]),
   // The default name, `Media`, would clash with the media collection's type.
   interfaceName: "MediaSection",
   labels: { plural: "Media", singular: "Media" },
@@ -111,7 +126,7 @@ export const MediaSection: Block = {
 };
 
 export const CardGrid: Block = {
-  fields: [
+  fields: tabbed([
     heading,
     {
       defaultValue: "3",
@@ -130,32 +145,30 @@ export const CardGrid: Block = {
       name: "cards",
       type: "array",
     },
-    sectionOptions,
-  ],
+  ]),
   interfaceName: "CardGridSection",
   slug: "cardGrid",
 };
 
 export const Blockquote: Block = {
-  fields: [
+  fields: tabbed([
     { name: "quote", required: true, type: "textarea" },
     { name: "attribution", type: "text" },
     { name: "role", type: "text" },
     upload("image"),
-    sectionOptions,
-  ],
+  ]),
   interfaceName: "BlockquoteSection",
   slug: "blockquote",
 };
 
 export const CallToAction: Block = {
-  fields: [{ ...heading, required: true }, body, links, sectionOptions],
+  fields: tabbed([{ ...heading, required: true }, body, links]),
   interfaceName: "CallToActionSection",
   slug: "callToAction",
 };
 
 export const FormSection: Block = {
-  fields: [
+  fields: tabbed([
     heading,
     body,
     {
@@ -167,8 +180,7 @@ export const FormSection: Block = {
       required: true,
       type: "relationship",
     },
-    sectionOptions,
-  ],
+  ]),
   // The default name, `Form`, would clash with the forms collection's type.
   interfaceName: "FormSection",
   labels: { plural: "Forms", singular: "Form" },
