@@ -91,6 +91,16 @@ describe(PageSections, () => {
     expect(html).not.toContain("<h2");
   });
 
+  it("drops the bottom padding between sections with the same skin", () => {
+    const light = [
+      ...html.matchAll(
+        /<section class="[^"]*(?<bottom>pb-[\w-]+)[^"]*" data-component="section" data-skin="light"/gu
+      ),
+    ].map((match) => match.groups?.bottom);
+
+    expect(light).toStrictEqual(["pb-0", "pb-section-md"]);
+  });
+
   it("drops hidden sections", () => {
     expect(html).not.toContain("Hidden");
   });

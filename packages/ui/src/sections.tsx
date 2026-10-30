@@ -1,4 +1,9 @@
-import type { Block, Page, SectionOptions } from "@launch/content-model";
+import type {
+  Block,
+  Page,
+  Section as PageSectionModel,
+  SectionOptions,
+} from "@launch/content-model";
 import { visibleSections } from "@launch/content-model";
 import type { ReactNode } from "react";
 
@@ -80,6 +85,19 @@ export const BlockRenderer = ({
 };
 
 /**
+ * The options a section renders with. Two sections with the same skin read as
+ * one band, so the first drops its bottom padding and the second's top
+ * padding sets the gap between them.
+ */
+export const collapsedOptions = <R,>(
+  section: PageSectionModel<R>,
+  next: PageSectionModel<R> | undefined
+): SectionOptions =>
+  next?.options.skin === section.options.skin
+    ? { ...section.options, paddingBottom: "none" }
+    : section.options;
+
+/**
  * Renders a page's visible sections. The first section's heading becomes the
  * page's <h1> unless `firstHeadingIsTitle` is false (for pages with their own hero).
  */
@@ -89,15 +107,22 @@ export const PageSections = ({
 }: {
   page: Page<ReactNode>;
   firstHeadingIsTitle?: boolean;
-}) => (
-  <>
-    {visibleSections(page).map((section, index) => (
-      <PageSection key={section.block.id} options={section.options}>
-        <BlockRenderer
-          block={section.block}
-          headingLevel={index === 0 && firstHeadingIsTitle ? "h1" : "h2"}
-        />
-      </PageSection>
-    ))}
-  </>
-);
+}) => {
+  const sections = visibleSections(page);
+
+  return (
+    <>
+      {sections.map((section, index) => (
+        <PageSection
+          key={section.block.id}
+          options={collapsedOptions(section, sections[index + 1])}
+        >
+          <BlockRenderer
+            block={section.block}
+            headingLevel={index === 0 && firstHeadingIsTitle ? "h1" : "h2"}
+          />
+        </PageSection>
+      ))}
+    </>
+  );
+};
