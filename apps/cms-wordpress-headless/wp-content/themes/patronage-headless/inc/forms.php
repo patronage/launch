@@ -265,6 +265,10 @@ add_action('rest_api_init', function (): void {
       if (is_wp_error($meta)) {
         return $meta;
       }
+      // Formidable silently drops an entry that repeats one from the last
+      // minute, which would read here as a failure; the form's own sending
+      // state already stops double submits.
+      add_filter('frm_time_to_check_duplicates', '__return_zero');
       $entry = FrmEntry::create(['form_id' => $form->id, 'item_key' => '', 'item_meta' => $meta]);
       if (!$entry) {
         return new WP_Error('patronage_form_failed', 'The entry was not saved.', ['status' => 500]);
