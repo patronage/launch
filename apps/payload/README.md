@@ -6,6 +6,7 @@ One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://gith
 - Media: R2
 - Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `posts` with `authors` and `categories`, `media`, and `forms` and `form-submissions` from the form-builder plugin; global: `site-settings`
 - Preview: pages and posts autosave drafts, and editors see them through the admin's preview button and Live Preview (see below)
+- MCP: Payload's MCP plugin serves read-only tools at `/api/mcp` to signed-in users (`src/mcp.ts`). With `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` set, a verified Access JWT signs the caller in as the user with the same email. See [the spike note](../../docs/spikes/14-payload-mcp-plugin.md).
 - Page sections: the `layout` blocks field holds one block per section type in `@launch/content-model` (`content`, `contentMedia`, `media`, `cardGrid`, `blockquote`, `callToAction`, `form`), each with a shared `sectionOptions` group. Field names match the content model and the WordPress ACF page builder, so `@launch/adapter-payload` only maps rich text, links and media.
 
 Findings and open problems are in [docs/spikes/05-payload-on-vinext.md](../../docs/spikes/05-payload-on-vinext.md).
@@ -23,6 +24,8 @@ pnpm payload migrate        # create the local D1 schema
 pnpm seed                   # optional: the demo site (see below)
 pnpm build && pnpm preview  # http://localhost:4173/admin
 ```
+
+On `localhost`, the admin's login page shows "Continue as …", which signs in as the first user without a password (a POST to `/next/local-login` from that page). It only answers requests made on the same machine: through a tunnel or on a deployed Worker, the button is hidden and the route returns 404.
 
 ### Demo content
 
@@ -77,6 +80,7 @@ Branch builds are off by default. To opt in, set `WORKER_PREVIEWS=true` when con
 - `src/app/(frontend)/[[...slug]]/page.tsx` serves every page by path. It reads the page through the Local API at depth 1 (`src/lib/page-query.ts`), checks the path against its nested-docs breadcrumbs, and renders the layout blocks with `PageSections` from `@launch/ui` through `@launch/adapter-payload`. Pages without blocks show the hero and rich text. `/` lists the pages until one has the slug `home`.
 - `src/app/(frontend)/news` lists published posts, featured first, then newest first. Each post is at `/news/<slug>`. A top-level page with the slug `news` would be hidden behind the listing.
 - Forms: the `form` section renders `Form` from `@launch/ui`, which posts `{ formId, values }` to `src/app/(frontend)/forms/submit`. That route keeps only the form's own fields, checks required ones and creates the submission with the visitor's access. Field types are limited to those the UI draws. Confirmation messages work; redirect confirmations and email delivery are not wired up yet (without an email adapter, form emails go to the log). WordPress has no `form` section yet.
+- Local sign-in: `src/lib/local-login.ts` treats a request as local when its host is localhost, miniflare's `cf-connecting-ip` and `x-forwarded-host` (when present) are loopback and localhost, and it carries no `cf-ray`, `cf-visitor`, `forwarded` or `x-forwarded-for` header, which Cloudflare's edge and tunnels add. `vite.config.ts` puts the real peer address in `cf-connecting-ip` when it is not loopback, because miniflare keeps a client-sent value. The route takes a same-origin POST only, then issues the same session and token as Payload's own login.
 - Preview: the preview button and Live Preview open `/next/preview?path=…` (`src/lib/preview.ts`). For a logged-in editor, that route turns on draft mode and redirects to the path. Front-end reads pass `draft: true` only when draft mode is on and the reader is logged in (`src/lib/payload.ts`), so the cookie alone shows nothing. In Live Preview, `LivePreviewRefresh` re-renders the page each time the document autosaves.
 - `src/app/(frontend)/media/[...path]` serves media resized by the Cloudflare Images binding (`@launch/images`). It gets the original from Payload's own file endpoint in-process, so Payload keeps its R2 keys and access rules. vinext's `/_next/image` only resizes files in `public/` on Workers.
 

@@ -19,6 +19,7 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0009](0009-shadcn-ui-package.md) | `packages/ui` on shadcn/ui and Tailwind 4 with Section, Container and Typography |
 | [0010](0010-wordpress-fields-in-php.md) | WordPress fields with vinkla/extended-acf on Secure Custom Fields, post types with extended-cpts |
 | [0011](0011-cms-behind-cloudflare-access.md) | Every CMS behind Cloudflare Access; read-only Service tokens |
-| [0012](0012-one-mcp-worker.md) | One MCP Worker with a backend package per CMS |
+| [0012](0012-one-mcp-worker.md) | Superseded by 0014 |
 | [0013](0013-wordpress-deploy-kit.md) | The WordPress deploy kit lives in `wordpress-shared/wp-deploy` |
+| [0014](0014-mcp-gateway-worker.md) | One MCP gateway Worker per site: Access sign-in, code mode, approved writes, published to npm |
 | [0015](0015-shared-wordpress-fields.md) | Field groups, post types and seed in `wordpress-shared/patronage-fields`, shared by both WordPress installs |

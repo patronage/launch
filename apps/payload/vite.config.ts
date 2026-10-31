@@ -41,6 +41,24 @@ export default defineConfig({
         };
       },
     },
+    {
+      // The Worker cannot see who connected, so local sign-in
+      // (src/lib/local-login.ts) reads miniflare's cf-connecting-ip. Miniflare
+      // keeps a client-sent value, so a preview opened to the network with
+      // --host would trust a forged 127.0.0.1. Put the real peer there instead.
+      configurePreviewServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          const peer = req.socket.remoteAddress?.replace(/^::ffff:/u, "");
+
+          if (peer && peer !== "127.0.0.1" && peer !== "::1") {
+            req.headers["cf-connecting-ip"] = peer;
+          }
+
+          next();
+        });
+      },
+      name: "launch-preview-peer-address",
+    },
     tailwindcss(),
     vinext(),
     cloudflare({
@@ -50,6 +68,11 @@ export default defineConfig({
       },
     }),
   ],
+  preview: {
+    // Lets a Cloudflare quick tunnel (`cloudflared tunnel --url
+    // http://localhost:4173`) serve the local demo; Vite rejects other hosts.
+    allowedHosts: [".trycloudflare.com"],
+  },
   resolve: {
     alias: {
       // See src/og-stub.ts.

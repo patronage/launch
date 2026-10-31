@@ -237,6 +237,9 @@ importers:
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0
+      '@patronage/access':
+        specifier: workspace:*
+        version: link:../../packages/access
       '@payloadcms/db-d1-sqlite':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/pg@8.20.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(pg@8.20.0)(supports-color@10.2.2)
@@ -252,6 +255,9 @@ importers:
       '@payloadcms/plugin-form-builder':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      '@payloadcms/plugin-mcp':
+        specifier: 4.0.0-beta.6
+        version: 4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))
       '@payloadcms/plugin-nested-docs':
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))
@@ -2518,6 +2524,10 @@ packages:
     resolution: {integrity: sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==}
     engines: {node: '>=22.12.0'}
 
+  '@modelcontextprotocol/core@2.4.0':
+    resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
+    engines: {node: '>=20'}
+
   '@modelcontextprotocol/sdk@1.32.2':
     resolution: {integrity: sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==}
     engines: {node: '>=18'}
@@ -2527,6 +2537,10 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@modelcontextprotocol/server@2.4.0':
+    resolution: {integrity: sha512-rgR9yxSaAJ+bcsi/XroT/S2AfPiIWloXAnrdfYSCms9ivVju0ishu/wW0J21Ho6+ZOR1r7RyeRbjiRuF87ix5Q==}
+    engines: {node: '>=20'}
 
   '@monaco-editor/loader@1.7.0':
     resolution: {integrity: sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==}
@@ -3177,6 +3191,12 @@ packages:
       payload: 4.0.0-beta.6
       react: ^19.0.1 || ^19.1.2 || ^19.2.1
       react-dom: ^19.0.1 || ^19.1.2 || ^19.2.1
+
+  '@payloadcms/plugin-mcp@4.0.0-beta.6':
+    resolution: {integrity: sha512-4ErC44zzxqjn0xXtHkAmw5Blqlj7jzcY4r08v6SGS6mJpejTVMSf4Cj3QpdEW7yKaPxXUORlzpGBqfmAW/1LNA==}
+    hasBin: true
+    peerDependencies:
+      payload: 4.0.0-beta.6
 
   '@payloadcms/plugin-nested-docs@4.0.0-beta.6':
     resolution: {integrity: sha512-mpMSMqjOqjV/9Sr2Jf/yzOgsUrHjttYYYELzKGDm/R8G7eUkeJ4AIYCh7fIX4f7X6dA/Lr6PbEbshYfIFQIVEA==}
@@ -10883,6 +10903,10 @@ snapshots:
     dependencies:
       '@chevrotain/types': 13.2.0
 
+  '@modelcontextprotocol/core@2.4.0':
+    dependencies:
+      zod: 4.6.7
+
   '@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7)':
     dependencies:
       '@hono/node-server': 2.1.5(hono@4.13.14)
@@ -10904,6 +10928,11 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.6.7)
     transitivePeerDependencies:
       - supports-color
+
+  '@modelcontextprotocol/server@2.4.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.4.0
+      zod: 4.6.7
 
   '@monaco-editor/loader@1.7.0':
     dependencies:
@@ -11438,6 +11467,12 @@ snapshots:
       - monaco-editor
       - supports-color
       - typescript
+
+  '@payloadcms/plugin-mcp@4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))':
+    dependencies:
+      '@modelcontextprotocol/server': 2.4.0
+      payload: 4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)
+      tsx: 4.23.15
 
   '@payloadcms/plugin-nested-docs@4.0.0-beta.6(payload@4.0.0-beta.6(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2))':
     dependencies:
