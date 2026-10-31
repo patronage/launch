@@ -1,0 +1,281 @@
+{
+  "id": 2,
+  "title": "Get involved",
+  "slug": "get-involved",
+  "hero": {
+    "variant": "split",
+    "title": null,
+    "eyebrow": "Volunteer",
+    "skin": "light",
+    "align": "start",
+    "subhead": "Volunteer on a harvest day, mentor a new garden or join the seed library.",
+    "body": null,
+    "image": {
+      "id": 5,
+      "alt": "Volunteers sorting a harvest",
+      "caption": "Fall harvest day",
+      "prefix": "",
+      "url": "/api/media/file/harvest-original.jpg",
+      "thumbnailURL": null,
+      "filename": "harvest-original.jpg",
+      "mimeType": "image/jpeg",
+      "filesize": 34864,
+      "width": 2400,
+      "height": 1200,
+      "original": {
+        "filename": "harvest-original.jpg",
+        "url": "/api/media/file/harvest-original.jpg",
+        "mimeType": "image/jpeg",
+        "filesize": 34864,
+        "width": 2400,
+        "height": 1200,
+        "prefix": ""
+      }
+    },
+    "links": [
+      {
+        "id": "6ae50414c59f3513da749256",
+        "link": {
+          "type": "reference",
+          "newTab": false,
+          "label": "Sign up below",
+          "variant": "primary",
+          "reference": {
+            "relationTo": "pages",
+            "value": {
+              "id": 2,
+              "title": "Get involved",
+              "slug": "get-involved",
+              "breadcrumbs": [
+                {
+                  "id": "6ae4de6c213e64857cdfb2df",
+                  "doc": 2,
+                  "url": "/get-involved",
+                  "label": "Get involved"
+                }
+              ]
+            }
+          },
+          "url": null
+        }
+      }
+    ]
+  },
+  "content": null,
+  "layout": [
+    {
+      "id": "6ae50414c59f3513da749257",
+      "heading": "Volunteer with us",
+      "body": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "Tell us how you'd like to help and we'll match you with a garden.",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": "ltr",
+              "format": "",
+              "indent": 0,
+              "type": "paragraph",
+              "version": 1,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      },
+      "form": {
+        "id": 2,
+        "title": "Volunteer sign-up",
+        "fields": [
+          {
+            "id": "6ae50414c59f3513da749240",
+            "name": "name",
+            "label": "Your name",
+            "width": 50,
+            "defaultValue": null,
+            "required": true,
+            "blockName": null,
+            "blockType": "text"
+          },
+          {
+            "id": "6ae50414c59f3513da749241",
+            "name": "email",
+            "label": "Email",
+            "width": 50,
+            "required": true,
+            "blockName": null,
+            "blockType": "email"
+          },
+          {
+            "id": "6ae50414c59f3513da749246",
+            "name": "interest",
+            "label": "I'd like to help with",
+            "width": 50,
+            "defaultValue": null,
+            "placeholder": null,
+            "required": false,
+            "blockName": null,
+            "options": [
+              {
+                "id": "6ae50414c59f3513da749242",
+                "label": "Harvest days",
+                "value": "Harvest days"
+              },
+              {
+                "id": "6ae50414c59f3513da749243",
+                "label": "Mentoring a new garden",
+                "value": "Mentoring a new garden"
+              },
+              {
+                "id": "6ae50414c59f3513da749244",
+                "label": "Seed library",
+                "value": "Seed library"
+              },
+              {
+                "id": "6ae50414c59f3513da749245",
+                "label": "Tool share",
+                "value": "Tool share"
+              }
+            ],
+            "blockType": "select"
+          },
+          {
+            "id": "6ae50414c59f3513da749247",
+            "name": "note",
+            "label": "Anything we should know?",
+            "width": null,
+            "defaultValue": null,
+            "required": false,
+            "blockName": null,
+            "blockType": "textarea"
+          },
+          {
+            "id": "6ae50414c59f3513da749248",
+            "name": "newsletter",
+            "label": "Send me the monthly newsletter",
+            "width": null,
+            "required": false,
+            "defaultValue": null,
+            "blockName": null,
+            "blockType": "checkbox"
+          }
+        ],
+        "submitButtonLabel": "Sign up",
+        "confirmationType": "message",
+        "confirmationMessage": {
+          "root": {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "Thanks for signing up. We'll email you before the next volunteer day.",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": "ltr",
+                "format": "",
+                "indent": 0,
+                "type": "paragraph",
+                "version": 1,
+                "textFormat": 0,
+                "textStyle": ""
+              }
+            ],
+            "direction": "ltr",
+            "format": "",
+            "indent": 0,
+            "type": "root",
+            "version": 1
+          }
+        },
+        "redirect": {
+          "type": "reference",
+          "url": null
+        },
+        "emails": []
+      },
+      "blockName": null,
+      "blockType": "form",
+      "sectionOptions": {
+        "skin": "light",
+        "width": "default",
+        "paddingTop": "md",
+        "paddingBottom": "md",
+        "anchor": null,
+        "hidden": false
+      }
+    },
+    {
+      "id": "6ae50414c59f3513da749259",
+      "heading": "Ready to start?",
+      "body": null,
+      "blockName": null,
+      "links": [
+        {
+          "id": "6ae50414c59f3513da749258",
+          "link": {
+            "type": "reference",
+            "newTab": false,
+            "label": "Apply now",
+            "variant": "primary",
+            "reference": {
+              "relationTo": "pages",
+              "value": {
+                "id": 3,
+                "title": "Apply now",
+                "slug": "apply",
+                "breadcrumbs": [
+                  {
+                    "id": "6ae4de6c213e64857cdfb2e0",
+                    "doc": 3,
+                    "url": "/apply",
+                    "label": "Apply now"
+                  }
+                ]
+              }
+            },
+            "url": null
+          }
+        }
+      ],
+      "blockType": "callToAction",
+      "sectionOptions": {
+        "skin": "accent",
+        "width": "narrow",
+        "paddingTop": "md",
+        "paddingBottom": "md",
+        "anchor": null,
+        "hidden": false
+      }
+    }
+  ],
+  "parent": null,
+  "breadcrumbs": [
+    {
+      "id": "6ae4de6c213e64857cdfb2df",
+      "doc": 2,
+      "url": "/get-involved",
+      "label": "Get involved"
+    }
+  ],
+  "_status": "published"
+}

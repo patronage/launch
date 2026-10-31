@@ -31,4 +31,6 @@ The Cloudways hook receives the whole packaged commit (the monorepo, minus the e
 
 The first deploy syncs every plugin, the theme and the mu-plugins in the payload to the repo's versions, and the hook deletes nothing it didn't deploy. Check the dry run and the audit first, then deploy staging before production. Plugins installed on the server by hand stay until someone removes them (the audit lists them).
 
+Plugins arrive deactivated. After the first deploy that adds one, activate it on the server, e.g. `wp plugin activate formidable` for the form section's Formidable Forms.
+
 After a deploy that changes `graphql-documents.json`, the theme registers it on the next request, or run `wp patronage-headless documents` on the server.

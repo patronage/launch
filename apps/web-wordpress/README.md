@@ -24,13 +24,14 @@ pnpm --filter web-wordpress run builds:configure   # point Workers Builds at thi
 - `app/[[...slug]]/page.tsx`: every published page and post, looked up by URI. Cached (ISR) until WordPress revalidates it, with an hourly fallback. Public reads are `"use cache"` entries tagged with WPGraphQL Smart Cache keys (`lib/wordpress/client.ts`, `cache-tags.ts`), so an edit expires only the pages that used the changed post; GraphQL errors are never cached. See [Cache tags](../cms-wordpress-headless/README.md#cache-tags).
 - `app/preview/[id]/page.tsx`: drafts and unsaved changes, only in draft mode.
 - `app/api/revalidate`, `app/api/preview`, `app/api/exit-preview`: the routes WordPress calls or links to.
+- `app/forms/submit`: where form sections post `{ formId, values }`. It caps the body size, checks the shape and passes the values to the theme's Formidable route with the shared secret; WordPress checks each value against its field and saves the entry (see [Forms](../cms-wordpress-headless/README.md#forms)).
 - `lib/wordpress/`: the GraphQL client, queries and preview-token check.
 - `app/media/[...path]`: WordPress uploads, resized by the Cloudflare Images binding (`@launch/images`). vinext's `/_next/image` only resizes files in `public/` on Workers, so the adapter's `imageUrl` points every upload here instead.
-- `lib/wordpress/sections.ts` and `components/content-view.tsx`: a page's Page Builder sections go through `@launch/adapter-wordpress` to `PageSections` from `@launch/ui`. Posts and pages without sections keep the hero and the block editor's HTML.
+- `lib/wordpress/sections.ts` and `components/content-view.tsx`: a page or post's hero and a page's Page Builder sections go through `@launch/adapter-wordpress` to `PageSections` from `@launch/ui`, with rich-text blocks drawn by its `RichTextBlock`. Without a hero, the title heads the page; block editor HTML follows when there are no sections.
 
 ## GraphQL types and registered queries
 
-The page query spreads `PageBuilderFields`, the fragment in `packages/adapter-wordpress/src/page-builder.graphql` that the adapter is typed against, so codegen also reads that file. Queries are written with `graphql()` from `@/gql` and typed by GraphQL Code Generator against `schema.graphql`, a committed snapshot of the WPGraphQL schema, so `pnpm typecheck` and `pnpm build` need no running WordPress. `gql/` is generated and gitignored.
+The page query spreads `PageHeroFields` and `PageBuilderFields`, the fragments in `packages/adapter-wordpress/src/page-builder.graphql` that the adapter is typed against, so codegen also reads that file. Queries are written with `graphql()` from `@/gql` and typed by GraphQL Code Generator against `schema.graphql`, a committed snapshot of the WPGraphQL schema, so `pnpm typecheck` and `pnpm build` need no running WordPress. `gql/` is generated and gitignored.
 
 WordPress runs only registered queries (WPGraphQL Smart Cache persisted queries), so requests send the query's SHA-256 ID, never its text. After adding or changing a query, write the manifest WordPress registers and commit it with the change (`pnpm test` fails while it is stale):
 

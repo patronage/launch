@@ -3,17 +3,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { normalizeMarkup } from "./normalize";
-import { payloadPage, wordpressPage } from "./pages";
+import { FIXTURE_NAMES, payloadPage, wordpressPage } from "./pages";
 
-describe("WordPress and Payload fixtures", () => {
-  const wp = wordpressPage();
-  const payload = payloadPage();
+describe.each(FIXTURE_NAMES)("WordPress and Payload %s fixtures", (name) => {
+  const wp = wordpressPage(name);
+  const payload = payloadPage(name);
 
   it("map to the same content model apart from ids and rich text", () => {
     const strip = (page: typeof wp) =>
       JSON.parse(
         JSON.stringify(page, (key, value) =>
-          key === "id" || key === "body" ? undefined : value
+          ["body", "confirmation", "id", "message"].includes(key)
+            ? undefined
+            : value
         )
       );
 

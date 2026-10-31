@@ -135,28 +135,28 @@ type DefaultTemplate implements ContentTemplate {
   templateName: String
 }
 
-"Provides access to fields of the &quot;Hero&quot; ACF Field Group via the &quot;hero&quot; field"
-interface WithAcfHero {
-  "Fields of the Hero ACF Field Group"
-  hero: Hero
+"A Field Group managed by ACF"
+interface AcfFieldGroup {
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
 }
 
-"The &quot;Hero&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type Hero implements Hero_Fields & AcfFieldGroup & AcfFieldGroupFields {
-  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
-  cta: AcfLink
+"Fields associated with an ACF Field Group"
+interface AcfFieldGroupFields {
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+}
 
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
-  eyebrow: String
-
+"Interface representing fields of the ACF &quot;HeroLinks&quot; Field Group"
+interface HeroLinks_Fields implements AcfFieldGroup & AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
-  "Defaults to the title."
-  headline: String
+  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;HeroLinks&quot; Field Group"
+  link: AcfLink
 
-  "Field of the &quot;textarea&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
-  intro: String
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;HeroLinks&quot; Field Group"
+  variant: String
 }
 
 "ACF Link field"
@@ -171,22 +171,33 @@ type AcfLink {
   url: String
 }
 
-"A Field Group managed by ACF"
-interface AcfFieldGroup {
+"The &quot;HeroLinks&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type HeroLinks implements HeroLinks_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;HeroLinks&quot; Field Group"
+  link: AcfLink
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;HeroLinks&quot; Field Group"
+  variant: String
 }
 
-"Fields associated with an ACF Field Group"
-interface AcfFieldGroupFields {
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+"Provides access to fields of the &quot;Hero&quot; ACF Field Group via the &quot;hero&quot; field"
+interface WithAcfHero {
+  "Fields of the Hero ACF Field Group"
+  hero: Hero
 }
 
-"Interface representing fields of the ACF &quot;Hero&quot; Field Group"
-interface Hero_Fields implements AcfFieldGroup & AcfFieldGroupFields {
-  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
-  cta: AcfLink
+"The &quot;Hero&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type Hero implements Hero_Fields & AcfFieldGroup & AcfFieldGroupFields {
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  align: String
+
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
 
   "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
   eyebrow: String
@@ -194,180 +205,26 @@ interface Hero_Fields implements AcfFieldGroup & AcfFieldGroupFields {
   "The name of the field group"
   fieldGroupName: String @deprecated(reason: "Use __typename instead")
 
-  "Defaults to the title."
-  headline: String
+  "Field of the &quot;image&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  image: AcfMediaItemConnectionEdge
 
-  "Field of the &quot;textarea&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
-  intro: String
-}
+  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  links: [HeroLinks]
 
-"Layout of the &quot;sections&quot; Field of the &quot;PageBuilder&quot; Field Group Field"
-interface PageBuilderSections_Layout {
-  "The name of the ACF Flex Field Layout"
-  fieldGroupName: String
-}
-
-"Interface representing fields of the ACF &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-interface PageBuilderSectionsSectionOptions_Fields implements AcfFieldGroup &
-  AcfFieldGroupFields {
-  "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
-  anchor: String
-
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Kept in the editor and in previews, left off the published page."
-  hidden: Boolean
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  paddingBottom: String
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  paddingTop: String
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
   skin: String
 
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  width: String
+  "Plain text."
+  subhead: String
+
+  "Defaults to the page title."
+  title: String
+
+  "Leave empty for no hero."
+  variant: [String]
 }
 
-"The &quot;PageBuilderSectionsSectionOptions&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsSectionOptions implements PageBuilderSectionsSectionOptions_Fields &
-  AcfFieldGroup &
-  AcfFieldGroupFields {
-  "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
-  anchor: String
-
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Kept in the editor and in previews, left off the published page."
-  hidden: Boolean
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  paddingBottom: String
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  paddingTop: String
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  skin: String
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
-  width: String
-}
-
-"Interface representing fields of the ACF &quot;PageBuilderSectionsLinks&quot; Field Group"
-interface PageBuilderSectionsLinks_Fields implements AcfFieldGroup &
-  AcfFieldGroupFields {
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
-  link: AcfLink
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
-  variant: String
-}
-
-"The &quot;PageBuilderSectionsLinks&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsLinks implements PageBuilderSectionsLinks_Fields &
-  AcfFieldGroup &
-  AcfFieldGroupFields {
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
-  link: AcfLink
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
-  variant: String
-}
-
-"Interface representing fields of the ACF &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-interface PageBuilderSectionsContentLayout_Fields implements PageBuilderSections_Layout &
-  AcfFieldGroup &
-  AcfFieldGroupFields {
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  align: String
-
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  body: String
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  eyebrow: String
-
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  heading: String
-
-  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  links: [PageBuilderSectionsLinks]
-
-  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  sectionOptions: PageBuilderSectionsSectionOptions
-}
-
-"The &quot;PageBuilderSectionsContentLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
-type PageBuilderSectionsContentLayout implements PageBuilderSectionsContentLayout_Fields &
-  PageBuilderSections_Layout &
-  AcfFieldGroup &
-  AcfFieldGroupFields {
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  align: String
-
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  body: String
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  eyebrow: String
-
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  heading: String
-
-  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  links: [PageBuilderSectionsLinks]
-
-  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
-  sectionOptions: PageBuilderSectionsSectionOptions
-}
-
-"Interface representing fields of the ACF &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-interface PageBuilderSectionsContentMediaLayout_Fields implements PageBuilderSections_Layout &
-  AcfFieldGroup &
-  AcfFieldGroupFields {
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  body: String
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  eyebrow: String
-
-  "The name of the field group"
-  fieldGroupName: String @deprecated(reason: "Use __typename instead")
-
-  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  heading: String
-
-  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  links: [PageBuilderSectionsLinks]
-
-  "The image caption, if any, is shown under it."
-  media: AcfMediaItemConnectionEdge
-
-  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  mediaPosition: String
-
-  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
-  sectionOptions: PageBuilderSectionsSectionOptions
-}
-
-"Connection between the PageBuilderSectionsContentMediaLayout_Fields type and the MediaItem type"
+"Connection between the Hero_Fields type and the MediaItem type"
 type AcfMediaItemConnectionEdge implements OneToOneConnection &
   Edge &
   MediaItemConnectionEdge {
@@ -8310,12 +8167,211 @@ type MediaSize {
   width: String
 }
 
+"Interface representing fields of the ACF &quot;Hero&quot; Field Group"
+interface Hero_Fields implements AcfFieldGroup & AcfFieldGroupFields {
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  align: String
+
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  eyebrow: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;image&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  image: AcfMediaItemConnectionEdge
+
+  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  links: [HeroLinks]
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;Hero&quot; Field Group"
+  skin: String
+
+  "Plain text."
+  subhead: String
+
+  "Defaults to the page title."
+  title: String
+
+  "Leave empty for no hero."
+  variant: [String]
+}
+
+"Layout of the &quot;sections&quot; Field of the &quot;PageBuilder&quot; Field Group Field"
+interface PageBuilderSections_Layout {
+  "The name of the ACF Flex Field Layout"
+  fieldGroupName: String
+}
+
+"Interface representing fields of the ACF &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+interface PageBuilderSectionsSectionOptions_Fields implements AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
+  anchor: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Kept in the editor and in previews, left off the published page."
+  hidden: Boolean
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  paddingBottom: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  paddingTop: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  skin: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  width: String
+}
+
+"The &quot;PageBuilderSectionsSectionOptions&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type PageBuilderSectionsSectionOptions implements PageBuilderSectionsSectionOptions_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Links to this section as #anchor. Turned into lowercase words joined by hyphens."
+  anchor: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Kept in the editor and in previews, left off the published page."
+  hidden: Boolean
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  paddingBottom: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  paddingTop: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  skin: String
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsSectionOptions&quot; Field Group"
+  width: String
+}
+
+"Interface representing fields of the ACF &quot;PageBuilderSectionsLinks&quot; Field Group"
+interface PageBuilderSectionsLinks_Fields implements AcfFieldGroup &
+  AcfFieldGroupFields {
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
+  link: AcfLink
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
+  variant: String
+}
+
+"The &quot;PageBuilderSectionsLinks&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type PageBuilderSectionsLinks implements PageBuilderSectionsLinks_Fields &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;link&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
+  link: AcfLink
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsLinks&quot; Field Group"
+  variant: String
+}
+
+"Interface representing fields of the ACF &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+interface PageBuilderSectionsContentLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  align: String
+
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  eyebrow: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  heading: String
+
+  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  links: [PageBuilderSectionsLinks]
+
+  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  sectionOptions: PageBuilderSectionsSectionOptions
+}
+
+"The &quot;PageBuilderSectionsContentLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type PageBuilderSectionsContentLayout implements PageBuilderSectionsContentLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  align: String
+
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  eyebrow: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  heading: String
+
+  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  links: [PageBuilderSectionsLinks]
+
+  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentLayout&quot; Field Group"
+  sectionOptions: PageBuilderSectionsSectionOptions
+}
+
+"Interface representing fields of the ACF &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+interface PageBuilderSectionsContentMediaLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  eyebrow: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  heading: String
+
+  "Field of the &quot;repeater&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  links: [PageBuilderSectionsLinks]
+
+  "The image caption, if any, is shown under it."
+  media: AcfMediaItemConnectionEdge
+
+  "Field of the &quot;button_group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  mediaPosition: String
+
+  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  sectionOptions: PageBuilderSectionsSectionOptions
+}
+
 "The &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
 type PageBuilderSectionsContentMediaLayout implements PageBuilderSectionsContentMediaLayout_Fields &
   PageBuilderSections_Layout &
   AcfFieldGroup &
   AcfFieldGroupFields {
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
   body: String
 
   "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsContentMediaLayout&quot; Field Group"
@@ -8500,7 +8556,7 @@ type PageBuilderSectionsBlockquoteLayout implements PageBuilderSectionsBlockquot
 interface PageBuilderSectionsCallToActionLayout_Fields implements PageBuilderSections_Layout &
   AcfFieldGroup &
   AcfFieldGroupFields {
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
   body: String
 
   "The name of the field group"
@@ -8521,7 +8577,7 @@ type PageBuilderSectionsCallToActionLayout implements PageBuilderSectionsCallToA
   PageBuilderSections_Layout &
   AcfFieldGroup &
   AcfFieldGroupFields {
-  "Field of the &quot;wysiwyg&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
   body: String
 
   "The name of the field group"
@@ -8535,6 +8591,101 @@ type PageBuilderSectionsCallToActionLayout implements PageBuilderSectionsCallToA
 
   "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsCallToActionLayout&quot; Field Group"
   sectionOptions: PageBuilderSectionsSectionOptions
+}
+
+"Interface representing fields of the ACF &quot;PageBuilderSectionsFormLayout&quot; Field Group"
+interface PageBuilderSectionsFormLayout_Fields implements PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "A form from Forms (Formidable). Its fields, button label and success message come from there."
+  formId: [String]
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsFormLayout&quot; Field Group"
+  heading: String
+
+  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsFormLayout&quot; Field Group"
+  sectionOptions: PageBuilderSectionsSectionOptions
+}
+
+"The &quot;PageBuilderSectionsFormLayout&quot; Field Group. Added to the Schema by &quot;WPGraphQL for ACF&quot;."
+type PageBuilderSectionsFormLayout implements PageBuilderSectionsFormLayout_Fields &
+  PageBuilderSections_Layout &
+  AcfFieldGroup &
+  AcfFieldGroupFields {
+  "Add blocks with shortcodes: [launch&lt;em&gt;button url=&quot;/apply&quot; label=&quot;Apply&quot; variant=&quot;primary&quot;], [launch&lt;/em&gt;image id=&quot;12&quot;], [launch&lt;em&gt;pullquote attribution=&quot;Name&quot;]Quote[/launch&lt;/em&gt;pullquote], [launch_embed url=&quot;https://www.youtube.com/watch?v=…&quot;]."
+  body: String
+
+  "The name of the field group"
+  fieldGroupName: String @deprecated(reason: "Use __typename instead")
+
+  "The form the section shows, or null when it is missing or unpublished."
+  form: PatronageForm
+
+  "A form from Forms (Formidable). Its fields, button label and success message come from there."
+  formId: [String]
+
+  "Field of the &quot;text&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsFormLayout&quot; Field Group"
+  heading: String
+
+  "Field of the &quot;group&quot; Field Type added to the schema as part of the &quot;PageBuilderSectionsFormLayout&quot; Field Group"
+  sectionOptions: PageBuilderSectionsSectionOptions
+}
+
+"A Formidable form, as Form in packages/content-model."
+type PatronageForm {
+  "HTML shown after a successful submission."
+  confirmation: String
+
+  ""
+  fields: [PatronageFormField!]!
+
+  "The Formidable form ID."
+  id: ID!
+
+  ""
+  submitLabel: String!
+}
+
+"A form field, as FormField in packages/content-model."
+type PatronageFormField {
+  ""
+  defaultValue: String
+
+  ""
+  label: String
+
+  "HTML, for a message."
+  message: String
+
+  "The submitted value&#039;s key. Empty for a message."
+  name: String!
+
+  ""
+  options: [PatronageFormFieldOption!]
+
+  ""
+  required: Boolean!
+
+  "text, email, textarea, number, select, checkbox or message."
+  type: String!
+
+  "Percent of the row."
+  width: Int
+}
+
+"A choice in a select field."
+type PatronageFormFieldOption {
+  ""
+  label: String!
+
+  ""
+  value: String!
 }
 
 "Provides access to fields of the &quot;PageBuilder&quot; ACF Field Group via the &quot;pageBuilder&quot; field"
