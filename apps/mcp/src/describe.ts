@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { WordPressRequestError, wpFetch, wpGraphql } from "./wordpress";
+import {
+  WordPressRequestError,
+  wordPressErrorMessage,
+  wpFetch,
+  wpGraphql,
+} from "./wordpress";
 import type {
   JsonValue,
   WordPressClient,
@@ -226,6 +231,17 @@ export const buildSiteDescription = async (
     "/wp-json/wp/v2/types?context=edit",
     telemetry
   );
+
+  // `wpFetch` hands back any status. An error body here would read as a site
+  // with no content types, and be cached as one.
+  for (const response of [root, types]) {
+    if (response.status < 200 || response.status >= 300) {
+      throw new WordPressRequestError(
+        wordPressErrorMessage(response.status, response.errorCode) ??
+          `WordPress returned HTTP ${response.status}`
+      );
+    }
+  }
 
   const schema = await wpGraphql(client, SCHEMA_QUERY, undefined, telemetry);
 

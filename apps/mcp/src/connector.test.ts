@@ -185,6 +185,71 @@ describe("wp connector tools", () => {
     expect(calls).toBe(0);
   });
 
+  it.each(["_method", ".method", "[method", " _method", "_METHOD"])(
+    "refuses a wp.get method override named %j",
+    async (key) => {
+      let calls = 0;
+      vi.stubGlobal("fetch", () => {
+        calls += 1;
+
+        return Response.json({});
+      });
+      const { scope, wp } = tools();
+
+      const error = await scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
+        rejectedWith(() =>
+          wp.get.execute({
+            path: "/wp-json/wp/v2/pages/7",
+            query: { force: true, [key]: "DELETE" },
+          })
+        )
+      );
+
+      expect(error).toBeInstanceOf(WordPressRequestError);
+      expect(calls).toBe(0);
+    }
+  );
+
+  it.each([
+    'mutation { deletePage(input: {id: "7"}) { deletedId } }',
+    "query Read { __typename } mutation Write { __typename }",
+    "subscription { __typename }",
+    "{ unclosed",
+  ])(
+    "refuses a wp.graphql document that is not only queries: %j",
+    async (query) => {
+      let calls = 0;
+      vi.stubGlobal("fetch", () => {
+        calls += 1;
+
+        return Response.json({ data: {} });
+      });
+      const { scope, wp } = tools();
+
+      const error = await scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
+        rejectedWith(() => wp.graphql.execute({ query }))
+      );
+
+      expect(error).toBeInstanceOf(WordPressRequestError);
+      expect(calls).toBe(0);
+    }
+  );
+
+  it("forwards a named query with variables and a fragment", async () => {
+    vi.stubGlobal("fetch", () => Response.json({ data: { page: null } }));
+    const { scope, wp } = tools();
+
+    await expect(
+      scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
+        wp.graphql.execute({
+          query:
+            "query Page($id: ID!) { page(id: $id) { ...F } } fragment F on Page { title }",
+          variables: { id: "7" },
+        })
+      )
+    ).resolves.toStrictEqual({ data: { page: null } });
+  });
+
   it("rejects wp.get on a 403 WordPress error without leaking the response body", async () => {
     vi.stubGlobal("fetch", () =>
       Response.json(

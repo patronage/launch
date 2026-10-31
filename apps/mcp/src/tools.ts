@@ -42,7 +42,8 @@ import { WordPressRequestError } from "./wordpress";
 export interface RuntimeApi {
   approve: (
     executionId: string,
-    caller: CallerContext
+    caller: CallerContext,
+    previewDigest?: string
   ) => Promise<RuntimeOutcome<RunReport>>;
   // The three nonce RPCs answer with a bare value: none reaches WordPress, so
   // none has a request log to carry back.
@@ -62,7 +63,8 @@ export interface RuntimeApi {
   issueNonce: (executionId: string) => Promise<string>;
   reject: (
     executionId: string,
-    caller: CallerContext
+    caller: CallerContext,
+    previewDigest?: string
   ) => Promise<RuntimeOutcome<RunReport>>;
   verifyNonce: (executionId: string, nonce: string) => Promise<boolean>;
 }

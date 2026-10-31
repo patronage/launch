@@ -261,6 +261,10 @@ export interface RunView {
   preflight?: ApplyPreflight;
   preflightError?: RunProblem;
   receipt?: BatchReceipt;
+  // Set by a decision that named a preview other than the one stored now: a
+  // form from an earlier pause, or a preview rebuilt since it was shown.
+  // Nothing was decided.
+  stalePreview?: true;
   status: "complete" | "error" | "paused" | "running" | "unknown";
 }
 

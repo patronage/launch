@@ -63,6 +63,26 @@ export interface ApplyPreflight {
   operations: OperationPreflight[];
 }
 
+// Names one exact preview: its intent, its operations and the before-snapshots
+// they were checked against. The approval page signs it into its form, so a
+// decision answers the preview its approver saw and no later one.
+export const preflightDigest = async (
+  preflight: ApplyPreflight | undefined
+): Promise<string> => {
+  if (!preflight) {
+    return "";
+  }
+
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify(preflight))
+  );
+
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 export interface OperationReceipt {
   changed_paths: string[];
   error?: ReceiptError;

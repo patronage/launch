@@ -1,3 +1,5 @@
+import { Kind, OperationTypeNode, parse } from "graphql";
+import type { DocumentNode } from "graphql";
 import { z } from "zod";
 
 import { applyOperations } from "./apply";
@@ -27,6 +29,40 @@ export const WP_CONNECTOR_INSTRUCTIONS = [
   "Writes: wp.apply({intent, operations}) is the only write path and pauses for human approval.",
   `Send 1-${MAX_OPERATIONS} update_post operations per call and set expected_modified_gmt when you read the post first.`,
 ].join(" ");
+
+// `wp.graphql` is a read. A mutation would run at once as the requester,
+// skipping the preview, the approval and the receipt, so only documents whose
+// every operation is a query are forwarded. A document that does not parse is
+// refused too, rather than left for WordPress to read differently.
+const assertQueryOnly = (query: string): void => {
+  let document: DocumentNode;
+
+  try {
+    document = parse(query);
+  } catch {
+    throw new WordPressRequestError(
+      "wp.graphql could not parse the query; send one valid GraphQL document"
+    );
+  }
+
+  const writes = document.definitions.some(
+    (definition) =>
+      definition.kind === Kind.OPERATION_DEFINITION &&
+      definition.operation !== OperationTypeNode.QUERY
+  );
+
+  if (writes) {
+    throw new WordPressRequestError(
+      "wp.graphql runs queries only; make changes with wp.apply, which pauses for approval"
+    );
+  }
+};
+
+// WordPress reads `_method` from the query string, even on a GET, and runs the
+// request as that method, so `?_method=DELETE` would turn a read into a delete.
+// PHP also rewrites spaces, dots and `[` in parameter names to underscores, so
+// any key naming `method` is refused rather than chasing its spellings.
+const METHOD_OVERRIDE_KEY = /method/iu;
 
 const graphqlArgsSchema = z.object({
   query: z.string().trim().min(1),
@@ -152,9 +188,11 @@ export const createWordPressTools = (deps: WordPressToolDeps) =>
         // stored, every operation reports `missing_preflight` and nothing
         // reaches WordPress — computing a fresh preview here would apply a
         // batch nobody ever saw.
-        const preflight: ApplyPreflight = (await deps.store.readPreflight(
-          executionId
-        )) ?? { intent: input.intent, operations: [] };
+        const preflight: ApplyPreflight = caller.preflight ??
+          (await deps.store.readPreflight(executionId)) ?? {
+            intent: input.intent,
+            operations: [],
+          };
 
         return await applyOperations({
           approverOpaque: caller.subjectOpaque,
@@ -198,6 +236,16 @@ export const createWordPressTools = (deps: WordPressToolDeps) =>
           );
         }
 
+        if (
+          Object.keys(parsed.data.query ?? {}).some((key) =>
+            METHOD_OVERRIDE_KEY.test(key)
+          )
+        ) {
+          throw new WordPressRequestError(
+            "wp.get is a read and takes no method override; make changes with wp.apply"
+          );
+        }
+
         const result = await wpFetch(
           callerClient(deps.env, deps.scope.require()),
           `${parsed.data.path}${queryString(parsed.data.query)}`,
@@ -235,6 +283,8 @@ export const createWordPressTools = (deps: WordPressToolDeps) =>
         if (!parsed.success) {
           throw new WordPressRequestError("wp.graphql requires a string query");
         }
+
+        assertQueryOnly(parsed.data.query);
 
         return await wpGraphql(
           callerClient(deps.env, deps.scope.require()),

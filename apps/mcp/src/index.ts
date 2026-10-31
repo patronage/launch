@@ -8,6 +8,7 @@ import type { JWTVerifyGetKey } from "jose";
 import { z } from "zod";
 
 import { verifyAccess } from "./access";
+import { preflightDigest } from "./apply";
 import {
   approvalContent,
   approvalCsrfToken,
@@ -55,6 +56,13 @@ const HTML_HEADERS = {
 // A form field arrives as a string, a File, or nothing at all; both fields the
 // decision needs are parsed here, at the boundary, and never after.
 const csrfFieldSchema = z.string().min(1).max(256);
+
+// A SHA-256 hex digest, or empty for a run that had no preview to show.
+const previewFieldSchema = z.union([
+  z.literal(""),
+  z.string().regex(/^[a-f0-9]{64}$/u),
+]);
+
 const decisionFieldSchema = z.enum(["approve", "reject"]);
 
 // The client capabilities this Worker reads: only whether the MCP Apps
@@ -219,14 +227,41 @@ const runtimeStub = (env: Env): RuntimeStub => {
 // approvable, so the reason takes the place of the before/after tables. That
 // judgement lives in `approvalContent`, which the inline card reads too.
 const approvalView = (
-  csrfToken: string,
+  form: ApprovalForm,
   executionId: string,
   report: RunReport,
   notice?: string
 ): ApprovalView => ({
   ...approvalContent(report, executionId, notice),
-  csrfToken,
+  csrfToken: form.csrfToken,
+  previewDigest: form.previewDigest,
 });
+
+interface ApprovalForm {
+  csrfToken: string;
+  previewDigest: string;
+}
+
+// The form a paused run's page carries: its token is signed over the exact
+// preview the page shows, so it can answer that preview and nothing else.
+const approvalForm = async (
+  secret: string,
+  executionId: string,
+  subjectOpaque: string,
+  report: RunReport
+): Promise<ApprovalForm> => {
+  const previewDigest = await preflightDigest(report.preflight);
+
+  return {
+    csrfToken: await approvalCsrfToken(
+      secret,
+      executionId,
+      subjectOpaque,
+      previewDigest
+    ),
+    previewDigest,
+  };
+};
 
 // Every ending a run can have once it is no longer awaiting an answer. Only
 // the receipt is a success page; the rest say, in the runtime's own words,
@@ -263,18 +298,26 @@ const outcomePage = (
   );
 };
 
-const reportPage = (
-  csrfToken: string,
+const reportPage = async (
+  secret: string,
+  deps: ToolDeps,
   executionId: string,
   report: RunReport,
   log: McpRequestLogger,
   notice?: string
-): Response => {
+): Promise<Response> => {
   if (report.status === "paused") {
     log.set({ mcp: { outcome: "success" } });
 
+    const form = await approvalForm(
+      secret,
+      executionId,
+      deps.caller.subjectOpaque,
+      report
+    );
+
     return html(
-      renderApprovalPage(approvalView(csrfToken, executionId, report, notice))
+      renderApprovalPage(approvalView(form, executionId, report, notice))
     );
   }
 
@@ -312,13 +355,20 @@ const decide = (
   deps: ToolDeps,
   log: McpRequestLogger,
   executionId: string,
-  decision: z.infer<typeof decisionFieldSchema>
+  decision: z.infer<typeof decisionFieldSchema>,
+  previewDigest: string
 ): Promise<RunReport> => {
   if (decision === "approve") {
-    return runtimeReport(log, deps.stub.approve(executionId, deps.caller));
+    return runtimeReport(
+      log,
+      deps.stub.approve(executionId, deps.caller, previewDigest)
+    );
   }
 
-  return runtimeReport(log, deps.stub.reject(executionId, deps.caller));
+  return runtimeReport(
+    log,
+    deps.stub.reject(executionId, deps.caller, previewDigest)
+  );
 };
 
 const handleDecision = async (
@@ -330,14 +380,17 @@ const handleDecision = async (
 ): Promise<Response> => {
   const form = await readForm(request);
   const submitted = csrfFieldSchema.safeParse(form?.get("csrf"));
+  const preview = previewFieldSchema.safeParse(form?.get("preview"));
 
   if (
     !(
       submitted.success &&
+      preview.success &&
       (await verifyApprovalCsrfToken(
         secret,
         executionId,
         deps.caller.subjectOpaque,
+        preview.data,
         submitted.data
       ))
     )
@@ -375,7 +428,25 @@ const handleDecision = async (
     executionId,
   });
 
-  const answered = await decide(deps, log, executionId, decision.data);
+  const answered = await decide(
+    deps,
+    log,
+    executionId,
+    decision.data,
+    preview.data
+  );
+
+  if (answered.stalePreview) {
+    log.setLevel("warn");
+    log.set({ mcp: { outcome: "error" } });
+
+    return problem(
+      executionId,
+      "stale_approval",
+      "This change is not the one you were shown any more. Open the approval page again.",
+      409
+    );
+  }
 
   // This is the one place a receipt is new, and `approvedReceipt` is the only
   // field that names the write THIS decision authorised: the report's own
@@ -392,19 +463,21 @@ const handleDecision = async (
   }
 
   // A script may call `wp.apply` twice: the resumed run pauses on the second
-  // write, whose preview only exists once `getRun` computes it.
-  const csrfToken = await approvalCsrfToken(
-    secret,
-    executionId,
-    deps.caller.subjectOpaque
-  );
-
+  // write, whose preview only exists once `getRun` computes it. Its form is
+  // signed over that new preview, so the form just sent cannot answer it.
   const next = await runtimeReport(
     log,
     deps.stub.getRun(executionId, deps.caller)
   );
 
-  return reportPage(csrfToken, executionId, next, log, RE_PAUSE_NOTICE);
+  return await reportPage(
+    secret,
+    deps,
+    executionId,
+    next,
+    log,
+    RE_PAUSE_NOTICE
+  );
 };
 
 // GET shows what a human is being asked to approve; POST answers it. Both run
@@ -450,18 +523,12 @@ const handleApproval = async (
 
   // The caller is passed so the runtime computes and stores the preview a
   // human approves; without it `getRun` reports the run and nothing more.
-  const csrfToken = await approvalCsrfToken(
-    secret,
-    executionId,
-    deps.caller.subjectOpaque
-  );
-
   const report = await runtimeReport(
     log,
     deps.stub.getRun(executionId, deps.caller)
   );
 
-  return reportPage(csrfToken, executionId, report, log);
+  return await reportPage(secret, deps, executionId, report, log);
 };
 
 export interface WorkerOptions extends McpLoggingOptions {

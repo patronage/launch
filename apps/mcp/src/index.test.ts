@@ -11,6 +11,7 @@ import type { RunReport } from "./run";
 interface RuntimeCall {
   caller: CallerContext | undefined;
   method: string;
+  previewDigest?: string;
 }
 
 type StubReport = Omit<RunReport, "executionId">;
@@ -129,8 +130,12 @@ const runReports = {
 };
 
 const runtime = {
-  approve: (executionId: string, caller: CallerContext) => {
-    runtimeCalls.push({ caller, method: "approve" });
+  approve: (
+    executionId: string,
+    caller: CallerContext,
+    previewDigest?: string
+  ) => {
+    runtimeCalls.push({ caller, method: "approve", previewDigest });
 
     return Promise.resolve({
       value: { ...runReports.approve, executionId },
@@ -170,8 +175,12 @@ const runtime = {
       wordpress: WORDPRESS_REQUESTS,
     });
   },
-  reject: (executionId: string, caller: CallerContext) => {
-    runtimeCalls.push({ caller, method: "reject" });
+  reject: (
+    executionId: string,
+    caller: CallerContext,
+    previewDigest?: string
+  ) => {
+    runtimeCalls.push({ caller, method: "reject", previewDigest });
 
     return Promise.resolve({
       value: { ...runReports.reject, executionId },
@@ -268,9 +277,12 @@ const approvalDecision = (
     method: "POST",
   });
 
-// The token a browser would post back: the page is the only place it exists.
-const csrfFrom = (html: string): string =>
-  /value="(?<token>[a-f0-9]{64})"/u.exec(html)?.groups?.token ?? "";
+// The fields a browser would post back: the page is the only place they exist.
+const hiddenField = (html: string, name: string): string =>
+  new RegExp(
+    `name="${name}" type="hidden" value="(?<value>[a-f0-9]*)"`,
+    "u"
+  ).exec(html)?.groups?.value ?? "";
 
 const executionContext = () => ({
   waitUntil: vi.fn<(promise: Promise<unknown>) => void>(),
@@ -297,7 +309,15 @@ const openApproval = async (executionId = "exec_1") => {
 
   const html = await response.text();
 
-  return { csrf: csrfFrom(html), events, html, response, token, worker };
+  return {
+    csrf: hiddenField(html, "csrf"),
+    events,
+    html,
+    preview: hiddenField(html, "preview"),
+    response,
+    token,
+    worker,
+  };
 };
 
 // What a client says it can render, in the one shape this Worker reads.
@@ -634,10 +654,10 @@ describe("Approval route", () => {
 
   it("applies an approval and shows the receipt", async () => {
     runReports.getRun = PAUSED_RUN;
-    const { csrf, token, worker } = await openApproval();
+    const { csrf, preview, token, worker } = await openApproval();
 
     const response = await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -656,10 +676,10 @@ describe("Approval route", () => {
 
   it("records write receipt counts on the approval decision that produced them", async () => {
     runReports.getRun = PAUSED_RUN;
-    const { csrf, events, token, worker } = await openApproval();
+    const { csrf, preview, events, token, worker } = await openApproval();
 
     await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -697,10 +717,10 @@ describe("Approval route", () => {
 
   it("records the runtime's WordPress requests on the approval decision event", async () => {
     runReports.getRun = PAUSED_RUN;
-    const { csrf, events, token, worker } = await openApproval();
+    const { csrf, preview, events, token, worker } = await openApproval();
 
     await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -716,10 +736,10 @@ describe("Approval route", () => {
 
   it("records a rejection and offers no further decision", async () => {
     runReports.getRun = PAUSED_RUN;
-    const { csrf, token, worker } = await openApproval();
+    const { csrf, preview, token, worker } = await openApproval();
 
     const response = await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "reject" }),
+      approvalDecision("exec_1", token, { csrf, decision: "reject", preview }),
       env,
       executionContext()
     );
@@ -738,10 +758,10 @@ describe("Approval route", () => {
   it("re-renders the page when the approved run pauses again", async () => {
     runReports.getRun = PAUSED_RUN;
     runReports.approve = { calls: [], status: "paused" };
-    const { csrf, token, worker } = await openApproval();
+    const { csrf, preview, token, worker } = await openApproval();
 
     const response = await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -769,10 +789,10 @@ describe("Approval route", () => {
       calls: [],
       status: "paused",
     };
-    const { csrf, events, token, worker } = await openApproval();
+    const { csrf, preview, events, token, worker } = await openApproval();
 
     await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -795,10 +815,10 @@ describe("Approval route", () => {
       receipt: LATEST_RECEIPT,
       status: "complete",
     };
-    const { csrf, events, token, worker } = await openApproval();
+    const { csrf, preview, events, token, worker } = await openApproval();
 
     await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve" }),
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
       env,
       executionContext()
     );
@@ -875,6 +895,60 @@ describe("Approval route", () => {
     expect(html).toContain('value="reject"');
   });
 
+  it("binds the decision to the preview the page showed", async () => {
+    runReports.getRun = PAUSED_RUN;
+    const { csrf, preview, token, worker } = await openApproval();
+
+    await worker.fetch(
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+      env,
+      executionContext()
+    );
+
+    expect(preview).toMatch(/^[a-f0-9]{64}$/u);
+    expect(runtimeCalls.at(-1)).toMatchObject({
+      method: "approve",
+      previewDigest: preview,
+    });
+  });
+
+  it("refuses a form whose token was signed for another preview", async () => {
+    runReports.getRun = PAUSED_RUN;
+    const { csrf, preview, token, worker } = await openApproval();
+
+    const other = preview.startsWith("0")
+      ? `1${preview.slice(1)}`
+      : `0${preview.slice(1)}`;
+
+    const response = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview: other,
+      }),
+      env,
+      executionContext()
+    );
+
+    expect(response.status).toBe(403);
+    expect(runtimeCalls.map((entry) => entry.method)).toStrictEqual(["getRun"]);
+  });
+
+  it("refuses a decision the runtime finds stale and decides nothing", async () => {
+    runReports.getRun = PAUSED_RUN;
+    runReports.approve = { ...PAUSED_RUN, stalePreview: true };
+    const { csrf, preview, token, worker } = await openApproval();
+
+    const response = await worker.fetch(
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+      env,
+      executionContext()
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.text()).resolves.toContain("stale_approval");
+  });
+
   it("refuses a POST whose CSRF token is forged", async () => {
     const { publicKey, token } = await accessIdentity();
     const worker = collectingWorker(publicKey, []);
@@ -911,10 +985,10 @@ describe("Approval route", () => {
 
   it("refuses a decision that is neither approve nor reject", async () => {
     runReports.getRun = PAUSED_RUN;
-    const { csrf, token, worker } = await openApproval();
+    const { csrf, preview, token, worker } = await openApproval();
 
     const response = await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "delete" }),
+      approvalDecision("exec_1", token, { csrf, decision: "delete", preview }),
       env,
       executionContext()
     );

@@ -4,7 +4,7 @@ import {
 } from "@cloudflare/codemode";
 import { DurableObject } from "cloudflare:workers";
 
-import { preflightOperations } from "./apply";
+import { preflightDigest, preflightOperations } from "./apply";
 import type { ApplyPreflight } from "./apply";
 import { createCallerScope } from "./caller";
 import type { CallerContext } from "./caller";
@@ -236,8 +236,21 @@ export class WordPressRuntime extends DurableObject<Env> {
   // because the resumed call gets none of its own.
   async approve(
     executionId: string,
-    caller: CallerContext
+    caller: CallerContext,
+    previewDigest?: string
   ): Promise<RuntimeOutcome<RunReport>> {
+    const preflight = await this.#store().readPreflight(executionId);
+
+    const stale = await this.#staleDecision(
+      executionId,
+      preflight,
+      previewDigest
+    );
+
+    if (stale) {
+      return stale;
+    }
+
     // Any decision retires the run's token, whichever surface made it: the
     // browser page spends none of its own, and without this a run that pauses
     // again would still answer to the token minted for the previous pause.
@@ -251,7 +264,9 @@ export class WordPressRuntime extends DurableObject<Env> {
     // that second, still-pending write. The report's own `receipt` is the
     // latest apply and is therefore not this decision's; `approvedReceipt` is.
     const approvedSeq = await this.#scope.run(
-      { ...caller, executionId },
+      preflight
+        ? { ...caller, executionId, preflight }
+        : { ...caller, executionId },
       async () => {
         const actions = await runtime.pending(executionId);
         const seq = actions.find((action) => isApplyCall(action))?.seq;
@@ -281,8 +296,19 @@ export class WordPressRuntime extends DurableObject<Env> {
   // token and no other.
   async reject(
     executionId: string,
-    caller: CallerContext
+    caller: CallerContext,
+    previewDigest?: string
   ): Promise<RuntimeOutcome<RunReport>> {
+    const stale = await this.#staleDecision(
+      executionId,
+      await this.#store().readPreflight(executionId),
+      previewDigest
+    );
+
+    if (stale) {
+      return stale;
+    }
+
     await clearRunNonce(this.#nonces(), executionId);
     const telemetry = createWordPressTelemetry();
     const runtime = this.#runtime(telemetry);
@@ -303,6 +329,37 @@ export class WordPressRuntime extends DurableObject<Env> {
       ),
       telemetry
     );
+  }
+
+  // The approval page names the preview its form showed. Anything else stored
+  // now (the next pause's preview, or one rebuilt for another approver) means
+  // the form is answering something its approver never saw, so nothing is
+  // decided. The approval card passes no digest: its one-time token is
+  // already retired by every decision and minted afresh for each pause.
+  async #staleDecision(
+    executionId: string,
+    preflight: ApplyPreflight | undefined,
+    previewDigest: string | undefined
+  ): Promise<RuntimeOutcome<RunReport> | undefined> {
+    // A page that could show no preview signs the empty digest, which matches
+    // a run with none stored: it can still be rejected, and an approval would
+    // find no preview and write nothing.
+    if (
+      previewDigest === undefined ||
+      (await preflightDigest(preflight)) === previewDigest
+    ) {
+      return undefined;
+    }
+
+    const telemetry = createWordPressTelemetry();
+
+    const report = await this.#report(
+      executionId,
+      telemetry,
+      await this.#record(executionId, telemetry)
+    );
+
+    return toRuntimeOutcome({ ...report, stalePreview: true }, telemetry);
   }
 
   // A decision either ends the run or pauses it again on the next write. Only
@@ -378,6 +435,10 @@ export class WordPressRuntime extends DurableObject<Env> {
 
       return { ...report, preflight };
     } catch (error) {
+      // A preview that could not be rebuilt retires the one stored before it,
+      // so no earlier form can answer a write nobody can now see.
+      await this.ctx.storage.delete(preflightKey(executionId));
+
       return { ...report, preflightError: toRunProblem(error) };
     }
   }
@@ -386,10 +447,13 @@ export class WordPressRuntime extends DurableObject<Env> {
     caller: CallerContext
   ): Promise<RuntimeOutcome<SiteDescription>> {
     const telemetry = createWordPressTelemetry();
-    const cached = await this.ctx.storage.get<CachedDescription>("describe");
+    // WordPress filters the content types by the caller's capabilities
+    // (`context=edit`), so each caller's description is cached apart: an
+    // Author's must never stand in for an Editor's, or the reverse.
+    const key = `describe:${caller.subjectOpaque}`;
+    const cached = await this.ctx.storage.get<CachedDescription>(key);
 
-    // A cache hit made no WordPress request, so it reports none: the cached
-    // body is shared by every caller and must never carry one caller's log.
+    // A cache hit made no WordPress request, so it reports none.
     if (cached && isFresh(cached.at, Date.now(), DESCRIBE_TTL_MS)) {
       return toRuntimeOutcome(cached.value, telemetry);
     }
@@ -398,7 +462,7 @@ export class WordPressRuntime extends DurableObject<Env> {
       buildSiteDescription(this.#client(caller), telemetry)
     );
 
-    await this.ctx.storage.put("describe", { at: Date.now(), value });
+    await this.ctx.storage.put(key, { at: Date.now(), value });
 
     return toRuntimeOutcome(value, telemetry);
   }

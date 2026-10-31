@@ -1,3 +1,5 @@
+import type { ApplyPreflight } from "./apply";
+
 // The Durable Object is one long-lived object shared by every caller, so the
 // forwarded Access JWT cannot live on it. It lives here instead: held for the
 // duration of one call and dropped in a `finally`, never persisted and never
@@ -24,6 +26,9 @@ export interface CallerContext {
   // Set only on the replay a human approval runs under, where the codemode
   // runtime supplies no per-call execution id of its own.
   executionId?: string;
+  // Also set only on that replay: the preview the approver answered, read
+  // once before the resume so a preview rebuilt meanwhile cannot replace it.
+  preflight?: ApplyPreflight;
   subjectOpaque: string;
   token: string;
 }

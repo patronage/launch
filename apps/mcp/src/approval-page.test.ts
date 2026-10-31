@@ -67,6 +67,7 @@ const approvalHtml = renderApprovalPage({
   csrfToken: "abc123",
   executionId: "exec_1",
   preflight,
+  previewDigest: "",
 });
 
 describe(escapeHtml, () => {
@@ -82,39 +83,96 @@ describe("approval CSRF token", () => {
     const token = await approvalCsrfToken(
       "secret",
       "exec_1",
-      "subject00000000"
+      "subject00000000",
+      "preview-a"
     );
 
     expect(token).toMatch(/^[a-f0-9]{64}$/u);
     await expect(
-      verifyApprovalCsrfToken("secret", "exec_1", "subject00000000", token)
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_1",
+        "subject00000000",
+        "preview-a",
+        token
+      )
     ).resolves.toBeTruthy();
+  });
+
+  it("refuses a token minted for another preview of the same run", async () => {
+    const token = await approvalCsrfToken(
+      "secret",
+      "exec_1",
+      "subject00000000",
+      "preview-a"
+    );
+
+    await expect(
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_1",
+        "subject00000000",
+        "preview-b",
+        token
+      )
+    ).resolves.toBeFalsy();
   });
 
   it("refuses a token minted for another run, approver, or secret", async () => {
     const token = await approvalCsrfToken(
       "secret",
       "exec_1",
-      "subject00000000"
+      "subject00000000",
+      "preview-a"
     );
 
     await expect(
-      verifyApprovalCsrfToken("secret", "exec_2", "subject00000000", token)
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_2",
+        "subject00000000",
+        "preview-a",
+        token
+      )
     ).resolves.toBeFalsy();
     await expect(
-      verifyApprovalCsrfToken("secret", "exec_1", "other00000000000", token)
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_1",
+        "other00000000000",
+        "preview-a",
+        token
+      )
     ).resolves.toBeFalsy();
     await expect(
-      verifyApprovalCsrfToken("other", "exec_1", "subject00000000", token)
+      verifyApprovalCsrfToken(
+        "other",
+        "exec_1",
+        "subject00000000",
+        "preview-a",
+        token
+      )
     ).resolves.toBeFalsy();
   });
 
   it("refuses a token that is empty or not a signature", async () => {
     await expect(
-      verifyApprovalCsrfToken("secret", "exec_1", "subject00000000", "")
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_1",
+        "subject00000000",
+        "preview-a",
+        ""
+      )
     ).resolves.toBeFalsy();
     await expect(
-      verifyApprovalCsrfToken("secret", "exec_1", "subject00000000", "forged")
+      verifyApprovalCsrfToken(
+        "secret",
+        "exec_1",
+        "subject00000000",
+        "preview-a",
+        "forged"
+      )
     ).resolves.toBeFalsy();
   });
 });
@@ -149,6 +207,7 @@ describe(renderApprovalPage, () => {
     const html = renderApprovalPage({
       csrfToken: "abc123",
       executionId: "exec_1",
+      previewDigest: "",
       problem: {
         code: "stale_expected_modified_gmt",
         message: "pages/42 was last modified at 2026-09-02T09:00:00",
@@ -165,6 +224,7 @@ describe(renderApprovalPage, () => {
       csrfToken: "abc123",
       executionId: "exec_1",
       preflight: { intent: "x", operations: [] },
+      previewDigest: "",
     });
 
     expect(html).not.toContain('value="approve"');
@@ -177,6 +237,7 @@ describe(renderApprovalPage, () => {
       executionId: "exec_1",
       notice: "This run needs a further approval.",
       preflight,
+      previewDigest: "",
     });
 
     expect(html).toContain("This run needs a further approval.");
@@ -189,6 +250,7 @@ describe(renderApprovalPage, () => {
       executionId: "exec_1",
       intent: "Refresh the <launch> page",
       preflight,
+      previewDigest: "",
     });
 
     expect(html).toContain("Refresh the &lt;launch&gt; page");
@@ -211,6 +273,7 @@ describe(renderApprovalPage, () => {
           { ...operation, editUrl: "data:text/html,<b>not wp-admin</b>" },
         ],
       },
+      previewDigest: "",
     });
 
     expect(html).not.toContain("data:text/html");
@@ -237,6 +300,7 @@ describe(renderApprovalPage, () => {
           },
         ],
       },
+      previewDigest: "",
     });
 
     expect(truncated.endsWith("…")).toBeTruthy();

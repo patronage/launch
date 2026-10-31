@@ -169,6 +169,32 @@ describe(buildSiteDescription, () => {
     expect(description.acfTypes[0]?.name).toBe("PageHero");
   });
 
+  it("fails rather than describing a site whose post types answered with an error", async () => {
+    vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+
+      if (url.pathname === "/graphql") {
+        return Response.json(schemaResponse);
+      }
+
+      if (url.pathname === "/wp-json/wp/v2/types") {
+        return Response.json(
+          { code: "rest_forbidden", message: "Sorry." },
+          { status: 403 }
+        );
+      }
+
+      return Response.json({
+        name: "Example Site",
+        url: "https://wordpress.example",
+      });
+    });
+
+    await expect(
+      buildSiteDescription(client, createWordPressTelemetry())
+    ).rejects.toBeInstanceOf(WordPressRequestError);
+  });
+
   it("does not infer a writable REST base from GraphQL exposure", async () => {
     const newsSchemaResponse = {
       data: {

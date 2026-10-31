@@ -74,23 +74,29 @@ const hmacKey = (secret: string): Promise<CryptoKey> =>
     ["sign", "verify"]
   );
 
-const csrfMessage = (executionId: string, subjectOpaque: string): Uint8Array =>
-  ENCODER.encode(`${executionId}.${subjectOpaque}`);
+const csrfMessage = (
+  executionId: string,
+  subjectOpaque: string,
+  previewDigest: string
+): Uint8Array =>
+  ENCODER.encode(`${executionId}.${subjectOpaque}.${previewDigest}`);
 
-// The token binds one execution to one approver, so a form served to one
-// person cannot answer another person's run and a link cannot answer any run
-// at all: the secret never leaves the deployment.
+// The token binds one preview of one execution to one approver, so a form
+// served to one person cannot answer another person's run, a link cannot
+// answer any run at all (the secret never leaves the deployment), and a form
+// cannot answer a later pause of the same run or a preview rebuilt since.
 export const approvalCsrfToken = async (
   secret: string,
   executionId: string,
-  subjectOpaque: string
+  subjectOpaque: string,
+  previewDigest: string
 ): Promise<string> => {
   const key = await hmacKey(secret);
 
   const signature = await crypto.subtle.sign(
     "HMAC",
     key,
-    csrfMessage(executionId, subjectOpaque)
+    csrfMessage(executionId, subjectOpaque, previewDigest)
   );
 
   return hex(signature);
@@ -103,6 +109,7 @@ export const verifyApprovalCsrfToken = async (
   secret: string,
   executionId: string,
   subjectOpaque: string,
+  previewDigest: string,
   token: string
 ): Promise<boolean> => {
   const signature = fromHex(token);
@@ -117,7 +124,7 @@ export const verifyApprovalCsrfToken = async (
     "HMAC",
     key,
     signature,
-    csrfMessage(executionId, subjectOpaque)
+    csrfMessage(executionId, subjectOpaque, previewDigest)
   );
 };
 
@@ -138,6 +145,9 @@ export interface ApprovalContent {
 
 export interface ApprovalView extends ApprovalContent {
   csrfToken: string;
+  // The `preflightDigest` of the preview this form shows, signed into
+  // `csrfToken` and checked against the stored preview when the form is sent.
+  previewDigest: string;
 }
 
 // Said on the second approval of a run whose script calls `wp.apply` twice.
@@ -310,6 +320,7 @@ export const renderApprovalPage = (view: ApprovalView): string => {
   const body = `${renderApprovalFragment(view)}
 <form method="post" action="${escapeHtml(approvalPath(view.executionId))}">
 <input name="csrf" type="hidden" value="${escapeHtml(view.csrfToken)}">
+<input name="preview" type="hidden" value="${escapeHtml(view.previewDigest)}">
 ${approve}
 <button class="reject" name="decision" type="submit" value="reject">Reject</button>
 </form>`;
