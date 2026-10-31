@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-29.
+Accepted, 2026-10-29. Fields moved to `wordpress-shared/patronage-fields` by ADR 0015.
 
 ## Context
 

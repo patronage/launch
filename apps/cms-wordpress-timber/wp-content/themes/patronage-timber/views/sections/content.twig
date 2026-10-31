@@ -1,0 +1,11 @@
+{# ContentBlock: copy at reading width, optionally centred. #}
+<div class="{{ cx('max-w-3xl', block.align == 'center' ? 'mx-auto') }}" data-align="{{ block.align }}">
+  {% include 'components/copy.twig' with {
+    eyebrow: block.eyebrow,
+    heading: block.heading,
+    body: block.body,
+    links: block.links,
+    align: block.align,
+    heading_level: heading_level
+  } only %}
+</div>

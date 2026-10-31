@@ -1,0 +1,26 @@
+{#
+  One Page Builder section: its options become the band and container around
+  its block (PageSection and BlockRenderer in packages/ui/src/sections.tsx).
+#}
+{% import 'components/ui.twig' as ui %}
+{% set templates = {
+  content: 'sections/content.twig',
+  contentMedia: 'sections/content-media.twig',
+  media: 'sections/media.twig',
+  cardGrid: 'sections/card-grid.twig',
+  blockquote: 'sections/blockquote.twig',
+  callToAction: 'sections/call-to-action.twig',
+  form: 'sections/form.twig'
+} %}
+<section class="{{ ui.section(section.options.paddingTop, section.options.paddingBottom) }}"
+  data-block="{{ section.block.type }}"
+  data-component="section"
+  data-skin="{{ section.options.skin }}"
+  {%- if section.options.slug %} id="{{ section.options.slug }}"{% endif %}>
+  <div class="{{ ui.container(section.options.width) }}" data-component="container" data-width="{{ section.options.width }}">
+    {% include templates[section.block.type] with {
+      block: section.block,
+      heading_level: section.headingLevel
+    } only %}
+  </div>
+</section>

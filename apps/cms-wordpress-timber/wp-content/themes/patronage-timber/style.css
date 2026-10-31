@@ -1,0 +1,10 @@
+/*
+Theme Name: Patronage Timber
+Description: Launch's traditional WordPress theme. Twig views (Timber) render the shared sections, heroes and forms with the @launch/ui design tokens; the stylesheet is built into dist/ by the app's build:css script.
+Author: Patronage
+Author URI: https://www.patronage.org
+Version: 0.1.0
+Requires PHP: 8.2
+License: MIT
+Text Domain: patronage-timber
+*/

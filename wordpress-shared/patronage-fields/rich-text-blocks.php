@@ -17,8 +17,9 @@
  * `data-launch-block` (a <span> for a button, so it can sit in a paragraph,
  * and a <div> for the rest, which wpautop leaves unwrapped), and
  * @launch/adapter-wordpress swaps that for @launch/ui's RichTextBlock. A theme
- * that renders its own HTML filters `patronage_headless_rich_text_block_html`
- * and draws the block from the same array.
+ * that renders its own HTML, like the Timber theme, filters
+ * `patronage_fields_rich_text_block_html` and draws the block from the same
+ * array.
  */
 
 if (!defined('ABSPATH')) {
@@ -32,16 +33,16 @@ add_action('init', function (): void {
   remove_filter('acf_the_content', 'wptexturize');
 });
 
-const PATRONAGE_HEADLESS_RICH_TEXT_BLOCKS = ['launch_button', 'launch_image', 'launch_pullquote', 'launch_embed'];
+const PATRONAGE_FIELDS_RICH_TEXT_BLOCKS = ['launch_button', 'launch_image', 'launch_pullquote', 'launch_embed'];
 
 /** Trimmed text, or null when empty. */
-function patronage_headless_text(mixed $value): ?string {
+function patronage_fields_text(mixed $value): ?string {
   $text = trim(wp_strip_all_tags((string) $value));
   return $text === '' ? null : $text;
 }
 
 /** An attachment as the content model's Image, or null. */
-function patronage_headless_image_model(int $id): ?array {
+function patronage_fields_image_model(int $id): ?array {
   $src = $id ? wp_get_attachment_url($id) : false;
   if (!$src) {
     return null;
@@ -63,11 +64,13 @@ function patronage_headless_image_model(int $id): ?array {
  * when it is missing what it needs. Links keep WordPress's absolute URLs; the
  * adapter makes them site-relative.
  */
-function patronage_headless_rich_text_block(string $tag, array $atts, ?string $content): ?array {
+function patronage_fields_rich_text_block(string $tag, array $atts, ?string $content): ?array {
   switch ($tag) {
     case 'launch_button':
-      $url = trim((string) ($atts['url'] ?? ''));
-      $label = patronage_headless_text($atts['label'] ?? '');
+      // esc_url_raw drops protocols WordPress does not allow, such as
+      // javascript:, which an author without unfiltered_html could type here.
+      $url = esc_url_raw(trim((string) ($atts['url'] ?? '')));
+      $label = patronage_fields_text($atts['label'] ?? '');
       if ($url === '' || $label === null) {
         return null;
       }
@@ -86,42 +89,46 @@ function patronage_headless_rich_text_block(string $tag, array $atts, ?string $c
 
     case 'launch_image':
       $id = (int) ($atts['id'] ?? 0);
-      $image = patronage_headless_image_model($id);
+      $image = patronage_fields_image_model($id);
       if (!$image) {
         return null;
       }
-      $caption = patronage_headless_text($atts['caption'] ?? '') ?? patronage_headless_text(wp_get_attachment_caption($id));
+      $caption = patronage_fields_text($atts['caption'] ?? '') ?? patronage_fields_text(wp_get_attachment_caption($id));
       return ['type' => 'image', 'media' => array_filter(['image' => $image, 'caption' => $caption])];
 
     case 'launch_pullquote':
-      $quote = patronage_headless_text($content ?? '');
+      $quote = patronage_fields_text($content ?? '');
       if ($quote === null) {
         return null;
       }
       return array_filter([
         'type' => 'pullquote',
         'quote' => $quote,
-        'attribution' => patronage_headless_text($atts['attribution'] ?? ''),
+        'attribution' => patronage_fields_text($atts['attribution'] ?? ''),
       ]);
 
     case 'launch_embed':
       $url = trim((string) ($atts['url'] ?? ''));
-      if (!wp_http_validate_url($url)) {
+      // A syntax check only: wp_http_validate_url() resolves the host, which
+      // costs a DNS lookup on every render and fails wherever DNS is blocked.
+      // The UI decides what to frame from the URL itself.
+      $parts = wp_parse_url($url);
+      if (!$parts || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])) {
         return null;
       }
       return array_filter([
         'type' => 'embed',
         'url' => $url,
-        'caption' => patronage_headless_text($atts['caption'] ?? ''),
+        'caption' => patronage_fields_text($atts['caption'] ?? ''),
       ]);
   }
   return null;
 }
 
 add_action('init', function (): void {
-  foreach (PATRONAGE_HEADLESS_RICH_TEXT_BLOCKS as $tag) {
+  foreach (PATRONAGE_FIELDS_RICH_TEXT_BLOCKS as $tag) {
     add_shortcode($tag, function ($atts, $content, $tag): string {
-      $block = patronage_headless_rich_text_block($tag, is_array($atts) ? $atts : [], $content);
+      $block = patronage_fields_rich_text_block($tag, is_array($atts) ? $atts : [], $content);
       if (!$block) {
         return '';
       }
@@ -131,7 +138,7 @@ add_action('init', function (): void {
         $tag_name,
         esc_attr(wp_json_encode($block, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)),
       );
-      return (string) apply_filters('patronage_headless_rich_text_block_html', $html, $block);
+      return (string) apply_filters('patronage_fields_rich_text_block_html', $html, $block);
     });
   }
 });

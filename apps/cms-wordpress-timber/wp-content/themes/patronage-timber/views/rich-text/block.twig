@@ -1,0 +1,44 @@
+{#
+  A block placed in rich text (RichTextBlock, Embed and Pullquote in
+  packages/ui/src/rich-text-blocks.tsx). A button sits inside a paragraph,
+  so it draws no block element.
+#}
+{% import 'components/primitives.twig' as p %}
+{% if block.type == 'button' -%}
+  {{ p.link_button(block.link, 'not-prose') }}
+{%- elseif block.type == 'image' %}
+  {{ p.figure(block.media, 'not-prose my-8') }}
+{% elseif block.type == 'pullquote' %}
+  <figure class="not-prose border-section-accent my-10 border-l-4 pl-6">
+    <blockquote class="font-display text-section-heading text-2xl leading-snug font-semibold text-balance md:text-3xl">
+      <p>{{ block.quote }}</p>
+    </blockquote>
+    {% if block.attribution %}
+      <figcaption class="text-section-muted mt-4 text-base">{{ block.attribution }}</figcaption>
+    {% endif %}
+  </figure>
+{% elseif block.type == 'embed' and block.player.kind == 'video' %}
+  <figure class="not-prose my-8" data-embed="video">
+    <iframe allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+      class="aspect-video w-full rounded-xl border-0"
+      loading="lazy"
+      referrerpolicy="strict-origin-when-cross-origin"
+      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+      src="{{ block.player.src }}"
+      title="{{ block.caption ?: 'Embedded video' }}"></iframe>
+    {% if block.caption %}
+      <figcaption class="text-section-muted mt-3 text-sm">{{ block.caption }}</figcaption>
+    {% endif %}
+  </figure>
+{% elseif block.type == 'embed' and block.player.kind == 'post' %}
+  {# widgets.js turns the blockquote into the post; without it, it stays a link. #}
+  <figure class="not-prose my-8" data-embed="post">
+    <blockquote class="twitter-tweet" data-dnt="true"><a href="{{ block.player.url }}">View the post on X</a></blockquote>
+    <script async charset="utf-8" src="https://platform.twitter.com/widgets.js"></script>
+    {% if block.caption %}
+      <figcaption class="text-section-muted mt-3 text-sm">{{ block.caption }}</figcaption>
+    {% endif %}
+  </figure>
+{% elseif block.type == 'embed' %}
+  <p data-embed="link"><a href="{{ block.player.url }}" rel="noopener noreferrer" target="_blank">{{ block.caption ?: block.player.url }}</a></p>
+{% endif %}

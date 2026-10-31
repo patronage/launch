@@ -1,0 +1,18 @@
+{#
+  The hero's eyebrow, the page's <h1>, subhead, rich text and links
+  (HeroCopy in packages/ui/src/hero.tsx). Takes: hero, display, extra.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set center = hero.align == 'center' %}
+<div class="{{ cx('flex max-w-3xl flex-col gap-5', center ? 'mx-auto items-center text-center', extra|default('')) }}">
+  {% if hero.eyebrow %}
+    <p class="{{ ui.type('eyebrow') }}">{{ hero.eyebrow }}</p>
+  {% endif %}
+  <h1 class="{{ ui.type(display|default('d1')) }}">{{ hero.title }}</h1>
+  {% if hero.subhead %}
+    <p class="{{ ui.type('lead') }}">{{ hero.subhead }}</p>
+  {% endif %}
+  {{ p.rich_text(hero.body, cx('prose-xl', center ? 'mx-auto')) }}
+  {{ p.link_list(hero.links, cx('mt-2', center ? 'justify-center')) }}
+</div>

@@ -19,14 +19,16 @@ if (!defined('ABSPATH')) {
 }
 
 /** Conditional logic: shown when the variant is one of $variants. */
-function patronage_headless_hero_for(string ...$variants): array {
+function patronage_fields_hero_for(string ...$variants): array {
   return array_map(fn(string $variant) => ConditionalLogic::where('variant', '==', $variant), $variants);
 }
 
-$patronage_headless_any_hero = patronage_headless_hero_for('home', 'split', 'media', 'simple', 'freeform');
+$patronage_fields_any_hero = patronage_fields_hero_for('home', 'split', 'media', 'simple', 'freeform');
 
 register_extended_field_group([
   'title' => 'Hero',
+  // The key predates this shared folder. ACF derives the stored field keys
+  // from it, so changing it would orphan existing content.
   'key' => 'patronage_headless_hero',
   'show_in_graphql' => true,
   'graphql_field_name' => 'hero',
@@ -48,29 +50,29 @@ register_extended_field_group([
       ->helperText('Leave empty for no hero.'),
     Text::make('Title', 'title')
       ->helperText('Defaults to the page title.')
-      ->conditionalLogic($patronage_headless_any_hero),
+      ->conditionalLogic($patronage_fields_any_hero),
     Text::make('Eyebrow', 'eyebrow')
       ->wrapper(['width' => 50])
-      ->conditionalLogic($patronage_headless_any_hero),
+      ->conditionalLogic($patronage_fields_any_hero),
     ButtonGroup::make('Skin', 'skin')
       ->choices(['light' => 'Light', 'dark' => 'Dark', 'accent' => 'Accent'])
       ->default('light')
       ->format('value')
       ->wrapper(['width' => 25])
-      ->conditionalLogic($patronage_headless_any_hero),
+      ->conditionalLogic($patronage_fields_any_hero),
     ButtonGroup::make('Align', 'align')
       ->choices(['start' => 'Start', 'center' => 'Center'])
       ->default('start')
       ->format('value')
       ->wrapper(['width' => 25])
-      ->conditionalLogic($patronage_headless_any_hero),
+      ->conditionalLogic($patronage_fields_any_hero),
     Textarea::make('Subhead', 'subhead')
       ->rows(3)
       ->helperText('Plain text.')
-      ->conditionalLogic(patronage_headless_hero_for('home', 'split', 'media', 'simple')),
-    patronage_headless_body()->conditionalLogic(patronage_headless_hero_for('freeform')),
-    patronage_headless_image('Image', 'image')->conditionalLogic(patronage_headless_hero_for('home', 'split', 'media')),
-    patronage_headless_links()->conditionalLogic($patronage_headless_any_hero),
+      ->conditionalLogic(patronage_fields_hero_for('home', 'split', 'media', 'simple')),
+    patronage_fields_body()->conditionalLogic(patronage_fields_hero_for('freeform')),
+    patronage_fields_image('Image', 'image')->conditionalLogic(patronage_fields_hero_for('home', 'split', 'media')),
+    patronage_fields_links()->conditionalLogic($patronage_fields_any_hero),
   ],
 ]);
 

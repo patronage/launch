@@ -1,0 +1,5 @@
+{# A post, or any other single item. #}
+{% extends 'layout.twig' %}
+{% block content %}
+  {% include 'partials/content.twig' with {post: post, page: page} only %}
+{% endblock %}

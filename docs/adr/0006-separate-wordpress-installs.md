@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-29. The Timber install is not built yet.
+Accepted, 2026-10-29. The Timber install was built on 2026-10-30; the two share their fields (ADR 0015).
 
 ## Context
 
@@ -18,4 +18,4 @@ A single WordPress install could serve both a headless Front-end and a Timber th
 ## Consequences
 
 - Each install can be copied to a new project on its own.
-- Shared WordPress code (the Access mu-plugin, the deploy kit) lives in `wordpress-shared/`, not in either install.
+- Shared WordPress code (the Access mu-plugin, the deploy kit, the fields) lives in `wordpress-shared/`, not in either install.

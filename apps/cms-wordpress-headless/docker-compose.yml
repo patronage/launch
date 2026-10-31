@@ -24,6 +24,8 @@ x-wordpress-volumes: &wordpress-volumes
   - wordpress:/var/www/html
   - ./wp-content/plugins:/var/www/html/wp-content/plugins
   - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
+  # The shared field groups, loaded by mu-plugins/patronage-fields.php.
+  - ../../wordpress-shared/patronage-fields:/var/www/html/wp-content/mu-plugins/patronage-fields:ro
   - ./wp-content/themes/patronage-headless:/var/www/html/wp-content/themes/patronage-headless
 
 services:
@@ -74,9 +76,10 @@ services:
       - wordpress:/var/www/html
       - ./wp-content/plugins:/var/www/html/wp-content/plugins
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
+      - ../../wordpress-shared/patronage-fields:/var/www/html/wp-content/mu-plugins/patronage-fields:ro
       - ./wp-content/themes/patronage-headless:/var/www/html/wp-content/themes/patronage-headless
       # Demo content for bin/seed.sh.
-      - ./seed:/seed:ro
+      - ../../wordpress-shared/patronage-fields/seed:/seed:ro
       - ../../packages/demo-content:/demo-content:ro
 
 volumes:

@@ -1,0 +1,12 @@
+{% extends 'layout.twig' %}
+{% import 'components/ui.twig' as ui %}
+{% block content %}
+  <section class="{{ ui.section('lg', 'lg') }}" data-component="section" data-skin="light">
+    <div class="{{ ui.container('narrow', 'flex flex-col gap-5') }}">
+      <p class="{{ ui.type('eyebrow') }}">404</p>
+      <h1 class="{{ ui.type('h1') }}">Page not found</h1>
+      <p class="{{ ui.type('lead') }}">The page you were looking for has moved or never existed.</p>
+      <p><a class="{{ ui.button('default') }}" href="{{ home_url }}">Go home</a></p>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{
+  "name": "@patronage/wordpress-fields",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ACF field groups, post types and demo seed shared by the Launch WordPress installs.",
+  "license": "MIT",
+  "scripts": {
+    "test": "for f in patronage-fields.php post-types.php fields/*.php seed/*.php; do php -l \"$f\" >/dev/null || exit 1; done"
+  }
+}
