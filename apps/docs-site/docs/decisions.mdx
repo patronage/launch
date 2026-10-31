@@ -18,7 +18,7 @@ sidebar:
 | WordPress plugins | Installed by Composer and never committed. Only Patronage's own `patronage-*` code is in the repo. |
 | Payload | One app, using the Local API. D1 is the database by default, with Postgres through Hyperdrive kept as an option. See [Payload](/references/payload). |
 | Shared UI | Plain props from a CMS-neutral content model. Each CMS has an adapter; rich text stays CMS-specific. |
-| MCP | One MCP Worker behind Access, with a WordPress backend and a Payload backend. |
+| MCP | One MCP gateway Worker per site, behind Access, with a WordPress and a Payload connector. Every write waits for a person to approve it. See [MCP server](/references/mcp). |
 | Docs | This site, built with Blume. Engineering notes stay in the repo's `docs/` folder. |
 
 ## Open
