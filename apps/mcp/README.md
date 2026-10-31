@@ -12,7 +12,12 @@ It serves `/mcp` on its custom domain only, with no `workers.dev` or preview URL
 | `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. |
 | `get_run` | Reports a run's status after an approval. |
 
-The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields and ACF fields, with an optional `expected_modified_gmt` check). Nothing is written until someone approves.
+The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields and ACF fields, with an optional `expected_modified_gmt` check). `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
+
+On a site with Payload, the `payload` connector sits beside it:
+
+- `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
+- `payload.apply({ intent, operations })` stages `update_draft` operations: top-level fields of one document, with an optional `expected_updated_at` check. After approval each one is saved through Payload's REST API with `?draft=true`, so the published version stays as it is until someone publishes in the Payload admin. Collections without drafts are refused, and so are `_status`, `id` and the timestamps. Rich text goes in as Payload's Lexical JSON; a Markdown path is still to come.
 
 ## Approvals
 
@@ -27,7 +32,9 @@ The approval runs as the approver, through the same Access sign-in. `APPROVAL_CS
 
 The Access application in front of this Worker must cover `/mcp*`, so the approval page is protected too. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
 
-Calls to WordPress forward that JWT. WordPress's `patronage-access` mu-plugin (`wordpress-shared/patronage-access`) maps it to a WordPress user, and checks the gateway proof signed with `WORDPRESS_ACCESS_PROOF_SECRET`. When WordPress is itself behind Access, `WORDPRESS_ACCESS_CLIENT_ID` and `WORDPRESS_ACCESS_CLIENT_SECRET` hold the service token that gets requests through.
+Calls to WordPress and Payload forward that JWT. WordPress's `patronage-access` mu-plugin (`wordpress-shared/patronage-access`) maps it to a WordPress user, and checks the gateway proof signed with `WORDPRESS_ACCESS_PROOF_SECRET`. When WordPress is itself behind Access, `WORDPRESS_ACCESS_CLIENT_ID` and `WORDPRESS_ACCESS_CLIENT_SECRET` hold the service token that gets requests through.
+
+Payload is reached one of two ways. With `PAYLOAD_WORKER` set at build time, a Service binding calls the Payload Worker directly. With `PAYLOAD_API_URL` instead, requests go through Payload's Access application with the service token in `PAYLOAD_ACCESS_CLIENT_ID` and `PAYLOAD_ACCESS_CLIENT_SECRET`. Either way Payload checks the proof signed with `PAYLOAD_ACCESS_PROOF_SECRET`, which must match `ACCESS_GATEWAY_PROOF_SECRET` on the Payload Worker. `PAYLOAD_ADMIN_URL` gives the approval page its "open in Payload admin" link. With neither set, the `payload` connector is left out.
 
 ## Logging
 
@@ -43,10 +50,11 @@ pnpm typecheck
 pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 ```
 
-Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
+Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 
-- A `payload` connector that calls Payload's `/api/mcp` over a Service binding, with writes routed through approval.
+- Markdown to Lexical for Payload rich text, and creating new Payload drafts.
+- Payload in `describe_site`, and logging its requests under their own name rather than beside WordPress's.
 - Splitting the transport, runtime and connectors into `packages/mcp-*`, published to npm under `@patronage`.
 - Typed tool packs for named workflows.

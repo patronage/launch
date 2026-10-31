@@ -113,7 +113,7 @@ describe(toExecuteResult, () => {
     }
 
     expect(result.pending[0]?.sentences).toStrictEqual([]);
-    expect(result.pending[0]?.intent).toBe("unparsable wp.apply arguments");
+    expect(result.pending[0]?.intent).toBe("unparsable apply arguments");
   });
 
   it("maps an error outcome and renders a one-line summary", () => {

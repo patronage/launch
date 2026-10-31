@@ -58,3 +58,5 @@ The strategy steps aside whenever a request already carries Payload's own creden
 - The `payload` connector can call `/api/mcp` over a Service binding and forward the editor's Access JWT. A Service binding skips the Access edge, so the Payload Worker must check the gateway proof on that path before trusting the forwarded JWT.
 - Tool results are text with JSON blocks, not structured content. The connector will parse them, or call Payload's custom-tool API to return JSON.
 - Rich text comes back as Lexical JSON. A Markdown path for writes is still owed.
+
+Follow-up: the `payload` connector in `apps/mcp` now does this. Payload's `cloudflare-access-gateway` strategy checks the gateway proof before it trusts a forwarded JWT. The connector hands the model the tool's text as it comes, and writes go through Payload's REST API as drafts rather than through the plugin's update tool, which stays off. Checked locally against the Payload Worker with stand-in Access keys: a wrong proof signs nobody in, an approved change lands as a draft while the published post is unchanged, and a collection without drafts is refused.

@@ -12,6 +12,10 @@ import { createWordPressTools } from "./connector";
 import type { RuntimeStore } from "./connector";
 import { buildSiteDescription, DESCRIBE_TTL_MS, isFresh } from "./describe";
 import type { SiteDescription } from "./describe";
+import { createPayloadClient, payloadConfigured } from "./payload";
+import { preflightDraftOperations } from "./payload-apply";
+import { PayloadConnector } from "./payload-connector";
+import { createPayloadTools, payloadAdminLink } from "./payload-tools";
 import {
   clearRunNonce,
   consumeRunNonce,
@@ -120,15 +124,26 @@ export class WordPressRuntime extends DurableObject<Env> {
   // durable facet, and the tools it carries close over the caller — and now the
   // telemetry — of this call.
   #runtime(telemetry: WordPressTelemetry) {
-    const tools = createWordPressTools({
+    const deps = {
       env: this.env,
       scope: this.#scope,
       store: this.#store(),
       telemetry: () => telemetry,
-    });
+    };
+
+    const connectors: (PayloadConnector | WordPressConnector)[] = [
+      new WordPressConnector(this.ctx, this.env, createWordPressTools(deps)),
+    ];
+
+    // A site with Payload gets the `payload` global beside `wp`.
+    if (payloadConfigured(this.env)) {
+      connectors.push(
+        new PayloadConnector(this.ctx, this.env, createPayloadTools(deps))
+      );
+    }
 
     return createCodemodeRuntime({
-      connectors: [new WordPressConnector(this.ctx, this.env, tools)],
+      connectors,
       ctx: this.ctx,
       executor: new DynamicWorkerExecutor({ loader: this.env.LOADER }),
     });
@@ -189,7 +204,7 @@ export class WordPressRuntime extends DurableObject<Env> {
 
       return toExecuteResult({
         calls: outcome.calls ?? [],
-        error: `wp.apply rejected: ${problem.code}: ${problem.message}`,
+        error: `${problem.connector}.apply rejected: ${problem.code}: ${problem.message}`,
         executionId: outcome.executionId,
         status: "error",
       });
@@ -423,12 +438,20 @@ export class WordPressRuntime extends DurableObject<Env> {
 
     try {
       const preflight = await this.#scope.run(caller, () =>
-        preflightOperations(
-          this.#client(caller),
-          pending.intent,
-          pending.operations,
-          telemetry
-        )
+        pending.connector === "payload"
+          ? preflightDraftOperations(
+              createPayloadClient(this.env, caller),
+              pending.intent,
+              pending.operations,
+              payloadAdminLink(this.env),
+              telemetry
+            )
+          : preflightOperations(
+              this.#client(caller),
+              pending.intent,
+              pending.operations,
+              telemetry
+            )
       );
 
       await this.#store().writePreflight(executionId, preflight);
