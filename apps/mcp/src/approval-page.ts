@@ -261,7 +261,7 @@ const renderTarget = (operation: OperationPreflight): string => {
   const target = escapeHtml(operation.target);
 
   return href
-    ? `<a href="${escapeHtml(href)}">Open ${target} in wp-admin</a>`
+    ? `<a href="${escapeHtml(href)}">Open ${target} in ${escapeHtml(operation.editor ?? "wp-admin")}</a>`
     : `<span>${target}</span>`;
 };
 

@@ -3,7 +3,7 @@ title: MCP server
 description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that can only change content after a person approves.
 ---
 
-The gateway Worker is built in `apps/mcp`, with its WordPress connector. The Payload connector, the npm packages and tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
+The gateway Worker is built in `apps/mcp`, with its WordPress and Payload connectors. The npm packages and tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
 
 ## What a site's team gets
 
@@ -18,7 +18,7 @@ The gateway Worker is built in `apps/mcp`, with its WordPress connector. The Pay
 | --- | --- |
 | `apps/mcp` | Built. The gateway Worker: sign-in, tool catalog, write approval, logging |
 | `wp` connector | Built. WPGraphQL and REST reads, approved post updates (core and ACF fields) |
-| `payload` connector | Next. Payload's own MCP endpoint (`@payloadcms/plugin-mcp`) over a Service binding, with writes routed through approval |
+| `payload` connector | Built. Reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`), approved changes saved as drafts and never published |
 | `packages/mcp-core` | Planned. Transport, the code-mode runtime, approval and the connector contract, split out of `apps/mcp` |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 

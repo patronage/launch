@@ -7,6 +7,8 @@ import {
   parseApplyInput,
 } from "./operations";
 import type { WriteOperation } from "./operations";
+import { draftSentence, parseDraftApplyInput } from "./payload-operations";
+import type { DraftOperation } from "./payload-operations";
 import { WordPressRequestError } from "./wordpress";
 
 // This module is deliberately package-free: it names no codemode import and no
@@ -18,11 +20,11 @@ export const PAUSED_MAX_AGE_MS = 86_400_000;
 export const APPROVAL_ROUTE =
   /^\/mcp\/approvals\/(?<executionId>[\w-]{1,128})$/u;
 
-// A pending action always carries `wp.apply` arguments, but the durable log is
+// A pending action always carries `wp.apply` or `payload.apply` arguments, but the durable log is
 // the only place they live between the pause and the approval, so a shape the
 // schema rejects has to summarise as something rather than throw the approval
 // page away.
-const UNPARSABLE_INTENT = "unparsable wp.apply arguments";
+const UNPARSABLE_INTENT = "unparsable apply arguments";
 
 export const approvalPath = (executionId: string): string =>
   `/mcp/approvals/${executionId}`;
@@ -230,10 +232,11 @@ export interface ExecutionRecord {
   status: string;
 }
 
-export interface PendingOperations {
-  intent: string;
-  operations: WriteOperation[];
-}
+// The write a paused run is waiting on, named by the connector that asked
+// for it: `wp.apply` and `payload.apply` take different operations.
+export type PendingOperations =
+  | { connector: "payload"; intent: string; operations: DraftOperation[] }
+  | { connector: "wp"; intent: string; operations: WriteOperation[] };
 
 export interface RunProblem {
   code: string;
@@ -243,6 +246,7 @@ export interface RunProblem {
 // The pending action that failed validation, named by the `seq` the runtime's
 // `reject` needs.
 export interface PendingApplyProblem extends RunProblem {
+  connector: string;
   seq: number;
 }
 
@@ -301,7 +305,15 @@ const isBatchReceipt = <T>(value: T): value is T & BatchReceipt =>
 export const isApplyCall = (call: {
   connector: string;
   method: string;
-}): boolean => call.connector === "wp" && call.method === "apply";
+}): boolean =>
+  (call.connector === "wp" || call.connector === "payload") &&
+  call.method === "apply";
+
+// Each connector's `apply` validates its own operations.
+const parsePendingApply = <T>(connector: string, args: T): PendingOperations =>
+  connector === "payload"
+    ? { connector, ...parseDraftApplyInput(args) }
+    : { connector: "wp", ...parseApplyInput(args) };
 
 const toCalls = (entries: ToolLogRecord[]): RunCall[] =>
   entries.map((entry) => ({
@@ -311,26 +323,38 @@ const toCalls = (entries: ToolLogRecord[]): RunCall[] =>
     state: entry.state ?? "applied",
   }));
 
-const toPendingOperations = <T>(args: T): PendingOperations => {
+const toPendingOperations = <T>(
+  connector: string,
+  args: T
+): PendingOperations => {
   try {
-    const input = parseApplyInput(args);
+    const input = parsePendingApply(connector, args);
 
-    return { intent: input.intent, operations: input.operations };
+    return input.connector === "payload"
+      ? {
+          connector: "payload",
+          intent: input.intent,
+          operations: input.operations,
+        }
+      : { connector: "wp", intent: input.intent, operations: input.operations };
   } catch {
-    return { intent: UNPARSABLE_INTENT, operations: [] };
+    return { connector: "wp", intent: UNPARSABLE_INTENT, operations: [] };
   }
 };
 
+const pendingSentences = (pending: PendingOperations): string[] =>
+  pending.connector === "payload"
+    ? pending.operations.map((operation) => draftSentence(operation))
+    : pending.operations.map((operation) => operationSentence(operation));
+
 const summarizePending = (action: ProxyPending): PendingSummary => {
-  const input = toPendingOperations(action.args);
+  const input = toPendingOperations(action.connector, action.args);
 
   return {
     connector: action.connector,
     intent: input.intent,
     method: action.method,
-    sentences: input.operations.map((operation) =>
-      operationSentence(operation)
-    ),
+    sentences: pendingSentences(input),
     seq: action.seq,
   };
 };
@@ -356,12 +380,17 @@ export const invalidPendingApply = (
   }
 
   try {
-    parseApplyInput(action.args);
+    parsePendingApply(action.connector, action.args);
 
     return undefined;
   } catch (error) {
     return error instanceof ApplyValidationError
-      ? { code: error.code, message: error.message, seq: action.seq }
+      ? {
+          code: error.code,
+          connector: action.connector,
+          message: error.message,
+          seq: action.seq,
+        }
       : undefined;
   }
 };
@@ -533,7 +562,7 @@ export const toRunView = (
       : undefined;
 
   if (pending) {
-    view.pending = toPendingOperations(pending.args);
+    view.pending = toPendingOperations(pending.connector, pending.args);
   }
 
   return view;

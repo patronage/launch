@@ -92,6 +92,8 @@ export interface ToolDeps {
   // The origin the caller reached this Worker on, so the paused result can
   // name an absolute approval URL the human can open.
   origin: string;
+  // Whether the site has Payload, so `execute` describes the `payload` global.
+  payload?: boolean;
   stub: RuntimeStub;
 }
 
@@ -206,6 +208,12 @@ const EXECUTE_DESCRIPTION = [
   "wp.apply is the only write call and pauses for human approval in the inline app.",
   'Read example: async () => await wp.get({ path: "/wp-json/wp/v2/posts/123", query: { context: "edit" } }).',
   'Write example: async () => { const post = await wp.get({ path: "/wp-json/wp/v2/posts/123", query: { context: "edit" } }); return await wp.apply({ intent: "Fix the title.", operations: [{ kind: "update_post", rest_base: "posts", id: post.id, expected_modified_gmt: post.modified_gmt, fields: { title: "Correct title" } }] }); }',
+].join(" ");
+
+const PAYLOAD_EXECUTE_DESCRIPTION = [
+  "The sandbox also has a global payload connector for the Payload CMS.",
+  'Payload reads: await payload.tools() lists the read tools; await payload.call({ tool: "findDocuments", arguments: { slug: "posts", where: { slug: { equals: "hello" } }, draft: true } }) returns { isError, text, structured? } with the documents as JSON in text.',
+  'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields, expected_updated_at? }; each is saved as a new draft, never published, after human approval. Copy updatedAt from a draft: true read into expected_updated_at.',
 ].join(" ");
 
 const getRunInputSchema = z.object({
@@ -718,7 +726,9 @@ export const registerTools = (
       // pauses. Only the app-only decision tool can perform the mutation.
       readOnlyHint: true,
     },
-    description: EXECUTE_DESCRIPTION,
+    description: deps.payload
+      ? `${EXECUTE_DESCRIPTION} ${PAYLOAD_EXECUTE_DESCRIPTION}`
+      : EXECUTE_DESCRIPTION,
     inputSchema: executeInputSchema,
     outputSchema: executeOutputSchema,
   };

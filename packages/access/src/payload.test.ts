@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { accessAuthStrategy } from "./payload.ts";
+import { computeGatewayProof } from "./gateway-proof.ts";
+import { accessAuthStrategy, accessGatewayAuthStrategy } from "./payload.ts";
 import type { PayloadUserLookup } from "./payload.ts";
 import { AUD, signToken, TEAM_DOMAIN, testKeys } from "./test-keys.ts";
 
@@ -84,6 +85,79 @@ describe(accessAuthStrategy, () => {
 
     await expect(
       strategy().authenticate({ headers, payload: fakePayload([]) })
+    ).resolves.toStrictEqual({ user: null });
+  });
+});
+
+describe(accessGatewayAuthStrategy, () => {
+  let keys: Awaited<ReturnType<typeof testKeys>>;
+
+  beforeAll(async () => {
+    keys = await testKeys();
+  });
+
+  const strategy = () =>
+    accessGatewayAuthStrategy<TestUser>({
+      audience: AUD,
+      gatewayProofSecret: "proof-secret",
+      getKey: keys.getKey,
+      teamDomain: TEAM_DOMAIN,
+    });
+
+  const forwarded = async (proofSecret = "proof-secret") => {
+    const jwt = await signToken(keys.privateKey);
+
+    return new Headers({
+      "X-Access-Gateway-Proof": await computeGatewayProof(proofSecret, jwt),
+      "X-Access-User-Jwt": jwt,
+    });
+  };
+
+  it("resolves the editor from a forwarded JWT with a valid gateway proof", async () => {
+    const payload = fakePayload([{ email: "editor@example.com", id: 7 }]);
+
+    await expect(
+      strategy().authenticate({ headers: await forwarded(), payload })
+    ).resolves.toStrictEqual({
+      user: {
+        _strategy: "cloudflare-access-gateway",
+        collection: "users",
+        email: "editor@example.com",
+        id: 7,
+      },
+    });
+  });
+
+  it("returns no user when the proof was signed with another secret", async () => {
+    const payload = fakePayload([{ email: "editor@example.com", id: 7 }]);
+
+    await expect(
+      strategy().authenticate({ headers: await forwarded("other"), payload })
+    ).resolves.toStrictEqual({ user: null });
+    expect(payload.find).not.toHaveBeenCalled();
+  });
+
+  it("returns no user for a forwarded JWT without a proof", async () => {
+    const payload = fakePayload([{ email: "editor@example.com", id: 7 }]);
+    const headers = await forwarded();
+    headers.delete("X-Access-Gateway-Proof");
+
+    await expect(
+      strategy().authenticate({ headers, payload })
+    ).resolves.toStrictEqual({ user: null });
+  });
+
+  it("ignores the Access assertion header Access itself sets", async () => {
+    const payload = fakePayload([{ email: "editor@example.com", id: 7 }]);
+    const jwt = await signToken(keys.privateKey);
+
+    const headers = new Headers({
+      "Cf-Access-Jwt-Assertion": jwt,
+      "X-Access-Gateway-Proof": await computeGatewayProof("proof-secret", jwt),
+    });
+
+    await expect(
+      strategy().authenticate({ headers, payload })
     ).resolves.toStrictEqual({ user: null });
   });
 });

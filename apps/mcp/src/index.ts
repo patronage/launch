@@ -28,6 +28,7 @@ import {
   withMcpRequestLog,
 } from "./logging";
 import type { McpLoggingOptions, McpRequestLogger } from "./logging";
+import { payloadConfigured } from "./payload";
 import { APPROVAL_ROUTE, RUNTIME_INSTANCE_NAME } from "./run";
 import type { RunReport, RuntimeOutcome } from "./run";
 import type { WordPressRuntime } from "./runtime";
@@ -567,6 +568,7 @@ export const createWorker = (options: WorkerOptions = {}) => {
     const deps: ToolDeps = {
       caller,
       origin: url.origin,
+      payload: payloadConfigured(env),
       stub: runtimeStub(env),
     };
 

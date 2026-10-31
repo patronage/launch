@@ -25,6 +25,11 @@ export default defineConfig({
     env: {
       // Access application for /admin and /api; empty turns the Access sign-in off.
       ACCESS_AUD: bindings.text(process.env.ACCESS_AUD ?? ""),
+      // The MCP gateway's Access application, whose editors' JWTs the gateway
+      // forwards, and the proof secret it signs them with. Both or neither.
+      ACCESS_GATEWAY_AUD: bindings.text(process.env.ACCESS_GATEWAY_AUD ?? ""),
+      ACCESS_GATEWAY_PROOF_SECRET:
+        Boolean(process.env.ACCESS_GATEWAY_AUD) && bindings.secret(),
       ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
       ASSETS: bindings.assets(),
       D1:

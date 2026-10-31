@@ -6,6 +6,14 @@ const name = process.env.WORKER_NAME ?? "launch-mcp";
 // because the browser approval page lives under `/mcp/approvals/`.
 const domain = process.env.WORKER_DOMAIN;
 
+// The Payload Worker to reach over a Service binding, when this site has one.
+const payloadWorker = process.env.PAYLOAD_WORKER;
+
+// Or Payload's public origin, reached through its Access application with a
+// service token. One of the two turns the `payload` connector on.
+const payloadUrl = process.env.PAYLOAD_API_URL ?? "";
+const payloadOn = Boolean(payloadWorker || payloadUrl);
+
 // The cf CLI's typed Worker config, in place of wrangler.jsonc (ADR 0003).
 // The account comes from CLOUDFLARE_ACCOUNT_ID.
 export default defineConfig({
@@ -31,6 +39,20 @@ export default defineConfig({
       // Runs the model's code in a Dynamic Worker (paid plan, open beta).
       LOADER: bindings.workerLoader(),
       MCP_ALLOWED_HOSTNAMES: bindings.text(domain ?? ""),
+      // Payload, when this site has it: a Service binding to its Worker, or
+      // its URL reached through Access with a service token.
+      PAYLOAD:
+        Boolean(payloadWorker) &&
+        bindings.worker({ worker: payloadWorker ?? "" }),
+      // Only needed when Payload is reached by URL through Access.
+      PAYLOAD_ACCESS_CLIENT_ID: Boolean(payloadUrl) && bindings.secret(),
+      PAYLOAD_ACCESS_CLIENT_SECRET: Boolean(payloadUrl) && bindings.secret(),
+      // The secret Payload checks before it trusts a forwarded Access JWT
+      // (ACCESS_GATEWAY_PROOF_SECRET on the Payload Worker).
+      PAYLOAD_ACCESS_PROOF_SECRET: payloadOn && bindings.secret(),
+      // Payload's admin origin, for the approval page's "open in admin" link.
+      PAYLOAD_ADMIN_URL: bindings.text(process.env.PAYLOAD_ADMIN_URL ?? ""),
+      PAYLOAD_API_URL: bindings.text(payloadUrl),
       // The Access service token that gets requests through the Access
       // application in front of WordPress, and the gateway proof secret that
       // WordPress's patronage-access mu-plugin checks.

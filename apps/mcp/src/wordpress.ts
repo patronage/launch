@@ -57,6 +57,10 @@ export interface WordPressAuth {
 export interface WordPressClient {
   apiUrl: string;
   auth: WordPressAuth;
+  // A Service binding to the CMS Worker. Requests then go Worker to Worker
+  // and never cross the Access edge, so the CMS checks the gateway proof.
+  // Absent, requests go to `apiUrl` over the internet.
+  fetcher?: Fetcher;
 }
 
 export interface WordPressTelemetry {
@@ -186,7 +190,11 @@ export const wordPressAuthHeaders = (
     headers.set(GATEWAY_PROOF_HEADER, gatewayProof);
   }
 
-  headers.set("Accept", "application/json");
+  // Payload's MCP endpoint needs the Streamable HTTP pair, so a caller's own
+  // Accept stands.
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
 
   return headers;
 };
@@ -468,11 +476,11 @@ export const wpFetchUrl = async (
   let status = 0;
 
   try {
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      redirect: "manual",
-    });
+    const requestInit: RequestInit = { ...init, headers, redirect: "manual" };
+
+    const response = await (client.fetcher
+      ? client.fetcher.fetch(url, requestInit)
+      : fetch(url, requestInit));
 
     const { status: responseStatus } = response;
     status = responseStatus;
