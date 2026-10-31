@@ -25,6 +25,10 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default buildConfig({
   admin: {
+    components: {
+      // Local sign-in for the demo account; see lib/local-login.ts.
+      beforeLogin: ["/components/admin/local-login-link#LocalLoginLink"],
+    },
     importMap: {
       baseDir: path.resolve(dirname),
     },
