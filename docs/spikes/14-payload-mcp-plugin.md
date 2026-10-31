@@ -42,7 +42,16 @@ The plugin signs callers in with `payload.auth()`, so any auth strategy on the u
 
 Two type fixes were needed the first time this package met Payload. The strategy's loose Local API type does not match Payload's generated collection slugs, so `users.ts` pins the lookup to `users`. And the app's `tsconfig.json` now allows `.ts` import paths, as the other apps' do.
 
-Not yet tested: the Access path end to end. It needs the Worker deployed with those variables set and an Access application in front of `/api`. The strategy itself is unit-tested in `packages/access`.
+Tested locally against a stand-in Access key server (a local JWKS at `/cdn-cgi/access/certs`, with `ACCESS_TEAM_DOMAIN` pointing at it):
+
+| Check | Result |
+| --- | --- |
+| `tools/list` with a valid Access JWT for a known editor | 10 tools |
+| Same, for an email with no Payload user | No tools |
+| `/api/users/me` with an Access JWT | The editor, signed in by `cloudflare-access` |
+| Admin session refresh with the session cookie and an Access JWT | `200`; Payload's own session wins |
+
+The strategy steps aside whenever a request already carries Payload's own credential (the session cookie or an `Authorization` header). Payload 4.0.0-beta.6 runs its built-in strategies first anyway, so this only guards against that order changing: a user signed in through Access has no session id, and Payload would refuse to refresh the admin's session. Still to check on the deployed Worker: a real Access application in front of `/api`.
 
 ## What this means for the gateway
 
