@@ -17,7 +17,7 @@ docs/       Engineering notes for contributors; research findings in docs/spikes
 | `web-wordpress` | The vinext front-end for headless WordPress, deployed as a Worker. |
 | `payload` | Payload as one vinext app on Workers: the admin, plus front-end pages that read through the Local API. |
 | `cms-wordpress-timber` | A traditional WordPress install with a Timber theme. It shares design tokens with the others, not components. |
-| `mcp` | The MCP gateway Worker behind Access, with a WordPress and a Payload connector. See [MCP server](/references/mcp). |
+| `mcp` | The MCP gateway Worker behind Access. Its WordPress connector is built; the Payload connector is next. See [MCP server](/references/mcp). |
 | `docs-site` | This site. |
 
 Some of these are still in progress; see [Research](/research) for where each one stands.
@@ -30,7 +30,7 @@ Some of these are still in progress; see [Research](/research) for where each on
 - **`access`**: provisions the Access applications, calls the CMS through Access, and verifies Access tokens. See [Lock the CMS behind Cloudflare Access](/research/access-lockdown).
 - **`sections-preview`**: a parity test and a static page that render the same page from both CMSs side by side.
 
-The MCP packages (`mcp-core`, `mcp-wordpress`, `mcp-payload`) are planned, and will be published to npm under `@patronage`.
+The gateway lives in `apps/mcp` for now. Splitting it into packages (`mcp-core`, `mcp-wordpress`, `mcp-payload`) published to npm under `@patronage` is planned.
 
 ## Where the CMS stops
 

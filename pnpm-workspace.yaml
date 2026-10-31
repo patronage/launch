@@ -15,7 +15,9 @@ savePrefix: ""
 # workerd downloads its runtime binary. esbuild's postinstall only verifies its
 # platform binary, which installs as an optional dependency anyway. The
 # Tailwind CLI's @parcel/watcher ships prebuilt binaries the same way.
+# core-js-pure (through the MCP Worker's agents dependency) only prints a banner.
 allowBuilds:
   "@parcel/watcher": false
+  core-js-pure: false
   esbuild: false
   workerd: true
