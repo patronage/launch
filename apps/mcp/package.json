@@ -1,0 +1,37 @@
+{
+  "name": "@launch/mcp",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/build-approval-card.mjs",
+    "dev": "pnpm generate && vite dev",
+    "build": "pnpm generate && vite build",
+    "preview": "vite preview",
+    "deploy": "node scripts/deploy.mjs",
+    "typecheck": "pnpm generate && cf workers types && tsc --noEmit && tsc --noEmit -p src/approval-card",
+    "test": "pnpm generate && vitest run"
+  },
+  "dependencies": {
+    "@cloudflare/codemode": "0.5.1",
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@patronage/access": "workspace:*",
+    "agents": "0.21.0",
+    "evlog": "2.26.0",
+    "jose": "6.2.14",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.v.7",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "24.19.2",
+    "cf": "1.0.0-beta.25",
+    "esbuild": "0.28.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
