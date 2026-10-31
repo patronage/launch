@@ -17,6 +17,7 @@ import { Users } from "./collections/users";
 import { database } from "./db";
 import { formOverrides } from "./forms";
 import { SiteSettings } from "./globals/site-settings";
+import { mcp } from "./mcp";
 import { richTextBlocks } from "./rich-text/blocks";
 
 // import.meta.dirname is undefined in workerd, so derive it from the URL.
@@ -41,6 +42,7 @@ export default buildConfig({
   }),
   globals: [SiteSettings],
   plugins: [
+    mcp(),
     // Forms and their submissions. Field types are limited to what
     // @launch/ui's Form draws. Without an email adapter, form emails are
     // written to the log.

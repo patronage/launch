@@ -23,6 +23,9 @@ export default defineConfig({
       : [],
     entrypoint: "vinext/server/fetch-handler",
     env: {
+      // Access application for /admin and /api; empty turns the Access sign-in off.
+      ACCESS_AUD: bindings.text(process.env.ACCESS_AUD ?? ""),
+      ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
       ASSETS: bindings.assets(),
       D1:
         !usePostgres &&

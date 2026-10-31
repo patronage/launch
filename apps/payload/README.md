@@ -6,6 +6,7 @@ One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://gith
 - Media: R2
 - Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `posts` with `authors` and `categories`, `media`, and `forms` and `form-submissions` from the form-builder plugin; global: `site-settings`
 - Preview: pages and posts autosave drafts, and editors see them through the admin's preview button and Live Preview (see below)
+- MCP: Payload's MCP plugin serves read-only tools at `/api/mcp` to signed-in users (`src/mcp.ts`). With `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` set, a verified Access JWT signs the caller in as the user with the same email. See [the spike note](../../docs/spikes/14-payload-mcp-plugin.md).
 - Page sections: the `layout` blocks field holds one block per section type in `@launch/content-model` (`content`, `contentMedia`, `media`, `cardGrid`, `blockquote`, `callToAction`, `form`), each with a shared `sectionOptions` group. Field names match the content model and the WordPress ACF page builder, so `@launch/adapter-payload` only maps rich text, links and media.
 
 Findings and open problems are in [docs/spikes/05-payload-on-vinext.md](../../docs/spikes/05-payload-on-vinext.md).
