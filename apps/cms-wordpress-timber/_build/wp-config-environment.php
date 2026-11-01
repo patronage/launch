@@ -20,6 +20,12 @@ if (!defined('WP_ENVIRONMENT_TYPE')) {
 $site_env_config = [
   'production' => [
     'WP_DEBUG' => false,
+    // Logging (mu-plugins/patronage-logging.php, from wordpress-shared). Off
+    // unless both are set; packages/logging's provision script prints them.
+    // 'PATRONAGE_LOGGING_ENDPOINT' => 'https://<stream id>.ingest.cloudflare.com',
+    // 'PATRONAGE_LOGGING_TOKEN' => 'Basin send-only token',
+    // Host log files to ship too (Cloudways keeps them in ../logs):
+    // 'PATRONAGE_LOGGING_FILES' => [dirname(ABSPATH) . '/logs/*.log'],
   ],
   'staging' => [
     'WP_DEBUG' => true,

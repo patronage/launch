@@ -71,6 +71,9 @@ export default defineConfig({
     exports: {
       WordPressRuntime: exports.durableObject({ storage: "sqlite" }),
     },
+    // WORKER_LOGPUSH=true sends this Worker's logs, its evlog wide events
+    // included, to the account's workers_trace_events Logpush job.
+    logpush: process.env.WORKER_LOGPUSH === "true",
     name,
     observability: {
       enabled: true,

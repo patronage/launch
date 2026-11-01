@@ -50,6 +50,10 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Cache tag**: A label on a cached Front-end response (a node id, a list, or `path:<path>`) that the CMS purges when matching content changes. _Avoid_: Surrogate key, cache key
 
+**Wide event**: One structured log record per request or job that carries everything known about it, emitted by evlog in Workers and by the logging mu-plugin in WordPress. _Avoid_: Log line, trace (for the record)
+
+**Log bucket**: The one R2 bucket per site that Logpush jobs and the WordPress Basin stream write into. _Avoid_: Log store (in code), data lake
+
 **Seed**: The command that loads the Demo site into a local or new CMS instance. _Avoid_: Fixture load, import
 
 **Spike**: A time-boxed issue that tests one approach and records what worked in `docs/spikes/`. A Spike that settles a repo-wide choice also produces an ADR. _Avoid_: POC, experiment

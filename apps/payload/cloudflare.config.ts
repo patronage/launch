@@ -21,7 +21,8 @@ export default defineConfig({
           },
         ]
       : [],
-    entrypoint: "vinext/server/fetch-handler",
+    // vinext's handler wrapped with the request log (worker.ts).
+    entrypoint: "./worker.ts",
     env: {
       // Access application for /admin and /api; empty turns the Access sign-in off.
       ACCESS_AUD: bindings.text(process.env.ACCESS_AUD ?? ""),
@@ -49,6 +50,9 @@ export default defineConfig({
       PAYLOAD_SECRET: bindings.secret(),
       R2: bindings.r2({ name: "launch-payload-media" }),
     },
+    // WORKER_LOGPUSH=true sends this Worker's logs, evlog wide events
+    // included, to the account's workers_trace_events Logpush job.
+    logpush: process.env.WORKER_LOGPUSH === "true",
     name: "launch-payload",
     previewUrls: false,
     workersDev: true,

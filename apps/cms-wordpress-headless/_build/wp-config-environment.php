@@ -45,6 +45,12 @@ $site_env_config = [
     // 'PATRONAGE_ACCESS_REQUIRE_ORIGIN_JWT' => true,
     // 'PATRONAGE_ACCESS_ORIGIN_AUD' => 'CMS application AUD',
     // 'PATRONAGE_ACCESS_PROOF_SECRET' => 'same value as the Worker secret',
+    // Logging (mu-plugins/patronage-logging.php, from wordpress-shared). Off
+    // unless both are set; packages/logging's provision script prints them.
+    // 'PATRONAGE_LOGGING_ENDPOINT' => 'https://<stream id>.ingest.cloudflare.com',
+    // 'PATRONAGE_LOGGING_TOKEN' => 'Basin send-only token',
+    // Host log files to ship too (Cloudways keeps them in ../logs):
+    // 'PATRONAGE_LOGGING_FILES' => [dirname(ABSPATH) . '/logs/*.log'],
   ],
   'staging' => [
     'WP_DEBUG' => true,
