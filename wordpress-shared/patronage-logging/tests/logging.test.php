@@ -56,6 +56,17 @@ check( Patronage_Logging_Recorder::worth_keeping( array( 'kind' => 'admin', 'met
 check( ! Patronage_Logging_Recorder::worth_keeping( array( 'kind' => 'admin', 'method' => 'GET' ), 200, 0, 0 ), 'anonymous admin redirects are skipped' );
 check( ! Patronage_Logging_Recorder::worth_keeping( array( 'kind' => 'front', 'method' => 'POST' ), 200, 0, 0 ), 'front-end posts without actions are skipped' );
 
+check( ! Patronage_Logging_Recorder::worth_keeping( array( 'kind' => 'graphql', 'method' => 'POST' ), 200, 0, 0 ), 'GraphQL queries sent as POST are skipped' );
+check( Patronage_Logging_Recorder::is_mutation( "# note\nmutation UpdatePost { updatePost { id } }" ), 'a mutation is detected' );
+check( Patronage_Logging_Recorder::is_mutation( 'fragment F on Post { id } mutation { a }' ), 'a mutation after a fragment is detected' );
+check( ! Patronage_Logging_Recorder::is_mutation( 'query Page { page(id: "mutation") { id } }' ), 'a query is not a mutation' );
+
+// Failed-login names: emails are hashed, plain names kept.
+check( 'admin' === Patronage_Logging_Recorder::login_identifier( 'admin' ), 'plain usernames are kept' );
+$masked = Patronage_Logging_Recorder::login_identifier( 'Person@Example.org' );
+check( str_starts_with( $masked, 'email-sha256:' ) && ! str_contains( $masked, 'example' ), 'emails are hashed' );
+check( $masked === Patronage_Logging_Recorder::login_identifier( 'person@example.org ' ), 'the hash ignores case and spaces' );
+
 // Spool: guarded file, claim moves it aside, read skips the guard.
 $dir   = temp_dir();
 $spool = new Patronage_Logging_Spool( $dir . '/spool' );
@@ -120,6 +131,19 @@ $before = (string) file_get_contents( $cfg->spool_dir . '/files.json' );
 file_put_contents( $log, "four\n", FILE_APPEND );
 ( new Patronage_Logging_Shipper( $cfg, $failing ) )->run();
 check( $before === (string) file_get_contents( $cfg->spool_dir . '/files.json' ), 'a failed send keeps the old offset' );
+
+// Batches stay under the size limit even when lines are long.
+$sizes = array();
+$dir   = temp_dir();
+$big   = $dir . '/big.log';
+file_put_contents( $big, str_repeat( str_repeat( '"', 8000 ) . "\n", 500 ) );
+$sizer = static function ( string $endpoint, string $body ) use ( &$sizes ): bool {
+	$sizes[] = strlen( $body );
+	return true;
+};
+$result = ( new Patronage_Logging_Shipper( config( $dir, array( $big ) ), $sizer ) )->run();
+check( 500 === $result['lines'], 'every long line is sent' );
+check( count( $sizes ) > 1 && max( $sizes ) <= 3 * 1024 * 1024, 'long lines are split into batches under 3 MB' );
 
 if ( $failures > 0 ) {
 	exit( 1 );

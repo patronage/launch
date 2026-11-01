@@ -2,3 +2,4 @@
 wp-content/plugins/*
 wp-content/themes/patronage-timber/dist/
 wp-content/mu-plugins/patronage-fields/
+wp-content/mu-plugins/patronage-logging.php

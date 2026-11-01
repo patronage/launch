@@ -8,15 +8,15 @@ A WordPress mu-plugin that records security-relevant events as wide events and s
 
 One event per request that did something worth keeping:
 
-- logins, failed logins (with the username tried) and logouts;
+- logins, failed logins (with the username tried, or a short hash when it is an email address) and logouts;
 - users created, deleted or given a new role;
 - plugins activated, deactivated, deleted or updated, themes switched or updated;
 - changes to `siteurl`, `home`, `admin_email`, `users_can_register` and `default_role` (filter `patronage_logging_watched_options` to add more);
 - application passwords created, deleted or used;
 - content status changes (published, trashed and so on);
-- writes to wp-admin, admin-ajax, REST, WPGraphQL, XML-RPC or the login form, page views by a signed-in person in wp-admin, and any 5xx response.
+- WPGraphQL mutations, writes to wp-admin, admin-ajax, REST, XML-RPC or the login form, page views by a signed-in person in wp-admin, and any 5xx response.
 
-Anonymous reads, such as the headless front end's WPGraphQL queries, are skipped: Cloudflare's own logs cover that traffic.
+Anonymous reads, such as the headless front end's WPGraphQL queries (which arrive as POST), are skipped: Cloudflare's own logs cover that traffic.
 
 Each event has the method, the kind of request, the path without its query string, status, duration, user id, client IP (`CF-Connecting-IP` when present), `cf-ray`, user agent and the list of actions. It holds no request bodies, cookies, passwords, post content or email addresses.
 
@@ -24,9 +24,9 @@ With `PATRONAGE_LOGGING_FILES` set, new lines from those files go to the same st
 
 ## How it ships
 
-A request never waits on the network. Events are appended to a spool file at shutdown, and `wp patronage-logging ship` sends the spool and any new log lines in batches. A failed send keeps everything for the next run. Log files are read from a saved offset, and a rotated file starts again from the top.
+A request never waits on the network. Events are appended to a spool file at shutdown, and `wp patronage-logging ship` sends the spool and any new log lines in batches. Batches stay under 500 records and 3 MB. A failed send keeps everything for the next run. Requests hold a shared lock while they append and the shipper an exclusive one while it moves the spool aside, so no event is written to a file already being sent. Log files are read from a saved offset, and a rotated file starts again from the top.
 
-The spool lives in the host's private folder beside the web root when there is one (Cloudways: `private_html/patronage-logging`), otherwise in the system temp folder. Its files end in `.php` and start with an exit line, so a web server that can reach them runs them instead of serving them.
+The spool lives in the host's private folder beside the web root when there is one (Cloudways: `private_html/patronage-logging`), otherwise in a folder of the system temp folder named for this install. Its files end in `.php` and start with an exit line, so a web server that can reach them runs them instead of serving them.
 
 The token can only send. Whoever takes over the server can add noise but cannot read or delete what already left.
 

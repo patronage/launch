@@ -24,6 +24,6 @@ Launch is public and ships the plumbing. What reads the logs and what it conclud
 - An evlog event reaches R2 as a string inside a Workers trace event's `Logs` array, so whatever queries the bucket unpacks it. That is the cost of using no binding.
 - Logpush cannot backfill and drops logs while a job is failing. Watching for gaps belongs to the monitoring product, not to Launch.
 - Which datasets a site gets depends on its Cloudflare plan; the script skips and reports the rest.
-- The events carry client IPs and the usernames tried at login, because they are security records. They carry no request bodies, query strings, cookies, passwords, content or email addresses.
+- The events carry client IPs and the usernames tried at login, because they are security records; a username that is an email address is stored as a short hash. They carry no request bodies, query strings, cookies, passwords, content or email addresses.
 - Collectors for sources outside the CMS and Cloudflare (third-party audit APIs, jump hosts) are out of scope.
 - A read-only `logs` connector for the MCP gateway is the next step, and the weekly usage report becomes a query over the same bucket.

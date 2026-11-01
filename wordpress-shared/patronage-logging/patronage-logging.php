@@ -59,7 +59,8 @@ final class Patronage_Logging_Config {
 			return $private . '/patronage-logging';
 		}
 
-		return rtrim( sys_get_temp_dir(), '/' ) . '/patronage-logging';
+		// One folder per install, so sites that share a server never share a spool.
+		return rtrim( sys_get_temp_dir(), '/' ) . '/patronage-logging-' . substr( hash( 'sha256', $root ), 0, 12 );
 	}
 
 	private static function default_site(): string {
@@ -102,15 +103,48 @@ final class Patronage_Logging_Spool {
 			return false;
 		}
 
+		$lock = $this->lock( LOCK_SH );
+		if ( null === $lock ) {
+			return false;
+		}
+
 		$path  = $this->dir . '/spool.php';
 		$line  = json_encode( $record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE );
 		$guard = file_exists( $path ) ? '' : self::GUARD;
 
-		if ( false === $line ) {
-			return false;
-		}
+		$written = false !== $line
+			&& false !== @file_put_contents( $path, $guard . $line . "\n", FILE_APPEND | LOCK_EX ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
-		return false !== @file_put_contents( $path, $guard . $line . "\n", FILE_APPEND | LOCK_EX ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		self::unlock( $lock );
+		return $written;
+	}
+
+	/**
+	 * Writers hold the spool lock shared and the shipper holds it exclusive
+	 * while it moves the live file aside, so no request can still be writing
+	 * to a file the shipper has claimed.
+	 *
+	 * @return resource|null
+	 */
+	private function lock( int $mode ) {
+		if ( ! $this->ensure_dir() ) {
+			return null;
+		}
+		$handle = @fopen( $this->dir . '/spool.lock', 'c' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		if ( false === $handle ) {
+			return null;
+		}
+		if ( ! flock( $handle, $mode ) ) {
+			fclose( $handle );
+			return null;
+		}
+		return $handle;
+	}
+
+	/** @param resource $handle */
+	private static function unlock( $handle ): void {
+		flock( $handle, LOCK_UN );
+		fclose( $handle );
 	}
 
 	/**
@@ -121,8 +155,13 @@ final class Patronage_Logging_Spool {
 	 */
 	public function claim(): array {
 		$live = $this->dir . '/spool.php';
-		if ( file_exists( $live ) && filesize( $live ) > strlen( self::GUARD ) ) {
+		$lock = $this->lock( LOCK_EX );
+		clearstatcache( true, $live );
+		if ( null !== $lock && file_exists( $live ) && filesize( $live ) > strlen( self::GUARD ) ) {
 			@rename( $live, sprintf( '%s/claimed-%016d-%s.php', $this->dir, (int) ( microtime( true ) * 1000000 ), bin2hex( random_bytes( 4 ) ) ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+		if ( null !== $lock ) {
+			self::unlock( $lock );
 		}
 
 		$claimed = glob( $this->dir . '/claimed-*.php' );
@@ -199,6 +238,7 @@ final class Patronage_Logging_Recorder {
 		add_action( 'wp_delete_application_password', array( self::class, 'on_app_password_deleted' ), 10, 2 );
 		add_action( 'application_password_did_authenticate', array( self::class, 'on_app_password_used' ), 10, 2 );
 		add_action( 'transition_post_status', array( self::class, 'on_post_status' ), 10, 3 );
+		add_action( 'do_graphql_request', array( self::class, 'on_graphql_request' ), 10, 2 );
 		add_action( 'shutdown', array( self::class, 'flush' ), 1000 );
 	}
 
@@ -220,7 +260,7 @@ final class Patronage_Logging_Recorder {
 
 	/** @param mixed $username */
 	public static function on_login_failed( $username ): void {
-		self::record( 'login.failed', array( 'username' => substr( is_string( $username ) ? $username : '', 0, 60 ) ) );
+		self::record( 'login.failed', array( 'username' => self::login_identifier( is_string( $username ) ? $username : '' ) ) );
 	}
 
 	public static function on_logout( int $user_id = 0 ): void {
@@ -329,6 +369,24 @@ final class Patronage_Logging_Recorder {
 		);
 	}
 
+	/**
+	 * WPGraphQL reads arrive as POST too, so a GraphQL request counts as a
+	 * write only when its operation is a mutation.
+	 *
+	 * @param mixed $query
+	 * @param mixed $operation
+	 */
+	public static function on_graphql_request( $query, $operation = null ): void {
+		if ( is_string( $query ) && self::is_mutation( $query ) ) {
+			self::record( 'graphql.mutation', array( 'operation' => is_string( $operation ) ? substr( $operation, 0, 100 ) : '' ) );
+		}
+	}
+
+	public static function is_mutation( string $query ): bool {
+		$without_comments = (string) preg_replace( '/#[^\n]*/', '', $query );
+		return 1 === preg_match( '/(?:^|\})\s*mutation\b/i', $without_comments );
+	}
+
 	public static function flush(): void {
 		if ( null === self::$config ) {
 			return;
@@ -375,7 +433,8 @@ final class Patronage_Logging_Recorder {
 		}
 		$write = ! in_array( $request['method'] ?? 'GET', array( 'GET', 'HEAD', 'OPTIONS' ), true );
 		$kind  = $request['kind'] ?? 'front';
-		if ( $write && in_array( $kind, array( 'admin', 'ajax', 'graphql', 'login', 'rest', 'xmlrpc' ), true ) ) {
+		// GraphQL writes are recorded as actions by on_graphql_request().
+		if ( $write && in_array( $kind, array( 'admin', 'ajax', 'login', 'rest', 'xmlrpc' ), true ) ) {
 			return true;
 		}
 		return 'admin' === $kind && $user_id > 0;
@@ -426,6 +485,18 @@ final class Patronage_Logging_Recorder {
 		};
 	}
 
+	/**
+	 * The name tried at login, kept so repeated attempts can be grouped. An
+	 * email address is replaced by a short hash, because events hold no emails.
+	 */
+	public static function login_identifier( string $username ): string {
+		$username = trim( $username );
+		if ( str_contains( $username, '@' ) ) {
+			return 'email-sha256:' . substr( hash( 'sha256', strtolower( $username ) ), 0, 16 );
+		}
+		return substr( $username, 0, 60 );
+	}
+
 	/** @param mixed $user */
 	private static function user_id( $user ): int {
 		return is_object( $user ) && isset( $user->ID ) ? (int) $user->ID : 0;
@@ -444,6 +515,8 @@ final class Patronage_Logging_Recorder {
  */
 final class Patronage_Logging_Shipper {
 	private const BATCH_RECORDS   = 500;
+	/** Basin takes requests up to 5 MB; stay well under it. */
+	private const BATCH_BYTES     = 3 * 1024 * 1024;
 	private const MAX_FILE_BYTES  = 5 * 1024 * 1024;
 	private const MAX_LINE_LENGTH = 8192;
 
@@ -594,13 +667,35 @@ final class Patronage_Logging_Shipper {
 	 * @param list<array<string,mixed>> $records
 	 */
 	private function send_all( array $records ): bool {
-		foreach ( array_chunk( $records, self::BATCH_RECORDS ) as $batch ) {
-			$body = json_encode( $batch, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE );
-			if ( false === $body || ! ( $this->send )( $this->config->endpoint, $body ) ) {
-				return false;
+		$flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+		$batch = array();
+		$bytes = 2;
+
+		foreach ( $records as $record ) {
+			$encoded = json_encode( $record, $flags );
+			if ( false === $encoded ) {
+				continue;
 			}
+			$size = strlen( $encoded ) + 1;
+			if ( array() !== $batch && ( count( $batch ) >= self::BATCH_RECORDS || $bytes + $size > self::BATCH_BYTES ) ) {
+				if ( ! $this->send_batch( $batch ) ) {
+					return false;
+				}
+				$batch = array();
+				$bytes = 2;
+			}
+			$batch[] = $encoded;
+			$bytes  += $size;
 		}
-		return true;
+
+		return array() === $batch || $this->send_batch( $batch );
+	}
+
+	/**
+	 * @param list<string> $encoded Records already encoded as JSON.
+	 */
+	private function send_batch( array $encoded ): bool {
+		return ( $this->send )( $this->config->endpoint, '[' . implode( ',', $encoded ) . ']' );
 	}
 
 	private function post( string $endpoint, string $body ): bool {
