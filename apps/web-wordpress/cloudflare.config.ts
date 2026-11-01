@@ -23,7 +23,8 @@ export default defineConfig(({ isPreview }) => ({
     domains: domain
       ? [{ hostname: domain, previews: previewsOnDomain, production: true }]
       : [],
-    entrypoint: "vinext/server/fetch-handler",
+    // vinext's handler wrapped with the request log (worker.ts).
+    entrypoint: "./worker.ts",
     env: {
       ACCESS_PREVIEW_AUD: bindings.text(process.env.ACCESS_PREVIEW_AUD ?? ""),
       ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
@@ -46,6 +47,9 @@ export default defineConfig(({ isPreview }) => ({
         process.env.WORDPRESS_URL ?? "http://localhost:8080"
       ),
     },
+    // WORKER_LOGPUSH=true sends this Worker's logs, evlog wide events
+    // included, to the account's workers_trace_events Logpush job.
+    logpush: process.env.WORKER_LOGPUSH === "true",
     name: process.env.WORKER_NAME ?? "launch-vinext-wordpress",
     // Production on workers.dev and Previews on <preview>-<worker>.<subdomain>.workers.dev.
     // The dashboard created this Worker with workers.dev off; a production deploy applies these.

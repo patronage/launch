@@ -22,6 +22,7 @@
     "@launch/images": "workspace:*",
     "@launch/ui": "workspace:*",
     "@patronage/access": "workspace:*",
+    "@patronage/logging": "workspace:*",
     "@vinext/cloudflare": "1.3.0",
     "graphql": "17.0.2",
     "react": "19.3.1",

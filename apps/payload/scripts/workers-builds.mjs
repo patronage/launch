@@ -127,9 +127,12 @@ const shared = {
       PNPM_VERSION: pnpmVersion,
       SKIP_DEPENDENCY_INSTALL: "1",
       ...Object.fromEntries(
-        ["PAYLOAD_DB", "HYPERDRIVE_ID", "WORKER_DOMAIN"].flatMap((name) =>
-          env[name] ? [[name, env[name]]] : []
-        )
+        [
+          "PAYLOAD_DB",
+          "HYPERDRIVE_ID",
+          "WORKER_DOMAIN",
+          "WORKER_LOGPUSH",
+        ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])
   ),

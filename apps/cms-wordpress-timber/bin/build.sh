@@ -49,6 +49,10 @@ fi
 # The theme's stylesheet, from Tailwind and @launch/ui's tokens.
 pnpm build:css
 
+# WordPress loads only top-level mu-plugin files, so copy the shared logging
+# plugin in. It is off until PATRONAGE_LOGGING_ENDPOINT and _TOKEN are set.
+git show HEAD:./../../wordpress-shared/patronage-logging/patronage-logging.php >wp-content/mu-plugins/patronage-logging.php
+
 # The shared field groups and post types, minus their seed. The committed
 # mu-plugins/patronage-fields.php loads them from this folder.
 rm -rf wp-content/mu-plugins/patronage-fields

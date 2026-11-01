@@ -1,0 +1,28 @@
+{
+  "name": "@patronage/logging",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Wide-event logging for Launch Workers with evlog, and provisioning for a site's log store: R2, Logpush jobs and a Basin Pipelines stream for WordPress.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/worker.ts",
+    "./cloudflare": "./src/cloudflare.ts"
+  },
+  "scripts": {
+    "logging:provision": "node scripts/provision-logging.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "evlog": "2.26.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

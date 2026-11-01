@@ -49,6 +49,8 @@ fi
 # Read it from HEAD: the deploy's clean-tree check covers only this folder, and
 # the deploy commit names HEAD as its source.
 git show HEAD:./../../wordpress-shared/patronage-access/patronage-access.php >wp-content/mu-plugins/patronage-access.php
+# Logging is off until PATRONAGE_LOGGING_ENDPOINT and _TOKEN are set.
+git show HEAD:./../../wordpress-shared/patronage-logging/patronage-logging.php >wp-content/mu-plugins/patronage-logging.php
 
 # The shared field groups and post types, minus their seed. The committed
 # mu-plugins/patronage-fields.php loads them from this folder.
