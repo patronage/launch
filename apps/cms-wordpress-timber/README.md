@@ -15,7 +15,7 @@ Traditional WordPress: the same editor and content as [`apps/cms-wordpress-headl
 Needs Docker and pnpm (for the theme's CSS). Composer runs in its official image (`pnpm --filter cms-wordpress-timber composer -- update` to change versions).
 
 ```sh
-pnpm --filter cms-wordpress-timber setup     # composer install, build CSS, start Docker, install and seed
+pnpm --filter cms-wordpress-timber run setup # composer install, build CSS, start Docker, install and seed
 pnpm --filter cms-wordpress-timber dev:css   # rebuild the CSS while editing views
 ```
 

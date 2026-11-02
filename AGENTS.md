@@ -28,6 +28,10 @@ GitHub issues in `patronage/launch`. See `docs/agents/issue-tracker.md`.
 
 The five default labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
+### Local verification
+
+`.agents/skills/launch-verify` (linked from `.claude/skills`) launches the Payload or web-wordpress front end locally, drives real pages and forms in a browser, and keeps screenshots as evidence. Use it to prove a UI change before opening a PR; `pnpm verify` alone isn't that proof.
+
 ### Domain docs
 
 Single-context: root `GLOSSARY.md` plus `docs/adr/`. Read both before domain work, and flag any conflict with an ADR. See `docs/agents/domain.md`.

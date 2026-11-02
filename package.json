@@ -11,7 +11,7 @@
     "deps:verify": "CI=true pnpm install --frozen-lockfile",
     "fix": "ultracite fix",
     "lint": "ultracite check",
-    "test": "pnpm -r --if-present run test",
+    "test": "pnpm -r --if-present run test && node --test .agents/skills/launch-verify/scripts/verify.test.ts",
     "typecheck": "pnpm -r --if-present run typecheck",
     "verify": "pnpm deps:verify && pnpm lint && pnpm typecheck && pnpm test"
   },
