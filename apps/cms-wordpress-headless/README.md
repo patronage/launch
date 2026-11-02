@@ -16,7 +16,7 @@ WordPress as an editing tool and a GraphQL API for [`apps/web-wordpress`](../web
 Needs only Docker: Composer runs in its official image (`pnpm --filter cms-wordpress-headless composer -- update` to change plugin versions).
 
 ```sh
-pnpm --filter cms-wordpress-headless setup   # composer install, start Docker, install and seed WordPress
+pnpm --filter cms-wordpress-headless run setup   # composer install, start Docker, install and seed WordPress
 pnpm --filter web-wordpress dev              # front-end on http://localhost:3000
 ```
 

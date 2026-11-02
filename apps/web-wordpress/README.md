@@ -3,7 +3,7 @@
 A [vinext](https://github.com/cloudflare/vinext) (App Router) front-end for the headless WordPress in [`apps/cms-wordpress-headless`](../cms-wordpress-headless), reading content over WPGraphQL.
 
 ```sh
-pnpm --filter cms-wordpress-headless setup   # once: WordPress, demo content and .env.local
+pnpm --filter cms-wordpress-headless run setup   # once: WordPress, demo content and .env.local
 pnpm --filter web-wordpress dev              # http://localhost:3000, in local workerd
 pnpm --filter web-wordpress build && pnpm --filter web-wordpress start   # the built Worker (vite preview)
 ```
