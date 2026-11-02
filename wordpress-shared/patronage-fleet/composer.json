@@ -1,0 +1,10 @@
+{
+  "name": "patronage/patronage-fleet",
+  "description": "Reports a WordPress site's versions to Patronage Fleet and answers its uptime checks.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "ext-sodium": "*"
+  }
+}
