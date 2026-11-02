@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { withRequestLog } from "./worker.ts";
+import { timedD1, timeUpstream, withRequestLog } from "./worker.ts";
 
 const ctx = { waitUntil: () => {} };
 
@@ -102,5 +102,122 @@ describe(withRequestLog, () => {
 
     await expect(response.text()).resolves.toBe("from this");
     expect(entry.scheduled).toBe(scheduled);
+  });
+
+  it("adds the vinext cache result and upstream totals", async () => {
+    const loggedEvents = captureConsole();
+
+    const entry = withRequestLog(
+      {
+        fetch: async () => {
+          await timeUpstream("wordpress", () => Promise.resolve("first"));
+          await timeUpstream("wordpress", () => Promise.resolve("second"));
+
+          return new Response("page", {
+            headers: { "X-Vinext-Cache": "MISS" },
+          });
+        },
+      },
+      { service: "demo-web" }
+    );
+
+    const response = await entry.fetch(
+      new Request("https://example.org/"),
+      {},
+      ctx
+    );
+
+    await expect(response.text()).resolves.toBe("page");
+    expect(loggedEvents()[0]).toMatchObject({
+      cache: "MISS",
+      upstream: { wordpress: { calls: 2, errors: 0 } },
+    });
+  });
+
+  it("counts failed upstream calls", async () => {
+    const loggedEvents = captureConsole();
+
+    const entry = withRequestLog(
+      {
+        fetch: async () => {
+          await timeUpstream("wordpress", () => {
+            throw new Error("down");
+          }).catch(() => "fallback");
+
+          return new Response("fallback");
+        },
+      },
+      { service: "demo-web" }
+    );
+
+    await entry.fetch(new Request("https://example.org/"), {}, ctx);
+
+    expect(loggedEvents()[0]).toMatchObject({
+      upstream: { wordpress: { calls: 1, errors: 1 } },
+    });
+  });
+});
+
+describe(timedD1, () => {
+  // Stands in for D1, whose methods only accept their own objects.
+  class Statement {
+    readonly sql: string;
+    constructor(sql: string) {
+      this.sql = sql;
+    }
+    bind() {
+      return new Statement(this.sql);
+    }
+    all() {
+      if (!(this instanceof Statement)) {
+        throw new TypeError("Illegal invocation");
+      }
+
+      return Promise.resolve({ results: [this.sql] });
+    }
+  }
+
+  const fakeDatabase = {
+    batch(statements: Statement[]) {
+      if (!statements.every((statement) => statement instanceof Statement)) {
+        throw new TypeError("batch() needs real statements");
+      }
+
+      return Promise.resolve(statements.map(() => ({ results: [] })));
+    },
+    prepare: (sql: string) => new Statement(sql),
+  };
+
+  it("times queries and passes real statements to batch", async () => {
+    const loggedEvents = captureConsole();
+    const database = timedD1(fakeDatabase);
+
+    const entry = withRequestLog(
+      {
+        fetch: async () => {
+          const statement = database.prepare("select 1").bind();
+
+          await expect(statement.all()).resolves.toStrictEqual({
+            results: ["select 1"],
+          });
+          await database.batch([statement, database.prepare("select 2")]);
+
+          return new Response(null, { status: 204 });
+        },
+      },
+      { service: "demo-web" }
+    );
+
+    await entry.fetch(new Request("https://example.org/"), {}, ctx);
+
+    expect(loggedEvents()[0]).toMatchObject({
+      upstream: { d1: { calls: 2, errors: 0 } },
+    });
+  });
+
+  it("runs work unchanged outside a request", async () => {
+    await expect(
+      timeUpstream("outside", () => Promise.resolve("no store"))
+    ).resolves.toBe("no store");
   });
 });

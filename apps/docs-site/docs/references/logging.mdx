@@ -21,9 +21,24 @@ Everything is gzipped JSON, one record per line. The files can be queried in pla
 
 Each vinext app wraps its entry with `withRequestLog` from `@patronage/logging`. Every request then prints one JSON line with the service, method, path (without the query string), status, duration, ray ID, colo, country and ASN. Build assets are skipped. Errors and slow requests are always kept, even when you sample the healthy traffic.
 
+Two fields help with performance:
+
+- `cache` is vinext's page cache result: `HIT`, `STALE` or `MISS`. Counting it over a day gives the cache hit rate.
+- `upstream` gives the calls, errors and total milliseconds for each upstream the request waited on before its response started: `upstream.wordpress` for WPGraphQL and media reads, and `upstream.d1` for Payload's queries.
+
 That line goes wherever the Worker's console output goes. To keep it, build the Worker with `WORKER_LOGPUSH=true`, which turns on Logpush in its `cloudflare.config.ts`, and give the account a `workers_trace_events` job that writes to the log bucket. Each event arrives inside the trace record's `Logs` array.
 
 No binding, token or extra request is involved, so the logging costs a Worker nothing at request time.
+
+## Traces and Issues
+
+Launch's Workers also turn on Cloudflare's automatic tracing, Issues and query string redaction in their `cloudflare.config.ts`:
+
+- **Traces** record a span for each subrequest and binding call, such as a fetch to WordPress or a KV cache read, so a slow request shows where its time went. Find them under the Worker's Observability tab in the dashboard, kept for seven days. Every request is traced by default; set `WORKER_TRACE_SAMPLING` (0 to 1) at build time to trace fewer on a busy site.
+- **Issues** groups exceptions and 5xx responses so repeated failures show up as one issue.
+- **Query string redaction** keeps query strings, which can carry preview tokens, out of logs and traces.
+
+Traces and logs are billed together under Cloudflare Observability pricing. A demo site's traffic fits well inside the allowance that Workers Paid includes.
 
 ## WordPress: security events and server logs
 

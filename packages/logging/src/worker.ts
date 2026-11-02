@@ -2,6 +2,13 @@ import type { LoggerConfig, RedactConfig } from "evlog";
 import { initWorkersLogger, withEvlog } from "evlog/workers";
 import type { WorkerExecutionContext } from "evlog/workers";
 
+import { upstreamFields, upstreamTimings } from "./upstream.ts";
+import type { UpstreamTiming } from "./upstream.ts";
+
+export { timedD1, timeUpstream } from "./upstream.ts";
+
+export type { UpstreamTiming } from "./upstream.ts";
+
 /**
  * Fields that never belong in a wide event, on top of evlog's built-in
  * patterns (emails, card numbers, IPv4, phone numbers, JWTs, bearer tokens).
@@ -43,6 +50,12 @@ export interface RequestLogOptions {
   /** Route globs to skip entirely. Defaults to {@link DEFAULT_EXCLUDE}. */
   exclude?: string[];
 }
+
+/** The page cache result vinext reports: HIT, STALE or MISS. */
+const cacheResult = (response: Response): string | undefined =>
+  response.headers.get("x-vinext-cache") ??
+  response.headers.get("x-nextjs-cache") ??
+  undefined;
 
 /** Anything with a Workers `fetch` handler, such as vinext's worker entry. */
 export interface FetchEntry<TEnv> {
@@ -95,7 +108,29 @@ export const withRequestLog = <TEnv, TEntry extends FetchEntry<TEnv>>(
   initWorkersLogger(config);
 
   const wrapped = withEvlog<TEnv>(
-    (request, env, ctx) => entry.fetch(request, env, ctx),
+    (request, env, ctx, log) => {
+      const timings = new Map<string, UpstreamTiming>();
+
+      return upstreamTimings.run(timings, async () => {
+        const response = await entry.fetch(request, env, ctx);
+        const cache = cacheResult(response);
+
+        if (cache) {
+          log.set({ cache });
+        }
+
+        // evlog emits when the handler returns (it waits only for event
+        // streams), so these totals cover the work before the response
+        // starts, the same span as `duration`: a page's top-level awaited
+        // reads, but not reads inside a Suspense boundary that streams later.
+        // Traces cover those.
+        if (timings.size > 0) {
+          log.set({ upstream: upstreamFields(timings) });
+        }
+
+        return response;
+      });
+    },
     {
       exclude: options.exclude ?? DEFAULT_EXCLUDE,
       redact: LAUNCH_REDACTION,
