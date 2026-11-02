@@ -2,7 +2,7 @@
 
 Logging for Launch's Workers and the provisioning for a site's log store. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
 
-Logging is optional. With nothing configured, each Worker prints one JSON line per request to its console, and nothing else happens. Workers Logs keeps those lines for seven days if the Worker has observability turned on.
+Logging is optional. With nothing configured, each Worker prints one JSON line per request to its console, and nothing else happens. Workers Logs keeps those lines for seven days when the Worker's `cloudflare.config.ts` turns observability on, as Launch's Workers do.
 
 | Export | Use |
 | --- | --- |
@@ -29,7 +29,8 @@ To keep events past seven days, deploy with `WORKER_LOGPUSH=true`. `cloudflare.c
 ```bash
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
   pnpm --filter @patronage/logging logging:provision \
-  --name demo [--zone <zone id>] [--wordpress] [--dry-run]
+  --name demo [--script <worker>]... [--no-account-logs] \
+  [--zone <zone id>] [--wordpress] [--dry-run]
 ```
 
 It creates whatever is missing, by name:
@@ -42,6 +43,8 @@ It creates whatever is missing, by name:
 | Logpush job `access_requests` (account) | `logpush/access_requests/{DATE}/` |
 | With `--zone`: `http_requests`, `firewall_events` | `logpush/<dataset>/zone=<id>/{DATE}/` |
 | With `--wordpress`: Basin stream, sink and pipeline | `events/wordpress/year=/month=/day=/` |
+
+On an account that other sites share, pass each of the site's Workers with `--script` so the `workers_trace_events` job keeps only theirs, and pass `--no-account-logs` to leave out the audit and Access jobs, which cover the whole account.
 
 Logpush files are gzipped NDJSON with every field the dataset has. A job the account's plan does not allow is reported and skipped, and the script exits non-zero so you notice.
 

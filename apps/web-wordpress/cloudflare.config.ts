@@ -51,6 +51,12 @@ export default defineConfig(({ isPreview }) => ({
     // included, to the account's workers_trace_events Logpush job.
     logpush: process.env.WORKER_LOGPUSH === "true",
     name: process.env.WORKER_NAME ?? "launch-vinext-wordpress",
+    // Workers Logs: seven days of this Worker's console output, evlog wide
+    // events included, searchable in the dashboard.
+    observability: {
+      enabled: true,
+      logs: { enabled: true, headSamplingRate: 1 },
+    },
     // Production on workers.dev and Previews on <preview>-<worker>.<subdomain>.workers.dev.
     // The dashboard created this Worker with workers.dev off; a production deploy applies these.
     previewUrls: true,

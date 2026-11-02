@@ -44,12 +44,13 @@ Requests never wait on the network. Events go to a spool file, and a server cron
 1. **Create the bucket and jobs.** Run the provision script with an API token (see its README for the permissions it needs):
 
    ```bash
-   pnpm --filter @patronage/logging logging:provision --name <site> [--wordpress] [--zone <zone id>]
+   pnpm --filter @patronage/logging logging:provision --name <site> \
+     [--script <worker>]... [--no-account-logs] [--wordpress] [--zone <zone id>]
    ```
 
    It creates only what's missing:
    - the bucket;
-   - the account Logpush jobs for Worker traces, audit logs and Access logins;
+   - the account Logpush jobs for Worker traces, audit logs and Access logins (with `--script`, the Worker job keeps only those Workers; with `--no-account-logs`, no audit or Access jobs);
    - with `--zone`, that zone's HTTP request and firewall jobs;
    - with `--wordpress`, the Basin stream, sink and pipeline, plus a send-only token.
 
@@ -59,7 +60,7 @@ Requests never wait on the network. Events go to a spool file, and a server cron
 
 3. **Turn on WordPress.** Add `PATRONAGE_LOGGING_ENDPOINT` and `PATRONAGE_LOGGING_TOKEN` (and optionally `PATRONAGE_LOGGING_FILES`) to the server's `wp-config.php`. Then add the five-minute cron and check the setup with `wp patronage-logging status` and `wp patronage-logging test`.
 
-The script's jobs cover the whole account, which suits a site with its own Cloudflare account. On a shared account they would collect every Worker's logs and the whole account's audit trail. The script can't filter yet, so on a shared account, create the `workers_trace_events` job by hand with a `ScriptName` filter, and leave out the audit and Access jobs. That's how the Launch demo is set up.
+Without those two options, the jobs cover the whole account, which suits a site with its own Cloudflare account. On an account shared with other sites, pass each of the site's Workers with `--script` and add `--no-account-logs`, so one site's bucket doesn't collect every Worker's logs and the whole account's audit trail. The Launch demo is set up that way.
 
 ## Things to know
 

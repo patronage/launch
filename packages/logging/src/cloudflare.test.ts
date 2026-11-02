@@ -6,6 +6,7 @@ import {
   ensureLogpushJob,
   ensureWordPressStream,
   r2Destination,
+  scriptFilter,
 } from "./cloudflare.ts";
 
 interface Call {
@@ -125,6 +126,25 @@ describe(ensureLogpushJob, () => {
         field_names: ["ActorEmail", "When"],
         output_type: "ndjson",
       },
+    });
+  });
+
+  it("sends a filter when the spec has one", async () => {
+    const { calls, client } = fakeApi((call) =>
+      call.method === "GET" && call.path.endsWith("/jobs")
+        ? { result: [] }
+        : { result: {} }
+    );
+
+    await ensureLogpushJob(client, {
+      ...spec,
+      dataset: "workers_trace_events",
+      filter: scriptFilter(["demo-web", "demo-cms"]),
+    });
+
+    expect(calls.at(-1)?.body).toMatchObject({
+      filter:
+        '{"where":{"key":"ScriptName","operator":"in","value":["demo-web","demo-cms"]}}',
     });
   });
 

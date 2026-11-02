@@ -54,6 +54,12 @@ export default defineConfig({
     // included, to the account's workers_trace_events Logpush job.
     logpush: process.env.WORKER_LOGPUSH === "true",
     name: "launch-payload",
+    // Workers Logs: seven days of this Worker's console output, evlog wide
+    // events included, searchable in the dashboard.
+    observability: {
+      enabled: true,
+      logs: { enabled: true, headSamplingRate: 1 },
+    },
     previewUrls: false,
     workersDev: true,
   }),
