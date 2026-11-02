@@ -268,7 +268,15 @@ export interface LogpushJobSpec {
   /** Folder in the bucket; `{DATE}` is appended for daily folders. */
   prefix: string;
   credentials: S3Credentials;
+  /** A Logpush filter, as JSON text, such as the one `scriptFilter` builds. */
+  filter?: string;
 }
+
+/** A Logpush filter that keeps only the named Workers' trace events. */
+export const scriptFilter = (scripts: readonly string[]): string =>
+  JSON.stringify({
+    where: { key: "ScriptName", operator: "in", value: [...scripts] },
+  });
 
 const jobSchema = z
   .object({
@@ -325,7 +333,7 @@ export const ensureLogpushJob = async (
     fieldsSchema
   );
 
-  await client.request("POST", `${base}/logpush/jobs`, z.unknown(), {
+  const body: RequestBody = {
     dataset: spec.dataset,
     destination_conf: r2Destination(
       client.accountId,
@@ -340,7 +348,13 @@ export const ensureLogpushJob = async (
       output_type: "ndjson",
       timestamp_format: "rfc3339",
     },
-  });
+  };
+
+  if (spec.filter !== undefined) {
+    body.filter = spec.filter;
+  }
+
+  await client.request("POST", `${base}/logpush/jobs`, z.unknown(), body);
   client.log(`Created Logpush job ${spec.name} (${spec.dataset})`);
 
   return "created";

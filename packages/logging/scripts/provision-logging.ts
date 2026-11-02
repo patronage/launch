@@ -3,6 +3,7 @@
 //   CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
 //   pnpm --filter @patronage/logging logging:provision \
 //     --name demo \
+//     [--script <worker name>]... [--no-account-logs] \
 //     [--zone <zone id>] \
 //     [--wordpress] \
 //     [--dry-run]
@@ -11,6 +12,10 @@
 //   - the R2 bucket `<name>-logs`;
 //   - account Logpush jobs for workers_trace_events, audit_logs_v2 and
 //     access_requests, each writing NDJSON under logpush/<dataset>/;
+//   - with --script (repeatable), the workers_trace_events job keeps only
+//     those Workers, for an account that other sites share;
+//   - with --no-account-logs, no audit_logs_v2 or access_requests jobs, so a
+//     site on a shared account does not collect the whole account's logs;
 //   - with --zone, zone Logpush jobs for http_requests and firewall_events;
 //   - with --wordpress, a Basin Pipelines stream, sink and pipeline that write
 //     WordPress events under events/wordpress/, plus a send-only token.
@@ -31,6 +36,7 @@ import { parseArgs } from "node:util";
 
 import {
   apiClient,
+  scriptFilter,
   createBucketWriteCredentials,
   createPipelinesSendToken,
   ensureBucket,
@@ -44,6 +50,8 @@ const { values } = parseArgs({
     bucket: { type: "string" },
     "dry-run": { type: "boolean" },
     name: { type: "string" },
+    "no-account-logs": { type: "boolean" },
+    script: { multiple: true, type: "string" },
     wordpress: { type: "boolean" },
     zone: { multiple: true, type: "string" },
   },
@@ -109,18 +117,28 @@ if (
   );
 }
 
-const jobs: LogpushJobSpec[] = [
-  "workers_trace_events",
-  "audit_logs_v2",
-  "access_requests",
-].map((dataset) => ({
-  bucket,
-  credentials,
-  dataset,
-  name: `${name}-${dataset.replaceAll("_", "-")}`,
-  prefix: `logpush/${dataset}`,
-  scope: { account: true },
-}));
+const accountDatasets = values["no-account-logs"]
+  ? ["workers_trace_events"]
+  : ["workers_trace_events", "audit_logs_v2", "access_requests"];
+
+const scripts = values.script ?? [];
+
+const jobs: LogpushJobSpec[] = accountDatasets.map((dataset) => {
+  const job: LogpushJobSpec = {
+    bucket,
+    credentials,
+    dataset,
+    name: `${name}-${dataset.replaceAll("_", "-")}`,
+    prefix: `logpush/${dataset}`,
+    scope: { account: true },
+  };
+
+  if (dataset === "workers_trace_events" && scripts.length > 0) {
+    job.filter = scriptFilter(scripts);
+  }
+
+  return job;
+});
 
 for (const zoneId of values.zone ?? []) {
   for (const dataset of ["http_requests", "firewall_events"]) {
