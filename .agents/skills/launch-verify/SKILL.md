@@ -44,17 +44,19 @@ Then start the surface:
 node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: launch web-wordpress, --port N
 ```
 
-Launch refuses in these cases:
+Launch fails when Doctor fails, and it refuses in these cases:
 
 - the port already has a listener, on 127.0.0.1 or ::1, that this run didn't start;
 - a required env file is missing;
-- `WORDPRESS_URL` isn't local, or the WordPress Access service token is set;
+- `WORDPRESS_URL` isn't local, or the WordPress Access service token is set, in the shell or in any env file the app loads (`.env`, `.env.local`, `.env.development*`, `.dev.vars*`);
 - `PAYLOAD_DB=postgres` is set;
 - `PAYLOAD_SECRET` is empty.
 
 For Payload it runs `pnpm payload migrate` and `pnpm build` every time, so a stale build is never verified. For web-wordpress it runs `pnpm codegen`. It then starts the server in its own process group and records a receipt (`.state/<surface>/run.json`, with the pid, port, app directory and a token). The server log goes to `.state/<surface>/server.log`. Ready means launch ends with `Doctor: PASS`. If this checkout already runs an owned server on that port, launch reuses it.
 
-Each checkout's local D1, R2 and KV state lives in `apps/<app>/.cloudflare` or `.wrangler`. Run one instance per surface per checkout. Separate worktrees can run side by side on different ports.
+Each checkout's local D1, R2 and KV state lives in `apps/<app>/.cloudflare` or `.wrangler`. Run one instance per surface per checkout. Separate worktrees can run their front ends side by side on different ports.
+
+WordPress is the exception. Its Docker Compose project and database volume are shared by every checkout on the machine, so it serves whichever checkout last ran `setup`, and its content may have been edited by an earlier run. If a page shows content that isn't in the seed, reseed (`pnpm --filter cms-wordpress-headless run seed`), or reset it (`reset`, then `run setup`) when nobody else is using it.
 
 ## Doctor
 
@@ -62,7 +64,7 @@ Each checkout's local D1, R2 and KV state lives in `apps/<app>/.cloudflare` or `
 node .agents/skills/launch-verify/scripts/verify.ts doctor payload
 ```
 
-Doctor is read-only. It prints the surface, origin and checkout revision, then a PASS or FAIL line for each check:
+Doctor is read-only. When the environment check fails, it stops there and makes no network request. Otherwise it prints the surface, origin and checkout revision, then a PASS or FAIL line for each check:
 
 - the environment is local;
 - the receipt's process is alive and runs in this checkout's app directory;
@@ -101,7 +103,7 @@ Each `drive` or `capture` writes to `.agents/skills/launch-verify/evidence/<utc-
 - `NN-<step>.png`: numbered full-page screenshots of each action and its result;
 - `page.html` and `response.json`, from `capture`: the status, final URL, headers and checkout SHA;
 - `form-submissions.json`, from `apply-form`: the stored submission, read back as the local admin;
-- `server-log.txt`: the Worker's log lines during the run, which include each request's evlog wide event with `upstream.d1` or `upstream.wordpress` timings and, on cached pages, `cache`.
+- `server-log.txt`: the Worker's log lines during the run, which include each request's evlog wide event with `upstream.d1` or `upstream.wordpress` timings. The `cache` field (vinext's HIT, STALE or MISS) only appears on ISR pages served by a build (`vite preview`) or a deployed Worker. Under the web-wordpress `vite dev` surface and on Payload's `no-store` pages, it never appears. Events say `environment: 'production'` even locally.
 
 Look at each screenshot against its transcript line before calling a run good. A form drive passes only when the POST succeeded, the confirmation showed, and the row came back from the API.
 

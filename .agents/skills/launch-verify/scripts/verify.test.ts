@@ -68,15 +68,24 @@ describe("environment safety", () => {
   it("refuses a hosted WordPress and Access credentials", () => {
     const files = new Map([["WORDPRESS_URL", "http://localhost:8080"]]);
 
-    assert.deepEqual(unsafeEnvironment("web-wordpress", files, {}), []);
+    assert.deepEqual(unsafeEnvironment("web-wordpress", [files], {}), []);
     assert.equal(
-      unsafeEnvironment("web-wordpress", files, {
+      unsafeEnvironment("web-wordpress", [files], {
         WORDPRESS_URL: "https://cms.example.org",
       }).length,
       1
     );
+    // A hosted URL in any env file counts, even when another file is local.
     assert.equal(
-      unsafeEnvironment("web-wordpress", files, {
+      unsafeEnvironment(
+        "web-wordpress",
+        [files, new Map([["WORDPRESS_URL", "https://cms.example.org"]])],
+        {}
+      ).length,
+      1
+    );
+    assert.equal(
+      unsafeEnvironment("web-wordpress", [files], {
         WORDPRESS_ACCESS_CLIENT_ID: "id",
       }).length,
       1
@@ -84,13 +93,13 @@ describe("environment safety", () => {
   });
 
   it("refuses Postgres and an empty Payload secret", () => {
-    assert.equal(unsafeEnvironment("payload", new Map(), {}).length, 1);
+    assert.equal(unsafeEnvironment("payload", [], {}).length, 1);
     assert.deepEqual(
-      unsafeEnvironment("payload", new Map([["PAYLOAD_SECRET", "x"]]), {}),
+      unsafeEnvironment("payload", [new Map([["PAYLOAD_SECRET", "x"]])], {}),
       []
     );
     assert.equal(
-      unsafeEnvironment("payload", new Map([["PAYLOAD_SECRET", "x"]]), {
+      unsafeEnvironment("payload", [new Map([["PAYLOAD_SECRET", "x"]])], {
         PAYLOAD_DB: "postgres",
       }).length,
       1
@@ -141,6 +150,10 @@ describe("probe", () => {
 
     assert.equal(result.status, 200);
     assert.equal(new URL(result.finalUrl).pathname, "/done");
+  });
+
+  it("refuses a protocol-relative path before fetching it", async () => {
+    await assert.rejects(probe(origin, "//example.org/"), /not a path/u);
   });
 
   it("refuses a redirect off the local origin", async () => {

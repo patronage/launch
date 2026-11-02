@@ -6,9 +6,13 @@ cd "$(dirname "$0")/.."
 
 FRONTEND_ENV="../web-wordpress/.env.local"
 
-# docker compose reads .env (gitignored). Create it once with a fresh secret.
+# docker compose reads .env (gitignored). Create it once with a fresh secret,
+# or add the secret to an existing .env that lacks one.
 if [[ ! -f .env ]]; then
   sed "s/^HEADLESS_SECRET=.*/HEADLESS_SECRET=$(openssl rand -hex 24)/" .env.example >.env
+elif ! grep -Eq '^HEADLESS_SECRET=.+' .env; then
+  sed -i.bak '/^HEADLESS_SECRET=/d' .env && rm -f .env.bak
+  printf 'HEADLESS_SECRET=%s\n' "$(openssl rand -hex 24)" >>.env
 fi
 set -a
 # shellcheck disable=SC1091

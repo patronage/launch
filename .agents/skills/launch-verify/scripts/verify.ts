@@ -51,12 +51,22 @@ export interface Surface {
   health: string[];
   /** Local files the surface needs, relative to the app directory. */
   requiredFiles: string[];
+  /** Every env file the app's tooling may load; all are checked for safety. */
+  envFiles: string[];
 }
 
 export const SURFACES: Record<SurfaceName, Surface> = {
   payload: {
     app: "apps/payload",
     defaultPort: 4173,
+    envFiles: [
+      ".env",
+      ".env.local",
+      ".env.production",
+      ".env.production.local",
+      ".dev.vars",
+      ".dev.vars.production",
+    ],
     health: ["/", "/news", "/admin"],
     // Migrations and the build both run every launch, so a stale build or an
     // unmigrated local D1 never gets verified by mistake. The seed is a
@@ -77,6 +87,14 @@ export const SURFACES: Record<SurfaceName, Surface> = {
   "web-wordpress": {
     app: "apps/web-wordpress",
     defaultPort: 3000,
+    envFiles: [
+      ".env",
+      ".env.local",
+      ".env.development",
+      ".env.development.local",
+      ".dev.vars",
+      ".dev.vars.development",
+    ],
     health: ["/", "/about"],
     prepare: () => [["pnpm", "codegen"]],
     requiredFiles: [".env.local"],
@@ -192,37 +210,45 @@ export const isLocalUrl = (value: string): boolean => {
  */
 export const unsafeEnvironment = (
   surface: SurfaceName,
-  files: Map<string, string>,
+  files: Map<string, string>[],
   inherited: NodeJS.ProcessEnv
 ): string[] => {
   const problems: string[] = [];
-  const value = (name: string) => inherited[name] || files.get(name) || "";
+
+  // Every value a name has across the shell and each env file: any one of
+  // them may be the one the app ends up loading.
+  const values = (name: string) =>
+    [inherited[name], ...files.map((file) => file.get(name))].filter(
+      (value): value is string => Boolean(value)
+    );
 
   if (surface === "web-wordpress") {
-    const url = value("WORDPRESS_URL");
+    const urls = values("WORDPRESS_URL");
 
-    if (!(url && isLocalUrl(url))) {
-      problems.push(
-        `WORDPRESS_URL must be a local WordPress, not ${url || "unset"}`
-      );
+    if (urls.length === 0) {
+      problems.push("WORDPRESS_URL is unset");
+    }
+
+    for (const url of urls.filter((entry) => !isLocalUrl(entry))) {
+      problems.push(`WORDPRESS_URL must be a local WordPress, not ${url}`);
     }
 
     for (const name of [
       "WORDPRESS_ACCESS_CLIENT_ID",
       "WORDPRESS_ACCESS_CLIENT_SECRET",
     ]) {
-      if (value(name)) {
+      if (values(name).length > 0) {
         problems.push(`${name} is set; local WordPress runs without Access`);
       }
     }
   }
 
   if (surface === "payload") {
-    if (value("PAYLOAD_DB") === "postgres") {
+    if (values("PAYLOAD_DB").includes("postgres")) {
       problems.push("PAYLOAD_DB=postgres is not covered; use the local D1");
     }
 
-    if (!value("PAYLOAD_SECRET")) {
+    if (values("PAYLOAD_SECRET").length === 0) {
       problems.push("PAYLOAD_SECRET is empty in apps/payload/.env");
     }
   }
@@ -230,22 +256,20 @@ export const unsafeEnvironment = (
   return problems;
 };
 
-const readEnvFiles = (surface: SurfaceName): Map<string, string> => {
-  const merged = new Map<string, string>();
+const readEnvFiles = (surface: SurfaceName): Map<string, string>[] => {
   const appDir = path.join(REPO_ROOT, SURFACES[surface].app);
 
-  for (const file of SURFACES[surface].requiredFiles) {
-    const full = path.join(appDir, file);
-
-    if (existsSync(full)) {
-      for (const [key, value] of parseEnvFile(readFileSync(full, "utf-8"))) {
-        merged.set(key, value);
-      }
-    }
-  }
-
-  return merged;
+  return SURFACES[surface].envFiles
+    .map((file) => path.join(appDir, file))
+    .filter((file) => existsSync(file))
+    .map((file) => parseEnvFile(readFileSync(file, "utf-8")));
 };
+
+/** The local WordPress origin web-wordpress reads, once the env is safe. */
+const wordpressUrl = (surface: SurfaceName): string =>
+  readEnvFiles(surface)
+    .map((file) => file.get("WORDPRESS_URL") ?? "")
+    .findLast(Boolean) ?? "";
 
 // --- Processes ---------------------------------------------------------------
 
@@ -325,7 +349,15 @@ export const probe = async (
   origin: string,
   pathname: string
 ): Promise<Probe> => {
+  if (!pathname.startsWith("/") || pathname.startsWith("//")) {
+    throw new Error(`${pathname} is not a path on the local origin`);
+  }
+
   let url = new URL(pathname, origin);
+
+  if (url.origin !== new URL(origin).origin) {
+    throw new Error(`${pathname} resolves off the local origin`);
+  }
 
   for (let hop = 0; hop <= 5; hop += 1) {
     const response = await fetch(url, {
@@ -449,8 +481,16 @@ export const doctor = async (
     );
   }
 
+  if (problems.length > 0) {
+    lines.push("SKIP network checks: the environment isn't local");
+    log(lines.join("\n"));
+    log("Doctor: FAIL (fix the first FAIL line, then run doctor again)");
+
+    return false;
+  }
+
   if (surface === "web-wordpress") {
-    const wordpress = readEnvFiles(surface).get("WORDPRESS_URL") ?? "";
+    const wordpress = wordpressUrl(surface);
 
     try {
       const response = await fetch(new URL("/graphql", wordpress), {
@@ -512,7 +552,10 @@ export const launch = async (
     }
 
     log(`Reusing the owned ${surface} server (pid ${existing.pid}).`);
-    await doctor(surface, port);
+
+    if (!(await doctor(surface, port))) {
+      throw new Error("Doctor failed on the reused server; see above.");
+    }
 
     return;
   }
@@ -591,7 +634,12 @@ export const launch = async (
   log(
     `Started ${surface} at ${origin(port)} (pid ${child.pid}, log ${logFile}).`
   );
-  await doctor(surface, port);
+
+  if (!(await doctor(surface, port))) {
+    throw new Error(
+      `Doctor failed; the server is still running. Fix it, or run cleanup ${surface}.`
+    );
+  }
 };
 
 const newEvidenceDir = (surface: SurfaceName, name: string): string => {
@@ -627,10 +675,14 @@ const screenshot = async (url: string, file: string): Promise<string> => {
 
       await page.goto(url, { waitUntil: "networkidle" });
       // Scroll through once so lazy images load before the full-page shot.
+      // This callback runs in the browser, so it can't use Node's helpers.
       await page.evaluate(async () => {
         for (let y = 0; y < document.body.scrollHeight; y += 600) {
           window.scrollTo(0, y);
-          await sleep(100);
+          // oxlint-disable-next-line promise/avoid-new -- the browser has no promise-based sleep.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 100);
+          });
         }
 
         window.scrollTo(0, 0);
@@ -643,7 +695,7 @@ const screenshot = async (url: string, file: string): Promise<string> => {
       await browser.close();
     }
   } catch (error) {
-    return `no screenshot (${error instanceof Error ? error.message.split("\n")[0] : String(error)}); install Chromium with \`pnpm --filter payload exec playwright install chromium\` or set VERIFY_CHROMIUM`;
+    return `no screenshot (${error instanceof Error ? error.message.split("\n")[0] : String(error)}); if Chromium is missing, run \`pnpm --filter payload exec playwright install chromium\` or set VERIFY_CHROMIUM`;
   }
 };
 
@@ -713,6 +765,10 @@ export const capture = async (
     `${JSON.stringify(summary, null, 2)}\n`
   );
   log(`GET ${pathname} -> ${result.status}; ${shot}; evidence in ${dir}`);
+
+  if (shot.startsWith("no screenshot")) {
+    throw new Error("capture saved the response but no screenshot; see above.");
+  }
 
   return dir;
 };
@@ -864,8 +920,10 @@ const COMMANDS = new Map<string, Command>([
   [
     "capture",
     async (surface, [pathname, name]) => {
-      if (!(pathname?.startsWith("/") && name)) {
-        throw new Error("capture takes a path starting with / and a name");
+      if (!(pathname?.startsWith("/") && !pathname.startsWith("//") && name)) {
+        throw new Error(
+          "capture takes a path starting with a single / and a name"
+        );
       }
 
       await capture(surface, pathname, name);

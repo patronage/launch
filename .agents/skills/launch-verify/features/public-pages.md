@@ -27,5 +27,6 @@ Preconditions: the surface is launched, Doctor passes, and the demo content is s
 
 - Without the seed, Payload's `/` is a plain list of pages, not the home page.
 - Images below the fold load lazily. `capture` scrolls before its full-page shot, but a hand-taken screenshot may show blank space where they belong.
-- Payload pages are `no-store`, so their wide events carry `upstream.d1` but no `cache`. web-wordpress pages are ISR, so their events show `cache` (`MISS`, then `HIT` or `STALE`) and `upstream.wordpress` on a miss.
+- Payload pages are `no-store`, so their wide events carry `upstream.d1` but no `cache`. web-wordpress under `vite dev` logs `upstream.wordpress` but no `cache`. To see `cache` (`MISS`, then `HIT` or `STALE`), check a built or deployed web-wordpress.
+- Every checkout shares the WordPress Docker database. An unexpected heading (one that isn't in the seed) usually means an earlier run edited it, so reseed before calling it a bug.
 - Console errors about blocked external requests (fonts, embeds) come from the sandbox network, not the page. Judge them by their URL.
