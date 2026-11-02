@@ -2,7 +2,7 @@
 
 Logging for Launch's Workers and the provisioning for a site's log store. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
 
-Logging is optional. With nothing configured, each Worker writes one JSON line per request to Workers Logs, which keeps it for seven days, and nothing else happens.
+Logging is optional. With nothing configured, each Worker prints one JSON line per request to its console, and nothing else happens. Workers Logs keeps those lines for seven days if the Worker has observability turned on.
 
 | Export | Use |
 | --- | --- |

@@ -2,6 +2,6 @@ import { defineMeta } from "blume";
 
 export default defineMeta({
   order: 4,
-  pages: ["headless-wordpress", "payload", "mcp", "mcp-workos"],
+  pages: ["headless-wordpress", "payload", "mcp", "mcp-workos", "logging"],
   title: "References",
 });

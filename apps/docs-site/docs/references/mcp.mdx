@@ -32,4 +32,4 @@ Launch ships Access only. [Signing in with WorkOS](/references/mcp-workos) lists
 
 Each request writes one wide event to Workers Logs: who called, which tool, the outcome, and any write receipts. Workers Logs keep events for seven days, which is enough to debug a problem.
 
-A weekly usage report is not built yet. It would need the events kept longer. The likely route is Logpush of the Worker's trace events to an R2 bucket, then a scheduled job that summarizes the week. Cloudflare has said longer native retention is coming, which may make Logpush unnecessary.
+To keep events longer, build the gateway with `WORKER_LOGPUSH=true`, and the site's log bucket will receive them through Logpush (see [Logging](/references/logging)). A weekly usage report and a read-only connector for querying the logs are not built yet.
