@@ -12,7 +12,7 @@ Launch provides the plumbing: the event shapes, the Worker wrapper, the WordPres
 | Source | How it gets there | Path |
 | --- | --- | --- |
 | Each request to a Launch Worker | Workers Trace Events Logpush | `logpush/workers_trace_events/<date>/` |
-| Cloudflare audit logs and Access logins (optional) | Account Logpush jobs | `logpush/audit_logs_v2/<date>/`, `logpush/access_requests/<date>/` |
+| Cloudflare audit logs and Access logins | Account Logpush jobs | `logpush/audit_logs_v2/<date>/`, `logpush/access_requests/<date>/` |
 | WordPress security events and the host's log files | Basin Pipelines stream | `events/wordpress/year=/month=/day=/` |
 
 Everything is gzipped JSON, one record per line. The files can be queried in place with a tool such as DuckDB.
@@ -44,16 +44,22 @@ Requests never wait on the network. Events go to a spool file, and a server cron
 1. **Create the bucket and jobs.** Run the provision script with an API token (see its README for the permissions it needs):
 
    ```bash
-   pnpm --filter @patronage/logging logging:provision -- --name <site> [--wordpress]
+   pnpm --filter @patronage/logging logging:provision --name <site> [--wordpress] [--zone <zone id>]
    ```
 
-   It creates only what's missing: the bucket, the account Logpush jobs and, with `--wordpress`, the Basin stream. It prints the two WordPress constants you'll need in step 3.
+   It creates only what's missing:
+   - the bucket;
+   - the account Logpush jobs for Worker traces, audit logs and Access logins;
+   - with `--zone`, that zone's HTTP request and firewall jobs;
+   - with `--wordpress`, the Basin stream, sink and pipeline, plus a send-only token.
+
+   If you don't pass an R2 key pair, it creates one that can write only to the bucket and prints it once. With `--wordpress`, it also prints the two WordPress constants you'll need in step 3.
 
 2. **Turn on Logpush for each Worker.** Set `WORKER_LOGPUSH=true` in the Worker's Workers Builds environment and redeploy.
 
 3. **Turn on WordPress.** Add `PATRONAGE_LOGGING_ENDPOINT` and `PATRONAGE_LOGGING_TOKEN` (and optionally `PATRONAGE_LOGGING_FILES`) to the server's `wp-config.php`. Then add the five-minute cron and check the setup with `wp patronage-logging status` and `wp patronage-logging test`.
 
-On a shared Cloudflare account, the Launch demo keeps only its own Workers: its `workers_trace_events` job filters on `ScriptName`, and it has no account-wide audit or Access jobs.
+The script's jobs cover the whole account, which suits a site with its own Cloudflare account. On a shared account they would collect every Worker's logs and the whole account's audit trail. The script can't filter yet, so on a shared account, create the `workers_trace_events` job by hand with a `ScriptName` filter, and leave out the audit and Access jobs. That's how the Launch demo is set up.
 
 ## Things to know
 
@@ -62,4 +68,4 @@ On a shared Cloudflare account, the Launch demo keeps only its own Workers: its 
 - On hosts where the cron user and the PHP-FPM user differ, as on Cloudways, the plugin's spool folder is shared with their common group. That way, whichever runs first doesn't lock out the other.
 - Zone HTTP request and firewall logs need a plan that includes them. The script tries each job and reports any the plan refuses.
 
-The decision is ADR 0016, and the full research is [Wide-event logging and Logpush to R2](/research/logging-logpush).
+The decision is [ADR 0016](https://github.com/patronage/launch/blob/main/docs/adr/0016-logs-to-r2-through-logpush.md), and the full research is [Wide-event logging and Logpush to R2](/research/logging-logpush).

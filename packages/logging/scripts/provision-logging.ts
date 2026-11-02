@@ -1,7 +1,7 @@
 // Provision a site's log store through the Cloudflare API, by name.
 //
 //   CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
-//   pnpm --filter @patronage/logging logging:provision -- \
+//   pnpm --filter @patronage/logging logging:provision \
 //     --name demo \
 //     [--zone <zone id>] \
 //     [--wordpress] \
