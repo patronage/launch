@@ -112,23 +112,25 @@ export const withRequestLog = <TEnv, TEntry extends FetchEntry<TEnv>>(
       const timings = new Map<string, UpstreamTiming>();
 
       return upstreamTimings.run(timings, async () => {
-        const response = await entry.fetch(request, env, ctx);
-        const cache = cacheResult(response);
+        try {
+          const response = await entry.fetch(request, env, ctx);
+          const cache = cacheResult(response);
 
-        if (cache) {
-          log.set({ cache });
+          if (cache) {
+            log.set({ cache });
+          }
+
+          return response;
+        } finally {
+          // evlog emits when the handler returns or throws (it waits only for
+          // event streams), so these totals cover the work before the
+          // response starts, the same span as `duration`: a page's top-level
+          // awaited reads, but not reads inside a Suspense boundary that
+          // streams later. Traces cover those.
+          if (timings.size > 0) {
+            log.set({ upstream: upstreamFields(timings) });
+          }
         }
-
-        // evlog emits when the handler returns (it waits only for event
-        // streams), so these totals cover the work before the response
-        // starts, the same span as `duration`: a page's top-level awaited
-        // reads, but not reads inside a Suspense boundary that streams later.
-        // Traces cover those.
-        if (timings.size > 0) {
-          log.set({ upstream: upstreamFields(timings) });
-        }
-
-        return response;
       });
     },
     {

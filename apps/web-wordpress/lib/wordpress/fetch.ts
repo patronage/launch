@@ -78,6 +78,10 @@ export const wordpressFetch = (
   init: RequestInit = {},
   previewJwt?: string | null
 ): Promise<Response> =>
-  timeUpstream("wordpress", () =>
-    accessWordPressFetch(input, init, previewJwt)
+  timeUpstream(
+    "wordpress",
+    () => accessWordPressFetch(input, init, previewJwt),
+    // A 5xx is a failed read even though fetch resolved. Callers still check
+    // the status themselves; this only counts it.
+    (response) => response.status >= 500
   );

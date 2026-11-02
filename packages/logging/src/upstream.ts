@@ -17,11 +17,14 @@ export const upstreamTimings = new AsyncLocalStorage<
 /**
  * Time a call to an upstream, such as a WPGraphQL fetch or a D1 query, and add
  * it to the current request's wide event as `upstream.<name>`. Outside a
- * request that {@link withRequestLog} wraps, it just runs `work`.
+ * request that {@link withRequestLog} wraps, it just runs `work`. A rejection
+ * counts as an error, and so does a result that `isError` flags.
  */
 export const timeUpstream = async <Result>(
   name: string,
-  work: () => Promise<Result>
+  work: () => Promise<Result>,
+  /** Counts a result that resolved but still failed, such as an HTTP 503. */
+  isError?: (result: Result) => boolean
 ): Promise<Result> => {
   const timings = upstreamTimings.getStore();
 
@@ -33,7 +36,11 @@ export const timeUpstream = async <Result>(
   let failed = false;
 
   try {
-    return await work();
+    const result = await work();
+
+    failed = isError?.(result) ?? false;
+
+    return result;
   } catch (error) {
     failed = true;
     throw error;

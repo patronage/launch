@@ -158,6 +158,61 @@ describe(withRequestLog, () => {
   });
 });
 
+describe(timeUpstream, () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps upstream totals on a request that throws", async () => {
+    const loggedEvents = captureConsole();
+
+    const entry = withRequestLog(
+      {
+        fetch: () =>
+          timeUpstream("wordpress", () => {
+            throw new Error("down");
+          }),
+      },
+      { service: "demo-web" }
+    );
+
+    await expect(
+      entry.fetch(new Request("https://example.org/"), {}, ctx)
+    ).rejects.toThrow("down");
+
+    expect(loggedEvents()[0]).toMatchObject({
+      upstream: { wordpress: { calls: 1, errors: 1 } },
+    });
+  });
+
+  it("counts a resolved result that isError flags", async () => {
+    const loggedEvents = captureConsole();
+
+    const entry = withRequestLog(
+      {
+        fetch: () =>
+          timeUpstream(
+            "wordpress",
+            () => Promise.resolve(new Response("busy", { status: 503 })),
+            (response) => response.status >= 500
+          ),
+      },
+      { service: "demo-web" }
+    );
+
+    const response = await entry.fetch(
+      new Request("https://example.org/"),
+      {},
+      ctx
+    );
+
+    expect(response.status).toBe(503);
+    expect(loggedEvents()[0]).toMatchObject({
+      upstream: { wordpress: { calls: 1, errors: 1 } },
+    });
+  });
+});
+
 describe(timedD1, () => {
   // Stands in for D1, whose methods only accept their own objects.
   class Statement {
