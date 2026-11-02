@@ -34,6 +34,21 @@ Yes. Workers need nothing beyond a JSON console line per request and Workers Tra
 - **Cloudways gives no root**, so no log agent like Vector. A server cron running `wp patronage-logging ship` reads the app's log files and the plugin's spool and posts them over HTTPS.
 - **Per-dataset plan limits are not documented.** Logpush itself is on every plan and Workers Trace Events needs Workers Paid. Zone `http_requests` has historically been Enterprise-only; the script tries each job and reports what the plan refused.
 
+## Live run (2026-11-02)
+
+Run against the Launch demo sites on the shared Patronage account.
+
+| Check | Result |
+| --- | --- |
+| `workers_trace_events` job, filtered to the two Launch Workers (`ScriptName in [...]`) | First file in `logpush/workers_trace_events/<date>/` within minutes of traffic; each record's `Logs` array holds the evlog event (`service`, `path`, `status`, `durationMs`) |
+| Basin stream, sink and pipeline for WordPress | Test event and Cloudways log lines in `events/wordpress/year=/month=/day=/` within the sink's five-minute roll |
+| Failed login through PHP-FPM, shipped by the server cron | Recorded and delivered |
+
+- **The `cf` CLI cannot create account Logpush jobs yet.** Both 1.0.0-beta.24 and beta.26 reject `cf logpush account-jobs create` with a `kind` validation error, so the job was created with the API. The provision script calls the API directly and is not affected.
+- **Basin wraps each unstructured record in `value`.** Readers unwrap `value` before reading the event.
+- **The spool must be shared with the group.** On Cloudways the cron and SSH user is not the PHP-FPM user. When the cron ran first and created the spool folder private to itself, web requests could not write events and dropped them silently. The plugin now creates the folder setgid and group-writable (`2770`) and its files `0660`.
+- Zone `http_requests` and `firewall_events` were not tried: the zone is on the Free plan.
+
 ## Not done here
 
 - A read-only `logs` connector in the MCP gateway, so an agent can query the bucket.

@@ -26,7 +26,7 @@ With `PATRONAGE_LOGGING_FILES` set, new lines from those files go to the same st
 
 A request never waits on the network. Events are appended to a spool file at shutdown, and `wp patronage-logging ship` sends the spool and any new log lines in batches. Batches stay under 500 records and 3 MB. A failed send keeps everything for the next run. Requests hold a shared lock while they append and the shipper an exclusive one while it moves the spool aside, so no event is written to a file already being sent. Log files are read from a saved offset, and a rotated file starts again from the top.
 
-The spool lives in the host's private folder beside the web root when there is one (Cloudways: `private_html/patronage-logging`), otherwise in a folder of the system temp folder named for this install. Its files end in `.php` and start with an exit line, so a web server that can reach them runs them instead of serving them.
+The spool lives in the host's private folder beside the web root when there is one (Cloudways: `private_html/patronage-logging`), otherwise in a folder of the system temp folder named for this install. The folder is created setgid and group-writable, and its files group-writable, because the cron user and the PHP-FPM user usually differ and share a group; whichever runs first creates them. Its files end in `.php` and start with an exit line, so a web server that can reach them runs them instead of serving them.
 
 The token can only send. Whoever takes over the server can add noise but cannot read or delete what already left.
 

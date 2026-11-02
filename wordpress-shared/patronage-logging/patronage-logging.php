@@ -88,11 +88,44 @@ final class Patronage_Logging_Spool {
 		return $this->dir;
 	}
 
-	private function ensure_dir(): bool {
+	/**
+	 * The folder and its files are shared with the group, because on most
+	 * hosts the cron or SSH user that runs the shipper is not the PHP-FPM
+	 * user that writes events, and whichever runs first creates them. The
+	 * setgid bit keeps new files in the folder's group.
+	 */
+	public function ensure_dir(): bool {
 		if ( is_dir( $this->dir ) ) {
 			return true;
 		}
-		return @mkdir( $this->dir, 0700, true ) || is_dir( $this->dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		if ( ! @mkdir( $this->dir, 0770, true ) && ! is_dir( $this->dir ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			return false;
+		}
+		@chmod( $this->dir, 02770 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		return true;
+	}
+
+	/**
+	 * Open (creating if needed) a lock file in the spool folder.
+	 *
+	 * @return resource|null
+	 */
+	public function open_lock( string $name ) {
+		$path    = $this->dir . '/' . $name;
+		$created = ! file_exists( $path );
+		$handle  = @fopen( $path, 'c' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		if ( false === $handle ) {
+			return null;
+		}
+		if ( $created ) {
+			self::share( $path );
+		}
+		return $handle;
+	}
+
+	/** Make a file this process created writable by the group. */
+	private static function share( string $path ): void {
+		@chmod( $path, 0660 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 	}
 
 	/**
@@ -115,6 +148,10 @@ final class Patronage_Logging_Spool {
 		$written = false !== $line
 			&& false !== @file_put_contents( $path, $guard . $line . "\n", FILE_APPEND | LOCK_EX ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
+		if ( $written && '' !== $guard ) {
+			self::share( $path );
+		}
+
 		self::unlock( $lock );
 		return $written;
 	}
@@ -130,8 +167,8 @@ final class Patronage_Logging_Spool {
 		if ( ! $this->ensure_dir() ) {
 			return null;
 		}
-		$handle = @fopen( $this->dir . '/spool.lock', 'c' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-		if ( false === $handle ) {
+		$handle = $this->open_lock( 'spool.lock' );
+		if ( null === $handle ) {
 			return null;
 		}
 		if ( ! flock( $handle, $mode ) ) {
@@ -541,13 +578,13 @@ final class Patronage_Logging_Shipper {
 			'lines'  => 0,
 		);
 
-		if ( ! is_dir( $spool->dir() ) && ! @mkdir( $spool->dir(), 0700, true ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		if ( ! $spool->ensure_dir() ) {
 			$result['errors'][] = 'spool folder is not writable';
 			return $result;
 		}
 
-		$lock = @fopen( $spool->dir() . '/ship.lock', 'c' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-		if ( false === $lock || ! flock( $lock, LOCK_EX | LOCK_NB ) ) {
+		$lock = $spool->open_lock( 'ship.lock' );
+		if ( null === $lock || ! flock( $lock, LOCK_EX | LOCK_NB ) ) {
 			$result['errors'][] = 'another ship run is in progress';
 			return $result;
 		}
