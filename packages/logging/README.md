@@ -6,7 +6,9 @@ Logging is optional. With nothing configured, each Worker prints one JSON line p
 
 | Export | Use |
 | --- | --- |
-| `withRequestLog(entry, { service })` | Wrap a Worker's fetch entry (vinext's included) so every request emits one evlog wide event as a JSON console line: method, path without the query, status, duration, `cf-ray`, colo, country and ASN. Build assets are skipped. Other handlers on the entry are kept. |
+| `withRequestLog(entry, { service })` | Wrap a Worker's fetch entry (vinext's included) so every request emits one evlog wide event as a JSON console line: method, path without the query, status, duration, `cf-ray`, colo, country and ASN, plus `cache` (vinext's page cache result: `HIT`, `STALE` or `MISS`) and `upstream` totals. Build assets are skipped. Other handlers on the entry are kept. |
+| `timeUpstream(name, work)` | Time a call to an upstream and add it to the request's `upstream.<name>` as `{ calls, errors, ms }`. Outside a wrapped request it only runs `work`. |
+| `timedD1(binding, name?)` | Wrap a D1 binding so each query counts toward `upstream.d1` (or `name`). |
 | `@patronage/logging/cloudflare` | Idempotent Cloudflare API helpers behind the provisioning script: `ensureBucket`, `ensureLogpushJob`, `ensureWordPressStream`, and token helpers. |
 
 ## Wide events from a Worker
@@ -21,6 +23,8 @@ export default withRequestLog(entry, { service: "web-wordpress" });
 ```
 
 Pass `sampleRate` (0 to 100) to keep only part of the healthy traffic; responses with status 400 or more, and requests slower than `slowMs` (1000 by default), are always kept.
+
+`upstream` covers the work done before the response starts, which is the same span as `duration`. Reads inside a Suspense boundary that streams later aren't in it; traces show those. web-wordpress times its WPGraphQL and media reads as `upstream.wordpress`, and Payload times its D1 queries as `upstream.d1`.
 
 To keep events past seven days, deploy with `WORKER_LOGPUSH=true`. `cloudflare.config.ts` turns on Workers Trace Events Logpush for the Worker, and the account's `workers_trace_events` job (below) copies every log line to R2. Each evlog event arrives as an entry in the trace event's `Logs` array. For a Worker deployed by Workers Builds, set the variable before running `pnpm run builds:configure`, so builds pass it on.
 

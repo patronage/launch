@@ -132,6 +132,7 @@ const shared = {
           "HYPERDRIVE_ID",
           "WORKER_DOMAIN",
           "WORKER_LOGPUSH",
+          "WORKER_TRACE_SAMPLING",
         ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])

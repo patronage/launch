@@ -3,11 +3,11 @@ import {
   isAccessRejection,
   verifyAccessJwt,
 } from "@patronage/access";
+import { timeUpstream } from "@patronage/logging";
 
 import { wordpressEnv } from "./env";
 
-/** CMS reads share the Access transport, including original media requests. */
-export const wordpressFetch = async (
+const accessWordPressFetch = async (
   input: string,
   init: RequestInit = {},
   previewJwt?: string | null
@@ -68,3 +68,20 @@ export const wordpressFetch = async (
 
   return response;
 };
+
+/**
+ * CMS reads share the Access transport, including original media requests.
+ * Each one counts toward upstream.wordpress on the request's wide event.
+ */
+export const wordpressFetch = (
+  input: string,
+  init: RequestInit = {},
+  previewJwt?: string | null
+): Promise<Response> =>
+  timeUpstream(
+    "wordpress",
+    () => accessWordPressFetch(input, init, previewJwt),
+    // A 5xx is a failed read even though fetch resolved. Callers still check
+    // the status themselves; this only counts it.
+    (response) => response.status >= 500
+  );

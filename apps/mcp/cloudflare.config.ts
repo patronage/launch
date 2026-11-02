@@ -77,7 +77,17 @@ export default defineConfig({
     name,
     observability: {
       enabled: true,
+      // Group exceptions and 5xx responses into Issues in the dashboard.
+      issues: { enabled: true },
       logs: { enabled: true, headSamplingRate: 1 },
+      // Query strings can carry preview tokens; keep them out of logs and traces.
+      redactQueryString: true,
+      // Automatic tracing: a span for each subrequest and binding call, kept
+      // seven days. WORKER_TRACE_SAMPLING (0 to 1) lowers it for busy sites.
+      traces: {
+        enabled: true,
+        headSamplingRate: Number(process.env.WORKER_TRACE_SAMPLING || 1),
+      },
     },
     // Serve only on the Access-protected custom domain.
     previewUrls: false,

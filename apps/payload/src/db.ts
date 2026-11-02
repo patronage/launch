@@ -1,3 +1,4 @@
+import { timedD1 } from "@patronage/logging";
 import { env } from "cloudflare:workers";
 import type { Config } from "payload";
 
@@ -43,7 +44,8 @@ export const database = async (): Promise<Config["db"]> => {
   const { sqliteD1Adapter } = await import("@payloadcms/db-d1-sqlite");
 
   return sqliteD1Adapter({
-    binding: binding(env.D1, "D1"),
+    // Each query counts toward upstream.d1 on the request's wide event.
+    binding: timedD1(binding(env.D1, "D1")),
     migrationDir: "src/migrations/d1",
     prodMigrations: d1Migrations,
     push: false,
