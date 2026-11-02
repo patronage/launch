@@ -26,6 +26,8 @@ Each app's `pnpm run builds:configure` creates this configuration through the Wo
 4. Run `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
 5. Push a branch and check that its Preview comes up, then merge and check production.
 
+To keep a Worker's request logs, set `WORKER_LOGPUSH=true` before running `builds:configure`, so builds pass it on. See [Logging](/references/logging).
+
 Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
 
 The full write-up, including what the first run taught, is in [Workers Builds and preview URLs](/research/workers-builds).

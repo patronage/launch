@@ -19,6 +19,7 @@ sidebar:
 | Payload | One app, using the Local API. D1 is the database by default, with Postgres through Hyperdrive kept as an option. See [Payload](/references/payload). |
 | Shared UI | Plain props from a CMS-neutral content model. Each CMS has an adapter; rich text stays CMS-specific. |
 | MCP | One MCP gateway Worker per site, behind Access, with a WordPress and a Payload connector. Every write waits for a person to approve it. See [MCP server](/references/mcp). |
+| Logging | Each site's logs are files in one R2 bucket: Workers through Logpush, WordPress through a Basin Pipelines stream. Optional and off until configured. Reading and acting on the logs is outside Launch. See [Logging](/references/logging). |
 | Docs | This site, built with Blume. Engineering notes stay in the repo's `docs/` folder. |
 
 ## Open
