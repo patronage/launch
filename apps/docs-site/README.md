@@ -28,4 +28,4 @@ pnpm --filter docs-site run deploy --dry-run   # build and check, upload nothing
 pnpm --filter docs-site run builds:configure   # point Workers Builds at this app
 ```
 
-`WORKER_DOMAIN` sets the custom domain and, in `blume.config.ts`, the site URL for the sitemap, canonical links and Open Graph cards. `WORKER_DOMAIN_PREVIEWS=true` also serves Previews on that domain. The site has no secrets or bindings.
+`WORKER_DOMAIN` sets the custom domain and, in `blume.config.ts`, the site URL for the sitemap, canonical links and Open Graph cards. `WORKER_DOMAIN_ALIASES` (comma-separated) keeps other hostnames attached to production, for example an old domain whose links should keep working; a production deploy detaches any hostname the config leaves out. `WORKER_DOMAIN_PREVIEWS=true` also serves Previews on the main domain. The site has no secrets or bindings.

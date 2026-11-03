@@ -23,7 +23,7 @@ Locally, sign in with `cf auth login`, or set `CLOUDFLARE_API_TOKEN` and `CLOUDF
 
 ## Custom domains
 
-Set `WORKER_DOMAIN` when building and the next production deploy attaches it as the Worker's custom domain. The zone must be on the same account. `WORKER_DOMAIN_PREVIEWS=true` also serves each Preview at `<preview>.<domain>`; those hostnames are two levels below the zone, which a Free plan's Universal SSL certificate does not cover, so it is off by default. Previews always get a `workers.dev` URL.
+Set `WORKER_DOMAIN` when building and the next production deploy attaches it as the Worker's custom domain. The zone must be on the same account. A production deploy replaces the Worker's whole domain list, so in the docs site, `WORKER_DOMAIN_ALIASES` (comma-separated) keeps other hostnames attached, such as an old domain whose links should keep working. `WORKER_DOMAIN_PREVIEWS=true` also serves each Preview at `<preview>.<domain>`; those hostnames are two levels below the zone, which a Free plan's Universal SSL certificate does not cover, so it is off by default. Previews always get a `workers.dev` URL.
 
 ## This docs site
 

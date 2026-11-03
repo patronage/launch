@@ -8,8 +8,8 @@
 //   BUILD_TOKEN_UUID      from `cf builds tokens list`
 //   GITHUB_OWNER_ID       numeric id of the GitHub org that owns the repo
 //   GITHUB_REPO_ID        numeric id of the repo
-// and optionally WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS, which become build
-// variables.
+// and optionally WORKER_DOMAIN, WORKER_DOMAIN_ALIASES and WORKER_DOMAIN_PREVIEWS,
+// which become build variables.
 // The Cloudflare GitHub app must already be installed on the repo (a one-time
 // dashboard step). The Worker must exist, so run `pnpm run deploy` once first.
 //
@@ -94,7 +94,7 @@ const shared = {
   ].join(" && "),
   build_token_uuid: env.BUILD_TOKEN_UUID,
   // The API takes each variable as { value, is_secret }, not a bare string.
-  // WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS are read when the site is built,
+  // The WORKER_DOMAIN* variables are read when the site is built,
   // so they are passed on when set here.
   environment_variables: Object.fromEntries(
     Object.entries({
@@ -102,9 +102,11 @@ const shared = {
       PNPM_VERSION: pnpmVersion,
       SKIP_DEPENDENCY_INSTALL: "1",
       ...Object.fromEntries(
-        ["WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"].flatMap((name) =>
-          env[name] ? [[name, env[name]]] : []
-        )
+        [
+          "WORKER_DOMAIN",
+          "WORKER_DOMAIN_ALIASES",
+          "WORKER_DOMAIN_PREVIEWS",
+        ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])
   ),

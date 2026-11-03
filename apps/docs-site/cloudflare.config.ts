@@ -9,6 +9,16 @@ import { defineConfig, defineWorker } from "cf/config";
 const domain = process.env.WORKER_DOMAIN;
 const previewsOnDomain = process.env.WORKER_DOMAIN_PREVIEWS === "true";
 
+// WORKER_DOMAIN_ALIASES is a comma-separated list of other hostnames the
+// production Worker also answers on, such as an old domain kept so its links
+// still work. A production deploy replaces the Worker's whole domain list, so
+// a hostname left out of this config is detached. Aliases serve production
+// only, and the canonical URL stays on WORKER_DOMAIN.
+const aliases = (process.env.WORKER_DOMAIN_ALIASES ?? "")
+  .split(",")
+  .map((hostname) => hostname.trim())
+  .filter((hostname) => hostname && hostname !== domain);
+
 // This file is the cf CLI's typed Worker config. It replaces wrangler.jsonc:
 // there is no Wrangler in this app. The account comes from CLOUDFLARE_ACCOUNT_ID.
 //
@@ -25,7 +35,14 @@ export default defineConfig({
     },
     compatibilityDate: "2026-10-29",
     domains: domain
-      ? [{ hostname: domain, previews: previewsOnDomain, production: true }]
+      ? [
+          { hostname: domain, previews: previewsOnDomain, production: true },
+          ...aliases.map((hostname) => ({
+            hostname,
+            previews: false,
+            production: true,
+          })),
+        ]
       : [],
     name: process.env.WORKER_NAME ?? "launch-docs",
     previewUrls: true,
