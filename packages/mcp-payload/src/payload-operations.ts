@@ -7,9 +7,11 @@ import type { JsonValue } from "@patronage/mcp-core";
 import { z } from "zod";
 
 // What `payload.apply` can change: top-level fields of one document, saved as
-// a new draft of it or as a new draft document. Publishing stays with a person
-// in the Payload admin, so the fields Payload manages itself are refused: the
-// id, the timestamps, and every `_`-prefixed key, `_status` above all.
+// a new draft of it or as a new draft document. A change is published only
+// when its operation says `publish: true`, which the approval preview shows
+// as its own `_status` row. The fields Payload manages itself are refused in
+// `fields`: the id, the timestamps, and every `_`-prefixed key, so `_status`
+// changes only through `publish`.
 const RESERVED_FIELDS = new Set(["createdAt", "deletedAt", "id", "updatedAt"]);
 
 const slugSchema = z
@@ -44,7 +46,11 @@ export const MAX_MARKDOWN_LENGTH = 200_000;
 interface DraftChanges {
   fields?: Record<string, JsonValue> | undefined;
   markdown?: Record<string, string> | undefined;
+  publish?: true | undefined;
 }
+
+// The field Payload keeps a document's draft or published state in.
+export const STATUS_FIELD = "_status";
 
 export const draftFields = (
   operation: DraftChanges
@@ -54,7 +60,7 @@ export const draftMarkdown = (
   operation: DraftChanges
 ): Record<string, string> => operation.markdown ?? {};
 
-const changedFieldKeys = (operation: DraftChanges): string[] => {
+const fieldKeys = (operation: DraftChanges): string[] => {
   const fields = draftFields(operation);
 
   return [
@@ -72,28 +78,41 @@ const draftChangeFields = {
   markdown: z
     .record(fieldNameSchema, z.string().max(MAX_MARKDOWN_LENGTH))
     .optional(),
+  // Opt-in: publish the document with this change instead of leaving it as
+  // a draft. Payload's own access control still decides whether the editor
+  // may publish.
+  publish: z.literal(true).optional(),
 };
 
-const changeRules = (operation: DraftChanges, ctx: z.RefinementCtx): void => {
-  if (changedFieldKeys(operation).length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      message: "operation must change at least one field",
-    });
-  }
-
-  const fields = draftFields(operation);
-
-  for (const key of Object.keys(draftMarkdown(operation))) {
-    if (key in fields) {
+// An update may publish a document without changing a field; a new
+// document always needs fields.
+const changeRules =
+  (publishAlone: boolean) =>
+  (operation: DraftChanges, ctx: z.RefinementCtx): void => {
+    if (
+      fieldKeys(operation).length === 0 &&
+      !(publishAlone && operation.publish)
+    ) {
       ctx.addIssue({
         code: "custom",
-        message: `${key} is in both fields and markdown`,
-        path: ["markdown", key],
+        message: publishAlone
+          ? "operation must change at least one field or publish"
+          : "operation must change at least one field",
       });
     }
-  }
-};
+
+    const fields = draftFields(operation);
+
+    for (const key of Object.keys(draftMarkdown(operation))) {
+      if (key in fields) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${key} is in both fields and markdown`,
+          path: ["markdown", key],
+        });
+      }
+    }
+  };
 
 const updateDraftOperationSchema = z
   .strictObject({
@@ -104,11 +123,11 @@ const updateDraftOperationSchema = z
     id: documentIdSchema,
     kind: z.literal("update_draft"),
   })
-  .superRefine(changeRules);
+  .superRefine(changeRules(true));
 
 const createDraftOperationSchema = z
   .strictObject({ ...draftChangeFields, kind: z.literal("create_draft") })
-  .superRefine(changeRules);
+  .superRefine(changeRules(false));
 
 const draftOperationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
@@ -126,13 +145,36 @@ export const draftTarget = (operation: DraftOperation): string =>
     ? `${operation.collection}/new`
     : `${operation.collection}/${operation.id}`;
 
+// The fields the approver sees, `_status` last when the operation publishes.
 export const draftChangedPaths = (operation: DraftOperation): string[] =>
-  changedFieldKeys(operation);
+  operation.publish
+    ? [...fieldKeys(operation), STATUS_FIELD]
+    : fieldKeys(operation);
 
-export const draftSentence = (operation: DraftOperation): string =>
-  operation.kind === "create_draft"
-    ? `Create a new ${operation.collection} draft with ${joinPhrase(draftChangedPaths(operation))}`
-    : `Save ${joinPhrase(draftChangedPaths(operation))} as a draft of ${operation.collection} ${operation.id}`;
+const updateSentence = (operation: UpdateDraftOperation): string => {
+  const document = `${operation.collection} ${operation.id}`;
+  const fields = fieldKeys(operation);
+
+  if (!operation.publish) {
+    return `Save ${joinPhrase(fields)} as a draft of ${document}`;
+  }
+
+  return fields.length === 0
+    ? `Publish ${document}`
+    : `Save ${joinPhrase(fields)} to ${document} and publish it`;
+};
+
+export const draftSentence = (operation: DraftOperation): string => {
+  if (operation.kind === "update_draft") {
+    return updateSentence(operation);
+  }
+
+  const fields = joinPhrase(fieldKeys(operation));
+
+  return operation.publish
+    ? `Create and publish a new ${operation.collection} with ${fields}`
+    : `Create a new ${operation.collection} draft with ${fields}`;
+};
 
 const draftApplyInputSchema = z
   .object({

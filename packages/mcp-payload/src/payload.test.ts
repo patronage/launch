@@ -1,5 +1,6 @@
 import { verifyGatewayProof } from "@patronage/access";
 import {
+  ApplyValidationError,
   UpstreamRequestError,
   createCallerScope,
   createUpstreamTelemetry,
@@ -71,6 +72,7 @@ const fakePayload = (
     drafts?: boolean;
     failCreatedRead?: boolean;
     lost?: string[];
+    status?: string;
   } = {}
 ) => {
   const seen: Seen[] = [];
@@ -85,7 +87,7 @@ const fakePayload = (
   };
 
   if (drafts) {
-    doc._status = "published";
+    doc._status = options.status ?? "published";
   }
 
   const created: Record<string, JsonObject> = {};
@@ -171,8 +173,8 @@ const fakePayload = (
 
     if (request.method === "POST") {
       const next: JsonObject = {
-        ...JSON.parse(body ?? "{}"),
         _status: "draft",
+        ...JSON.parse(body ?? "{}"),
         id: 34,
         updatedAt: "2026-10-31T12:00:00.000Z",
       };
@@ -508,6 +510,153 @@ describe("Payload draft writes", () => {
 
     expect(receipt.operations[0]).toMatchObject({ status: "conflict" });
     expect(fake.seen.some((entry) => entry.method === "PATCH")).toBeFalsy();
+  });
+});
+
+describe("Payload publishing on request", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const publishOnly: DraftOperation = {
+    collection: "posts",
+    id: 12,
+    kind: "update_draft",
+    publish: true,
+  };
+
+  it("accepts a publish with no field changes on an update only", () => {
+    expect(
+      parseDraftApplyInput({ intent: "Publish", operations: [publishOnly] })
+    ).toMatchObject({ operations: [publishOnly] });
+
+    expect(() =>
+      parseDraftApplyInput({
+        intent: "Start",
+        operations: [
+          { collection: "posts", kind: "create_draft", publish: true },
+        ],
+      })
+    ).toThrow(/at least one field/u);
+
+    expect(() =>
+      parseDraftApplyInput({
+        intent: "Retitle",
+        operations: [{ ...operation, publish: false }],
+      })
+    ).toThrow(ApplyValidationError);
+  });
+
+  it("refuses _status in fields, so publishing goes through publish", () => {
+    expect(() =>
+      parseDraftApplyInput({
+        intent: "Publish",
+        operations: [{ ...operation, fields: { _status: "published" } }],
+      })
+    ).toThrow(ApplyValidationError);
+  });
+
+  it("shows the publish as a _status change in the preview", async () => {
+    vi.stubGlobal("fetch", fakePayload({ status: "draft" }).handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Publish",
+      [publishOnly],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    expect(preflight.operations[0]).toMatchObject({
+      fields: [
+        { after: "published", before: "draft", changed: true, path: "_status" },
+      ],
+      sentence: "Publish posts 12",
+    });
+  });
+
+  it("publishes the approved change without draft=true", async () => {
+    const fake = fakePayload({ status: "draft" });
+    vi.stubGlobal("fetch", fake.handler);
+    const publishing: DraftOperation = { ...operation, publish: true };
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Retitle and publish",
+      [publishing],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    expect(preflight.operations[0]?.sentence).toBe(
+      "Save title to posts 12 and publish it"
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [publishing],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      changed_paths: ["_status", "title"],
+      status: "changed",
+    });
+
+    const write = fake.seen.find((entry) => entry.method === "PATCH");
+
+    expect(write?.url).toBe("https://payload.example/api/posts/12?depth=0");
+    expect(JSON.parse(write?.body ?? "{}")).toStrictEqual({
+      _status: "published",
+      title: "New title",
+    });
+  });
+
+  it("creates a published document when asked", async () => {
+    const fake = fakePayload();
+    vi.stubGlobal("fetch", fake.handler);
+
+    const creating: DraftOperation = {
+      collection: "posts",
+      fields: { title: "Launch day" },
+      kind: "create_draft",
+      publish: true,
+    };
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Announce",
+      [creating],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    expect(preflight.operations[0]?.sentence).toBe(
+      "Create and publish a new posts with title"
+    );
+
+    await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [creating],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    const write = fake.seen.find(
+      (entry) => entry.method === "POST" && !entry.url.endsWith("/api/mcp")
+    );
+
+    expect(write?.url).toBe("https://payload.example/api/posts?depth=0");
+    expect(JSON.parse(write?.body ?? "{}")).toMatchObject({
+      _status: "published",
+    });
   });
 });
 

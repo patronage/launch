@@ -33,6 +33,7 @@ import {
   draftMarkdown,
   draftSentence,
   draftTarget,
+  STATUS_FIELD,
 } from "./payload-operations";
 import type {
   DraftOperation,
@@ -78,17 +79,25 @@ export type PayloadAdminUrl = (
   id: number | string
 ) => string;
 
-const documentPath = (collection: string, id: number | string): string =>
-  `/api/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}?draft=true&depth=0`;
+// Every read names the draft, so it returns the newest version, draft or
+// published. A write names it too, saving a new draft version and leaving
+// the published one as it is, unless the operation publishes: then the write
+// goes without `draft=true` and sets `_status` to published.
+const draftQuery = (draft: boolean): string =>
+  draft ? "?draft=true&depth=0" : "?depth=0";
 
-// Every read and write names the draft: a read returns the newest version,
-// draft or published, and a write saves a new draft version and leaves the
-// published one as it is.
+const documentPath = (
+  collection: string,
+  id: number | string,
+  draft = true
+): string =>
+  `/api/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}${draftQuery(draft)}`;
+
 const operationPath = (operation: UpdateDraftOperation): string =>
-  documentPath(operation.collection, operation.id);
+  documentPath(operation.collection, operation.id, !operation.publish);
 
-const createPath = (collection: string): string =>
-  `/api/${encodeURIComponent(collection)}?draft=true&depth=0`;
+const createPath = (operation: DraftOperation): string =>
+  `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
 
 const updatedAt = (record: JsonObject): string | undefined => {
   const value = stringSchema.safeParse(record.updatedAt);
@@ -342,6 +351,10 @@ const resolveBody = async (
     body[field] = value;
   }
 
+  if (operation.publish) {
+    body[STATUS_FIELD] = "published";
+  }
+
   return body;
 };
 
@@ -360,6 +373,17 @@ const snapshotField = async (
   record: JsonObject,
   path: string
 ): Promise<FieldSnapshot> => {
+  if (path === STATUS_FIELD) {
+    const before = record[STATUS_FIELD];
+
+    return {
+      after: "published",
+      before: previewValue(before),
+      changed: before !== "published",
+      path,
+    };
+  }
+
   const markdown = draftMarkdown(operation)[path];
 
   if (markdown === undefined) {
@@ -649,11 +673,13 @@ const writeUpdate = async (
 
 const writeCreate = async (
   client: UpstreamClient,
-  collection: string,
+  operation: DraftOperation,
   body: JsonObject,
   telemetry: UpstreamTelemetry
 ): Promise<WriteResult> => {
-  const write = await payloadRest(client, createPath(collection), telemetry, {
+  const { collection } = operation;
+
+  const write = await payloadRest(client, createPath(operation), telemetry, {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -722,7 +748,7 @@ const applyOne = async (
 
     written =
       operation.kind === "create_draft"
-        ? await writeCreate(client, operation.collection, body, telemetry)
+        ? await writeCreate(client, operation, body, telemetry)
         : await writeUpdate(client, operation, snapshot, body, telemetry);
 
     const readback = classifyReadback(body, written.before, written.after);

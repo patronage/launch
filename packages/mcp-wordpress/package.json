@@ -1,7 +1,6 @@
 {
   "name": "@patronage/mcp-wordpress",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The WordPress connector for @patronage/mcp-core: WPGraphQL and REST reads, and post updates through the approval step.",
   "license": "MIT",
   "repository": {
