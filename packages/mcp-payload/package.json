@@ -1,7 +1,6 @@
 {
   "name": "@patronage/mcp-payload",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The Payload connector for @patronage/mcp-core: Payload's own MCP read tools, and draft writes through the approval step.",
   "license": "MIT",
   "repository": {

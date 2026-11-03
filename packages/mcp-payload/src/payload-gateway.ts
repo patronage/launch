@@ -13,7 +13,7 @@ import {
 const PAYLOAD_EXECUTE_DESCRIPTION = [
   "The payload global reaches the Payload CMS.",
   'Payload reads: await payload.tools() lists the read tools; await payload.call({ tool: "findDocuments", arguments: { slug: "posts", where: { slug: { equals: "hello" } }, draft: true } }) returns { isError, text, structured? } with the documents as JSON in text.',
-  'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields?, markdown?, expected_updated_at? } or { kind: "create_draft", collection, fields?, markdown? }; each is saved as a draft, never published, after human approval. Put rich text fields in markdown as Markdown text; describe_site lists them under payload.collections[].richTextFields. Copy updatedAt from a draft: true read into expected_updated_at.',
+  'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at? } or { kind: "create_draft", collection, fields?, markdown?, publish? }; each is saved as a draft after human approval, and published only when it sets publish: true, which you add only when the person asked to publish. Put rich text fields in markdown as Markdown text; describe_site lists them under payload.collections[].richTextFields. Copy updatedAt from a draft: true read into expected_updated_at.',
 ].join(" ");
 
 // The Payload connector: Payload's own read tools over its MCP endpoint, and

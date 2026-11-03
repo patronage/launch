@@ -27,7 +27,7 @@ The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, a
 On a site with Payload, the `payload` connector sits beside it:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
-- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so nothing is published until someone publishes in the Payload admin. Collections without drafts are refused, and so are `_status`, `id` and the timestamps.
+- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so it stays a draft until someone publishes it. An operation can instead set `publish: true`. The approval card then shows `_status` changing to `published`, the write is saved as published, and Payload's own access control decides whether that editor may publish. An update with `publish: true` and no fields publishes the current draft. Collections without drafts are refused, and so are `_status` in `fields`, `id` and the timestamps.
 - Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
 
 ## Approvals
@@ -60,12 +60,11 @@ pnpm typecheck
 pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 ```
 
-The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`.
+The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are published to npm from `main` with `pnpm -r publish --access public`, which builds each one's `dist/` first and swaps `workspace:*` for the released versions.
 
 Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 
 - Logging Payload's requests under their own name rather than beside WordPress's.
-- Publishing the `@patronage/mcp-*` packages and `@patronage/access` to npm. They build to `dist/` with `pnpm build`, and are still marked private.
 - Typed tool packs for named workflows.
