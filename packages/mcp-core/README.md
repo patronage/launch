@@ -24,6 +24,8 @@ export default createWorker<Env>({ connectors });
 
 The Worker needs the bindings in `GatewayEnv` (`src/env.ts`): `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` for the Access application in front of it, `GATEWAY_RUNTIME` bound to the `GatewayRuntime` class above, a `LOADER` Worker Loader (Dynamic Workers), and `APPROVAL_CSRF_SECRET`. Each connector adds its own. [`apps/mcp`](../../apps/mcp) is the reference deployment.
 
+The Durable Object's class name belongs to the deployment. A gateway that already runs with another class name (such as `WordPressRuntime`, from the template this came from) should keep that name for its subclass, because Cloudflare keys a Durable Object namespace's stored runs and pending approvals to the class. Renaming it needs an explicit rename migration.
+
 ## A connector
 
 A connector implements `GatewayConnector` (`src/gateway-connector.ts`): its sandbox name, a paragraph for the `execute` tool description, its tools, and for writes `parseApply` (validate and summarise) and `preflight` (the before-and-after the approver sees). `src/upstream.ts` has the shared fetch client, which forwards the caller's Access JWT with a gateway proof and records each request on the wide event.
