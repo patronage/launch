@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// Publish the repo's engineering notes as site sections, so the notes stay the
-// single source and the site never drifts from them:
-//
-//   docs/spikes/*.md  ->  Research   (docs/research/)
-//   docs/adr/*.md     ->  Decisions  (docs/decisions/)
+// Publish the repo's research notes (docs/spikes/*.md) as the site's Research
+// section (docs/research/), so the notes stay the single source and the site
+// never drifts from them. The decision records in docs/adr/ are engineering
+// docs and stay in the repo; links to them point at GitHub.
 //
 // The generated pages are gitignored; `dev`, `build` and `test` run this first.
 //
@@ -11,9 +10,9 @@
 //
 // Each note's H1 becomes the page title (a spike's "Spike N:" prefix is
 // dropped), notes keep their file-name order in the sidebar, and links are
-// rewritten for the site: a link to another published note points at its
-// page, a link to a published folder points at its section, and a link into
-// the repo (../../apps/payload) points at GitHub.
+// rewritten for the site: a link to another note points at its page, a link
+// to the notes folder points at the section, and a link into the repo
+// (../adr/0011-cms-behind-cloudflare-access.md) points at GitHub.
 import {
   mkdirSync,
   readdirSync,
@@ -35,13 +34,6 @@ const sections = [
     outDir: path.join(root, "docs/research"),
     route: "/research",
     title: (heading) => heading.replace(/^Spike(?: \d+)?:\s*/u, ""),
-  },
-  {
-    label: "decision records",
-    notesDir: path.join(repoRoot, "docs/adr"),
-    outDir: path.join(root, "docs/decisions"),
-    route: "/decisions",
-    title: (heading) => heading,
   },
 ];
 

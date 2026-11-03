@@ -10,14 +10,14 @@ Launch is Patronage's open-source monorepo of reference sites: vinext front-ends
 - **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
 - **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
 - **Front-end UI is shadcn/ui on Tailwind 4, in `packages/ui`.** Build pages from its `Section`, `Container` and `Typography` primitives and shadcn components rather than app-local CSS; add new shadcn components to the package (see `packages/ui/README.md`).
-- **Update the public docs in the same PR.** If a PR changes what a reader of the docs site (`apps/docs-site`, live at launch.patronage.com) would run, deploy, configure or decide, such as a new app, package, command, deploy step or decision, update the affected pages under `apps/docs-site/docs` in that PR. Spike notes and ADRs publish themselves; READMEs don't. Run `pnpm --filter docs-site test` to check links.
+- **Update the public docs in the same PR.** If a PR changes what a reader of the docs site (`apps/docs-site`, live at launch.patronage.com) would run, deploy, configure or decide, such as a new app, package, command, deploy step or decision, update the affected pages under `apps/docs-site/docs` in that PR. Spike notes publish themselves; ADRs and READMEs don't, so summarize a new decision on the site's Decisions page. Run `pnpm --filter docs-site test` to check links.
 
 ## Layout
 
 - `apps/*`: deployable apps (CMS installs, vinext front-ends, the MCP Worker, the docs-site).
 - `packages/*`: shared libraries (content model, UI, Access helpers, MCP core and backends).
 - `wordpress-shared/*`: Patronage WordPress code both installs load, and the `wp-deploy` kit.
-- `docs/`: engineering docs for contributors and agents. Decisions go in `docs/adr/`, spike findings in `docs/spikes/` (the public docs site, `apps/docs-site`, publishes both as written), and agent skill config in `docs/agents/`.
+- `docs/`: engineering docs for contributors and agents. Decisions go in `docs/adr/`, spike findings in `docs/spikes/` (which the public docs site, `apps/docs-site`, publishes as written; ADRs stay in the repo), and agent skill config in `docs/agents/`.
 - `GLOSSARY.md`: the domain vocabulary. Use its terms in code, issues and PRs.
 
 ## Agent skills

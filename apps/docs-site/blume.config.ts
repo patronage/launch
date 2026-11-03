@@ -20,6 +20,29 @@ export default defineConfig({
   poweredBy: false,
   // The standard Patronage Blume theme, shared with the other Patronage docs
   // sites. theme.css adds the shell and header treatment.
+  // PR #59 briefly published each ADR at /decisions/<slug>; send those to the
+  // summary page, which links every record on GitHub.
+  redirects: [
+    { from: "/decisions/cloudflare-config-through-cf-cli", to: "/decisions" },
+    { from: "/decisions/cms-behind-cloudflare-access", to: "/decisions" },
+    { from: "/decisions/cms-neutral-content-model", to: "/decisions" },
+    {
+      from: "/decisions/local-verification-and-workers-builds",
+      to: "/decisions",
+    },
+    { from: "/decisions/logs-to-r2-through-logpush", to: "/decisions" },
+    { from: "/decisions/mcp-gateway-worker", to: "/decisions" },
+    { from: "/decisions/one-mcp-worker", to: "/decisions" },
+    { from: "/decisions/payload-single-app-on-d1", to: "/decisions" },
+    { from: "/decisions/plain-pnpm-workspaces", to: "/decisions" },
+    { from: "/decisions/public-reference-monorepo", to: "/decisions" },
+    { from: "/decisions/separate-wordpress-installs", to: "/decisions" },
+    { from: "/decisions/shadcn-ui-package", to: "/decisions" },
+    { from: "/decisions/shared-wordpress-fields", to: "/decisions" },
+    { from: "/decisions/vinext-front-ends-on-workers", to: "/decisions" },
+    { from: "/decisions/wordpress-deploy-kit", to: "/decisions" },
+    { from: "/decisions/wordpress-fields-in-php", to: "/decisions" },
+  ],
   theme: {
     accent: {
       dark: "oklch(0.832 0.1167 218.69)",

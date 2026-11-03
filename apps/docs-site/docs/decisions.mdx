@@ -1,0 +1,36 @@
+---
+title: Decisions
+description: The choices made so far for Launch, the records behind them, and the ones still open.
+sidebar:
+  order: 6
+---
+
+Every choice the rest of the repo must follow is an architecture decision record (ADR) in the repo's [`docs/adr`](https://github.com/patronage/launch/tree/main/docs/adr) folder, beside the engineering docs for contributors and agents. This page summarizes them and links to each record. A record that changes an earlier one supersedes it rather than editing it.
+
+## Made
+
+| Area | Decision |
+| --- | --- |
+| Repo | One public monorepo with no vendor code and no client references. See [ADR 0001](https://github.com/patronage/launch/blob/main/docs/adr/0001-public-reference-monorepo.md). |
+| Hosting | Every front-end and the MCP server run on Cloudflare Workers. |
+| Front-end framework | vinext, Cloudflare's Vite-based implementation of the Next.js App Router. See [ADR 0005](https://github.com/patronage/launch/blob/main/docs/adr/0005-vinext-front-ends-on-workers.md). |
+| Worker config | `cloudflare.config.ts` and the `cf` CLI. No Wrangler config files in the repo. See [ADR 0003](https://github.com/patronage/launch/blob/main/docs/adr/0003-cloudflare-config-through-cf-cli.md). |
+| CI and deploys | Cloudflare Workers Builds, with a Preview per branch. No GitHub Actions; run `pnpm verify` before opening a pull request. See [ADR 0004](https://github.com/patronage/launch/blob/main/docs/adr/0004-local-verification-and-workers-builds.md). |
+| Monorepo tooling | Plain pnpm workspaces, no Turborepo. Exact versions, and a minimum release age before a version installs. See [ADR 0002](https://github.com/patronage/launch/blob/main/docs/adr/0002-plain-pnpm-workspaces.md). |
+| WordPress | Two separate installs: headless over WPGraphQL, and a traditional Timber theme. They share their fields, post types and seed. See [ADR 0006](https://github.com/patronage/launch/blob/main/docs/adr/0006-separate-wordpress-installs.md) and [ADR 0015](https://github.com/patronage/launch/blob/main/docs/adr/0015-shared-wordpress-fields.md). |
+| WordPress fields | Field groups in PHP with Extended ACF on Secure Custom Fields, post types with Extended CPTs. See [ADR 0010](https://github.com/patronage/launch/blob/main/docs/adr/0010-wordpress-fields-in-php.md). |
+| WordPress plugins | Installed by Composer and never committed. Only Patronage's own `patronage-*` code is in the repo. |
+| WordPress deploys | One deploy kit, `wp-deploy`, pushes a packaged commit to the host. See [ADR 0013](https://github.com/patronage/launch/blob/main/docs/adr/0013-wordpress-deploy-kit.md) and [Deploying WordPress](/deploy/wordpress). |
+| Payload | One app, using the Local API. D1 is the database by default, with Postgres through Hyperdrive kept as an option. See [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md) and [Payload](/references/payload). |
+| Shared UI | Plain props from a CMS-neutral content model, on shadcn/ui and Tailwind 4. Each CMS has an adapter; rich text stays CMS-specific. See [ADR 0008](https://github.com/patronage/launch/blob/main/docs/adr/0008-cms-neutral-content-model.md), [ADR 0009](https://github.com/patronage/launch/blob/main/docs/adr/0009-shadcn-ui-package.md) and [Shared UI](/references/ui). |
+| Access | Every CMS admin and API is behind Cloudflare Access. Front-ends read with a service token, which can only read. See [ADR 0011](https://github.com/patronage/launch/blob/main/docs/adr/0011-cms-behind-cloudflare-access.md). |
+| MCP | One MCP gateway Worker per site, behind Access, with a WordPress and a Payload connector. Every write waits for a person to approve it. See [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md) and [MCP server](/references/mcp). |
+| Logging | Each site's logs are files in one R2 bucket: Workers through Logpush, WordPress through a Basin Pipelines stream. Optional and off until configured. Reading and acting on the logs is outside Launch. See [ADR 0016](https://github.com/patronage/launch/blob/main/docs/adr/0016-logs-to-r2-through-logpush.md) and [Logging](/references/logging). |
+| Docs | This site, built with Blume, for readers of Launch. Engineering docs, including the decision records, stay in the repo's `docs/` folder; the research notes publish here from `docs/spikes`. |
+
+## Open
+
+- D1 against Postgres through Hyperdrive, measured on deployed Workers.
+- KV against Workers Cache for page caching, measured on a real zone.
+- Getting `vite dev` working for the Payload app.
+- Email delivery and redirect confirmations for Payload forms.
