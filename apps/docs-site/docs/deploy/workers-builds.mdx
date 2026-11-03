@@ -9,12 +9,14 @@ Each deployable app is connected to Cloudflare Workers Builds on its own, so a p
 | --- | --- |
 | Root directory | the app folder, such as `apps/web-wordpress` |
 | Watch paths | the app folder, `packages/*`, `pnpm-lock.yaml` and `pnpm-workspace.yaml`, so a change to another app does not rebuild this one |
-| Build command | `pnpm -w run verify`, so a failing check stops the deploy |
+| Build command | the workspace's frozen install check and lint, then typecheck and tests for the app and the packages it depends on (`pnpm --filter "<app>..."`), so a failing check stops the deploy |
 | Production deploy | `pnpm run deploy`, on `main` |
 | Preview deploy | `pnpm run deploy --preview`, on every other branch |
 | Build variables | `NODE_VERSION` from `.nvmrc`, `PNPM_VERSION` from the root `packageManager`, `SKIP_DEPENDENCY_INSTALL=1` |
 
-`SKIP_DEPENDENCY_INSTALL` is set because an app folder has no lockfile of its own; `pnpm verify` does the install from the workspace root instead.
+`SKIP_DEPENDENCY_INSTALL` is set because an app folder has no lockfile of its own; the build command installs from the workspace root instead. It runs less than the full `pnpm verify`, which also runs the WordPress installs' PHP checks, because the build image has no PHP. Run `pnpm verify` yourself before opening a pull request.
+
+The Payload app builds production only by default. Its branch Previews share the production database bindings, so they stay off until a site sets `WORKER_PREVIEWS=true` and puts every Preview hostname behind Access.
 
 ## Connect an app
 

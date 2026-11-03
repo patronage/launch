@@ -14,7 +14,16 @@ Two apps make up this reference: [`cms-wordpress-headless`](https://github.com/p
 | Revalidation | A Patronage mu-plugin sends the paths and tags that changed | A route handler calls `revalidatePath` and `revalidateTag` |
 | Preview | The Preview button links to the front-end with a signed, short-lived token | Draft mode, reading the latest revision with the `X-GraphQL-Preview` header |
 
-Pages are cached in KV until WordPress says they changed, with an hourly fallback. Public pages stay cacheable because draft mode only runs on the preview route.
+Pages are cached in KV until WordPress says they changed, with an hourly fallback. Each page carries cache tags for every post, term and menu it read, so editing one page expires that page and the pages that show it, and leaves the rest cached. Public pages stay cacheable because draft mode only runs on the preview route.
+
+## Editing
+
+The fields live in PHP and are shared with the [Timber install](/references/timber-wordpress) (see [ADR 0010](/decisions/wordpress-fields-in-php) and [ADR 0015](/decisions/shared-wordpress-fields)):
+
+- **Hero**, on pages and posts, in the same five variants as Payload.
+- **Page Builder**, on pages: one flexible content layout per section in the content model, each with a Section options tab. Pages hide the block editor; their content is their sections.
+- **Rich text** takes the content model's blocks as shortcodes, such as `[launch_button]` and `[launch_embed]`.
+- **Forms** are [Formidable Forms](https://wordpress.org/plugins/formidable/) (free). A form section exposes its form to WPGraphQL, and the front-end posts submissions to a REST route that only it can call. WordPress checks each value and saves the entry.
 
 ## What the research settled
 
@@ -33,6 +42,6 @@ pnpm --filter cms-wordpress-headless run setup   # composer install, Docker, Wor
 pnpm --filter web-wordpress dev              # http://localhost:3000
 ```
 
-The admin is at `http://localhost:8080/wp-admin/`. The local login is in the app's README.
+The admin is at `http://localhost:8080/wp-admin/`. The local login is in the app's README. The install deploys to its host with the WordPress deploy kit; see [Deploying WordPress](/deploy/wordpress).
 
 Both WordPress installs include the `patronage-logging` mu-plugin. It stays off until you configure it. See [Logging](/references/logging).

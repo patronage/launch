@@ -7,7 +7,7 @@ The Payload reference is a single app: the Payload admin, plus front-end pages t
 
 ## Database: D1 by default
 
-**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two get compared on real Workers once the app is deployed.
+**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two still need comparing on real Workers. See [ADR 0007](/decisions/payload-single-app-on-d1).
 
 |  | D1 | Postgres through Hyperdrive |
 | --- | --- | --- |
@@ -22,6 +22,23 @@ Why D1 for now: both databases passed the same end-to-end browser test in local 
 No performance difference has been measured yet. Local runs say nothing about network latency, which is where the two will differ, so the comparison waits for a deploy.
 
 `PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
+
+## The demo
+
+`pnpm seed` builds the same invented site as the WordPress seed, so the two references can be compared page by page.
+
+- **Pages** hold a `layout` of blocks, one per section in the content model, each with a Section options tab (skin, width, padding, anchor, hidden). Field names match the WordPress page builder, so the Payload adapter only maps rich text, links and media.
+- **Heroes** come in five variants, one of them free-form rich text.
+- **Rich text** is Lexical, with blocks for buttons, images, pullquotes and video or X embeds.
+- **News**: posts with authors and categories, listed at `/news`.
+- **Forms** from Payload's form-builder plugin. A form section posts to the app, which keeps only the form's own fields, checks the required ones and saves the submission with the visitor's access. Email delivery is not wired up yet.
+- **Preview**: pages and posts autosave drafts, and editors see them through the preview button and Live Preview, which re-renders on each autosave.
+
+On `localhost` only, the login page offers a one-click sign-in as the first user. It is hidden through a tunnel and on a deployed Worker.
+
+## Deployed
+
+The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket. Branch Previews are off by default, because they would share production's bindings. The app's README covers the deploy, secrets and Workers Builds setup.
 
 ## What else the research found
 

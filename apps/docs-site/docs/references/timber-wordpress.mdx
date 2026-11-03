@@ -1,0 +1,34 @@
+---
+title: Traditional WordPress
+description: WordPress rendering its own public site with a Timber theme, from the same fields, content and design tokens as the headless and Payload references.
+---
+
+[`cms-wordpress-timber`](https://github.com/patronage/launch/tree/main/apps/cms-wordpress-timber) is a traditional WordPress install: WordPress renders the public site itself, with a [Timber](https://timber.github.io/docs/v2/) theme written in Twig. It is a separate install from the headless one, because the two need different plugins, caching and deploys (see [ADR 0006](/decisions/separate-wordpress-installs)).
+
+## What it shares
+
+- **Fields, post types and seed.** Both WordPress installs load `wordpress-shared/patronage-fields`: the same field groups, post types, rich-text shortcodes, form model and demo content. An editor sees the same screens in either install. See [ADR 0015](/decisions/shared-wordpress-fields).
+- **The content model.** The theme maps each field's value to the shapes in `packages/content-model`, so its Twig views draw the same heroes and sections as the React components, with the same rules for padding and headings.
+- **Design tokens, not components.** The theme's CSS imports Tailwind and the UI package's tokens, and a Twig file holds the class names of the shared `Section`, `Container`, `Typography` and button styles. React components are not shared.
+
+## How the theme is built
+
+| Concern | How |
+| --- | --- |
+| Views | One Twig file per section and per hero variant, plus page, post and the `/news/` list. Each names the UI component it mirrors. |
+| Rich text | The shared shortcodes (buttons, images, pullquotes, embeds) render through the theme's own Twig. |
+| Forms | A form section draws its Formidable form and posts back to the page, so it works without JavaScript. Submissions are checked by the same shared code the headless install uses. |
+| Escaping | Twig escapes everything. Rich text, which WordPress has already filtered, prints through a `rich` filter. |
+
+## Locking it down
+
+Here Cloudflare Access protects `/wp-admin` and `/wp-login.php`, not the whole hostname, because WordPress serves the public site. So this install does not use the `patronage-access` origin guard, which would lock visitors out.
+
+## Run it
+
+```bash
+pnpm --filter cms-wordpress-timber run setup    # composer install, build CSS, Docker, install and seed
+pnpm --filter cms-wordpress-timber dev:css      # rebuild the CSS while editing views
+```
+
+The site is at `http://localhost:8090/`, so it can run beside the headless install on 8080. It deploys with the same kit as the headless install. See [Deploying WordPress](/deploy/wordpress).

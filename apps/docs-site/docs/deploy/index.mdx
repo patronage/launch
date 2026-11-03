@@ -3,7 +3,7 @@ title: Deploying to Workers
 description: Every app in Launch deploys as a Cloudflare Worker with the cf CLI, configured in cloudflare.config.ts, with no Wrangler config in the repo.
 ---
 
-Every deployable app is its own Cloudflare Worker. None of them has a `wrangler.jsonc`, `wrangler.toml` or a Wrangler dependency; those file names are gitignored. Workers, bindings, secrets and Access applications are created through the `cf` CLI and the Cloudflare API, by scripts in each app.
+Every front-end, the MCP server and this site are each their own Cloudflare Worker. The two WordPress installs run on a WordPress host instead; see [Deploying WordPress](/deploy/wordpress). None of the Workers has a `wrangler.jsonc`, `wrangler.toml` or a Wrangler dependency; those file names are gitignored. Workers, bindings, secrets and Access applications are created through the `cf` CLI and the Cloudflare API, by scripts in each app.
 
 ## The pattern
 
