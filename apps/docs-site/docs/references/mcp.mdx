@@ -3,7 +3,7 @@ title: MCP server
 description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that can only change content after a person approves.
 ---
 
-The gateway Worker is built in `apps/mcp`, with its WordPress and Payload connectors. The npm packages and tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
+The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. Publishing them to npm and tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
 
 ## What a site's team gets
 
@@ -16,13 +16,13 @@ The gateway Worker is built in `apps/mcp`, with its WordPress and Payload connec
 
 | Part | Status and role |
 | --- | --- |
-| `apps/mcp` | Built. The gateway Worker: sign-in, tool catalog, write approval, logging |
-| `wp` connector | Built. WPGraphQL and REST reads, approved post updates (core and ACF fields) |
-| `payload` connector | Built. Reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Approved edits and new documents are saved as drafts and never published, and rich text can be written as Markdown |
-| `packages/mcp-core` | Planned. Transport, the code-mode runtime, approval and the connector contract, split out of `apps/mcp` |
+| `packages/mcp-core` | Built. The gateway Worker: sign-in, the code-mode runtime, tool catalog, write approval, logging and the connector contract. It names no CMS |
+| `packages/mcp-wordpress` | Built. The `wp` connector: WPGraphQL and REST reads, approved post updates (core and ACF fields) |
+| `packages/mcp-payload` | Built. The `payload` connector: reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Approved edits and new documents are saved as drafts and never published, and rich text can be written as Markdown |
+| `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 
-The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. Once split out, the packages will be published to npm under `@patronage`, so a site depends on them rather than copying them.
+The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. The packages build for npm and will be published under `@patronage`, so a site depends on them rather than copying them.
 
 ## Signing in with something other than Access
 

@@ -4,6 +4,16 @@ The Worker a site's team installs as its one MCP server ([ADR 0014](../../docs/a
 
 It serves `/mcp` on its custom domain only, with no `workers.dev` or preview URLs.
 
+This app is only the deployment. The gateway lives in packages, so another site can install the same server from npm and list its own connectors:
+
+| Package | What it holds |
+| --- | --- |
+| [`@patronage/mcp-core`](../../packages/mcp-core) | The Worker, Access sign-in, the code-mode runtime, the approval card and page, and logging. It names no CMS. |
+| [`@patronage/mcp-wordpress`](../../packages/mcp-wordpress) | The `wp` connector. |
+| [`@patronage/mcp-payload`](../../packages/mcp-payload) | The `payload` connector. |
+
+`src/worker.ts` is the whole app: it passes `[wordpressConnector, payloadConnector]` to `createWorker` and to its `GatewayRuntime` Durable Object.
+
 ## Tools
 
 | Tool | What it does |
@@ -27,7 +37,7 @@ Every staged write pauses with a before-and-after. The person approves it in one
 - an MCP Apps card inside the client, for clients that advertise MCP Apps support;
 - the browser page at `/mcp/approvals/:id`, which works everywhere.
 
-The approval runs as the approver, through the same Access sign-in. `APPROVAL_CSRF_SECRET` signs the approval tokens; without it every approval fails closed. The card's script is bundled at build time from `@modelcontextprotocol/ext-apps` (`pnpm generate`), so no vendor code is committed.
+The approval runs as the approver, through the same Access sign-in. `APPROVAL_CSRF_SECRET` signs the approval tokens; without it every approval fails closed. The card's script is bundled at build time from `@modelcontextprotocol/ext-apps` (`pnpm generate` in `packages/mcp-core`), so no vendor code is committed.
 
 ## Signing in
 
@@ -45,16 +55,17 @@ Each request writes one evlog wide event to Workers Logs: the opaque actor (a ha
 
 ```sh
 pnpm dev        # vite dev with the Cloudflare plugin
-pnpm build      # generate the approval card, then vite build
-pnpm test       # unit tests (the live code-mode test is skipped without a loader)
+pnpm build      # generate the approval card in mcp-core, then vite build
 pnpm typecheck
 pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 ```
+
+The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`.
 
 Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 
 - Logging Payload's requests under their own name rather than beside WordPress's.
-- Splitting the transport, runtime and connectors into `packages/mcp-*`, published to npm under `@patronage`.
+- Publishing the `@patronage/mcp-*` packages and `@patronage/access` to npm. They build to `dist/` with `pnpm build`, and are still marked private.
 - Typed tool packs for named workflows.

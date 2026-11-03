@@ -4,14 +4,41 @@
   "private": true,
   "description": "Cloudflare Access helpers: verify Access JWTs, call Access-protected origins with a service token, bind forwarded JWTs with a gateway proof, and provision Access through the Cloudflare API.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/access"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./payload": "./src/payload.ts",
     "./cloudflare": "./src/cloudflare-api.ts"
   },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./payload": {
+        "types": "./dist/payload.d.ts",
+        "default": "./dist/payload.js"
+      },
+      "./cloudflare": {
+        "types": "./dist/cloudflare-api.d.ts",
+        "default": "./dist/cloudflare-api.js"
+      }
+    },
+    "access": "public"
+  },
   "scripts": {
     "access:provision": "node scripts/provision-access.ts",
+    "build": "tsdown",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -21,6 +48,7 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "tsdown": "0.23.4",
     "vitest": "5.0.5"
   },
   "engines": {

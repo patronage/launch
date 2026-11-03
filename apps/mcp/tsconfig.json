@@ -9,5 +9,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", ".cloudflare/types/index.d.ts"],
-  "exclude": ["src/**/*.test.ts", "src/approval-card/**"]
+  "exclude": ["src/**/*.test.ts"]
 }

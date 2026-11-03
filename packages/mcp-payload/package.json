@@ -1,0 +1,48 @@
+{
+  "name": "@patronage/mcp-payload",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Payload connector for @patronage/mcp-core: Payload's own MCP read tools, and draft writes through the approval step.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/mcp-payload"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "pnpm --filter @patronage/mcp-core generate && tsdown",
+    "prepack": "pnpm build",
+    "test": "pnpm --filter @patronage/mcp-core generate && vitest run",
+    "typecheck": "pnpm --filter @patronage/mcp-core generate && tsc --noEmit"
+  },
+  "dependencies": {
+    "@patronage/mcp-core": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261031.1",
+    "@patronage/access": "workspace:*",
+    "@types/node": "24.19.2",
+    "tsdown": "0.23.4",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
