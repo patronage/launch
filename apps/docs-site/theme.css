@@ -46,6 +46,10 @@
   --blume-foreground: var(--patronage-header-foreground);
   --blume-muted: var(--patronage-header-muted);
   --blume-muted-foreground: var(--patronage-header-muted-foreground);
+  /* Keep the light accent on the white header so focus rings stay visible
+   * in dark mode. */
+  --blume-accent: oklch(0.52 0.13 226.89);
+  --blume-accent-foreground: oklch(1 0 89.88);
   background-color: var(--patronage-header-background);
   border-bottom: 1px solid var(--blume-border);
   box-shadow: var(--patronage-header-shadow);
