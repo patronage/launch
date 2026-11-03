@@ -1,0 +1,61 @@
+:root {
+  --patronage-shell-background: oklch(0.9645 0.0098 87.47);
+  --patronage-header-background: oklch(1 0 89.88);
+  --patronage-header-foreground: oklch(0.2737 0.0716 252.14);
+  --patronage-header-muted: oklch(0.9374 0.014 88.69);
+  --patronage-header-muted-foreground: oklch(0.54 0.0334 264.26);
+  --patronage-header-gradient: linear-gradient(90deg, #61dafb, #f43f8c);
+  --patronage-header-shadow: 0 6px 20px oklch(0.2737 0.0716 252.14 / 7%);
+  --blume-background: oklch(1 0 89.88);
+  --blume-foreground: oklch(0.2737 0.0716 252.14);
+  --blume-muted: oklch(0.9374 0.014 88.69);
+  --blume-muted-foreground: oklch(0.54 0.0334 264.26);
+  --blume-border: oklch(0.2737 0.0716 252.14 / 14%);
+  --blume-accent: oklch(0.52 0.13 226.89);
+  --blume-accent-foreground: oklch(1 0 89.88);
+  --blume-action: oklch(0.59 0.19 359.82);
+  --blume-code-background: oklch(1 0 89.88);
+  --blume-radius: 0.45rem;
+}
+
+:root[data-theme="dark"] {
+  --patronage-shell-background: oklch(0.2455 0.0319 268.2);
+  --blume-background: oklch(0.1706 0.0284 267.36);
+  --blume-foreground: oklch(1 0 89.88);
+  --blume-muted: oklch(0.2455 0.0319 268.2);
+  --blume-muted-foreground: color-mix(
+    in oklch,
+    oklch(1 0 89.88) 68%,
+    oklch(0.832 0.1167 218.69)
+  );
+  --blume-border: oklch(1 0 0 / 10%);
+  --blume-accent: oklch(0.832 0.1167 218.69);
+  --blume-accent-foreground: oklch(0.2737 0.0716 252.14);
+  --blume-action: oklch(0.6565 0.2229 359.82);
+  --blume-code-background: oklch(0.2455 0.0319 268.2);
+}
+
+[data-blume-nav-drawer] {
+  background-color: var(--patronage-shell-background);
+}
+
+/* Adapt Proposal Demos' white top bar and gradient edge to Blume.
+ * Header keeps light foreground tokens so controls stay legible in dark mode. */
+[data-blume-header] {
+  --blume-background: var(--patronage-header-background);
+  --blume-foreground: var(--patronage-header-foreground);
+  --blume-muted: var(--patronage-header-muted);
+  --blume-muted-foreground: var(--patronage-header-muted-foreground);
+  background-color: var(--patronage-header-background);
+  border-bottom: 1px solid var(--blume-border);
+  box-shadow: var(--patronage-header-shadow);
+  color: var(--patronage-header-foreground);
+}
+
+[data-blume-header]::before {
+  background: var(--patronage-header-gradient);
+  content: "";
+  height: 3px;
+  inset: 0 0 auto;
+  position: absolute;
+}

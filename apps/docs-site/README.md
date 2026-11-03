@@ -12,8 +12,9 @@ pnpm --filter docs-site start   # serve the last build
 
 - `docs/`: the pages. Folders are sidebar groups; `meta.ts` sets a group's title and order.
 - `docs/research/`: published from the repo's `docs/spikes/*.md` by `scripts/research.mjs` before every `dev`, `build` and `test`. The generated pages are gitignored, so edit the notes in `docs/spikes/`, not here.
-- `public/`: the icon and any other static files. The mark is a placeholder in Patronage cyan (`#00baee`) until the real logo replaces `public/icon.svg`.
-- `blume.config.ts`: title, theme, footer and the GitHub link.
+- `public/`: the Patronage mark (`logo.svg` in the header, `icon.svg` as the favicon) and any other static files.
+- `blume.config.ts`: title, theme tokens, footer and the GitHub link.
+- `theme.css`: the standard Patronage Blume shell, shared with the other Patronage docs sites: light and dark tokens, a white header and its cyan-to-pink top edge.
 
 `pnpm test` checks every internal link with `blume validate --strict`.
 
