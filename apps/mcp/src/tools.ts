@@ -144,6 +144,22 @@ const describeOutputSchema = z.object({
   acfTypes: z.array(graphqlTypeSchema).optional(),
   contentTypes: z.array(graphqlTypeSchema).optional(),
   error: z.string().optional(),
+  payload: z
+    .object({
+      collections: z
+        .array(
+          z.object({
+            canCreate: z.boolean(),
+            canUpdate: z.boolean(),
+            drafts: z.boolean(),
+            richTextFields: z.array(z.string()),
+            slug: z.string(),
+          })
+        )
+        .optional(),
+      error: z.string().optional(),
+    })
+    .optional(),
   postTypes: z.array(postTypeSchema).optional(),
   site: z.object({ name: z.string(), url: z.string() }).optional(),
 });
@@ -213,7 +229,7 @@ const EXECUTE_DESCRIPTION = [
 const PAYLOAD_EXECUTE_DESCRIPTION = [
   "The sandbox also has a global payload connector for the Payload CMS.",
   'Payload reads: await payload.tools() lists the read tools; await payload.call({ tool: "findDocuments", arguments: { slug: "posts", where: { slug: { equals: "hello" } }, draft: true } }) returns { isError, text, structured? } with the documents as JSON in text.',
-  'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields, expected_updated_at? }; each is saved as a new draft, never published, after human approval. Copy updatedAt from a draft: true read into expected_updated_at.',
+  'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields?, markdown?, expected_updated_at? } or { kind: "create_draft", collection, fields?, markdown? }; each is saved as a draft, never published, after human approval. Put rich text fields in markdown as Markdown text; describe_site lists them under payload.collections[].richTextFields. Copy updatedAt from a draft: true read into expected_updated_at.',
 ].join(" ");
 
 const getRunInputSchema = z.object({

@@ -15,7 +15,8 @@ import { parseDraftApplyInput } from "./payload-operations";
 import { WordPressRequestError } from "./wordpress";
 import type { JsonObject, WordPressClient } from "./wordpress";
 
-// Payload's built-in tools that only read. Payload's own config already turns
+// Payload's built-in tools that only read, and the read-only ones
+// apps/payload adds (editing info and the two rich text conversions). Payload's own config already turns
 // every write off (apps/payload/src/mcp.ts); this list keeps reads the only
 // thing `payload.call` can reach should that config ever change, because a
 // write here would skip the approval `payload.apply` goes through.
@@ -32,13 +33,16 @@ export const PAYLOAD_READ_TOOLS = new Set([
   "findVersions",
   "getCollectionSchema",
   "getConfigInfo",
+  "getEditingInfo",
   "getGlobalSchema",
+  "markdownToRichText",
+  "richTextToMarkdown",
 ]);
 
 export const PAYLOAD_CONNECTOR_INSTRUCTIONS = [
   "Payload CMS, read through Payload's own MCP tools as the signed-in editor.",
   'Reads: payload.tools() lists the read tools and their input schemas; payload.call({tool, arguments}) runs one, e.g. payload.call({tool: "findDocuments", arguments: {slug: "posts", where: {slug: {equals: "hello"}}, draft: true}}). Results are {isError, text, structured?}; the documents are JSON inside text.',
-  `Writes: payload.apply({intent, operations}) pauses for human approval and saves each change as a new draft, never published. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields, expected_updated_at?}; fields holds top-level field values (rich text as Payload's Lexical JSON). Read with draft: true first and copy updatedAt to expected_updated_at.`,
+  `Writes: payload.apply({intent, operations}) pauses for human approval and saves each change as a draft, never published. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields?, markdown?, expected_updated_at?} or {kind: "create_draft", collection, fields?, markdown?}. fields holds top-level field values as Payload stores them; markdown holds rich text fields as Markdown, which Payload converts with the field's editor features. payload.call({tool: "getEditingInfo", arguments: {}}) lists which collections keep drafts and which fields are rich text. Before an update, read with draft: true and copy updatedAt to expected_updated_at.`,
 ].join(" ");
 
 const callArgsSchema = z.object({
@@ -65,7 +69,7 @@ const callerClient = (env: Env, caller: CallerContext): WordPressClient =>
 export const createPayloadTools = (deps: WordPressToolDeps): ConnectorToolMap =>
   ({
     apply: {
-      description: `Save 1-${MAX_OPERATIONS} update_draft operations as Payload drafts. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
+      description: `Save 1-${MAX_OPERATIONS} update_draft or create_draft operations as Payload drafts. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
       execute: async (args, ctx) => {
         const input = parseDraftApplyInput(args);
         const caller = deps.scope.require();

@@ -11,9 +11,9 @@ import type { CallerContext } from "./caller";
 import { createWordPressTools } from "./connector";
 import type { RuntimeStore } from "./connector";
 import { buildSiteDescription, DESCRIBE_TTL_MS, isFresh } from "./describe";
-import type { SiteDescription } from "./describe";
+import type { PayloadDescription, SiteDescription } from "./describe";
 import { createPayloadClient, payloadConfigured } from "./payload";
-import { preflightDraftOperations } from "./payload-apply";
+import { preflightDraftOperations, readEditingInfo } from "./payload-apply";
 import { PayloadConnector } from "./payload-connector";
 import { createPayloadTools, payloadAdminLink } from "./payload-tools";
 import {
@@ -466,6 +466,22 @@ export class WordPressRuntime extends DurableObject<Env> {
     }
   }
 
+  async #describePayload(
+    caller: CallerContext,
+    telemetry: WordPressTelemetry
+  ): Promise<PayloadDescription> {
+    try {
+      return {
+        collections: await readEditingInfo(
+          createPayloadClient(this.env, caller),
+          telemetry
+        ),
+      };
+    } catch {
+      return { error: "Payload could not be described" };
+    }
+  }
+
   async describeSite(
     caller: CallerContext
   ): Promise<RuntimeOutcome<SiteDescription>> {
@@ -485,7 +501,14 @@ export class WordPressRuntime extends DurableObject<Env> {
       buildSiteDescription(this.#client(caller), telemetry)
     );
 
-    await this.ctx.storage.put(key, { at: Date.now(), value });
+    if (payloadConfigured(this.env)) {
+      value.payload = await this.#describePayload(caller, telemetry);
+    }
+
+    // A Payload failure is reported but not cached, so the next call retries.
+    if (!(value.payload && "error" in value.payload)) {
+      await this.ctx.storage.put(key, { at: Date.now(), value });
+    }
 
     return toRuntimeOutcome(value, telemetry);
   }

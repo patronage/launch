@@ -1,5 +1,6 @@
 import { verifyGatewayProof } from "@patronage/access";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import type { ApplyPreflight } from "./apply";
 import { createCallerScope } from "./caller";
@@ -45,22 +46,80 @@ interface Seen {
   url: string;
 }
 
-// A Payload stand-in: one draft post, with `updatedAt` moving on every write.
-const fakePayload = (options: { drafts?: boolean } = {}) => {
+const stubLexicalSchema = z.object({ root: z.object({ md: z.string() }) });
+
+// A Payload stand-in: one draft post, with `updatedAt` moving on every write,
+// and the three read-only tools apps/payload adds. Its "Lexical" is a stub
+// that keeps the Markdown under `root.md`, enough to tell the two apart.
+const fakePayload = (
+  options: {
+    canCreate?: boolean;
+    drafts?: boolean;
+    failCreatedRead?: boolean;
+    lost?: string[];
+  } = {}
+) => {
   const seen: Seen[] = [];
+  const drafts = options.drafts !== false;
 
   let doc: JsonObject = {
+    content: { root: { md: "Old body" } },
     id: 12,
     slug: "hello",
     title: "Old title",
     updatedAt: "2026-10-31T10:00:00.000Z",
   };
 
-  if (options.drafts !== false) {
+  if (drafts) {
     doc._status = "published";
   }
 
+  const created: Record<string, JsonObject> = {};
   let writes = 0;
+
+  const toolResult = (name: string, args: JsonObject) => {
+    if (name === "getEditingInfo") {
+      const collections = [
+        {
+          canCreate: options.canCreate !== false,
+          canUpdate: true,
+          drafts,
+          richTextFields: ["content"],
+          slug: "posts",
+        },
+      ];
+
+      return { content: [], structuredContent: { collections } };
+    }
+
+    if (name === "markdownToRichText") {
+      return {
+        content: [],
+        structuredContent: { value: { root: { md: args.markdown ?? "" } } },
+      };
+    }
+
+    if (name === "richTextToMarkdown") {
+      const value = stubLexicalSchema.safeParse(args.value);
+
+      return {
+        content: [],
+        structuredContent: {
+          lost: options.lost ?? [],
+          markdown: value.success ? value.data.root.md : "",
+        },
+      };
+    }
+
+    return {
+      content: [
+        {
+          text: `Document from collection "posts":\n${JSON.stringify(doc)}`,
+          type: "text",
+        },
+      ],
+    };
+  };
 
   const handler = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
@@ -92,15 +151,21 @@ const fakePayload = (options: { drafts?: boolean } = {}) => {
       return Response.json({
         id: 1,
         jsonrpc: "2.0",
-        result: {
-          content: [
-            {
-              text: `Document from collection "posts":\n${JSON.stringify(doc)}`,
-              type: "text",
-            },
-          ],
-        },
+        result: toolResult(rpc.params.name, rpc.params.arguments ?? {}),
       });
+    }
+
+    if (request.method === "POST") {
+      const next: JsonObject = {
+        ...JSON.parse(body ?? "{}"),
+        _status: "draft",
+        id: 34,
+        updatedAt: "2026-10-31T12:00:00.000Z",
+      };
+
+      created["/api/posts/34"] = next;
+
+      return Response.json({ doc: next, message: "Created successfully." });
     }
 
     if (request.method === "PATCH") {
@@ -114,7 +179,11 @@ const fakePayload = (options: { drafts?: boolean } = {}) => {
       return Response.json({ doc, message: "Updated successfully." });
     }
 
-    return Response.json(doc);
+    if (options.failCreatedRead && created[url.pathname]) {
+      return Response.json({ errors: [{ message: "Down" }] }, { status: 500 });
+    }
+
+    return Response.json(created[url.pathname] ?? doc);
   };
 
   return { handler, seen };
@@ -168,6 +237,41 @@ describe(parseDraftApplyInput, () => {
       ).toThrow(/invalid_operations|fields/u);
     }
   );
+
+  it("accepts a new draft and Markdown for rich text", () => {
+    expect(
+      parseDraftApplyInput({
+        intent: "Draft two posts",
+        operations: [
+          {
+            collection: "posts",
+            kind: "create_draft",
+            markdown: { content: "# Hi" },
+          },
+          {
+            collection: "posts",
+            fields: { title: "Two" },
+            kind: "create_draft",
+          },
+        ],
+      }).operations
+    ).toHaveLength(2);
+  });
+
+  it("refuses a field given both as a value and as Markdown", () => {
+    expect(() =>
+      parseDraftApplyInput({
+        intent: "Both",
+        operations: [
+          {
+            ...operation,
+            fields: { content: {} },
+            markdown: { content: "Body" },
+          },
+        ],
+      })
+    ).toThrow(/both fields and markdown/u);
+  });
 
   it("refuses two operations on one document", () => {
     expect(() =>
@@ -390,6 +494,238 @@ describe("Payload draft writes", () => {
 
     expect(receipt.operations[0]).toMatchObject({ status: "conflict" });
     expect(fake.seen.some((entry) => entry.method === "PATCH")).toBeFalsy();
+  });
+});
+
+describe("Payload Markdown and new drafts", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const markdownOperation: DraftOperation = {
+    collection: "posts",
+    id: 12,
+    kind: "update_draft",
+    markdown: { content: "New body" },
+  };
+
+  const createOperation: DraftOperation = {
+    collection: "posts",
+    fields: { title: "Fresh" },
+    kind: "create_draft",
+    markdown: { content: "First words" },
+  };
+
+  it("previews rich text as Markdown and writes it as Lexical", async () => {
+    const fake = fakePayload();
+    vi.stubGlobal("fetch", fake.handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Rewrite",
+      [markdownOperation],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    expect(preflight.operations[0]?.fields).toStrictEqual([
+      { after: "New body", before: "Old body", changed: true, path: "content" },
+    ]);
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [markdownOperation],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createWordPressTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      changed_paths: ["content"],
+      status: "changed",
+    });
+    expect(fake.seen.find((entry) => entry.method === "PATCH")?.body).toBe(
+      JSON.stringify({ content: { root: { md: "New body" } } })
+    );
+  });
+
+  it("leaves rich text alone when its Markdown is unchanged", async () => {
+    const fake = fakePayload();
+    vi.stubGlobal("fetch", fake.handler);
+
+    const same: DraftOperation = {
+      ...markdownOperation,
+      markdown: { content: "Old body\n" },
+    };
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Rewrite",
+      [same],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [same],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createWordPressTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({ status: "unchanged" });
+    expect(fake.seen.some((entry) => entry.method === "PATCH")).toBeFalsy();
+  });
+
+  it("refuses Markdown that would drop blocks Markdown cannot carry", async () => {
+    vi.stubGlobal("fetch", fakePayload({ lost: ["block"] }).handler);
+
+    await expect(
+      preflightDraftOperations(
+        client(),
+        "Rewrite",
+        [markdownOperation],
+        adminUrl,
+        createWordPressTelemetry()
+      )
+    ).rejects.toMatchObject({ code: "markdown_would_lose_content" });
+  });
+
+  it("counts a change of leading indentation as a change", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Indent",
+      [{ ...markdownOperation, markdown: { content: "    Old body" } }],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    expect(preflight.operations[0]?.fields[0]?.changed).toBeTruthy();
+  });
+
+  it("refuses Markdown for a field that is not rich text", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    await expect(
+      preflightDraftOperations(
+        client(),
+        "Rewrite",
+        [{ ...markdownOperation, markdown: { title: "Plain" } }],
+        adminUrl,
+        createWordPressTelemetry()
+      )
+    ).rejects.toMatchObject({ code: "not_rich_text" });
+  });
+
+  it("previews a new draft with nothing before it", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    expect(preflight.operations[0]).toMatchObject({
+      editUrl: "",
+      fields: [
+        { after: "First words", before: "", changed: true, path: "content" },
+        { after: "Fresh", before: "", changed: true, path: "title" },
+      ],
+      modifiedGmt: "",
+      sentence: "Create a new posts draft with content and title",
+      target: "posts/new",
+    });
+  });
+
+  it("creates the approved draft and names it in the receipt", async () => {
+    const fake = fakePayload();
+    vi.stubGlobal("fetch", fake.handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [createOperation],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createWordPressTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      changed_paths: ["content", "title"],
+      kind: "create_draft",
+      status: "changed",
+      target: "posts/34",
+    });
+
+    const write = fake.seen.find(
+      (entry) => entry.method === "POST" && !entry.url.endsWith("/api/mcp")
+    );
+
+    expect(write?.url).toBe(
+      "https://payload.example/api/posts?draft=true&depth=0"
+    );
+    expect(JSON.parse(write?.body ?? "{}")).not.toHaveProperty("_status");
+  });
+
+  it("names a created draft even when reading it back fails", async () => {
+    vi.stubGlobal("fetch", fakePayload({ failCreatedRead: true }).handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [createOperation],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createWordPressTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "created_readback_failed" },
+      status: "failed",
+      target: "posts/34",
+    });
+  });
+
+  it("refuses a new draft where the editor may not create", async () => {
+    vi.stubGlobal("fetch", fakePayload({ canCreate: false }).handler);
+
+    await expect(
+      preflightDraftOperations(
+        client(),
+        "Start a post",
+        [createOperation],
+        adminUrl,
+        createWordPressTelemetry()
+      )
+    ).rejects.toMatchObject({ code: "not_permitted" });
   });
 });
 

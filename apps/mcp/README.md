@@ -9,7 +9,7 @@ It serves `/mcp` on its custom domain only, with no `workers.dev` or preview URL
 | Tool | What it does |
 | --- | --- |
 | `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are staged and returned as a plan for approval. |
-| `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. |
+| `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. On a site with Payload it also lists the collections the editor can read, which keep drafts, and which fields take Markdown. |
 | `get_run` | Reports a run's status after an approval. |
 
 The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields and ACF fields, with an optional `expected_modified_gmt` check). `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
@@ -17,7 +17,8 @@ The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, a
 On a site with Payload, the `payload` connector sits beside it:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
-- `payload.apply({ intent, operations })` stages `update_draft` operations: top-level fields of one document, with an optional `expected_updated_at` check. After approval each one is saved through Payload's REST API with `?draft=true`, so the published version stays as it is until someone publishes in the Payload admin. Collections without drafts are refused, and so are `_status`, `id` and the timestamps. Rich text goes in as Payload's Lexical JSON; a Markdown path is still to come.
+- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so nothing is published until someone publishes in the Payload admin. Collections without drafts are refused, and so are `_status`, `id` and the timestamps.
+- Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
 
 ## Approvals
 
@@ -54,7 +55,6 @@ Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DO
 
 ## Still to come
 
-- Markdown to Lexical for Payload rich text, and creating new Payload drafts.
-- Payload in `describe_site`, and logging its requests under their own name rather than beside WordPress's.
+- Logging Payload's requests under their own name rather than beside WordPress's.
 - Splitting the transport, runtime and connectors into `packages/mcp-*`, published to npm under `@patronage`.
 - Typed tool packs for named workflows.
