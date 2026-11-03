@@ -18,7 +18,7 @@ On a site with Payload, the `payload` connector sits beside it:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
 - `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so nothing is published until someone publishes in the Payload admin. Collections without drafts are refused, and so are `_status`, `id` and the timestamps.
-- Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten.
+- Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
 
 ## Approvals
 

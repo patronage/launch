@@ -29,6 +29,11 @@ const markdownInputSchema = z.object({
   markdown: z.string().max(MAX_MARKDOWN_LENGTH),
 });
 
+const lexicalTreeNode = z.object({
+  children: z.array(z.unknown()).optional(),
+  type: z.string(),
+});
+
 const lexicalNode = z.object({ type: z.string(), version: z.number() }).loose();
 
 const richTextInputSchema = z.object({
@@ -66,6 +71,18 @@ const errorResult = (text: string) => ({
   content: [{ text, type: "text" as const }],
   isError: true,
 });
+
+// Every node type in a Lexical tree, depth first.
+const nodeTypes = (nodes: readonly unknown[]): string[] =>
+  nodes.flatMap((node) => {
+    const parsed = lexicalTreeNode.safeParse(node);
+
+    if (!parsed.success) {
+      return [];
+    }
+
+    return [parsed.data.type, ...nodeTypes(parsed.data.children ?? [])];
+  });
 
 const isRichText = (field: { type: string }): field is RichTextField =>
   field.type === "richText";
@@ -137,7 +154,7 @@ export const richTextToMarkdown = defineCollectionTool({
     title: "Rich text to Markdown",
   },
   description:
-    "Convert a rich text field's Lexical JSON into Markdown, using that field's editor features. Reads and writes nothing.",
+    "Convert a rich text field's Lexical JSON into Markdown, using that field's editor features. `lost` names node types (blocks, uploads) that Markdown cannot carry back. Reads and writes nothing.",
   input: richTextInputSchema,
 }).handler(({ input, req, slug }) => {
   const field = richTextField(req, slug, input.field);
@@ -150,12 +167,24 @@ export const richTextToMarkdown = defineCollectionTool({
   // and `version` every child has; the converter skips node types it lacks.
   const data = input.value as SerializedEditorState;
 
-  const markdown = convertLexicalToMarkdown({
-    data,
-    editorConfig: editorConfigFactory.fromField({ field }),
-  });
+  const editorConfig = editorConfigFactory.fromField({ field });
+  const markdown = convertLexicalToMarkdown({ data, editorConfig });
 
-  return { ...textResult(markdown), structuredContent: { markdown } };
+  // Markdown carries only what the field's Markdown transformers know.
+  // Blocks, uploads and the like come out as placeholders and would turn
+  // into plain text on the way back, so the node types that do not survive
+  // the round trip are named, and the gateway refuses a Markdown edit then.
+  const roundTrip = convertMarkdownToLexical({ editorConfig, markdown });
+  const kept = new Set(nodeTypes(roundTrip.root.children));
+
+  const lost = [
+    ...new Set(nodeTypes(data.root.children).filter((type) => !kept.has(type))),
+  ].toSorted();
+
+  return {
+    ...textResult(markdown),
+    structuredContent: { lost, markdown },
+  };
 });
 
 // What the gateway needs before it writes: whether a collection keeps drafts

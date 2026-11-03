@@ -53,7 +53,12 @@ const recordSchema = z.record(z.string(), z.json());
 const stringSchema = z.string();
 const documentIdSchema = z.union([z.number(), z.string()]);
 const createdSchema = z.object({ doc: z.object({ id: documentIdSchema }) });
-const markdownResultSchema = z.object({ markdown: z.string() });
+
+const markdownResultSchema = z.object({
+  lost: z.array(z.string()).default([]),
+  markdown: z.string(),
+});
+
 const richTextResultSchema = z.object({ value: recordSchema });
 
 const collectionEditingSchema = z.object({
@@ -286,6 +291,15 @@ const toMarkdown = async (
     );
   }
 
+  // Writing Markdown back would turn these nodes into plain text, deleting
+  // them while the Markdown preview hides what they held.
+  if (parsed.data.lost.length > 0) {
+    throw new ApplyConflictError(
+      "markdown_would_lose_content",
+      `${collection} ${field} holds ${parsed.data.lost.join(", ")} nodes that Markdown cannot carry; change it in fields as Lexical JSON, or in the Payload admin`
+    );
+  }
+
   return parsed.data.markdown;
 };
 
@@ -372,7 +386,9 @@ const snapshotField = async (
   return {
     after: previewValue(markdown),
     before: previewValue(before),
-    changed: before.trim() !== markdown.trim(),
+    // Only trailing whitespace is ignored: leading spaces change how
+    // Markdown parses (an indented line is a code block).
+    changed: before.trimEnd() !== markdown.trimEnd(),
     path,
   };
 };
@@ -564,6 +580,18 @@ const withoutUnchangedMarkdown = (
   return result;
 };
 
+class CreatedReadbackError extends Error {
+  readonly receipt: ReceiptError;
+  readonly target: string;
+
+  constructor(target: string, receipt: ReceiptError) {
+    super(receipt.message);
+    this.name = "CreatedReadbackError";
+    this.receipt = receipt;
+    this.target = target;
+  }
+}
+
 interface WriteResult {
   after: JsonObject;
   before: JsonObject;
@@ -639,12 +667,19 @@ const writeCreate = async (
   }
 
   const { id } = created.data.doc;
+  const target = `${collection}/${id}`;
 
-  return {
-    after: await readDocument(client, collection, id, telemetry),
-    before: {},
-    target: `${collection}/${id}`,
-  };
+  try {
+    return {
+      after: await readDocument(client, collection, id, telemetry),
+      before: {},
+      target,
+    };
+  } catch (error) {
+    // The document exists now: the receipt must name it, so nobody creates
+    // it a second time thinking the first attempt failed.
+    throw new CreatedReadbackError(target, toReceiptError(error));
+  }
 };
 
 const applyOne = async (
@@ -717,6 +752,16 @@ const applyOne = async (
       target: written.target,
     };
   } catch (error) {
+    if (error instanceof CreatedReadbackError) {
+      return failure(
+        {
+          code: "created_readback_failed",
+          message: `${error.target} was created, but reading it back failed: ${error.receipt.message}`,
+        },
+        error.target
+      );
+    }
+
     return failure(toReceiptError(error));
   }
 };

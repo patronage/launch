@@ -52,7 +52,12 @@ const stubLexicalSchema = z.object({ root: z.object({ md: z.string() }) });
 // and the three read-only tools apps/payload adds. Its "Lexical" is a stub
 // that keeps the Markdown under `root.md`, enough to tell the two apart.
 const fakePayload = (
-  options: { canCreate?: boolean; drafts?: boolean } = {}
+  options: {
+    canCreate?: boolean;
+    drafts?: boolean;
+    failCreatedRead?: boolean;
+    lost?: string[];
+  } = {}
 ) => {
   const seen: Seen[] = [];
   const drafts = options.drafts !== false;
@@ -100,6 +105,7 @@ const fakePayload = (
       return {
         content: [],
         structuredContent: {
+          lost: options.lost ?? [],
           markdown: value.success ? value.data.root.md : "",
         },
       };
@@ -171,6 +177,10 @@ const fakePayload = (
       };
 
       return Response.json({ doc, message: "Updated successfully." });
+    }
+
+    if (options.failCreatedRead && created[url.pathname]) {
+      return Response.json({ errors: [{ message: "Down" }] }, { status: 500 });
     }
 
     return Response.json(created[url.pathname] ?? doc);
@@ -572,6 +582,34 @@ describe("Payload Markdown and new drafts", () => {
     expect(fake.seen.some((entry) => entry.method === "PATCH")).toBeFalsy();
   });
 
+  it("refuses Markdown that would drop blocks Markdown cannot carry", async () => {
+    vi.stubGlobal("fetch", fakePayload({ lost: ["block"] }).handler);
+
+    await expect(
+      preflightDraftOperations(
+        client(),
+        "Rewrite",
+        [markdownOperation],
+        adminUrl,
+        createWordPressTelemetry()
+      )
+    ).rejects.toMatchObject({ code: "markdown_would_lose_content" });
+  });
+
+  it("counts a change of leading indentation as a change", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Indent",
+      [{ ...markdownOperation, markdown: { content: "    Old body" } }],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    expect(preflight.operations[0]?.fields[0]?.changed).toBeTruthy();
+  });
+
   it("refuses Markdown for a field that is not rich text", async () => {
     vi.stubGlobal("fetch", fakePayload().handler);
 
@@ -646,6 +684,34 @@ describe("Payload Markdown and new drafts", () => {
       "https://payload.example/api/posts?draft=true&depth=0"
     );
     expect(JSON.parse(write?.body ?? "{}")).not.toHaveProperty("_status");
+  });
+
+  it("names a created draft even when reading it back fails", async () => {
+    vi.stubGlobal("fetch", fakePayload({ failCreatedRead: true }).handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createWordPressTelemetry()
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [createOperation],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createWordPressTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "created_readback_failed" },
+      status: "failed",
+      target: "posts/34",
+    });
   });
 
   it("refuses a new draft where the editor may not create", async () => {
