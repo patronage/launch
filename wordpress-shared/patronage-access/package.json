@@ -5,6 +5,6 @@
   "description": "WordPress mu-plugin that locks a site behind Cloudflare Access and authenticates REST and WPGraphQL from Access JWTs.",
   "license": "MIT",
   "scripts": {
-    "test": "php -l patronage-access.php && php tests/verify.test.php && php tests/integration.test.php"
+    "test": "php -l patronage-access.php && php tests/verify.test.php && php tests/integration.test.php && php tests/browser-login.test.php"
   }
 }

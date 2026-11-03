@@ -38,7 +38,7 @@ docs/              Engineering notes: decision records in docs/adr/, research in
 Both WordPress installs load the same Patronage code from `wordpress-shared/`:
 
 - **`patronage-fields`**: the ACF field groups, post types, rich-text shortcodes, the form model and the demo seed.
-- **`patronage-access`**: the mu-plugin that verifies Cloudflare Access sign-ins. Only the headless install uses it, since the Timber install serves its public site from WordPress.
+- **`patronage-access`**: the mu-plugin that verifies Cloudflare Access sign-ins: an origin guard for the headless install, optional browser login to wp-admin, and gateway identity for REST and WPGraphQL.
 - **`patronage-logging`**: the mu-plugin that records WordPress events. See [Logging](/references/logging).
 - **`wp-deploy`**: the deploy kit. See [Deploying WordPress](/deploy/wordpress).
 
