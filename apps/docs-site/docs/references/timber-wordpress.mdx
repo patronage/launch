@@ -22,7 +22,7 @@ description: WordPress rendering its own public site with a Timber theme, from t
 
 ## Locking it down
 
-Here Cloudflare Access protects `/wp-admin` and `/wp-login.php`, not the whole hostname, because WordPress serves the public site. So this install does not use the `patronage-access` origin guard, which would lock visitors out.
+Here Cloudflare Access protects `/wp-admin` and `/wp-login.php`, not the whole hostname, because WordPress serves the public site. So this install does not use the `patronage-access` origin guard, which would lock visitors out. An install that wants editors to skip the WordPress form after Access can still add it with only `PATRONAGE_ACCESS_BROWSER_LOGIN` on (plus the team domain and the Access application's AUD); the origin guard stays off unless defined.
 
 ## Run it
 

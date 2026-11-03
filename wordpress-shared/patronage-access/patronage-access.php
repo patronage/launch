@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Patronage Access
- * Description: Locks WordPress behind Cloudflare Access. Optionally rejects any request that did not pass through Access, and authenticates REST and WPGraphQL requests as the user identified by a forwarded Access JWT, optionally requiring a gateway proof header.
- * Version: 0.4.0
+ * Description: Locks WordPress behind Cloudflare Access. Optionally rejects any request that did not pass through Access, signs editors into wp-admin from their Access login, and authenticates REST and WPGraphQL requests as the user identified by a forwarded Access JWT, optionally requiring a gateway proof header.
+ * Version: 0.5.0
  * License: MIT
  * Requires PHP: 8.0
  */
@@ -43,6 +43,48 @@ final class Patronage_Access_JWT_Verifier {
 	 */
 	public static function origin_guard_applies( bool $enabled, string $sapi, bool $is_wp_cli ): bool {
 		return $enabled && 'cli' !== $sapi && ! $is_wp_cli;
+	}
+
+	/**
+	 * Decide what browser login does with this wp-login.php request: 'skip'
+	 * (show the login form as usual), 'probe' (set the loop guard cookie and
+	 * come back once with `patronage_access_login=1`), or 'login' (the guard
+	 * cookie survived the round trip, so verify the Access assertion).
+	 *
+	 * Only a plain GET of the login screen qualifies. Logging out lands on
+	 * `?loggedout=true`, which must show the form or nobody could stay logged
+	 * out; other actions (lost password, register, post password, the editor's
+	 * session-expired modal) are left alone, and `?patronage_access_login=off`
+	 * shows the form once so someone can sign in as a different user.
+	 *
+	 * The guard cookie makes the flow finite. Seen on an unmarked request, it
+	 * means a sign-in just happened and WordPress still sent the browser back
+	 * here, so the form shows instead of looping. Missing on the marked
+	 * request, it means the browser is refusing cookies, so the form shows too.
+	 *
+	 * @param bool                $enabled   Whether PATRONAGE_ACCESS_BROWSER_LOGIN is on.
+	 * @param string              $method    Request method.
+	 * @param array<string,mixed> $query     Query parameters.
+	 * @param bool                $logged_in Whether WordPress already has a user.
+	 * @param bool                $guard     Whether the loop guard cookie is present.
+	 */
+	public static function browser_login_step( bool $enabled, string $method, array $query, bool $logged_in, bool $guard ): string {
+		if ( ! $enabled || $logged_in || 'GET' !== strtoupper( $method ) ) {
+			return 'skip';
+		}
+		if ( 'login' !== ( $query['action'] ?? 'login' ) ) {
+			return 'skip';
+		}
+		foreach ( array( 'loggedout', 'interim-login' ) as $skip ) {
+			if ( array_key_exists( $skip, $query ) ) {
+				return 'skip';
+			}
+		}
+		$marker = $query['patronage_access_login'] ?? null;
+		if ( null === $marker ) {
+			return $guard ? 'skip' : 'probe';
+		}
+		return '1' === $marker && $guard ? 'login' : 'skip';
 	}
 
 	/**
@@ -228,6 +270,8 @@ if ( ! function_exists( 'openssl_verify' ) || defined( 'PATRONAGE_ACCESS_TESTING
 final class Patronage_Access_REST_Auth {
 	private const CACHE_SECONDS = 6 * HOUR_IN_SECONDS;
 	private const DEFAULT_HEADER = 'X-Access-User-Jwt';
+	private const LOGIN_GUARD_COOKIE = 'patronage_access_login_tried';
+	private const LOGIN_GUARD_SECONDS = 30;
 	private const ORIGIN_HEADER = 'Cf-Access-Jwt-Assertion';
 	private const PROOF_HEADER = 'X-Access-Gateway-Proof';
 	private const REFRESH_THROTTLE_SECONDS = 60;
@@ -245,6 +289,7 @@ final class Patronage_Access_REST_Auth {
 	 */
 	public static function register(): void {
 		add_action( 'plugins_loaded', array( self::class, 'guard_origin' ), -1000 );
+		add_action( 'login_init', array( self::class, 'browser_login' ), 1 );
 		add_filter( 'determine_current_user', array( self::class, 'determine_current_user' ), 30 );
 		add_filter( 'rest_authentication_errors', array( self::class, 'rest_authentication_errors' ) );
 		add_filter( 'rest_post_dispatch', array( self::class, 'identify_rest_actor' ), 10, 3 );
@@ -390,6 +435,110 @@ final class Patronage_Access_REST_Auth {
 		if ( null !== $error ) {
 			self::deny_origin( $error );
 		}
+	}
+
+	/**
+	 * Sign a browser into WordPress from its Access login.
+	 *
+	 * With PATRONAGE_ACCESS_BROWSER_LOGIN on, a plain visit to wp-login.php
+	 * (where wp-admin sends signed-out users) verifies the
+	 * `Cf-Access-Jwt-Assertion` Access adds for the application in front of
+	 * this site, maps its email to a WordPress user who has the capability
+	 * (edit_posts unless filtered), sets the normal auth cookie and redirects
+	 * to `redirect_to`. It first bounces once through a guard cookie (see
+	 * browser_login_step) so a browser that refuses cookies, or a WordPress
+	 * that rejects the new auth cookie, ends on the login form instead of
+	 * looping. Anything it cannot verify falls through to the login form; it
+	 * never blocks a request.
+	 */
+	public static function browser_login(): void {
+		$enabled = defined( 'PATRONAGE_ACCESS_BROWSER_LOGIN' ) && true === constant( 'PATRONAGE_ACCESS_BROWSER_LOGIN' );
+		$method  = isset( $_SERVER['REQUEST_METHOD'] ) && is_string( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only routing decision.
+		$query = $_GET;
+		$token = (string) self::request_header( self::ORIGIN_HEADER );
+		if ( '' === $token ) {
+			return;
+		}
+
+		$step = Patronage_Access_JWT_Verifier::browser_login_step( $enabled, $method, $query, is_user_logged_in(), isset( $_COOKIE[ self::LOGIN_GUARD_COOKIE ] ) );
+		if ( 'probe' === $step ) {
+			self::set_login_guard_cookie();
+			wp_safe_redirect( add_query_arg( 'patronage_access_login', '1', wp_login_url() . self::login_query_string( $query ) ) );
+			exit;
+		}
+		if ( 'login' !== $step ) {
+			return;
+		}
+
+		$config = self::config( defined( 'PATRONAGE_ACCESS_ORIGIN_AUD' ) ? 'PATRONAGE_ACCESS_ORIGIN_AUD' : 'PATRONAGE_ACCESS_AUD' );
+		if ( is_wp_error( $config ) ) {
+			self::log_login( 'not configured' );
+			return;
+		}
+
+		$claims = self::verify_token( $token, $config, true );
+		if ( is_wp_error( $claims ) ) {
+			self::log_login( $claims->get_error_code() );
+			return;
+		}
+
+		$user = get_user_by( 'email', $claims['email'] );
+		if ( ! ( $user instanceof WP_User ) || ! self::user_can_access_site( $user->ID ) ) {
+			self::log_login( 'no matching WordPress user' );
+			return;
+		}
+
+		$capability = (string) apply_filters( 'patronage_access_browser_login_capability', 'edit_posts' );
+		$allowed    = (bool) apply_filters( 'patronage_access_browser_login_allowed', user_can( $user, $capability ), $user, $claims );
+		if ( ! $allowed ) {
+			self::log_login( 'user ' . $user->ID . ' may not sign in this way' );
+			return;
+		}
+
+		wp_set_auth_cookie( $user->ID, false, is_ssl() );
+		wp_set_current_user( $user->ID );
+		do_action( 'wp_login', $user->user_login, $user );
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$requested = isset( $query['redirect_to'] ) && is_string( $query['redirect_to'] ) ? wp_unslash( $query['redirect_to'] ) : '';
+		$redirect  = apply_filters( 'login_redirect', '' !== $requested ? $requested : admin_url(), $requested, $user );
+		wp_safe_redirect( wp_validate_redirect( (string) $redirect, admin_url() ) );
+		exit;
+	}
+
+	/**
+	 * Carry the login screen's own query (redirect_to, reauth) through the probe.
+	 *
+	 * @param array<string,mixed> $query
+	 */
+	private static function login_query_string( array $query ): string {
+		$kept = array_filter( wp_unslash( $query ), static fn ( mixed $value ): bool => is_string( $value ) );
+		unset( $kept['patronage_access_login'] );
+		return array() === $kept ? '' : '?' . http_build_query( $kept );
+	}
+
+	private static function set_login_guard_cookie(): void {
+		setcookie(
+			self::LOGIN_GUARD_COOKIE,
+			'1',
+			array(
+				'domain'   => defined( 'COOKIE_DOMAIN' ) && is_string( COOKIE_DOMAIN ) ? COOKIE_DOMAIN : '',
+				'expires'  => time() + self::LOGIN_GUARD_SECONDS,
+				'httponly' => true,
+				'path'     => defined( 'COOKIEPATH' ) && is_string( COOKIEPATH ) && '' !== COOKIEPATH ? COOKIEPATH : '/',
+				'samesite' => 'Lax',
+				'secure'   => is_ssl(),
+			)
+		);
+	}
+
+	/**
+	 * Record why browser login fell through to the form. Never logs the token
+	 * or the email.
+	 */
+	private static function log_login( string $reason ): void {
+		error_log( '[patronage-access] browser login skipped: ' . $reason );
 	}
 
 	/**
