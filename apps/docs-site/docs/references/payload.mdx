@@ -7,7 +7,7 @@ The Payload reference is a single app: the Payload admin, plus front-end pages t
 
 ## Database: D1 by default
 
-**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two still need comparing on real Workers. See [ADR 0007](/decisions/payload-single-app-on-d1).
+**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two still need comparing on real Workers. See [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
 
 |  | D1 | Postgres through Hyperdrive |
 | --- | --- | --- |

@@ -2,8 +2,6 @@
 
 One file per decision that the rest of the repo must follow, numbered in order: `NNNN-short-title.md` with Status, Context, Decision and Consequences sections. Spike notes in [`../spikes/`](../spikes/) hold the evidence; a record here holds the rule.
 
-The docs site publishes these records as its Decisions section (`apps/docs-site/scripts/publish-notes.mjs`), so write them for a public reader and link to other records, spike notes and repo files with relative paths.
-
 To change a decision, add a new record that supersedes the old one and set the old one's status to `Superseded by ADR NNNN`. Don't edit an accepted decision in place beyond small corrections.
 
 ## Catalog

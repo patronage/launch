@@ -3,11 +3,11 @@ title: Traditional WordPress
 description: WordPress rendering its own public site with a Timber theme, from the same fields, content and design tokens as the headless and Payload references.
 ---
 
-[`cms-wordpress-timber`](https://github.com/patronage/launch/tree/main/apps/cms-wordpress-timber) is a traditional WordPress install: WordPress renders the public site itself, with a [Timber](https://timber.github.io/docs/v2/) theme written in Twig. It is a separate install from the headless one, because the two need different plugins, caching and deploys (see [ADR 0006](/decisions/separate-wordpress-installs)).
+[`cms-wordpress-timber`](https://github.com/patronage/launch/tree/main/apps/cms-wordpress-timber) is a traditional WordPress install: WordPress renders the public site itself, with a [Timber](https://timber.github.io/docs/v2/) theme written in Twig. It is a separate install from the headless one, because the two need different plugins, caching and deploys (see [ADR 0006](https://github.com/patronage/launch/blob/main/docs/adr/0006-separate-wordpress-installs.md)).
 
 ## What it shares
 
-- **Fields, post types and seed.** Both WordPress installs load `wordpress-shared/patronage-fields`: the same field groups, post types, rich-text shortcodes, form model and demo content. An editor sees the same screens in either install. See [ADR 0015](/decisions/shared-wordpress-fields).
+- **Fields, post types and seed.** Both WordPress installs load `wordpress-shared/patronage-fields`: the same field groups, post types, rich-text shortcodes, form model and demo content. An editor sees the same screens in either install. See [ADR 0015](https://github.com/patronage/launch/blob/main/docs/adr/0015-shared-wordpress-fields.md).
 - **The content model.** The theme maps each field's value to the shapes in `packages/content-model`, so its Twig views draw the same heroes and sections as the React components, with the same rules for padding and headings.
 - **Design tokens, not components.** The theme's CSS imports Tailwind and the UI package's tokens, and a Twig file holds the class names of the shared `Section`, `Container`, `Typography` and button styles. React components are not shared.
 
