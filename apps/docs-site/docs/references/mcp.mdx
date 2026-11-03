@@ -18,7 +18,7 @@ The gateway Worker is built in `apps/mcp`, with its WordPress and Payload connec
 | --- | --- |
 | `apps/mcp` | Built. The gateway Worker: sign-in, tool catalog, write approval, logging |
 | `wp` connector | Built. WPGraphQL and REST reads, approved post updates (core and ACF fields) |
-| `payload` connector | Built. Reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`), approved changes saved as drafts and never published |
+| `payload` connector | Built. Reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Approved edits and new documents are saved as drafts and never published, and rich text can be written as Markdown |
 | `packages/mcp-core` | Planned. Transport, the code-mode runtime, approval and the connector contract, split out of `apps/mcp` |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 

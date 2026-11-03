@@ -54,12 +54,28 @@ export interface GraphqlTypeSummary {
   name: string;
 }
 
+// Payload's half of the site, when the deployment has one: the collections
+// this editor can read, which keep drafts, and which fields take Markdown.
+// A Payload failure is reported here instead of failing the whole answer.
+export type PayloadDescription =
+  | {
+      collections: {
+        canCreate: boolean;
+        canUpdate: boolean;
+        drafts: boolean;
+        richTextFields: string[];
+        slug: string;
+      }[];
+    }
+  | { error: string };
+
 export interface SiteDescription {
   acfTypes: GraphqlTypeSummary[];
   // GraphQL exposure is independent of REST exposure. A content type can be
   // readable here while having no writable route; `postTypes` is the
   // authoritative inventory for `wp.apply` rest_base values.
   contentTypes: GraphqlTypeSummary[];
+  payload?: PayloadDescription;
   postTypes: PostTypeSummary[];
   site: { name: string; url: string };
 }

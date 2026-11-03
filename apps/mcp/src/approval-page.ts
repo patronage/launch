@@ -273,12 +273,18 @@ const renderField = (field: FieldSnapshot): string =>
 <td class="before">${escapeHtml(field.before)}</td>
 <td>${escapeHtml(field.after)}</td></tr>`;
 
+// A new document has no modified time yet, so its line names the target only.
+const renderModified = (operation: OperationPreflight): string =>
+  operation.modifiedGmt
+    ? ` &middot; last modified ${escapeHtml(operation.modifiedGmt)}`
+    : "";
+
 const renderOperation = (operation: OperationPreflight): string => {
   const rows = operation.fields.map(renderField).join("");
 
   return `<section>
 <h2>${escapeHtml(operation.sentence)}</h2>
-<p>${renderTarget(operation)} &middot; last modified ${escapeHtml(operation.modifiedGmt)}</p>
+<p>${renderTarget(operation)}${renderModified(operation)}</p>
 <table><thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </section>`;

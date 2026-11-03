@@ -88,7 +88,7 @@ export const preflightDigest = async (
 export interface OperationReceipt {
   changed_paths: string[];
   error?: ReceiptError;
-  kind: "update_draft" | "update_post";
+  kind: "create_draft" | "update_draft" | "update_post";
   // A subset of `changed_paths`: the write landed, but WordPress stored a
   // value it rewrote rather than the one that was requested.
   normalized_paths: string[];
@@ -113,7 +113,7 @@ const receiptErrorSchema = z.object({
 const operationReceiptSchema = z.object({
   changed_paths: z.array(z.string()),
   error: receiptErrorSchema.optional(),
-  kind: z.enum(["update_draft", "update_post"]),
+  kind: z.enum(["create_draft", "update_draft", "update_post"]),
   normalized_paths: z.array(z.string()),
   operation_index: z.number().int().min(0),
   status: z.enum(["changed", "conflict", "failed", "unchanged"]),
