@@ -37,6 +37,10 @@ export default defineConfig({
         process.env.DEPLOYMENT_ENVIRONMENT ?? "development"
       ),
       // Runs the model's code in a Dynamic Worker (paid plan, open beta).
+      GATEWAY_RUNTIME: bindings.durableObject({
+        exportName: "GatewayRuntime",
+        worker: name,
+      }),
       LOADER: bindings.workerLoader(),
       MCP_ALLOWED_HOSTNAMES: bindings.text(domain ?? ""),
       // Payload, when this site has it: a Service binding to its Worker, or
@@ -63,13 +67,9 @@ export default defineConfig({
       WORDPRESS_API_URL: bindings.text(
         process.env.WORDPRESS_API_URL ?? "http://localhost:8080"
       ),
-      WORDPRESS_RUNTIME: bindings.durableObject({
-        exportName: "WordPressRuntime",
-        worker: name,
-      }),
     },
     exports: {
-      WordPressRuntime: exports.durableObject({ storage: "sqlite" }),
+      GatewayRuntime: exports.durableObject({ storage: "sqlite" }),
     },
     // WORKER_LOGPUSH=true sends this Worker's logs, its evlog wide events
     // included, to the account's workers_trace_events Logpush job.

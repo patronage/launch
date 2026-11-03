@@ -1,0 +1,30 @@
+{
+  "name": "@patronage/mcp-wordpress",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The WordPress connector for @patronage/mcp-core: WPGraphQL and REST reads, and post updates through the approval step.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "pnpm --filter @patronage/mcp-core generate && vitest run",
+    "typecheck": "pnpm --filter @patronage/mcp-core generate && tsc --noEmit"
+  },
+  "dependencies": {
+    "@patronage/mcp-core": "workspace:*",
+    "graphql": "17.0.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261031.1",
+    "@patronage/access": "workspace:*",
+    "@types/node": "24.19.2",
+    "evlog": "2.26.0",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@patronage/mcp-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An MCP gateway Worker for Cloudflare: Access sign-in, code mode over CMS connectors, and a human approval step before every write.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./runtime": "./src/runtime.ts"
+  },
+  "scripts": {
+    "generate": "node scripts/build-approval-card.mjs",
+    "test": "pnpm generate && vitest run",
+    "typecheck": "pnpm generate && tsc --noEmit && tsc --noEmit -p src/approval-card"
+  },
+  "dependencies": {
+    "@cloudflare/codemode": "0.5.1",
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@patronage/access": "workspace:*",
+    "agents": "0.21.0",
+    "evlog": "2.26.0",
+    "jose": "6.2.14",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261031.1",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

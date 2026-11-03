@@ -225,52 +225,28 @@ importers:
       '@cloudflare/codemode':
         specifier: 0.5.1
         version: 0.5.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(ai@7.0.157(zod@4.6.7))(zod@4.6.7)
-      '@modelcontextprotocol/ext-apps':
-        specifier: 2.0.0
-        version: 2.0.0(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
-      '@modelcontextprotocol/server':
-        specifier: 2.0.0
-        version: 2.0.0
-      '@patronage/access':
+      '@patronage/mcp-core':
         specifier: workspace:*
-        version: link:../../packages/access
-      agents:
-        specifier: 0.21.0
-        version: 0.21.0(@babel/core@8.0.10)(@babel/runtime@8.0.10)(@cloudflare/codemode@0.5.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(ai@7.0.157(zod@4.6.7))(zod@4.6.7))(@cloudflare/workers-types@5.20261031.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(@modelcontextprotocol/server@2.0.0)(ai@7.0.157(zod@4.6.7))(react@19.3.1)(rolldown@1.2.16)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(zod@4.6.7)
-      evlog:
-        specifier: 2.26.0
-        version: 2.26.0(ai@7.0.157(zod@4.6.7))(express@5.3.0(supports-color@10.2.2))(h3@1.15.11)(hono@4.13.14)(next@16.4.2(@babel/core@8.0.10)(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-      graphql:
-        specifier: 17.0.2
-        version: 17.0.2
-      jose:
-        specifier: 6.2.14
-        version: 6.2.14
-      zod:
-        specifier: 4.6.7
-        version: 4.6.7
+        version: link:../../packages/mcp-core
+      '@patronage/mcp-payload':
+        specifier: workspace:*
+        version: link:../../packages/mcp-payload
+      '@patronage/mcp-wordpress':
+        specifier: workspace:*
+        version: link:../../packages/mcp-wordpress
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.v.7
         version: 2.0.0-beta.v.7(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261023.1)
-      '@modelcontextprotocol/client':
-        specifier: 2.0.0
-        version: 2.0.0
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
       cf:
         specifier: 1.0.0-beta.25
         version: 1.0.0-beta.25(@types/node@24.19.2)
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: 5.0.5
-        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/payload:
     dependencies:
@@ -613,6 +589,99 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/mcp-core:
+    dependencies:
+      '@cloudflare/codemode':
+        specifier: 0.5.1
+        version: 0.5.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(ai@7.0.157(zod@4.6.7))(zod@4.6.7)
+      '@modelcontextprotocol/ext-apps':
+        specifier: 2.0.0
+        version: 2.0.0(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
+      '@patronage/access':
+        specifier: workspace:*
+        version: link:../access
+      agents:
+        specifier: 0.21.0
+        version: 0.21.0(@babel/core@8.0.10)(@babel/runtime@8.0.10)(@cloudflare/codemode@0.5.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(ai@7.0.157(zod@4.6.7))(zod@4.6.7))(@cloudflare/workers-types@5.20261031.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.4)(supports-color@10.2.2)(zod@4.6.7))(@modelcontextprotocol/server@2.0.0)(ai@7.0.157(zod@4.6.7))(react@19.3.1)(rolldown@1.2.16)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(zod@4.6.7)
+      evlog:
+        specifier: 2.26.0
+        version: 2.26.0(ai@7.0.157(zod@4.6.7))(express@5.3.0(supports-color@10.2.2))(h3@1.15.11)(hono@4.13.14)(next@16.4.2(@babel/core@8.0.10)(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      jose:
+        specifier: 6.2.14
+        version: 6.2.14
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261031.1
+        version: 5.20261031.1
+      '@modelcontextprotocol/client':
+        specifier: 2.0.0
+        version: 2.0.0
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/mcp-payload:
+    dependencies:
+      '@patronage/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp-core
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261031.1
+        version: 5.20261031.1
+      '@patronage/access':
+        specifier: workspace:*
+        version: link:../access
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/mcp-wordpress:
+    dependencies:
+      '@patronage/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp-core
+      graphql:
+        specifier: 17.0.2
+        version: 17.0.2
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261031.1
+        version: 5.20261031.1
+      '@patronage/access':
+        specifier: workspace:*
+        version: link:../access
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      evlog:
+        specifier: 2.26.0
+        version: 2.26.0(ai@7.0.157(zod@4.6.7))(express@5.3.0(supports-color@10.2.2))(h3@1.15.11)(hono@4.13.14)(next@16.4.2(@babel/core@8.0.10)(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.77.4))(ofetch@1.5.1)(react@19.3.1)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/sections-preview:
     dependencies:
       '@launch/adapter-payload':
@@ -702,6 +771,8 @@ importers:
   wordpress-shared/patronage-access: {}
 
   wordpress-shared/patronage-fields: {}
+
+  wordpress-shared/patronage-logging: {}
 
   wordpress-shared/wp-deploy: {}
 
