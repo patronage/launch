@@ -1,0 +1,36 @@
+---
+title: Decisions
+description: The choices made so far for Launch, the records behind them, and the ones still open.
+sidebar:
+  label: Overview
+---
+
+Every choice the rest of the repo must follow is an architecture decision record (ADR) in [`docs/adr`](https://github.com/patronage/launch/tree/main/docs/adr). The records in this section are published from there each time the site builds, so they always match the repo. A record that changes an earlier one supersedes it rather than editing it.
+
+## Made
+
+| Area | Decision |
+| --- | --- |
+| Repo | One public monorepo with no vendor code and no client references. See [ADR 0001](/decisions/public-reference-monorepo). |
+| Hosting | Every front-end and the MCP server run on Cloudflare Workers. |
+| Front-end framework | vinext, Cloudflare's Vite-based implementation of the Next.js App Router. See [ADR 0005](/decisions/vinext-front-ends-on-workers). |
+| Worker config | `cloudflare.config.ts` and the `cf` CLI. No Wrangler config files in the repo. See [ADR 0003](/decisions/cloudflare-config-through-cf-cli). |
+| CI and deploys | Cloudflare Workers Builds, with a Preview per branch. No GitHub Actions; run `pnpm verify` before opening a pull request. See [ADR 0004](/decisions/local-verification-and-workers-builds). |
+| Monorepo tooling | Plain pnpm workspaces, no Turborepo. Exact versions, and a minimum release age before a version installs. See [ADR 0002](/decisions/plain-pnpm-workspaces). |
+| WordPress | Two separate installs: headless over WPGraphQL, and a traditional Timber theme. They share their fields, post types and seed. See [ADR 0006](/decisions/separate-wordpress-installs) and [ADR 0015](/decisions/shared-wordpress-fields). |
+| WordPress fields | Field groups in PHP with Extended ACF on Secure Custom Fields, post types with Extended CPTs. See [ADR 0010](/decisions/wordpress-fields-in-php). |
+| WordPress plugins | Installed by Composer and never committed. Only Patronage's own `patronage-*` code is in the repo. |
+| WordPress deploys | One deploy kit, `wp-deploy`, pushes a packaged commit to the host. See [ADR 0013](/decisions/wordpress-deploy-kit) and [Deploying WordPress](/deploy/wordpress). |
+| Payload | One app, using the Local API. D1 is the database by default, with Postgres through Hyperdrive kept as an option. See [ADR 0007](/decisions/payload-single-app-on-d1) and [Payload](/references/payload). |
+| Shared UI | Plain props from a CMS-neutral content model, on shadcn/ui and Tailwind 4. Each CMS has an adapter; rich text stays CMS-specific. See [ADR 0008](/decisions/cms-neutral-content-model), [ADR 0009](/decisions/shadcn-ui-package) and [Shared UI](/references/ui). |
+| Access | Every CMS admin and API is behind Cloudflare Access. Front-ends read with a service token, which can only read. See [ADR 0011](/decisions/cms-behind-cloudflare-access). |
+| MCP | One MCP gateway Worker per site, behind Access, with a WordPress and a Payload connector. Every write waits for a person to approve it. See [ADR 0014](/decisions/mcp-gateway-worker) and [MCP server](/references/mcp). |
+| Logging | Each site's logs are files in one R2 bucket: Workers through Logpush, WordPress through a Basin Pipelines stream. Optional and off until configured. Reading and acting on the logs is outside Launch. See [ADR 0016](/decisions/logs-to-r2-through-logpush) and [Logging](/references/logging). |
+| Docs | This site, built with Blume. Research notes and decision records publish themselves from the repo's `docs/` folder. |
+
+## Open
+
+- D1 against Postgres through Hyperdrive, measured on deployed Workers.
+- KV against Workers Cache for page caching, measured on a real zone.
+- Getting `vite dev` working for the Payload app.
+- Email delivery and redirect confirmations for Payload forms.

@@ -11,9 +11,18 @@ Launch is Patronage's open-source monorepo of reference sites. Each one renders 
 | Payload | Payload, one app on the Local API | vinext on Workers |
 | Traditional WordPress | WordPress with a Timber theme | The theme itself |
 
+All three render the same invented demo site, Neighborhood Growers, from the same CMS-neutral content model: the same pages, heroes, page sections, forms and rich-text blocks. The news posts differ between the WordPress and Payload seeds. The vinext front-ends share one UI package, and the Timber theme shares its design tokens.
+
+Around the reference sites, Launch also ships:
+
+- an [MCP server](/references/mcp) per site, so a team can read the CMS from Claude, Codex or Cursor and make changes a person approves;
+- [logging](/references/logging) of every Worker request and WordPress event to the site's own R2 bucket;
+- a [WordPress deploy kit](/deploy/wordpress) for pushing either WordPress install to its host.
+
 <Callout type="note">
-  Launch is early. The work so far is a set of research spikes, written up under
-  [Research](/research). The source is on
+  The questions behind each choice were answered by small spikes, written up
+  under [Research](/research). The rules that came out of them are under
+  [Decisions](/decisions). The source is on
   [GitHub](https://github.com/patronage/launch).
 </Callout>
 
@@ -30,6 +39,6 @@ Launch is Patronage's open-source monorepo of reference sites. Each one renders 
     Every Worker deploys with the `cf` CLI and no Wrangler config.
   </Card>
   <Card title="Decisions" href="/decisions">
-    The choices made so far, and the ones still open.
+    The choices made so far, the records behind them, and the ones still open.
   </Card>
 </CardGroup>
