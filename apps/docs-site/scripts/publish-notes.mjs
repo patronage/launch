@@ -74,8 +74,10 @@ const rewriteLink = (from, target) => {
         return pageRoute(section, name) + anchor;
       }
 
-      if (name === "README.md") {
-        return section.route + anchor;
+      // A section's README becomes its overview page, which doesn't carry
+      // the README's headings, so an anchored link goes to GitHub instead.
+      if (name === "README.md" && !hash) {
+        return section.route;
       }
     }
   }

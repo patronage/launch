@@ -29,7 +29,8 @@ pnpm --filter web-wordpress dev                  # http://localhost:3000
 
 ```bash
 cd apps/payload
-cp .env.example .env && cp .env .dev.vars   # set PAYLOAD_SECRET first
+cp .env.example .env                        # then set PAYLOAD_SECRET in .env
+cp .env .dev.vars                           # the Worker reads its secrets from .dev.vars
 pnpm payload migrate
 pnpm seed
 pnpm build && pnpm preview                  # http://localhost:4173/admin
@@ -43,7 +44,7 @@ pnpm --filter cms-wordpress-timber run setup   # http://localhost:8090
 
 ## Check a change in the browser
 
-`pnpm verify` proves the code builds and its tests pass, not that a page looks right. Before you open a pull request that changes pages, sections, forms or the admin, drive the change in a real browser and keep the screenshots. The repo's `launch-verify` agent skill does this for the Payload app and the headless WordPress front-end:
+`pnpm verify` checks dependencies, lint, types and tests, not that a page looks right. Before you open a pull request that changes pages, sections, forms or the admin, drive the change in a real browser and keep the screenshots. The repo's `launch-verify` agent skill does this for the Payload app and the headless WordPress front-end:
 
 ```bash
 node .agents/skills/launch-verify/scripts/verify.ts --help
