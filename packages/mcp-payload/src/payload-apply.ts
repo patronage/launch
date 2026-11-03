@@ -753,6 +753,23 @@ const applyOne = async (
 
     const readback = classifyReadback(body, written.before, written.after);
 
+    // A hook or field access can keep `_status` a draft, which readback
+    // would count as normalised. A requested publish must have landed.
+    if (operation.publish && written.after[STATUS_FIELD] !== "published") {
+      return {
+        changed_paths: readback.changed.filter((path) => path !== STATUS_FIELD),
+        error: {
+          code: "not_published",
+          message: `Payload saved ${written.target} but did not publish it`,
+        },
+        kind: operation.kind,
+        normalized_paths: readback.normalized,
+        operation_index: snapshot.operationIndex,
+        status: "failed",
+        target: written.target,
+      };
+    }
+
     if (readback.missed.length > 0) {
       return {
         changed_paths: readback.changed,

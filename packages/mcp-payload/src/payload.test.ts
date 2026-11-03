@@ -71,6 +71,7 @@ const fakePayload = (
     canCreate?: boolean;
     drafts?: boolean;
     failCreatedRead?: boolean;
+    keepDraft?: boolean;
     lost?: string[];
     status?: string;
   } = {}
@@ -178,6 +179,11 @@ const fakePayload = (
         id: 34,
         updatedAt: "2026-10-31T12:00:00.000Z",
       };
+
+      // A hook that refuses publication keeps the document a draft.
+      if (options.keepDraft) {
+        next._status = "draft";
+      }
 
       created["/api/posts/34"] = next;
 
@@ -613,6 +619,41 @@ describe("Payload publishing on request", () => {
     expect(JSON.parse(write?.body ?? "{}")).toStrictEqual({
       _status: "published",
       title: "New title",
+    });
+  });
+
+  it("fails a publish that Payload saved as a draft", async () => {
+    vi.stubGlobal("fetch", fakePayload({ keepDraft: true }).handler);
+
+    const creating: DraftOperation = {
+      collection: "posts",
+      fields: { title: "Launch day" },
+      kind: "create_draft",
+      publish: true,
+    };
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Announce",
+      [creating],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    const receipt = await applyDraftOperations({
+      approverOpaque: "approver00000000",
+      client: client(),
+      executionId: "exec_1",
+      operations: [creating],
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "not_published" },
+      status: "failed",
+      target: "posts/34",
     });
   });
 
