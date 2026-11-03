@@ -1,0 +1,10 @@
+{
+  "name": "launch-security",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@openai/codex": "0.156.1",
+    "deepsec": "2.3.10"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

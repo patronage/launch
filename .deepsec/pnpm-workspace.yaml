@@ -1,0 +1,6 @@
+# Separate scanner dependencies from the deployable apps.
+packages: []
+minimumReleaseAge: 180
+savePrefix: ""
+allowBuilds:
+  esbuild: false

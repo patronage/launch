@@ -11,7 +11,10 @@
     "deps:verify": "CI=true pnpm install --frozen-lockfile",
     "fix": "ultracite fix",
     "lint": "ultracite check",
-    "test": "pnpm -r --if-present run test",
+    "security:scan": "node .deepsec/scripts/scan.mjs",
+    "security:subscription": "node .deepsec/scripts/subscription.mjs",
+    "security:test": "node --test .deepsec/tests/*.test.mjs",
+    "test": "pnpm security:test && pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck",
     "verify": "pnpm deps:verify && pnpm lint && pnpm typecheck && pnpm test"
   },

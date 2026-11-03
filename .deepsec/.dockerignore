@@ -1,0 +1,10 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!deepsec.config.ts
+!INFO.md
+!Dockerfile
+!matchers.mjs
+!runner/
+!runner/**
