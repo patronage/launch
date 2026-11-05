@@ -6,6 +6,7 @@ import { env } from "cloudflare:workers";
 import { parseCookies } from "payload";
 import type { AuthStrategy, CollectionConfig } from "payload";
 
+import { guardFirstUser } from "../lib/first-user-guard";
 import type { User } from "../payload-types";
 
 // A request that already carries Payload's own credential (the admin's
@@ -103,6 +104,16 @@ export const Users: CollectionConfig = {
     // Email added by default
     // Add more fields as needed
   ],
+  hooks: {
+    // The first user comes from localhost or through Access, never from
+    // whoever reaches a fresh deploy first.
+    beforeOperation: [
+      guardFirstUser(() => ({
+        audience: env.ACCESS_AUD,
+        teamDomain: env.ACCESS_TEAM_DOMAIN,
+      })),
+    ],
+  },
   slug: "users",
   versions: false,
 };

@@ -55,17 +55,53 @@ const invalid = (field: FormFieldBlock, value: string): string | undefined => {
   }
 };
 
-/** The request body as text, or undefined when it is larger than allowed. */
+/**
+ * The request body as text, or undefined when it is larger than allowed. The
+ * stream is counted as it arrives and cancelled past the limit, so a body
+ * sent without Content-Length is never buffered whole first.
+ */
 const readBody = async (req: NextRequest): Promise<string | undefined> => {
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
     return undefined;
   }
 
-  const text = await req.text();
+  if (!req.body) {
+    return "";
+  }
 
-  return new TextEncoder().encode(text).length > MAX_BODY_BYTES
-    ? undefined
-    : text;
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+
+  for (;;) {
+    // oxlint-disable-next-line no-await-in-loop -- a stream is read in order.
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    size += value.byteLength;
+
+    if (size > MAX_BODY_BYTES) {
+      // oxlint-disable-next-line no-await-in-loop -- stops the stream once, then returns.
+      await reader.cancel();
+
+      return undefined;
+    }
+
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(size);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(body);
 };
 
 /** Parses the body as a submission; malformed JSON fails like a bad shape. */

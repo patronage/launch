@@ -38,7 +38,7 @@ On `localhost` only, the login page offers a one-click sign-in as the first user
 
 ## Deployed
 
-The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket. Branch Previews are off by default, because they would share production's bindings. The app's README covers the deploy, secrets and Workers Builds setup.
+The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default, because they would share production's bindings. The app's README covers the deploy, secrets and Workers Builds setup.
 
 ## What else the research found
 
