@@ -450,3 +450,88 @@ describe(applyOperations, () => {
     expect(JSON.stringify(receipt)).not.toContain("raw upstream message");
   });
 });
+
+describe("update_post meta", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const metaOperation: WriteOperation = {
+    id: 42,
+    kind: "update_post",
+    meta: { _seo_description: "New summary" },
+    rest_base: "pages",
+  };
+
+  it("previews the registered meta value", async () => {
+    vi.stubGlobal("fetch", () =>
+      Response.json(record({ meta: { _seo_description: "Old summary" } }))
+    );
+
+    const preflight = await preflightOperations(
+      client,
+      "Set the description",
+      [metaOperation],
+      createUpstreamTelemetry()
+    );
+
+    expect(preflight.operations[0]?.fields).toStrictEqual([
+      {
+        after: "New summary",
+        before: "Old summary",
+        changed: true,
+        path: "meta._seo_description",
+      },
+    ]);
+  });
+
+  it("writes meta in the REST body and reports it changed", async () => {
+    let stored = "Old summary";
+    const bodies: (BodyInit | null | undefined)[] = [];
+
+    vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        stored = "New summary";
+        bodies.push(init.body);
+
+        return Response.json({ id: 42 });
+      }
+
+      return Response.json(record({ meta: { _seo_description: stored } }));
+    });
+
+    const receipt = await applyOperations({
+      approverOpaque: "approver00000000",
+      client,
+      executionId: "exec_1",
+      operations: [metaOperation],
+      preflight: { intent: "Set", operations: [snapshotFor(0, 42)] },
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    expect(receipt.operations[0]).toMatchObject({
+      changed_paths: ["meta._seo_description"],
+      status: "changed",
+    });
+    expect(bodies).toStrictEqual([
+      JSON.stringify({ meta: { _seo_description: "New summary" } }),
+    ]);
+  });
+
+  it("fails readback when WordPress drops an unregistered key", async () => {
+    const receipt = await runBatch(
+      [metaOperation],
+      { intent: "Set", operations: [snapshotFor(0, 42)] },
+      (request) =>
+        request.method === "POST"
+          ? Response.json({ id: 42 })
+          : Response.json(record({ meta: [] }))
+    );
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "readback_mismatch" },
+      status: "failed",
+    });
+  });
+});

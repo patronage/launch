@@ -220,3 +220,114 @@ describe("summaries", () => {
     );
   });
 });
+
+describe("post meta", () => {
+  it("accepts a meta-only update and lists meta keys after acf", () => {
+    const parsed = parseApplyInput({
+      intent: "Set the search description",
+      operations: [
+        {
+          acf: { hero_heading: "New" },
+          id: 7,
+          kind: "update_post",
+          meta: { _seo_description: "A short summary." },
+          rest_base: "pages",
+        },
+      ],
+    });
+
+    const [first] = parsed.operations;
+    expect(first).toBeDefined();
+
+    if (!first) {
+      return;
+    }
+
+    expect(changedPaths(first)).toStrictEqual([
+      "acf.hero_heading",
+      "meta._seo_description",
+    ]);
+  });
+
+  it("rejects an empty meta object as no change", () => {
+    const error = thrownBy(() =>
+      parseApplyInput({
+        intent: "Nothing",
+        operations: [
+          { id: 7, kind: "update_post", meta: {}, rest_base: "pages" },
+        ],
+      })
+    );
+
+    expect(error).toBeInstanceOf(ApplyValidationError);
+  });
+});
+
+describe("upsert_redirect", () => {
+  const redirect = {
+    kind: "upsert_redirect",
+    source: "/old-page",
+    target: "/new-page",
+  };
+
+  it("defaults the code to 301 and names the source as its target", () => {
+    const parsed = parseApplyInput({
+      intent: "Fix a broken link",
+      operations: [redirect],
+    });
+
+    const [first] = parsed.operations;
+    expect(first).toMatchObject({ code: 301 });
+
+    if (!first) {
+      return;
+    }
+
+    expect(operationTarget(first)).toBe("redirect /old-page");
+    expect(operationSentence(first)).toBe(
+      "Redirect /old-page to /new-page (301)"
+    );
+    expect(changedPaths(first)).toStrictEqual(["target", "code"]);
+  });
+
+  it("accepts an absolute target and the other redirect codes", () => {
+    expect(() =>
+      parseApplyInput({
+        intent: "Send it away",
+        operations: [
+          { ...redirect, code: 308, target: "https://example.com/elsewhere" },
+        ],
+      })
+    ).not.toThrow();
+  });
+
+  it.each([
+    ["a source with a host", { source: "https://example.com/old" }],
+    ["a protocol-relative source", { source: "//example.com/old" }],
+    ["a source without a leading slash", { source: "old-page" }],
+    ["a data: target", { target: "data:text/html,hello" }],
+    ["a redirect to itself", { target: "/old-page" }],
+    ["an unsupported code", { code: 404 }],
+    ["an unknown key", { regex: true }],
+  ])("rejects %s", (_label, change) => {
+    const error = thrownBy(() =>
+      parseApplyInput({
+        intent: "Bad redirect",
+        operations: [{ ...redirect, ...change }],
+      })
+    );
+
+    expect(error).toBeInstanceOf(ApplyValidationError);
+  });
+
+  it("rejects two redirects for one source in a batch", () => {
+    const error = thrownBy(() =>
+      parseApplyInput({
+        intent: "Twice",
+        operations: [redirect, { ...redirect, target: "/other" }],
+      })
+    );
+
+    expect(error).toMatchObject({ code: "duplicate_target" });
+  });
+});
