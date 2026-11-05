@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ImagesBinding } from ".";
-import { imagePath, negotiateFormat, serveImage, sourcePath } from ".";
+import {
+  imagePath,
+  negotiateFormat,
+  rewriteImageUrls,
+  serveImage,
+  sourcePath,
+} from ".";
 
 describe(imagePath, () => {
   const prefix = "https://cms.example.com/wp-content/uploads/";
@@ -100,5 +106,23 @@ describe(serveImage, () => {
 
     expect(response.status).toBe(404);
     expect(transform).not.toHaveBeenCalled();
+  });
+});
+
+describe(rewriteImageUrls, () => {
+  const prefix = "https://cms.example.com/wp-content/uploads/";
+
+  it("rewrites src and every srcset candidate under the prefix", () => {
+    const html = `<figure><img src="${prefix}2026/10/beds.jpg" srcset="${prefix}2026/10/beds-300x200.jpg 300w, ${prefix}2026/10/beds.jpg 1024w" alt="Beds"></figure>`;
+
+    expect(rewriteImageUrls(html, prefix)).toBe(
+      '<figure><img src="/media/2026/10/beds.jpg" srcset="/media/2026/10/beds-300x200.jpg 300w, /media/2026/10/beds.jpg 1024w" alt="Beds"></figure>'
+    );
+  });
+
+  it("leaves other hosts, links and non-raster files alone", () => {
+    const html = `<a href="${prefix}2026/10/beds.jpg">Full size</a><img src='https://elsewhere.example/a.jpg'><video src="${prefix}2026/10/tour.mp4"></video><img src="${prefix}logo.svg">`;
+
+    expect(rewriteImageUrls(html, prefix)).toBe(html);
   });
 });

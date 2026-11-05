@@ -54,13 +54,23 @@ export interface CloudflareClient {
     schema: z.ZodType<T>,
     body?: RequestBody
   ) => Promise<T>;
+  /** Every item of a paginated list endpoint, page by page. */
+  list: <T>(path: string, schema: z.ZodType<T>) => Promise<T[]>;
 }
+
+/** Items asked for per page of a list endpoint. */
+export const LIST_PAGE_SIZE = 50;
 
 const envelopeSchema = z.object({
   errors: z
     .array(z.object({ code: z.number(), message: z.string() }))
     .catch([]),
   result: z.unknown().optional(),
+  result_info: z
+    .object({ page: z.number(), total_pages: z.number() })
+    .partial()
+    .optional()
+    .catch(undefined),
   success: z.boolean(),
 });
 
@@ -78,18 +88,11 @@ export const cloudflareClient = (
   const log = options.log ?? console.log;
   const accountPath = `/accounts/${encodeURIComponent(options.accountId)}`;
 
-  const request: CloudflareClient["request"] = async (
-    method,
-    path,
-    schema,
-    body
+  const send = async (
+    method: "GET" | "POST" | "PUT",
+    path: string,
+    body?: RequestBody
   ) => {
-    if (options.dryRun && method !== "GET") {
-      log(`[dry run] ${method} ${accountPath}${path} ${JSON.stringify(body)}`);
-
-      return schema.parse(DRY_RUN_RESULT);
-    }
-
     const response = await fetchImpl(`${API_BASE}${accountPath}${path}`, {
       body: body ? JSON.stringify(body) : null,
       headers: {
@@ -111,10 +114,52 @@ export const cloudflareClient = (
       );
     }
 
+    return envelope;
+  };
+
+  const request: CloudflareClient["request"] = async (
+    method,
+    path,
+    schema,
+    body
+  ) => {
+    if (options.dryRun && method !== "GET") {
+      log(`[dry run] ${method} ${accountPath}${path} ${JSON.stringify(body)}`);
+
+      return schema.parse(DRY_RUN_RESULT);
+    }
+
+    const envelope = await send(method, path, body);
+
     return schema.parse(envelope.result);
   };
 
-  return { request };
+  // Lists page until result_info says there are no more pages. A response
+  // without result_info is the whole list.
+  const list: CloudflareClient["list"] = async (path, schema) => {
+    const items = [];
+    const separator = path.includes("?") ? "&" : "?";
+
+    for (let page = 1; ; page += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- each page needs the previous one's result_info.
+      const envelope = await send(
+        "GET",
+        `${path}${separator}page=${page}&per_page=${LIST_PAGE_SIZE}`
+      );
+
+      const pageItems = z.array(schema).parse(envelope.result);
+
+      items.push(...pageItems);
+
+      const totalPages = envelope.result_info?.total_pages;
+
+      if (!totalPages || page >= totalPages || pageItems.length === 0) {
+        return items;
+      }
+    }
+  };
+
+  return { list, request };
 };
 
 const organizationSchema = z.object({ auth_domain: z.string() });
@@ -197,11 +242,7 @@ export const ensurePolicy = async (
   client: CloudflareClient,
   spec: PolicySpec
 ): Promise<string> => {
-  const policies = await client.request(
-    "GET",
-    "/access/policies",
-    z.array(namedSchema)
-  );
+  const policies = await client.list("/access/policies", namedSchema);
 
   const found = policies.find((policy) => policy.name === spec.name);
   const body: PolicyBody = { ...spec, exclude: [], require: [] };
@@ -254,11 +295,7 @@ export const ensureApplication = async (
   spec: ApplicationSpec,
   policyIds: string[]
 ): Promise<{ id: string; aud: string }> => {
-  const apps = await client.request(
-    "GET",
-    "/access/apps",
-    z.array(namedSchema)
-  );
+  const apps = await client.list("/access/apps", namedSchema);
 
   const found = apps.find((app) => app.name === spec.name);
   const body = applicationBody(spec, policyIds);

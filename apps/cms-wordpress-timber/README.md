@@ -22,7 +22,7 @@ pnpm --filter cms-wordpress-timber dev:css   # rebuild the CSS while editing vie
 `setup` is safe to rerun.
 
 - Site: http://localhost:8090/ (the headless install uses 8080, so both can run)
-- Admin: http://localhost:8090/wp-admin/ (`admin` / `admin`, local only)
+- Admin: http://localhost:8090/wp-admin/ (`admin` / `admin`; Docker publishes it on 127.0.0.1 only)
 - WP-CLI: `pnpm --filter cms-wordpress-timber wp -- <command>`
 - Reseed (adds missing pages, leaves existing ones alone): `pnpm --filter cms-wordpress-timber seed`
 - Stop, or wipe the database: `pnpm --filter cms-wordpress-timber stop` / `reset`

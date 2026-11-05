@@ -22,7 +22,7 @@ pnpm --filter web-wordpress dev              # front-end on http://localhost:300
 
 `setup` is safe to rerun. It creates `.env` (gitignored) with a fresh `HEADLESS_SECRET`, and writes `apps/web-wordpress/.env.local` with the same secret and a new application password for the `previewer` editor.
 
-- Admin: http://localhost:8080/wp-admin/ (`admin` / `admin`, local only)
+- Admin: http://localhost:8080/wp-admin/ (`admin` / `admin`; Docker publishes it on 127.0.0.1 only)
 - GraphQL: http://localhost:8080/graphql
 - WP-CLI: `pnpm --filter cms-wordpress-headless wp -- <command>`
 - GraphQL as an administrator: the GraphiQL IDE in wp-admin. Signed-out callers can run only registered queries, by ID.

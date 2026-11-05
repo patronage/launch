@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applicationBody,
   cloudflareClient,
+  ensureApplication,
   provisionLockdown,
 } from "./cloudflare-api.ts";
 import type { RequestBody } from "./cloudflare-api.ts";
@@ -68,11 +69,11 @@ describe("cloudflare access api", () => {
   describe(provisionLockdown, () => {
     it("creates a service token, two policies and the application", async () => {
       const { calls, client } = fakeApi({
-        "GET /access/apps": () => [],
+        "GET /access/apps?page=1&per_page=50": () => [],
         "GET /access/organizations": () => ({
           auth_domain: "team.cloudflareaccess.com",
         }),
-        "GET /access/policies": () => [],
+        "GET /access/policies?page=1&per_page=50": () => [],
         "GET /access/service_tokens?name=web%20worker": () => [],
         "POST /access/apps": () => ({ aud: "new-aud", id: "app-1" }),
         "POST /access/policies": (body) => ({
@@ -133,11 +134,13 @@ describe("cloudflare access api", () => {
 
     it("updates existing resources by name and never re-reveals a token secret", async () => {
       const { calls, client } = fakeApi({
-        "GET /access/apps": () => [{ id: "app-1", name: "Demo WordPress" }],
+        "GET /access/apps?page=1&per_page=50": () => [
+          { id: "app-1", name: "Demo WordPress" },
+        ],
         "GET /access/organizations": () => ({
           auth_domain: "team.cloudflareaccess.com",
         }),
-        "GET /access/policies": () => [
+        "GET /access/policies?page=1&per_page=50": () => [
           { id: "pol-tokens", name: "Demo WordPress service tokens" },
         ],
         "GET /access/service_tokens?name=web": () => [
@@ -189,5 +192,53 @@ describe("cloudflare access api", () => {
         applicationBody({ destinations: [], name: "x" }, [])
       ).toThrow(/destination/u);
     });
+  });
+
+  it("finds an application on a later page instead of creating it again", async () => {
+    const paths: string[] = [];
+
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace("/client/v4/accounts/acct", "");
+      const page = Number(url.searchParams.get("page") ?? 1);
+
+      paths.push(`${init?.method ?? "GET"} ${path}${url.search}`);
+
+      if (path === "/access/apps" && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(
+          Response.json({
+            result:
+              page === 1
+                ? [{ id: "app-0", name: "Other" }]
+                : [{ id: "app-2", name: "Demo WordPress" }],
+            result_info: { page, total_pages: 2 },
+            success: true,
+          })
+        );
+      }
+
+      return Promise.resolve(
+        Response.json({ result: { aud: "aud-2", id: "app-2" }, success: true })
+      );
+    });
+
+    const client = cloudflareClient({
+      accountId: "acct",
+      apiToken: "token",
+      fetch: fetchMock,
+    });
+
+    await expect(
+      ensureApplication(
+        client,
+        { destinations: ["cms.example.org"], name: "Demo WordPress" },
+        ["pol-1"]
+      )
+    ).resolves.toStrictEqual({ aud: "aud-2", id: "app-2" });
+    expect(paths).toStrictEqual([
+      "GET /access/apps?page=1&per_page=50",
+      "GET /access/apps?page=2&per_page=50",
+      "PUT /access/apps/app-2",
+    ]);
   });
 });

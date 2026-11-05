@@ -120,7 +120,8 @@ const shared = {
   ].join(" && "),
   build_token_uuid: env.BUILD_TOKEN_UUID,
   // The API takes each variable as { value, is_secret }, not a bare string.
-  // Database selection and the custom domain are read at build time.
+  // Database selection, the custom domain and the Access settings are read at
+  // build time, so they are passed on when set here.
   environment_variables: Object.fromEntries(
     Object.entries({
       NODE_VERSION: readRepoFile(".nvmrc"),
@@ -133,6 +134,9 @@ const shared = {
           "WORKER_DOMAIN",
           "WORKER_LOGPUSH",
           "WORKER_TRACE_SAMPLING",
+          "ACCESS_TEAM_DOMAIN",
+          "ACCESS_AUD",
+          "ACCESS_GATEWAY_AUD",
         ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])

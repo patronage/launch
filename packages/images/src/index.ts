@@ -43,6 +43,37 @@ export const imagePath = (src: string, prefix: string): string =>
     ? `${IMAGE_ROUTE}/${src.slice(prefix.length).replace(/^\/+/u, "")}`
     : src;
 
+/** File names the media route resizes, by extension. */
+const RASTER_FILE = /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/iu;
+
+/** `src` and `srcset` attributes, with their quoted value. */
+const IMAGE_ATTRIBUTE =
+  /(?<attribute>\s(?:src|srcset)=)(?<quote>["'])(?<value>.*?)\k<quote>/giu;
+
+/**
+ * Points the raster images in CMS-rendered HTML at the media route, as
+ * {@link imagePath} does for one URL: each `src`, and each candidate of a
+ * `srcset`, that starts with `prefix` and names a raster file. Other files
+ * under the prefix (video, PDF, SVG) keep their URLs, since the route refuses
+ * them.
+ */
+export const rewriteImageUrls = (html: string, prefix: string): string =>
+  html.replaceAll(
+    IMAGE_ATTRIBUTE,
+    (_match, attribute: string, quote: string, value: string) => {
+      const rewritten = value
+        .split(",")
+        .map((candidate) =>
+          candidate.replace(/\S+/u, (url) =>
+            RASTER_FILE.test(url) ? imagePath(url, prefix) : url
+          )
+        )
+        .join(",");
+
+      return `${attribute}${quote}${rewritten}${quote}`;
+    }
+  );
+
 /**
  * Joins route segments back into a path, rejecting empty, `.` and `..`
  * segments so a request cannot climb out of the media directory.
