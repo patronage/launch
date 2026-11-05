@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wp-deploy 2.6.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# wp-deploy 2.6.1 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
 # Sites vendor this file unchanged. Put site settings in _build/deploy.env.
 #
@@ -57,7 +57,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.6.0"
+WP_DEPLOY_VERSION="2.6.1"
 
 BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$BUILD_DIR")"
@@ -83,6 +83,23 @@ FORBIDDEN_PAYLOAD_REGEX='(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/
 # Its .env part, .env and .env.<anything> in any folder. The audit warns when
 # the webroot has a file matching it.
 ENV_FILE_REGEX='(^|/)\.env(\.[^/]*)?$'
+# Example files that hold no values, such as a plugin's .env.example, which
+# the payload check and the audit allow. The Cloudways hook has the same list.
+ENV_TEMPLATE_REGEX='(^|/)\.env\.(example|sample|dist|template)$'
+
+# True when $1 must never be in a payload. An example .env file is exempt from
+# the .env rule only: it is checked again under a neutral name in its folder,
+# so the uploads rule and any custom rule on its folder still apply.
+forbidden_payload_path() {
+  local path="$1"
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]] || return 1
+  [[ "$path" =~ $ENV_TEMPLATE_REGEX ]] || return 0
+  case "$path" in
+    */*) path="${path%/*}/env-template" ;;
+    *) path="env-template" ;;
+  esac
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]]
+}
 
 # Paths the server manages itself, on every host. Deploys never delete them, and
 # seeing them on the server is expected. install-hook writes this text into the
@@ -467,7 +484,9 @@ package() {
     [ -z "$leftover" ] || die "exclude entry '$entry' is still in the payload:\n$leftover"
   done < <(read_list "$EXCLUDE_FILE")
 
-  forbidden="$(git ls-files -- . | grep -E "$FORBIDDEN_PAYLOAD_REGEX" || true)"
+  forbidden="$(git ls-files -- . | while IFS= read -r path; do
+    if forbidden_payload_path "$path"; then printf '%s\n' "$path"; fi
+  done)"
   [ -z "$forbidden" ] || die "payload contains files that must never be deployed:\n$forbidden\nAdd them to $(basename "$EXCLUDE_FILE")."
 
   DEPLOY_TREE="$(git write-tree)"
@@ -1043,7 +1062,7 @@ server_env_files() {
     else
       for f in .env*; do [ -e "$f" ] && [ ! -d "$f" ] && printf "%s\n" "$f"; done
     fi
-    exit 0' "$REMOTE_WEBROOT" | grep -E "$ENV_FILE_REGEX" | sort -u || true
+    exit 0' "$REMOTE_WEBROOT" | grep -E "$ENV_FILE_REGEX" | grep -Ev "$ENV_TEMPLATE_REGEX" | sort -u || true
 }
 
 # The source commit of a deploy commit: its Source trailer, or the parent of an

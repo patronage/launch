@@ -42,10 +42,26 @@ BRANCH="${DEPLOY_BRANCH:-master}"
 WORDPRESS_FOLDER="${DEPLOY_WORDPRESS_FOLDER:-}"
 PROTECTED_REGEX="${DEPLOY_PROTECTED_REGEX:-^(wp-config\.php|\.htaccess)$|^wp-content/uploads/}"
 FORBIDDEN_REGEX="${DEPLOY_FORBIDDEN_PAYLOAD_REGEX:-(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/uploads/}"
+# Example .env files that hold no values (a plugin's .env.example) are allowed.
+ENV_TEMPLATE_REGEX='(^|/)\.env\.(example|sample|dist|template)$'
 INSTALLED_FILE="$GIT_DIR/deploy-installed-rev"
 ATTEMPTED_FILE="$GIT_DIR/deploy-attempted-revs"
 LOCK_FILE="$GIT_DIR/deploy.lock"
 LOCK_WAIT="${DEPLOY_LOCK_WAIT:-600}"
+
+# True when $1 makes the hook refuse the payload. An example .env file is exempt
+# from the .env rule only: it is checked again under a neutral name in its
+# folder, so the uploads rule and custom folder rules still apply.
+forbidden_path() {
+  local path="$1"
+  [[ "$path" =~ $FORBIDDEN_REGEX ]] || return 1
+  [[ "$path" =~ $ENV_TEMPLATE_REGEX ]] || return 0
+  case "$path" in
+    */*) path="${path%/*}/env-template" ;;
+    *) path="env-template" ;;
+  esac
+  [[ "$path" =~ $FORBIDDEN_REGEX ]]
+}
 
 # Paths a deploy never deletes, even when the repo stops tracking them.
 is_protected() {
@@ -87,7 +103,7 @@ deploy() {
   forbidden="$(git --git-dir="$GIT_DIR" ls-tree -r --name-only "$newrev" -- "${prefix:-.}" |
     while IFS= read -r path; do
       rel="${path#"$prefix"}"
-      if [[ "$rel" =~ $FORBIDDEN_REGEX ]]; then echo "$rel"; fi
+      if forbidden_path "$rel"; then echo "$rel"; fi
     done)"
   if [ -n "$forbidden" ]; then
     echo "Refusing to install: the payload contains protected paths:"

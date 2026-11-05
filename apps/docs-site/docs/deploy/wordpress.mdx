@@ -41,6 +41,6 @@ pnpm run deploy staging
 pnpm run deploy production
 ```
 
-On Cloudways, the hook installs one push at a time, and skips a push that a newer one has already replaced. It deletes files against the last commit it installed in full, so a refused push doesn't leave old files behind on the next one. No `.env` file, in any folder or variant, is ever deployed.
+On Cloudways, the hook installs one push at a time, and skips a push that a newer one has already replaced. It deletes files against the last commit it installed in full, so a refused push doesn't leave old files behind on the next one. No `.env` file, in any folder or variant, is ever deployed, apart from example files such as a plugin's `.env.example`.
 
 A site outside this repo copies the kit's files into its own `_build/` folder unchanged, and keeps anything site-specific in `deploy.env`. The kit's [README](https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md) covers every command, host and setting.
