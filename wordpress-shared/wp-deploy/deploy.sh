@@ -726,11 +726,18 @@ remove_stale_files() {
       else
         waited=0
         until mkdir "$2/deploy.lock.d" 2>/dev/null; do
+          pid="$(cat "$2/deploy.lock.d/pid" 2>/dev/null)"
+          if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$2/deploy.lock.d/pid"
+            rmdir "$2/deploy.lock.d" 2>/dev/null
+            continue
+          fi
           [ "$waited" -lt 600 ] || exit 4
           sleep 1
           waited=$((waited + 1))
         done
-        trap "rmdir \"$2/deploy.lock.d\" 2>/dev/null" EXIT
+        echo "$$" >"$2/deploy.lock.d/pid"
+        trap "rm -f \"$2/deploy.lock.d/pid\"; rmdir \"$2/deploy.lock.d\" 2>/dev/null" EXIT
       fi
       [ "$(git --git-dir="$2" rev-parse -q --verify "refs/heads/$3")" = "$4" ] || exit 3
     fi
@@ -792,10 +799,10 @@ installed_server_ref() {
   if [ -z "$installed" ] || [ "$installed" = "$1" ]; then
     printf '%s' "$1"
   elif git cat-file -e "$installed^{commit}" 2>/dev/null; then
-    log "The server's branch is $1, but the last commit installed in full is $installed"
+    log "The server's branch is $1, but the last commit installed in full is $installed" >&2
     printf '%s' "$installed"
   else
-    log "WARNING: the last commit installed in full, $installed, is not in this repo; checking against the server's branch $1"
+    log "WARNING: the last commit installed in full, $installed, is not in this repo; checking against the server's branch $1" >&2
     printf '%s' "$1"
   fi
 }

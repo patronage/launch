@@ -458,6 +458,26 @@ out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
 check "hook: a retry after a refused push reports DEPLOY_OK" grep -q "DEPLOY_OK" <<<"$out"
 check "hook: a retry removes what the refused push deleted" [ ! -e "$WEBROOT/wp-content/plugins/gone/gone.php" ]
 
+# An install that stopped partway: the next full install also removes what it wrote.
+write "$SRC/wordpress/wp-content/plugins/half/new.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm half
+mv "$BARE/hooks/post-receive" "$WORK/post-receive.off"
+git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main >/dev/null 2>&1
+mv "$WORK/post-receive.off" "$BARE/hooks/post-receive"
+git -C "$SRC" rev-parse HEAD >>"$BARE/deploy-attempted-revs"
+write "$WEBROOT/wp-content/plugins/half/new.php"
+git -C "$SRC" rm -q -r wordpress/wp-content/plugins/half
+git -C "$SRC" commit -qm unhalf
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: the install after a partial one reports DEPLOY_OK" grep -q "DEPLOY_OK" <<<"$out"
+check "hook: the install after a partial one removes the files it wrote" [ ! -e "$WEBROOT/wp-content/plugins/half/new.php" ]
+check "hook: a full install clears the partial-install record" [ ! -e "$BARE/deploy-attempted-revs" ]
+
+# The client reads the last full install without picking up its own log lines.
+got="$(remote_bash() { printf 'abc123\n'; }; git() { if [ "$1" = cat-file ]; then return 0; fi; command git "$@"; }; installed_server_ref def456 2>/dev/null)"
+check "installed_server_ref prints only the commit" [ "$got" = abc123 ]
+
 # A hook whose commit is no longer the branch tip installs nothing.
 older="$(git -C "$SRC" rev-parse HEAD)"
 write "$SRC/wordpress/sixth.php"

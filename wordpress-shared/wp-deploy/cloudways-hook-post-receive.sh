@@ -43,6 +43,7 @@ WORDPRESS_FOLDER="${DEPLOY_WORDPRESS_FOLDER:-}"
 PROTECTED_REGEX="${DEPLOY_PROTECTED_REGEX:-^(wp-config\.php|\.htaccess)$|^wp-content/uploads/}"
 FORBIDDEN_REGEX="${DEPLOY_FORBIDDEN_PAYLOAD_REGEX:-(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/uploads/}"
 INSTALLED_FILE="$GIT_DIR/deploy-installed-rev"
+ATTEMPTED_FILE="$GIT_DIR/deploy-attempted-revs"
 LOCK_FILE="$GIT_DIR/deploy.lock"
 LOCK_WAIT="${DEPLOY_LOCK_WAIT:-600}"
 
@@ -136,6 +137,13 @@ deploy() {
     return 1
   fi
 
+  # From here on the webroot changes. Note the commit, so that if this install
+  # stops partway the next one also removes the files it wrote.
+  if ! printf '%s\n' "$newrev" >>"$ATTEMPTED_FILE"; then
+    rm -f "$index" "$index.dirs" "$index.bad"
+    echo "Writing $ATTEMPTED_FILE failed"
+    return 1
+  fi
   if ! GIT_INDEX_FILE="$index" git --git-dir="$GIT_DIR" --work-tree="$TARGET" checkout-index -a -f; then
     rm -f "$index" "$index.dirs" "$index.bad"
     echo "Extracting $newrev failed"
@@ -143,9 +151,14 @@ deploy() {
   fi
   rm -f "$index" "$index.dirs" "$index.bad"
 
-  [ -n "$oldrev" ] || return 0
-  deleted="$(git --git-dir="$GIT_DIR" diff --name-only --no-renames --diff-filter=D "$oldrev" "$newrev" -- "${prefix:-.}")" ||
-    { echo "Listing deleted files failed"; return 1; }
+  # Deleted since the last full install, plus anything an install that stopped
+  # partway since then wrote and this commit doesn't have.
+  deleted="$(
+    for rev in ${oldrev:+"$oldrev"} $(attempted_revs); do
+      [ "$rev" != "$newrev" ] || continue
+      git --git-dir="$GIT_DIR" diff --name-only --no-renames --diff-filter=D "$rev" "$newrev" -- "${prefix:-.}" || exit 1
+    done | sort -u
+  )" || { echo "Listing deleted files failed"; return 1; }
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     rel="${path#"$prefix"}"
@@ -164,18 +177,27 @@ deploy() {
 # Hold the deploy lock until the hook exits: flock where the server has it,
 # else a lock folder. deploy.sh prune takes the same lock to delete files.
 take_lock() {
-  local waited=0
+  local waited=0 pid
   if command -v flock >/dev/null; then
     exec 9>>"$LOCK_FILE" || return 1
     flock -w "$LOCK_WAIT" 9
     return
   fi
   until mkdir "$LOCK_FILE.d" 2>/dev/null; do
+    # A holder that died without cleaning up (killed, server restart) left its pid.
+    pid="$(cat "$LOCK_FILE.d/pid" 2>/dev/null)"
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      echo "Removing a stale deploy lock left by process $pid"
+      rm -f "$LOCK_FILE.d/pid"
+      rmdir "$LOCK_FILE.d" 2>/dev/null
+      continue
+    fi
     [ "$waited" -lt "$LOCK_WAIT" ] || return 1
     sleep 1
     waited=$((waited + 1))
   done
-  trap 'rmdir "$LOCK_FILE.d" 2>/dev/null' EXIT
+  echo "$$" >"$LOCK_FILE.d/pid"
+  trap 'rm -f "$LOCK_FILE.d/pid"; rmdir "$LOCK_FILE.d" 2>/dev/null' EXIT
 }
 
 # The commit this hook last installed in full, if Git still has it.
@@ -188,8 +210,21 @@ installed_rev() {
   fi
 }
 
+# Commits whose install started writing the webroot since the last full
+# install, if Git still has them.
+attempted_revs() {
+  local rev
+  [ -f "$ATTEMPTED_FILE" ] || return 0
+  sort -u "$ATTEMPTED_FILE" | while IFS= read -r rev; do
+    if [ -n "$rev" ] && git --git-dir="$GIT_DIR" cat-file -e "$rev^{commit}" 2>/dev/null; then
+      printf '%s\n' "$rev"
+    fi
+  done
+}
+
 record_installed() {
-  printf '%s\n' "$1" >"$INSTALLED_FILE.$$" && mv -f "$INSTALLED_FILE.$$" "$INSTALLED_FILE"
+  printf '%s\n' "$1" >"$INSTALLED_FILE.$$" && mv -f "$INSTALLED_FILE.$$" "$INSTALLED_FILE" &&
+    rm -f "$ATTEMPTED_FILE"
 }
 
 echo "Post-receive: triggered at $(date)"
