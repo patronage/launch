@@ -136,7 +136,7 @@ check "site mu-plugins are not WP Engine-managed" bash -c '! grep -Eq "$1" <<<"$
 check "Kinsta mu-plugins are server-managed" bash -c 'grep -Eq "$1" <<<wp-content/mu-plugins/kinsta-mu-plugins.php && grep -Eq "$1" <<<wp-content/mu-plugins/kinsta-mu-plugins/inc.php && ! grep -Eq "$1" <<<wp-content/mu-plugins/site-mu.php' _ "$(host_managed_regex kinsta)"
 check "Cloudways adds no host-managed paths" [ -z "$(host_managed_regex cloudways)" ]
 # install-hook writes FORBIDDEN_PAYLOAD_REGEX to Cloudways servers; the audit's .env check uses its .env part.
-check "FORBIDDEN_PAYLOAD_REGEX is unchanged" [ "$FORBIDDEN_PAYLOAD_REGEX" = '(^|/)\.env$|^\.env\.|(^|/)wp-config\.php$|^wp-content/uploads/' ]
+check "FORBIDDEN_PAYLOAD_REGEX is unchanged" [ "$FORBIDDEN_PAYLOAD_REGEX" = '(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/uploads/' ]
 check "ENV_FILE_REGEX is the .env part of FORBIDDEN_PAYLOAD_REGEX" [ "${FORBIDDEN_PAYLOAD_REGEX#"$ENV_FILE_REGEX|"}" = '(^|/)wp-config\.php$|^wp-content/uploads/' ]
 # Host-provided file names appear only in deploy.sh's host-managed block.
 stray="$(sed '/^# --- Host-managed paths/,/^# --- End of host-managed paths/d' "$BUILD_DIR/deploy.sh" | grep -nE 'kinsta-mu-plugins|wpengine-common|wpe-cache-plugin|_wpeprivate|mysql\\.sql|breeze-config' || true)"
@@ -437,6 +437,78 @@ out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/master 2>&1 || true
 check "hook: ignores branches other than DEPLOY_BRANCH" grep -q "refs/heads/master received. Ignoring" <<<"$out"
 out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
 check "hook: installs DEPLOY_BRANCH" grep -q "DEPLOY_OK" <<<"$out"
+check "hook: records the commit it installed" [ "$(cat "$BARE/deploy-installed-rev")" = "$(git -C "$SRC" rev-parse HEAD)" ]
+
+# A push Git accepts but the hook refuses must not hide its deletions from the next push.
+write "$SRC/wordpress/wp-content/plugins/gone/gone.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm with-gone
+git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main >/dev/null 2>&1 || true
+git -C "$SRC" rm -q -r wordpress/wp-content/plugins/gone
+mkdir -p "$WEBROOT/wp-content/plugins/kept/data"
+write "$SRC/wordpress/wp-content/plugins/kept/data" repo-file
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm refused
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: a refused push leaves the last installed commit recorded" [ "$(cat "$BARE/deploy-installed-rev")" = "$(git -C "$SRC" rev-parse HEAD~1)" ]
+rmdir "$WEBROOT/wp-content/plugins/kept/data"
+git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/data
+git -C "$SRC" commit -qm retry
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: a retry after a refused push reports DEPLOY_OK" grep -q "DEPLOY_OK" <<<"$out"
+check "hook: a retry removes what the refused push deleted" [ ! -e "$WEBROOT/wp-content/plugins/gone/gone.php" ]
+
+# An install that stopped partway: the next full install also removes what it wrote.
+write "$SRC/wordpress/wp-content/plugins/half/new.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm half
+mv "$BARE/hooks/post-receive" "$WORK/post-receive.off"
+git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main >/dev/null 2>&1
+mv "$WORK/post-receive.off" "$BARE/hooks/post-receive"
+git -C "$SRC" rev-parse HEAD >>"$BARE/deploy-attempted-revs"
+write "$WEBROOT/wp-content/plugins/half/new.php"
+git -C "$SRC" rm -q -r wordpress/wp-content/plugins/half
+git -C "$SRC" commit -qm unhalf
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: the install after a partial one reports DEPLOY_OK" grep -q "DEPLOY_OK" <<<"$out"
+check "hook: the install after a partial one removes the files it wrote" [ ! -e "$WEBROOT/wp-content/plugins/half/new.php" ]
+check "hook: a full install clears the partial-install record" [ ! -e "$BARE/deploy-attempted-revs" ]
+
+# The client reads the last full install without picking up its own log lines.
+got="$(remote_bash() { printf 'abc123\n'; }; git() { if [ "$1" = cat-file ]; then return 0; fi; command git "$@"; }; installed_server_ref def456 2>/dev/null)"
+check "installed_server_ref prints only the commit" [ "$got" = abc123 ]
+
+# A hook whose commit is no longer the branch tip installs nothing.
+older="$(git -C "$SRC" rev-parse HEAD)"
+write "$SRC/wordpress/sixth.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm six
+git --git-dir="$BARE" update-ref refs/heads/main "$(git -C "$SRC" rev-parse HEAD)" 2>/dev/null ||
+  git -C "$SRC" push -q --no-verify "$BARE" HEAD:refs/heads/main >/dev/null 2>&1
+out="$(printf '%s %s refs/heads/main\n' "$older" "$older" | GIT_DIR="$BARE" bash "$BARE/hooks/post-receive" 2>&1 || true)"
+check "hook: a superseded commit is skipped" grep -q "Skipping $older" <<<"$out"
+check "hook: a superseded commit does not report DEPLOY_OK" bash -c '! grep -q DEPLOY_OK <<<"$1"' _ "$out"
+
+# A held deploy lock makes the hook wait, then give up.
+if command -v flock >/dev/null; then
+  exec 8>>"$BARE/deploy.lock"
+  flock 8
+  out="$(printf '%s %s refs/heads/main\n' "$older" "$(git -C "$SRC" rev-parse HEAD)" | DEPLOY_LOCK_WAIT=1 GIT_DIR="$BARE" bash "$BARE/hooks/post-receive" 2>&1 || true)"
+  check "hook: waits for the deploy lock, then gives up" grep -q "Another deploy holds" <<<"$out"
+  exec 8>&-
+fi
+
+# .env files in any folder, in any variant, are refused.
+write "$SRC/wordpress/wp-content/plugins/kept/.env.production" SECRET=invented
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm nested-env
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: a nested .env.production is refused" grep -q "wp-content/plugins/kept/.env.production" <<<"$out"
+check "hook: a nested .env.production is not installed" [ ! -e "$WEBROOT/wp-content/plugins/kept/.env.production" ]
+git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/.env.production
+git -C "$SRC" commit -qm unnested-env
+check "FORBIDDEN_PAYLOAD_REGEX matches .env variants in any folder" bash -c '[[ "a/b/.env.local" =~ $1 && ".env.production" =~ $1 && "a/.env" =~ $1 && ! "a/.envrc" =~ $1 && ! "a/.env.d/x" =~ $1 ]]' _ "$FORBIDDEN_PAYLOAD_REGEX"
+
 rm "$BARE/deploy-hook.env"
 write "$SRC/wordpress/fifth.php"
 git -C "$SRC" add -A
@@ -533,6 +605,8 @@ out="$(cd "$REPO/wordpress" && DEPLOY_HOST=cloudways bash _build/deploy.sh devel
 check "Cloudways has no development target" grep -q "no development target" <<<"$out"
 out="$(cd "$REPO/wordpress" && COMPOSE_WPE_STAGING=examplestg bash _build/deploy.sh install-hook wpe-staging 2>&1 || true)"
 check "install-hook refuses non-Cloudways targets" grep -q "only supports Cloudways" <<<"$out"
+out="$(cd "$REPO/wordpress" && bash _build/deploy.sh install-hook cloudways-staging --dry-run 2>&1 || true)"
+check "install-hook refuses --dry-run" grep -q "install-hook has no dry run" <<<"$out"
 out="$(cd "$REPO/wordpress" && bash _build/deploy.sh cloudways-production --delete 2>&1 || true)"
 check "--delete is refused outside prune" grep -q "only applies to prune" <<<"$out"
 out="$(cd "$REPO/wordpress" && bash _build/deploy.sh prune cloudways-production --dry-run --delete 2>&1 || true)"
