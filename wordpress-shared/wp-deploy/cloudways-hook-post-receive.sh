@@ -49,6 +49,20 @@ ATTEMPTED_FILE="$GIT_DIR/deploy-attempted-revs"
 LOCK_FILE="$GIT_DIR/deploy.lock"
 LOCK_WAIT="${DEPLOY_LOCK_WAIT:-600}"
 
+# True when $1 makes the hook refuse the payload. An example .env file is exempt
+# from the .env rule only: it is checked again under a neutral name in its
+# folder, so the uploads rule and custom folder rules still apply.
+forbidden_path() {
+  local path="$1"
+  [[ "$path" =~ $FORBIDDEN_REGEX ]] || return 1
+  [[ "$path" =~ $ENV_TEMPLATE_REGEX ]] || return 0
+  case "$path" in
+    */*) path="${path%/*}/env-template" ;;
+    *) path="env-template" ;;
+  esac
+  [[ "$path" =~ $FORBIDDEN_REGEX ]]
+}
+
 # Paths a deploy never deletes, even when the repo stops tracking them.
 is_protected() {
   case "$1" in
@@ -89,7 +103,7 @@ deploy() {
   forbidden="$(git --git-dir="$GIT_DIR" ls-tree -r --name-only "$newrev" -- "${prefix:-.}" |
     while IFS= read -r path; do
       rel="${path#"$prefix"}"
-      if [[ "$rel" =~ $FORBIDDEN_REGEX && ! "$rel" =~ $ENV_TEMPLATE_REGEX ]]; then echo "$rel"; fi
+      if forbidden_path "$rel"; then echo "$rel"; fi
     done)"
   if [ -n "$forbidden" ]; then
     echo "Refusing to install: the payload contains protected paths:"

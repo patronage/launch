@@ -515,6 +515,10 @@ out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
 check "hook: a plugin's .env.example is installed" grep -q "DEPLOY_OK" <<<"$out"
 git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/.env.example
 git -C "$SRC" commit -qm no-env-example
+check "an example .env file under uploads is still forbidden" forbidden_payload_path wp-content/uploads/.env.example
+allowed_payload_path() { ! forbidden_payload_path "$1"; }
+check "an example .env file elsewhere is allowed" allowed_payload_path wp-content/plugins/x/.env.example
+check "a nested .env.production is forbidden" forbidden_payload_path wp-content/plugins/x/.env.production
 check "ENV_TEMPLATE_REGEX allows example .env files only" bash -c '[[ "a/.env.example" =~ $1 && ".env.sample" =~ $1 && ! "a/.env.production" =~ $1 && ! "a/.env" =~ $1 ]]' _ "$ENV_TEMPLATE_REGEX"
 check "FORBIDDEN_PAYLOAD_REGEX matches .env variants in any folder" bash -c '[[ "a/b/.env.local" =~ $1 && ".env.production" =~ $1 && "a/.env" =~ $1 && ! "a/.envrc" =~ $1 && ! "a/.env.d/x" =~ $1 ]]' _ "$FORBIDDEN_PAYLOAD_REGEX"
 

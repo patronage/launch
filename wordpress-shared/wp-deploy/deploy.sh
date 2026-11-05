@@ -87,6 +87,20 @@ ENV_FILE_REGEX='(^|/)\.env(\.[^/]*)?$'
 # the payload check and the audit allow. The Cloudways hook has the same list.
 ENV_TEMPLATE_REGEX='(^|/)\.env\.(example|sample|dist|template)$'
 
+# True when $1 must never be in a payload. An example .env file is exempt from
+# the .env rule only: it is checked again under a neutral name in its folder,
+# so the uploads rule and any custom rule on its folder still apply.
+forbidden_payload_path() {
+  local path="$1"
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]] || return 1
+  [[ "$path" =~ $ENV_TEMPLATE_REGEX ]] || return 0
+  case "$path" in
+    */*) path="${path%/*}/env-template" ;;
+    *) path="env-template" ;;
+  esac
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]]
+}
+
 # Paths the server manages itself, on every host. Deploys never delete them, and
 # seeing them on the server is expected. install-hook writes this text into the
 # Cloudways server's deploy-hook.env, so changing it means reinstalling the hook.
@@ -470,7 +484,9 @@ package() {
     [ -z "$leftover" ] || die "exclude entry '$entry' is still in the payload:\n$leftover"
   done < <(read_list "$EXCLUDE_FILE")
 
-  forbidden="$(git ls-files -- . | grep -E "$FORBIDDEN_PAYLOAD_REGEX" | grep -Ev "$ENV_TEMPLATE_REGEX" || true)"
+  forbidden="$(git ls-files -- . | while IFS= read -r path; do
+    if forbidden_payload_path "$path"; then printf '%s\n' "$path"; fi
+  done)"
   [ -z "$forbidden" ] || die "payload contains files that must never be deployed:\n$forbidden\nAdd them to $(basename "$EXCLUDE_FILE")."
 
   DEPLOY_TREE="$(git write-tree)"
