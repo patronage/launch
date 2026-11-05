@@ -30,6 +30,8 @@ Each app's `pnpm run builds:configure` creates this configuration through the Wo
 
 To keep a Worker's request logs, set `WORKER_LOGPUSH=true` before running `builds:configure`, so builds pass it on. See [Logging](/references/logging).
 
+The same goes for the other settings an app reads at build time: `WORKER_NAME`, `WORKER_DOMAIN`, and the `ACCESS_*` values (Payload's `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` turn on its Access sign-in and let the deployed admin create its first user). Set them before running `builds:configure`, or later builds fall back to the defaults.
+
 Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
 
 The full write-up, including what the first run taught, is in [Workers Builds and preview URLs](/research/workers-builds).

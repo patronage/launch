@@ -7,7 +7,7 @@ import {
 } from "@launch/ui";
 
 import type { Content } from "@/lib/wordpress/content";
-import { toSectionsPage } from "@/lib/wordpress/sections";
+import { toSectionsPage, withMediaImages } from "@/lib/wordpress/sections";
 
 const formatDate = (date: string) =>
   new Date(date).toLocaleDateString("en-US", { dateStyle: "long" });
@@ -43,7 +43,7 @@ const Body = ({ html, top }: { html: string; top: "none" | "md" }) => (
         <div
           className="l-rich-raw"
           // oxlint-disable-next-line react/no-danger -- block editor HTML, written by signed-in editors (see docs/spikes/03-cms-neutral-sections.md).
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: withMediaImages(html) }}
         />
       </RichText>
     </Container>

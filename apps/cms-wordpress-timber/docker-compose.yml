@@ -42,7 +42,8 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${WP_PORT:-8090}:80"
+      # Loopback only: the local admin is admin / admin. WP_BIND=0.0.0.0 opens it to the network.
+      - "${WP_BIND:-127.0.0.1}:${WP_PORT:-8090}:80"
     environment: *wordpress-env
     volumes: *wordpress-volumes
     # On a fresh volume the entrypoint copies WordPress in before it writes

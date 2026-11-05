@@ -273,22 +273,36 @@ function patronage_headless_revalidate_queue_post(WP_Post $post): void {
 function patronage_headless_revalidate_remember(WP_Post $post): void {
   $queue = &patronage_headless_revalidate_queue();
   $queue['before'][$post->ID] ??= (string) get_permalink($post);
+  patronage_headless_revalidate_remember_descendants($post);
+}
+
+/**
+ * Records the URL of each published descendant of a hierarchical post. The
+ * walk goes through unpublished and trashed descendants too, since a
+ * published page under a draft one still moves when the parent does.
+ */
+function patronage_headless_revalidate_remember_descendants(WP_Post $post): void {
   if (!is_post_type_hierarchical($post->post_type)) {
     return;
   }
+  $queue = &patronage_headless_revalidate_queue();
+  $seen = [$post->ID => true];
   $parents = [$post->ID];
   while ($parents) {
     $children = get_posts([
       'post_type' => $post->post_type,
-      'post_status' => 'publish',
+      'post_status' => ['publish', 'future', 'draft', 'pending', 'private', 'trash'],
       'post_parent__in' => $parents,
-      'post__not_in' => array_keys($queue['before']),
+      'post__not_in' => array_keys($seen),
       'posts_per_page' => -1,
       'no_found_rows' => true,
     ]);
     $parents = [];
     foreach ($children as $child) {
-      $queue['before'][$child->ID] ??= (string) get_permalink($child);
+      $seen[$child->ID] = true;
+      if ($child->post_status === 'publish') {
+        $queue['before'][$child->ID] ??= (string) get_permalink($child);
+      }
       $parents[] = $child->ID;
     }
   }
@@ -357,13 +371,16 @@ add_action('wp_trash_post', $patronage_headless_revalidate_remember_published);
 add_action('pre_post_update', $patronage_headless_revalidate_remember_published);
 
 // Deleting a published post without trashing it first fires no status change.
-// Deleting a parent also moves its children up a level.
+// Deleting a parent, published or already trashed, also moves its children up
+// a level without saving them, so their old and new paths are sent here.
 add_action(
   'before_delete_post',
   function (int $post_id, WP_Post $post): void {
     if ($post->post_status === 'publish' && patronage_headless_revalidate_post_is_public($post)) {
       patronage_headless_revalidate_remember($post);
       patronage_headless_revalidate_queue_post($post);
+    } elseif (is_post_type_viewable($post->post_type)) {
+      patronage_headless_revalidate_remember_descendants($post);
     }
   },
   10,

@@ -1,6 +1,6 @@
 import { createWordPressAdapter } from "@launch/adapter-wordpress";
 import type { Page } from "@launch/content-model";
-import { imagePath } from "@launch/images";
+import { imagePath, rewriteImageUrls } from "@launch/images";
 import { RichTextBlock } from "@launch/ui";
 import type { ReactNode } from "react";
 import { createElement } from "react";
@@ -13,6 +13,13 @@ export const UPLOADS_PATH = "/wp-content/uploads/";
 
 /** Where form sections post (with the trailing slash every route here has); app/forms/submit passes them to WordPress. */
 export const FORM_ACTION = "/forms/submit/";
+
+/**
+ * Block editor HTML with its uploaded images served through app/media, since
+ * visitors can't reach the CMS's uploads behind Access.
+ */
+export const withMediaImages = (html: string): string =>
+  rewriteImageUrls(html, `${wordpressEnv().origin}${UPLOADS_PATH}`);
 
 const adapter = () => {
   const { origin } = wordpressEnv();
