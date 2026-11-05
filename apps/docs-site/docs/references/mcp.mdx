@@ -3,7 +3,7 @@ title: MCP server
 description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that can only change content after a person approves.
 ---
 
-The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. They're published to npm under `@patronage`. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
+The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. They're published to npm under `@patronage`, with `@patronage/access`, so another site installs them rather than copying the code. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
 
 ## What a site's team gets
 
@@ -23,6 +23,40 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 
 The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
+
+## Use the packages on another site
+
+A site's gateway is a small Worker of its own that installs the packages from npm and lists the connectors it needs.
+
+```bash
+pnpm add @patronage/mcp-core @cloudflare/codemode
+pnpm add @patronage/mcp-payload     # a site with Payload
+pnpm add @patronage/mcp-wordpress   # a site with WordPress
+```
+
+```ts
+import { createWorker } from "@patronage/mcp-core";
+import { BaseGatewayRuntime } from "@patronage/mcp-core/runtime";
+import { payloadConnector } from "@patronage/mcp-payload";
+
+export { CodemodeRuntime } from "@cloudflare/codemode";
+
+const connectors = [payloadConnector];
+
+export class GatewayRuntime extends BaseGatewayRuntime<Env> {
+  protected readonly connectors = connectors;
+}
+
+export default createWorker<Env>({ connectors });
+```
+
+Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the starting point, and drop the bindings for a CMS the site doesn't have. The published `@patronage/mcp-core` already contains the approval card, so the site has no `generate` step. Then:
+
+- **Keep an existing Durable Object class name.** A gateway that already runs with another class name, such as `WordPressRuntime`, names its subclass that and points `GATEWAY_RUNTIME` at it. Cloudflare keys stored runs and pending approvals to the class.
+- **Payload** needs `@payloadcms/plugin-mcp` with read tools only, plus the `getEditingInfo`, `markdownToRichText` and `richTextToMarkdown` tools from `apps/payload/src/mcp-tools.ts`. `payload.apply` reads `getEditingInfo` before every write and refuses without it. The users collection adds `accessGatewayAuthStrategy` from `@patronage/access/payload`, so Payload trusts the forwarded sign-in.
+- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`.
+- **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The `access:provision` command runs only inside the Launch repo.
+- **Logging**: `@patronage/logging` is not published, so a site that wants its provisioning scripts copies `packages/logging`.
 
 ## Signing in with something other than Access
 
