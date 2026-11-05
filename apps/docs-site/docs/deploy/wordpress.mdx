@@ -36,9 +36,11 @@ From the app folder, with a clean working tree:
 ```bash
 pnpm run deploy staging --dry-run      # build and show the payload; needs no SSH
 pnpm run deploy audit staging          # read-only report on the server's files
-pnpm run deploy install-hook staging   # Cloudways, once per environment
+pnpm run deploy install-hook staging   # Cloudways, once per environment and after each kit upgrade
 pnpm run deploy staging
 pnpm run deploy production
 ```
+
+On Cloudways, the hook installs one push at a time, and skips a push that a newer one has already replaced. It deletes files against the last commit it installed in full, so a refused push doesn't leave old files behind on the next one. No `.env` file, in any folder or variant, is ever deployed.
 
 A site outside this repo copies the kit's files into its own `_build/` folder unchanged, and keeps anything site-specific in `deploy.env`. The kit's [README](https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md) covers every command, host and setting.
