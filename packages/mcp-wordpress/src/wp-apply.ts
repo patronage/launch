@@ -1,6 +1,5 @@
 import {
   ApplyConflictError,
-  UpstreamRequestError,
   batchStatus,
   deepEqual,
   previewValue,
@@ -12,7 +11,6 @@ import type {
   JsonValue,
   OperationPreflight,
   OperationReceipt,
-  ReceiptError,
   UpstreamClient,
   UpstreamFetchResult,
   UpstreamTelemetry,
@@ -22,14 +20,17 @@ import { z } from "zod";
 import { wordPressErrorMessage, wpFetch } from "./wordpress";
 import {
   changedPaths,
+  isRedirectOperation,
   operationSentence,
   operationTarget,
 } from "./wp-operations";
-import type { WriteOperation } from "./wp-operations";
-
-const MISSED_PATH_LIMIT = 5;
+import type { UpdatePostOperation, WriteOperation } from "./wp-operations";
+import { missedPathsMessage, toReceiptError } from "./wp-receipts";
+import { applyRedirect, preflightRedirect } from "./wp-redirects";
 
 const ACF_PREFIX = "acf.";
+
+const META_PREFIX = "meta.";
 
 const UNREADABLE_MODIFIED_GMT_CODE = "unreadable_modified_gmt";
 
@@ -46,14 +47,28 @@ const stringSchema = z.string();
 // the raw value is the one a write round-trips through.
 const editableFieldSchema = z.object({ raw: z.json() });
 
+// `acf` and `meta` are both objects keyed by field name on a REST post.
+// WordPress answers an empty `meta` with `[]`, which fails the record parse and
+// reads as absent, the same as a key the site never registered.
+const nestedValue = (
+  container: JsonValue | undefined,
+  key: string
+): JsonValue | undefined => {
+  const parsed = recordSchema.safeParse(container);
+
+  return parsed.success ? parsed.data[key] : undefined;
+};
+
 export const readPath = (
   record: JsonObject,
   path: string
 ): JsonValue | undefined => {
   if (path.startsWith(ACF_PREFIX)) {
-    const acf = recordSchema.safeParse(record.acf);
+    return nestedValue(record.acf, path.slice(ACF_PREFIX.length));
+  }
 
-    return acf.success ? acf.data[path.slice(ACF_PREFIX.length)] : undefined;
+  if (path.startsWith(META_PREFIX)) {
+    return nestedValue(record.meta, path.slice(META_PREFIX.length));
   }
 
   const value = record[path];
@@ -63,11 +78,15 @@ export const readPath = (
 };
 
 export const requestedValue = (
-  operation: WriteOperation,
+  operation: UpdatePostOperation,
   path: string
 ): JsonValue | undefined => {
   if (path.startsWith(ACF_PREFIX)) {
     return operation.acf?.[path.slice(ACF_PREFIX.length)];
+  }
+
+  if (path.startsWith(META_PREFIX)) {
+    return operation.meta?.[path.slice(META_PREFIX.length)];
   }
 
   const { fields } = operation;
@@ -97,12 +116,12 @@ const postSlug = (record: JsonObject): string => {
   return value.success ? value.data : "";
 };
 
-const resourcePath = (operation: WriteOperation): string =>
+const resourcePath = (operation: UpdatePostOperation): string =>
   `/wp-json/wp/v2/${operation.rest_base}/${operation.id}`;
 
 const readRecord = async (
   client: UpstreamClient,
-  operation: WriteOperation,
+  operation: UpdatePostOperation,
   telemetry: UpstreamTelemetry
 ): Promise<JsonObject> => {
   const result = await wpFetch(
@@ -124,33 +143,12 @@ const readRecord = async (
   return parsed.data;
 };
 
-// Receipts never carry an upstream response body, so an unrecognised failure
-// collapses to a fixed sentence rather than the thrown message.
-const toReceiptError = <E>(error: E): ReceiptError => {
-  if (error instanceof ApplyConflictError) {
-    return { code: error.code, message: error.message };
-  }
-
-  if (error instanceof UpstreamRequestError) {
-    return { code: "wordpress_request_failed", message: error.message };
-  }
-
-  return { code: "unexpected_error", message: "The operation failed" };
-};
-
-const preflightRemaining = async (
+const preflightPost = async (
   client: UpstreamClient,
-  operations: WriteOperation[],
+  operation: UpdatePostOperation,
   telemetry: UpstreamTelemetry,
-  index: number,
-  collected: OperationPreflight[]
-): Promise<OperationPreflight[]> => {
-  const operation = operations.at(index);
-
-  if (operation === undefined) {
-    return collected;
-  }
-
+  index: number
+): Promise<OperationPreflight> => {
   const record = await readRecord(client, operation, telemetry);
   const current = modifiedGmt(record);
 
@@ -185,7 +183,7 @@ const preflightRemaining = async (
     };
   });
 
-  collected.push({
+  return {
     editUrl: adminEditUrl(client.apiUrl, operation.id),
     fields,
     modifiedGmt: current,
@@ -193,7 +191,27 @@ const preflightRemaining = async (
     sentence: operationSentence(operation),
     slug: postSlug(record),
     target: operationTarget(operation),
-  });
+  };
+};
+
+const preflightRemaining = async (
+  client: UpstreamClient,
+  operations: WriteOperation[],
+  telemetry: UpstreamTelemetry,
+  index: number,
+  collected: OperationPreflight[]
+): Promise<OperationPreflight[]> => {
+  const operation = operations.at(index);
+
+  if (operation === undefined) {
+    return collected;
+  }
+
+  collected.push(
+    isRedirectOperation(operation)
+      ? await preflightRedirect(client, operation, telemetry, index)
+      : await preflightPost(client, operation, telemetry, index)
+  );
 
   return preflightRemaining(
     client,
@@ -221,7 +239,7 @@ export const preflightOperations = async (
   return { intent, operations: results };
 };
 
-const writeBody = (operation: WriteOperation): JsonObject => {
+const writeBody = (operation: UpdatePostOperation): JsonObject => {
   const body: JsonObject = {};
   const { fields } = operation;
 
@@ -235,6 +253,10 @@ const writeBody = (operation: WriteOperation): JsonObject => {
 
   if (operation.acf !== undefined) {
     body.acf = operation.acf;
+  }
+
+  if (operation.meta !== undefined) {
+    body.meta = operation.meta;
   }
 
   return body;
@@ -256,7 +278,7 @@ interface ReadbackClassification {
 // immediately ahead of the write, and the conflict gate above has already
 // proved it is the same revision the approval preview snapshotted.
 const classifyReadback = (
-  operation: WriteOperation,
+  operation: UpdatePostOperation,
   before: JsonObject,
   after: JsonObject
 ): ReadbackClassification => {
@@ -289,19 +311,9 @@ const classifyReadback = (
   return { changed, missed, normalized };
 };
 
-// Receipt messages stay bounded: paths only, never values, and never more
-// than MISSED_PATH_LIMIT of them.
-const missedPathsMessage = (missed: string[]): string => {
-  const listed = missed.slice(0, MISSED_PATH_LIMIT);
-  const extra = missed.length - listed.length;
-  const suffix = extra > 0 ? ` and ${extra} more` : "";
-
-  return `WordPress did not store ${listed.join(", ")}${suffix}`;
-};
-
-const applyOne = async (
+const applyPost = async (
   client: UpstreamClient,
-  operation: WriteOperation,
+  operation: UpdatePostOperation,
   snapshot: OperationPreflight,
   telemetry: UpstreamTelemetry
 ): Promise<OperationReceipt> => {
@@ -470,14 +482,18 @@ const applyRemaining = async (
         code: "missing_preflight",
         message: "No approval preview exists for this operation",
       },
-      kind: "update_post",
+      kind: operation.kind,
       normalized_paths: [],
       operation_index: index,
       status: "failed",
       target: operationTarget(operation),
     });
   } else {
-    collected.push(await applyOne(client, operation, snapshot, telemetry));
+    collected.push(
+      isRedirectOperation(operation)
+        ? await applyRedirect(client, operation, snapshot, telemetry)
+        : await applyPost(client, operation, snapshot, telemetry)
+    );
   }
 
   return applyRemaining(

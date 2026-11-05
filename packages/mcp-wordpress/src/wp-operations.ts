@@ -34,6 +34,11 @@ type UpdatePostFields = z.infer<typeof updatePostFieldsSchema>;
 const changedFieldKeys = (fields: UpdatePostFields | undefined): string[] =>
   FIELD_ORDER.filter((key) => fields?.[key] !== undefined);
 
+// Registered REST meta (`register_post_meta` with `show_in_rest`). WordPress
+// decides which keys are writable and runs each key's `auth_callback`; a key
+// the site never registered is dropped by WordPress and reported by readback.
+const META_KEY_LIMIT = 255;
+
 const updatePostOperationSchema = z
   .strictObject({
     acf: z.record(z.string().min(1).max(64), z.json()).optional(),
@@ -44,21 +49,73 @@ const updatePostOperationSchema = z
     fields: updatePostFieldsSchema.optional(),
     id: z.number().int().positive(),
     kind: z.literal("update_post"),
+    meta: z.record(z.string().min(1).max(META_KEY_LIMIT), z.json()).optional(),
     rest_base: restBaseSchema,
   })
   .refine(
     (operation) =>
       changedFieldKeys(operation.fields).length > 0 ||
-      Object.keys(operation.acf ?? {}).length > 0,
-    { message: "operation must change at least one field or acf key" }
+      Object.keys(operation.acf ?? {}).length > 0 ||
+      Object.keys(operation.meta ?? {}).length > 0,
+    { message: "operation must change at least one field, acf key or meta key" }
   );
 
 export type UpdatePostOperation = z.infer<typeof updatePostOperationSchema>;
 
-export type WriteOperation = UpdatePostOperation;
+// A path on this site, as Redirection stores a plain-URL rule's source: one
+// leading slash, no scheme, host or fragment. Query strings are kept, because
+// Redirection matches them.
+const redirectSourceSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(2000)
+  .regex(/^\/(?!\/)[^\s#]*$/u, "source must be a site path such as /old-page");
+
+// Either a site path or an absolute http(s) URL.
+const redirectTargetSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2000)
+  .refine(
+    (value) =>
+      /^\/(?!\/)\S*$/u.test(value) || /^https?:\/\/[^\s/]+\S*$/iu.test(value),
+    { message: "target must be a site path or an http(s) URL" }
+  );
+
+export const REDIRECT_CODES = [301, 302, 307, 308] as const;
+
+const upsertRedirectOperationSchema = z
+  .strictObject({
+    code: z.literal(REDIRECT_CODES).default(301),
+    kind: z.literal("upsert_redirect"),
+    source: redirectSourceSchema,
+    target: redirectTargetSchema,
+  })
+  .refine((operation) => operation.source !== operation.target, {
+    message: "a redirect cannot point at its own source",
+  });
+
+export type UpsertRedirectOperation = z.infer<
+  typeof upsertRedirectOperationSchema
+>;
+
+const writeOperationSchema = z.discriminatedUnion("kind", [
+  updatePostOperationSchema,
+  upsertRedirectOperationSchema,
+]);
+
+export type WriteOperation = UpdatePostOperation | UpsertRedirectOperation;
+
+export const isRedirectOperation = (
+  operation: WriteOperation
+): operation is UpsertRedirectOperation => operation.kind === "upsert_redirect";
 
 export const operationTarget = (operation: WriteOperation): string =>
-  `${operation.rest_base}/${operation.id}`;
+  isRedirectOperation(operation)
+    ? `redirect ${operation.source}`
+    : `${operation.rest_base}/${operation.id}`;
 
 const DUPLICATE_TARGET_CODE = "duplicate_target";
 
@@ -72,7 +129,7 @@ const duplicateTargetIssueSchema = z.object({
 export const applyInputSchema = z
   .object({
     intent: z.string().trim().min(1).max(500),
-    operations: z.array(updatePostOperationSchema).min(1).max(MAX_OPERATIONS),
+    operations: z.array(writeOperationSchema).min(1).max(MAX_OPERATIONS),
   })
   // One target per batch. The first write bumps the post's `modified_gmt`, so
   // a second operation against the same post would always trip its own
@@ -128,17 +185,31 @@ export const parseApplyInput = <T>(input: T): ApplyInput => {
   );
 };
 
+export const REDIRECT_PATHS = ["target", "code"] as const;
+
 export const changedPaths = (operation: WriteOperation): string[] => {
+  if (isRedirectOperation(operation)) {
+    return [...REDIRECT_PATHS];
+  }
+
   const paths = changedFieldKeys(operation.fields);
 
   for (const key of Object.keys(operation.acf ?? {}).toSorted()) {
     paths.push(`acf.${key}`);
   }
 
+  for (const key of Object.keys(operation.meta ?? {}).toSorted()) {
+    paths.push(`meta.${key}`);
+  }
+
   return paths;
 };
 
 export const operationSentence = (operation: WriteOperation): string => {
+  if (isRedirectOperation(operation)) {
+    return `Redirect ${operation.source} to ${operation.target} (${operation.code})`;
+  }
+
   const paths = joinPhrase(changedPaths(operation));
 
   return `Update ${paths} on ${operation.rest_base} ${operation.id}`;

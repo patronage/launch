@@ -15,7 +15,12 @@ export { applyOperations, preflightOperations } from "./wp-apply";
 
 export { wordpressConnector } from "./wp-gateway";
 
-export type { ApplyInput, WriteOperation } from "./wp-operations";
+export type {
+  ApplyInput,
+  UpdatePostOperation,
+  UpsertRedirectOperation,
+  WriteOperation,
+} from "./wp-operations";
 
 export { applyInputSchema, parseApplyInput } from "./wp-operations";
 

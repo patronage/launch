@@ -17,7 +17,7 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 | Part | Status and role |
 | --- | --- |
 | `packages/mcp-core` | Built. The gateway Worker: sign-in, the code-mode runtime, tool catalog, write approval, logging and the connector contract. It names no CMS |
-| `packages/mcp-wordpress` | Built. The `wp` connector: WPGraphQL and REST reads, approved post updates (core and ACF fields) |
+| `packages/mcp-wordpress` | Built. The `wp` connector: WPGraphQL and REST reads, approved post updates (core fields, ACF fields and registered post meta) and Redirection rules |
 | `packages/mcp-payload` | Built. The `payload` connector: reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Approved edits and new documents are saved as drafts, or published when the operation asks for it and the approval card says so, and rich text can be written as Markdown |
 | `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
@@ -54,7 +54,7 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 
 - **Keep an existing Durable Object class name.** A gateway that already runs with another class name, such as `WordPressRuntime`, names its subclass that and points `GATEWAY_RUNTIME` at it. Cloudflare keys stored runs and pending approvals to the class.
 - **Payload** needs `@payloadcms/plugin-mcp` with read tools only, plus the `getEditingInfo`, `markdownToRichText` and `richTextToMarkdown` tools from `apps/payload/src/mcp-tools.ts`. `payload.apply` reads `getEditingInfo` before every write and refuses without it. The users collection adds `accessGatewayAuthStrategy` from `@patronage/access/payload`, so Payload trusts the forwarded sign-in.
-- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`.
+- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`. To let `wp.apply` change a plugin's post meta, such as Yoast's `_yoast_wpseo_metadesc`, register the key with `register_post_meta` and `show_in_rest`, with an `auth_callback` that checks `edit_post`. Redirect operations need the Redirection plugin, and the approver needs its capability (`manage_options` unless the site filters `redirection_role`).
 - **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The `access:provision` command runs only inside the Launch repo.
 - **Logging**: `@patronage/logging` is not published, so a site that wants its provisioning scripts copies `packages/logging`.
 

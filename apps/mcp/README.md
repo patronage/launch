@@ -22,7 +22,7 @@ This app is only the deployment. The gateway lives in packages, so another site 
 | `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. On a site with Payload it also lists the collections the editor can read, which keep drafts, and which fields take Markdown. |
 | `get_run` | Reports a run's status after an approval. |
 
-The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields and ACF fields, with an optional `expected_modified_gmt` check). `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
+The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
 
 On a site with Payload, the `payload` connector sits beside it:
 
