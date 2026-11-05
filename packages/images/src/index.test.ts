@@ -125,4 +125,18 @@ describe(rewriteImageUrls, () => {
 
     expect(rewriteImageUrls(html, prefix)).toBe(html);
   });
+
+  it("handles newline-separated srcset candidates and spaces around =", () => {
+    const html = `<img src = "${prefix}a.jpg" srcset="${prefix}a-300.jpg 300w,\n${prefix}a.jpg 1024w">`;
+
+    expect(rewriteImageUrls(html, prefix)).toBe(
+      '<img src = "/media/a.jpg" srcset="/media/a-300.jpg 300w,\n/media/a.jpg 1024w">'
+    );
+  });
+
+  it("leaves an escaped tag in a code block alone", () => {
+    const html = `<pre><code>&lt;img src="${prefix}a.jpg"&gt;</code></pre>`;
+
+    expect(rewriteImageUrls(html, prefix)).toBe(html);
+  });
 });

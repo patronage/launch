@@ -67,12 +67,42 @@ const envelopeSchema = z.object({
     .catch([]),
   result: z.unknown().optional(),
   result_info: z
-    .object({ page: z.number(), total_pages: z.number() })
+    .object({
+      page: z.number(),
+      per_page: z.number(),
+      total_count: z.number(),
+      total_pages: z.number(),
+    })
     .partial()
     .optional()
     .catch(undefined),
   success: z.boolean(),
 });
+
+/**
+ * Whether a list has pages after `page`, by `total_pages`, else
+ * `total_count`, else a full page. Without result_info the list is whole.
+ */
+const hasMorePages = (
+  info: z.infer<typeof envelopeSchema>["result_info"],
+  page: number,
+  seen: number,
+  pageItems: readonly unknown[]
+): boolean => {
+  if (!info || pageItems.length === 0) {
+    return false;
+  }
+
+  if (info.total_pages !== undefined) {
+    return page < info.total_pages;
+  }
+
+  if (info.total_count !== undefined) {
+    return seen < info.total_count;
+  }
+
+  return pageItems.length >= (info.per_page ?? LIST_PAGE_SIZE);
+};
 
 /** What a dry-run write pretends the API returned. */
 const DRY_RUN_RESULT = {
@@ -151,9 +181,7 @@ export const cloudflareClient = (
 
       items.push(...pageItems);
 
-      const totalPages = envelope.result_info?.total_pages;
-
-      if (!totalPages || page >= totalPages || pageItems.length === 0) {
+      if (!hasMorePages(envelope.result_info, page, items.length, pageItems)) {
         return items;
       }
     }

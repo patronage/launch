@@ -241,4 +241,52 @@ describe("cloudflare access api", () => {
       "PUT /access/apps/app-2",
     ]);
   });
+
+  it("pages by total_count when result_info has no total_pages", async () => {
+    const paths: string[] = [];
+
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace("/client/v4/accounts/acct", "");
+      const page = Number(url.searchParams.get("page") ?? 1);
+
+      paths.push(`${init?.method ?? "GET"} ${path}${url.search}`);
+
+      if (path === "/access/apps" && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(
+          Response.json({
+            result:
+              page === 1
+                ? [{ id: "app-0", name: "Other" }]
+                : [{ id: "app-2", name: "Demo WordPress" }],
+            result_info: { page, per_page: 1, total_count: 2 },
+            success: true,
+          })
+        );
+      }
+
+      return Promise.resolve(
+        Response.json({ result: { aud: "aud-2", id: "app-2" }, success: true })
+      );
+    });
+
+    const client = cloudflareClient({
+      accountId: "acct",
+      apiToken: "token",
+      fetch: fetchMock,
+    });
+
+    await expect(
+      ensureApplication(
+        client,
+        { destinations: ["cms.example.org"], name: "Demo WordPress" },
+        ["pol-1"]
+      )
+    ).resolves.toStrictEqual({ aud: "aud-2", id: "app-2" });
+    expect(paths).toStrictEqual([
+      "GET /access/apps?page=1&per_page=50",
+      "GET /access/apps?page=2&per_page=50",
+      "PUT /access/apps/app-2",
+    ]);
+  });
 });

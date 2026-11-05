@@ -46,32 +46,37 @@ export const imagePath = (src: string, prefix: string): string =>
 /** File names the media route resizes, by extension. */
 const RASTER_FILE = /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/iu;
 
+/** An `<img>` or `<source>` tag; text that only shows one, such as `&lt;img`, isn't. */
+const IMAGE_TAG = /<(?:img|source)\b[^>]*>/giu;
+
 /** `src` and `srcset` attributes, with their quoted value. */
 const IMAGE_ATTRIBUTE =
-  /(?<attribute>\s(?:src|srcset)=)(?<quote>["'])(?<value>.*?)\k<quote>/giu;
+  /(?<attribute>\s(?:src|srcset)\s*=\s*)(?<quote>["'])(?<value>.*?)\k<quote>/gisu;
 
 /**
  * Points the raster images in CMS-rendered HTML at the media route, as
  * {@link imagePath} does for one URL: each `src`, and each candidate of a
- * `srcset`, that starts with `prefix` and names a raster file. Other files
- * under the prefix (video, PDF, SVG) keep their URLs, since the route refuses
- * them.
+ * `srcset`, of an `<img>` or `<source>` tag that starts with `prefix` and
+ * names a raster file. Other files under the prefix (video, PDF, SVG) keep
+ * their URLs, since the route refuses them.
  */
 export const rewriteImageUrls = (html: string, prefix: string): string =>
-  html.replaceAll(
-    IMAGE_ATTRIBUTE,
-    (_match, attribute: string, quote: string, value: string) => {
-      const rewritten = value
-        .split(",")
-        .map((candidate) =>
-          candidate.replace(/\S+/u, (url) =>
-            RASTER_FILE.test(url) ? imagePath(url, prefix) : url
+  html.replaceAll(IMAGE_TAG, (tag) =>
+    tag.replaceAll(
+      IMAGE_ATTRIBUTE,
+      (_match, attribute: string, quote: string, value: string) => {
+        const rewritten = value
+          .split(",")
+          .map((candidate) =>
+            candidate.replace(/\S+/u, (url) =>
+              RASTER_FILE.test(url) ? imagePath(url, prefix) : url
+            )
           )
-        )
-        .join(",");
+          .join(",");
 
-      return `${attribute}${quote}${rewritten}${quote}`;
-    }
+        return `${attribute}${quote}${rewritten}${quote}`;
+      }
+    )
   );
 
 /**
