@@ -5,9 +5,6 @@ import { z } from "zod";
 
 import { isLocalRequest } from "./local-login";
 
-/** Payload's first-user endpoint, which the admin's create-first-user page posts to. */
-const FIRST_REGISTER = /\/users\/first-register\/?$/u;
-
 /** The part of the create operation's arguments the guard reads. */
 const FirstUserArgs = z.object({ data: z.object({ email: z.string() }) });
 
@@ -48,15 +45,27 @@ export const firstUserAllowed = async (
   );
 };
 
-/** A users `beforeOperation` hook that refuses the first user unless {@link firstUserAllowed}. */
+/**
+ * A users `beforeOperation` hook that refuses a create made with no signed-in
+ * user while the collection is empty, unless {@link firstUserAllowed}. It
+ * keys on the operation, not the URL, so no spelling of Payload's
+ * first-register route gets past it. Trusted server code with no request
+ * headers (a seed) is refused too; it runs on this machine or signs in first.
+ */
 export const guardFirstUser =
   (access: () => FirstUserAccess): CollectionBeforeOperationHook =>
-  async ({ args, operation, req }) => {
-    if (
-      operation !== "create" ||
-      !req.url ||
-      !FIRST_REGISTER.test(new URL(req.url, "http://localhost").pathname)
-    ) {
+  async ({ args, collection, operation, req }) => {
+    if (operation !== "create" || req.user) {
+      return args;
+    }
+
+    const { totalDocs } = await req.payload.count({
+      collection: collection.slug,
+      overrideAccess: true,
+      req,
+    });
+
+    if (totalDocs > 0) {
       return args;
     }
 
