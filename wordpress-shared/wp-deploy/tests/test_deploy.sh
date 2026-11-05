@@ -365,10 +365,11 @@ check "audit reports the hook matches" grep -q "Hook: matches" <<<"$out"
 check "audit does not report files still in the repo" bash -c '! sed -n "/^## Files deleted/,/^## Plugins,/p" <<<"$1" | grep -q "plugins/kept"' _ "$out"
 check "audit summary line" grep -q "^audit: 3 excluded path(s) on server, 1 deleted tracked file(s)" <<<"$out"
 env_section="$(sed -n "/^## WARNING: .env files in the webroot/,/^## /p" <<<"$out")"
-check "audit warns about .env files in the webroot" bash -c 'grep -qx "  .env.sample" <<<"$1" && grep -qx "  wp-content/plugins/kept/.env" <<<"$1"' _ "$env_section"
+check "audit warns about .env files in the webroot" bash -c 'grep -qx "  wp-content/plugins/kept/.env" <<<"$1"' _ "$env_section"
+check "audit .env warning skips example files" bash -c '! grep -qx "  .env.sample" <<<"$1"' _ "$env_section"
 check "audit .env warning skips uploads and other dotfiles" bash -c '! grep -Eq "uploads|envrc" <<<"$1"' _ "$env_section"
 check "audit .env warning comes before the other sections" bash -c '[ "$(grep -m1 "^## " <<<"$1")" = "## WARNING: .env files in the webroot" ]' _ "$out"
-check "audit repeats the .env warning above the summary" grep -q "^WARNING: 2 .env file(s) in the webroot" <<<"$out"
+check "audit repeats the .env warning above the summary" grep -q "^WARNING: 1 .env file(s) in the webroot" <<<"$out"
 deleted_section="$(sed -n "/^## Files deleted/,/^## Plugins,/p" <<<"$out")"
 check "audit lists excluded deleted files once, under excluded paths" bash -c 'grep -qx "  old-name.php" <<<"$1" && ! grep -q old-name <<<"$2"' _ "$out" "$deleted_section"
 check "audit says it left excluded files out of the deleted list" grep -q "1 file(s) matching the exclude list are left out: prune keeps them" <<<"$deleted_section"
@@ -507,6 +508,14 @@ check "hook: a nested .env.production is refused" grep -q "wp-content/plugins/ke
 check "hook: a nested .env.production is not installed" [ ! -e "$WEBROOT/wp-content/plugins/kept/.env.production" ]
 git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/.env.production
 git -C "$SRC" commit -qm unnested-env
+write "$SRC/wordpress/wp-content/plugins/kept/.env.example" KEY=
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm env-example
+out="$(git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/main 2>&1 || true)"
+check "hook: a plugin's .env.example is installed" grep -q "DEPLOY_OK" <<<"$out"
+git -C "$SRC" rm -q wordpress/wp-content/plugins/kept/.env.example
+git -C "$SRC" commit -qm no-env-example
+check "ENV_TEMPLATE_REGEX allows example .env files only" bash -c '[[ "a/.env.example" =~ $1 && ".env.sample" =~ $1 && ! "a/.env.production" =~ $1 && ! "a/.env" =~ $1 ]]' _ "$ENV_TEMPLATE_REGEX"
 check "FORBIDDEN_PAYLOAD_REGEX matches .env variants in any folder" bash -c '[[ "a/b/.env.local" =~ $1 && ".env.production" =~ $1 && "a/.env" =~ $1 && ! "a/.envrc" =~ $1 && ! "a/.env.d/x" =~ $1 ]]' _ "$FORBIDDEN_PAYLOAD_REGEX"
 
 rm "$BARE/deploy-hook.env"

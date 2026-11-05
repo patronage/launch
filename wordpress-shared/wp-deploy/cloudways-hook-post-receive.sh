@@ -42,6 +42,8 @@ BRANCH="${DEPLOY_BRANCH:-master}"
 WORDPRESS_FOLDER="${DEPLOY_WORDPRESS_FOLDER:-}"
 PROTECTED_REGEX="${DEPLOY_PROTECTED_REGEX:-^(wp-config\.php|\.htaccess)$|^wp-content/uploads/}"
 FORBIDDEN_REGEX="${DEPLOY_FORBIDDEN_PAYLOAD_REGEX:-(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/uploads/}"
+# Example .env files that hold no values (a plugin's .env.example) are allowed.
+ENV_TEMPLATE_REGEX='(^|/)\.env\.(example|sample|dist|template)$'
 INSTALLED_FILE="$GIT_DIR/deploy-installed-rev"
 ATTEMPTED_FILE="$GIT_DIR/deploy-attempted-revs"
 LOCK_FILE="$GIT_DIR/deploy.lock"
@@ -87,7 +89,7 @@ deploy() {
   forbidden="$(git --git-dir="$GIT_DIR" ls-tree -r --name-only "$newrev" -- "${prefix:-.}" |
     while IFS= read -r path; do
       rel="${path#"$prefix"}"
-      if [[ "$rel" =~ $FORBIDDEN_REGEX ]]; then echo "$rel"; fi
+      if [[ "$rel" =~ $FORBIDDEN_REGEX && ! "$rel" =~ $ENV_TEMPLATE_REGEX ]]; then echo "$rel"; fi
     done)"
   if [ -n "$forbidden" ]; then
     echo "Refusing to install: the payload contains protected paths:"
