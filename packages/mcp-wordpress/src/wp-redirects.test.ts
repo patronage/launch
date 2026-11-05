@@ -86,6 +86,7 @@ const stubRedirection = (initial: Rule[]): FakeRedirection => {
           items: [
             { enabled: true, id: 4, module_id: 2 },
             { enabled: true, id: 1, module_id: 1 },
+            { default: true, enabled: true, id: 6, module_id: 1 },
           ],
           total: 2,
         });
@@ -144,7 +145,7 @@ describe("upsert_redirect", () => {
     vi.unstubAllGlobals();
   });
 
-  it("previews and creates a new rule in the WordPress group", async () => {
+  it("previews and creates a new rule in the default WordPress group", async () => {
     const fake = stubRedirection([rule({ id: 2, url: "/old-page-two" })]);
 
     const preview = await preflight();
@@ -178,7 +179,7 @@ describe("upsert_redirect", () => {
           action_code: 301,
           action_data: { url: "/new-page" },
           action_type: "url",
-          group_id: 1,
+          group_id: 6,
           match_type: "url",
           regex: false,
           title: "",

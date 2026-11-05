@@ -66,6 +66,7 @@ const listSchema = z.object({
 const actionUrlSchema = z.object({ url: z.string() });
 
 const groupSchema = z.object({
+  default: z.boolean().optional(),
   enabled: z.boolean().optional(),
   id: z.coerce.number().int().positive(),
   module_id: z.coerce.number().int(),
@@ -211,8 +212,8 @@ const findRule = async (
   return only === undefined ? undefined : toRule(only);
 };
 
-// New rules go in the first enabled group WordPress serves, which is
-// Redirection's default "Redirections" group on a standard install.
+// New rules go in the group Redirection marks as its default, or else the
+// first enabled group WordPress serves ("Redirections" on a standard install).
 const defaultGroup = async (
   client: UpstreamClient,
   telemetry: UpstreamTelemetry
@@ -229,22 +230,26 @@ const defaultGroup = async (
     throw redirectionError(result, "Could not read Redirection groups");
   }
 
-  for (const item of parsed.data.items) {
+  const usable = parsed.data.items.flatMap((item) => {
     const group = groupSchema.safeParse(item);
 
-    if (
-      group.success &&
+    return group.success &&
       group.data.module_id === WORDPRESS_MODULE &&
       group.data.enabled !== false
-    ) {
-      return group.data.id;
-    }
+      ? [group.data]
+      : [];
+  });
+
+  const chosen = usable.find((group) => group.default === true) ?? usable[0];
+
+  if (chosen === undefined) {
+    throw new ApplyConflictError(
+      "no_redirect_group",
+      "Redirection has no enabled WordPress group to add the rule to"
+    );
   }
 
-  throw new ApplyConflictError(
-    "no_redirect_group",
-    "Redirection has no enabled WordPress group to add the rule to"
-  );
+  return chosen.id;
 };
 
 // The preview's revision stamp: the rule this operation would touch, or its
