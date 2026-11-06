@@ -299,7 +299,128 @@ describe(toRunView, () => {
       executionId: "exec_5",
       receipt,
       status: "complete",
+      write: { confirmed: 0, status: "succeeded", total: 0 },
     });
+  });
+
+  it("reports the write's receipt when the script timed out after it", () => {
+    const view = toRunView("exec_6", {
+      error: "Execution timed out",
+      id: "exec_6",
+      log: [
+        {
+          args: applyArgs,
+          connector: "wp",
+          method: "apply",
+          result: receipt,
+          seq: 1,
+          state: "applied",
+        },
+      ],
+      status: "error",
+    });
+
+    expect(view.status).toBe("error");
+    expect(view.receipt).toStrictEqual(receipt);
+    expect(view.receiptInterrupted).toBeUndefined();
+    expect(view.write).toStrictEqual({
+      confirmed: 0,
+      status: "succeeded",
+      total: 0,
+    });
+  });
+
+  const progress = {
+    approverOpaque: "approver00000000",
+    executionId: "exec_7",
+    operations: [
+      {
+        changed_paths: ["code"],
+        kind: "upsert_redirect",
+        normalized_paths: [],
+        operation_index: 1,
+        status: "changed" as const,
+        target: "redirect /b",
+      },
+    ],
+    requesterOpaque: "requester0000000",
+    startedAt: 1,
+    targets: ["redirect /a", "redirect /b", "redirect /c"],
+    total: 3,
+    updatedAt: 2,
+  };
+
+  const executing = {
+    args: applyArgs,
+    connector: "wp",
+    method: "apply",
+    seq: 1,
+    state: "executing",
+  };
+
+  it("reports progress while an approved write is still running", () => {
+    const view = toRunView(
+      "exec_7",
+      { id: "exec_7", log: [executing], status: "running" },
+      undefined,
+      progress
+    );
+
+    expect(view.progress).toStrictEqual(progress);
+    expect(view.receipt).toBeUndefined();
+    expect(view.write).toStrictEqual({
+      confirmed: 1,
+      status: "running",
+      total: 3,
+    });
+  });
+
+  it("rebuilds a partial receipt when the run stopped before the write returned", () => {
+    const view = toRunView(
+      "exec_7",
+      {
+        error: "Execution timed out",
+        id: "exec_7",
+        log: [executing],
+        status: "error",
+      },
+      undefined,
+      progress
+    );
+
+    expect(view.receiptInterrupted).toBeTruthy();
+    expect(view.receipt?.status).toBe("partial");
+    expect(view.receipt?.operations.map((item) => item.status)).toStrictEqual([
+      "unconfirmed",
+      "changed",
+      "unconfirmed",
+    ]);
+    expect(view.receipt?.operations[0]).toMatchObject({
+      error: { code: "interrupted" },
+      target: "redirect /a",
+    });
+    expect(view.write).toStrictEqual({
+      confirmed: 1,
+      status: "partial",
+      total: 3,
+    });
+  });
+
+  it("ignores progress while the latest wp.apply is still awaiting approval", () => {
+    const view = toRunView(
+      "exec_7",
+      {
+        id: "exec_7",
+        log: [{ ...executing, state: "pending" }],
+        status: "paused",
+      },
+      undefined,
+      progress
+    );
+
+    expect(view.receipt).toBeUndefined();
+    expect(view.progress).toBeUndefined();
+    expect(view.write).toBeUndefined();
   });
 
   it("reports no receipt when the latest wp.apply is still pending", () => {

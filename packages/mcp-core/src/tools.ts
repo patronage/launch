@@ -16,8 +16,11 @@ import {
   RE_PAUSE_NOTICE,
   renderApprovalFragment,
   renderProblemFragment,
+  receiptHeadline,
+  renderProgressFragment,
   renderReceiptFragment,
   runEndingProblem,
+  writeNotice,
 } from "./approval-page";
 import { CallerScopeError } from "./caller";
 import type { CallerContext } from "./caller";
@@ -162,8 +165,17 @@ const getRunOutputSchema = z.object({
   intent: z.string().optional(),
   preflight: z.json().optional(),
   preflightError: runProblemSchema.optional(),
+  progress: z.json().optional(),
   receipt: z.json().optional(),
+  receiptInterrupted: z.boolean().optional(),
   status: z.enum(["complete", "error", "paused", "running", "unknown"]),
+  write: z
+    .object({
+      confirmed: z.number().int(),
+      status: z.enum(["failed", "partial", "running", "succeeded"]),
+      total: z.number().int(),
+    })
+    .optional(),
 });
 
 // One flat object with a required `status`, so a client that reads only the
@@ -214,6 +226,12 @@ const decisionInputSchema = z.object({
   executionId: z.string().trim().min(1).max(128),
 });
 
+const progressInputSchema = z.object({
+  executionId: z.string().trim().min(1).max(128),
+});
+
+type ProgressCardView = ApprovalCardView & { running: boolean };
+
 const previewInputSchema = z.object({
   approvalToken: z.string().trim().min(1).max(256),
   executionId: z.string().trim().min(1).max(128),
@@ -259,10 +277,23 @@ const describeText = (value: DescribeResult): string => {
 
 // A rejected approval and an expired paused run both read as `error`, and the
 // reason lives on `error`, so the status alone would not say what happened.
+// The write is named apart from the script, so a run whose write landed and
+// whose script then timed out reads as exactly that, never as a failure.
 const runText = (view: RunReport): string => {
   const reason = view.error ? ` — ${view.error}` : "";
+  const line = `Run ${view.executionId}: ${view.status}${reason}`;
 
-  return `Run ${view.executionId}: ${view.status}${reason}`;
+  if (!view.write) {
+    return line;
+  }
+
+  const { confirmed, status, total } = view.write;
+
+  const interrupted = view.receiptInterrupted
+    ? "; the write was interrupted, so unconfirmed operations may or may not have landed"
+    : "";
+
+  return `${line}\nWrite: ${status}, ${confirmed} of ${total} operations confirmed${interrupted}.`;
 };
 
 const approvalMeta = (state: ApprovalAppState) => ({
@@ -299,12 +330,23 @@ const approvalCardView = (
   };
 };
 
+const APPLYING_SUMMARY = "Applying the change…";
+
 // What the card shows once the run is no longer awaiting an answer: the
 // receipt of the write this decision authorised, or the reason there is none.
 const endingCardView = (
   report: RunReport,
   executionId: string
 ): ApprovalCardView => {
+  if (report.progress) {
+    return {
+      canApprove: false,
+      executionId,
+      html: renderProgressFragment(report.progress),
+      summary: APPLYING_SUMMARY,
+    };
+  }
+
   const ending = runEndingProblem(report);
   const receipt = report.approvedReceipt ?? report.receipt;
 
@@ -322,8 +364,8 @@ const endingCardView = (
   return {
     canApprove: false,
     executionId,
-    html: renderReceiptFragment(receipt),
-    summary: `Result: ${receipt.status}`,
+    html: renderReceiptFragment(receipt, writeNotice(report)),
+    summary: receiptHeadline(receipt),
   };
 };
 
@@ -367,14 +409,23 @@ const decisionState = (
     };
   }
 
-  if (
-    report.status === "complete" &&
-    report.approvedReceipt?.status === "succeeded"
-  ) {
+  // The write decides this, not the script: a write that succeeded and a
+  // script that timed out afterwards is still an approved, finished change.
+  const receipt = report.approvedReceipt ?? report.receipt;
+
+  if (receipt?.status === "succeeded" && !report.receiptInterrupted) {
     return {
       executionId: report.executionId,
       status: "approved",
       summary: "Approved. The CMS change finished.",
+    };
+  }
+
+  if (receipt) {
+    return {
+      executionId: report.executionId,
+      status: "error",
+      summary: `Approved. ${receiptHeadline(receipt)}.`,
     };
   }
 
@@ -623,6 +674,53 @@ const registerApprovalTools = (
           : { executionId, status: "error", summary: value.summary },
         failed
       );
+    }
+  );
+
+  // What the card polls while a decision is applying, and again if the
+  // decision call itself was cut off: progress while the write runs, the
+  // run's ending once it stops. It changes nothing and reaches no CMS. It
+  // takes no token because it shows nothing `get_run` would not — receipts,
+  // never field values — and the token is already spent by the decision.
+  registerAppTool(
+    server,
+    "progress_wordpress_write",
+    {
+      _meta: {
+        ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
+      },
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+        readOnlyHint: true,
+      },
+      description:
+        "Return the progress of an approved CMS write, or its result once it has finished. This tool is callable only by the approval app.",
+      inputSchema: progressInputSchema,
+    },
+    async (input) => {
+      const { executionId } = input;
+
+      const { failed, value } = await withToolLog<ProgressCardView>(
+        "progress_wordpress_write",
+        log,
+        async () => {
+          const outcome = await deps.stub.getRun(executionId);
+          const report = outcome.value;
+
+          return {
+            ...endingCardView(report, executionId),
+            running: report.write?.status === "running",
+          };
+        },
+        (message) => ({
+          ...problemCardView(executionId, "progress_failed", message),
+          running: false,
+        })
+      );
+
+      return textResult(value, value.summary, failed);
     }
   );
 

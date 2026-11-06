@@ -5,10 +5,11 @@ import {
 import { DurableObject } from "cloudflare:workers";
 
 import { ApplyConflictError, preflightDigest } from "./apply";
-import type { ApplyPreflight } from "./apply";
+import type { ApplyPreflight, ApplyProgress, OperationReceipt } from "./apply";
 import { createCallerScope } from "./caller";
 import type { CallerContext } from "./caller";
-import type { RuntimeStore } from "./connector";
+import { settleWithin } from "./concurrency";
+import type { ConnectorToolMap, RuntimeStore } from "./connector";
 import type { GatewayEnv } from "./env";
 import type { GatewayConnector } from "./gateway-connector";
 import { ApplyValidationError } from "./operations";
@@ -21,7 +22,9 @@ import {
   isApplyCall,
   issueRunNonce,
   PAUSED_MAX_AGE_MS,
+  PROGRESS_PREFIX,
   preflightKey,
+  progressKey,
   receiptForSeq,
   requesterKey,
   runStorageKeys,
@@ -43,6 +46,28 @@ import type {
 import { ToolMapConnector } from "./tool-map-connector";
 import { createUpstreamTelemetry } from "./upstream";
 import type { UpstreamTelemetry } from "./upstream";
+
+// How long the sandbox lets one pass of a script run before it gives up on it.
+// An `execute` pass only reads, so it keeps codemode's own default. The pass an
+// approval resumes also performs the write, which on a slow CMS host is a few
+// seconds per operation (a conflict re-read, the write and a readback, plus a
+// rule lookup for a redirect), so it gets five minutes: a batch of twenty
+// redirects took about ninety seconds one at a time, and runs in about half
+// that at `APPLY_CONCURRENCY`.
+//
+// Neither number is a Cloudflare limit. A Durable Object has no wall-clock
+// limit while its caller is connected, and its CPU limit (30 s by default)
+// counts only CPU, which a write spends almost none of while it waits on the
+// CMS. What does end a long approval is the caller going away, so the
+// approval page streams its progress and keeps the request open.
+export const EXECUTION_TIMEOUT_MS = 60_000;
+export const APPROVAL_TIMEOUT_MS = 300_000;
+
+// How much longer an approval waits for a write still in flight after the
+// sandbox gave up on its pass. The sandbox's timeout ends the script, not the
+// write: without this wait the run would report a timeout while the write was
+// still landing, which is how a fully applied batch came to read as failed.
+export const APPLY_SETTLE_GRACE_MS = 60_000;
 
 // How long one caller's `describe_site` answer is reused.
 const DESCRIBE_TTL_MS = 600_000;
@@ -96,6 +121,20 @@ export abstract class BaseGatewayRuntime<
 > extends DurableObject<E> {
   readonly #scope = createCallerScope();
 
+  // The progress of each write an approval is running, held in memory so two
+  // operations settling together never read-modify-write the same storage
+  // key; each change is then written through whole.
+  readonly #progress = new Map<string, ApplyProgress>();
+
+  // The `apply` call each approval is running, by execution id, so `approve`
+  // can wait for the write itself rather than for the sandbox's pass.
+  readonly #applying = new Map<string, Promise<unknown>>();
+
+  // Overridable per deployment; see the constants above.
+  protected readonly executionTimeoutMs: number = EXECUTION_TIMEOUT_MS;
+  protected readonly approvalTimeoutMs: number = APPROVAL_TIMEOUT_MS;
+  protected readonly applySettleGraceMs: number = APPLY_SETTLE_GRACE_MS;
+
   // Every connector this deployment knows; those whose `configured` says no
   // are left out of each call.
   protected abstract readonly connectors: readonly GatewayConnector<E>[];
@@ -132,9 +171,93 @@ export abstract class BaseGatewayRuntime<
         storage.get<ApplyPreflight>(preflightKey(executionId)),
       readRequester: (executionId) =>
         storage.get<string>(requesterKey(executionId)),
+      recordProgress: (executionId, receipt) =>
+        this.#recordProgress(executionId, receipt),
       writePreflight: (executionId, preflight) =>
         storage.put(preflightKey(executionId), preflight),
     };
+  }
+
+  async #recordProgress(
+    executionId: string,
+    receipt: OperationReceipt
+  ): Promise<void> {
+    const current = this.#progress.get(executionId);
+
+    // Progress is opened by `approve`. A write that reports without one
+    // (a test harness, a future caller) has nothing to add to.
+    if (!current) {
+      return;
+    }
+
+    const next: ApplyProgress = {
+      ...current,
+      operations: [...current.operations, receipt],
+      updatedAt: Date.now(),
+    };
+
+    this.#progress.set(executionId, next);
+    await this.ctx.storage.put(progressKey(executionId), next);
+  }
+
+  async #readProgress(executionId: string): Promise<ApplyProgress | undefined> {
+    return (
+      this.#progress.get(executionId) ??
+      (await this.ctx.storage.get<ApplyProgress>(progressKey(executionId)))
+    );
+  }
+
+  #callerExecutionId(): string | undefined {
+    try {
+      return this.#scope.require().executionId;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async #forgetWhenSettled<T>(
+    executionId: string,
+    work: Promise<T>
+  ): Promise<void> {
+    try {
+      await work;
+    } catch {
+      // The write's own caller sees the failure; this only stops tracking it.
+    }
+
+    if (this.#applying.get(executionId) === work) {
+      this.#applying.delete(executionId);
+    }
+  }
+
+  // Every write tool is wrapped so the call an approval resumes is known to
+  // this object by its execution id. Reads are passed through untouched.
+  #tracked(tools: ConnectorToolMap): ConnectorToolMap {
+    return Object.fromEntries(
+      Object.entries(tools).map(([name, tool]) => [
+        name,
+        tool.requiresApproval
+          ? {
+              ...tool,
+              execute: (args, ctx) => {
+                const work = tool.execute(args, ctx);
+
+                // The resumed call gets no execution id of its own from the
+                // codemode runtime; the approval carries it on the caller.
+                const executionId =
+                  ctx?.executionId ?? this.#callerExecutionId();
+
+                if (executionId !== undefined) {
+                  this.#applying.set(executionId, work);
+                  void this.#forgetWhenSettled(executionId, work);
+                }
+
+                return work;
+              },
+            }
+          : tool,
+      ])
+    );
   }
 
   #nonces(): NonceStore {
@@ -162,7 +285,10 @@ export abstract class BaseGatewayRuntime<
   // Rebuilt per call rather than cached: the handle is a thin accessor for the
   // durable facet, and the tools it carries close over the caller — and now the
   // telemetry — of this call.
-  #runtime(telemetry: UpstreamTelemetry) {
+  #runtime(
+    telemetry: UpstreamTelemetry,
+    timeout: number = this.executionTimeoutMs
+  ) {
     const deps = {
       env: this.env,
       scope: this.#scope,
@@ -176,14 +302,17 @@ export abstract class BaseGatewayRuntime<
           this.ctx,
           this.env,
           connector,
-          connector.tools(deps)
+          this.#tracked(connector.tools(deps))
         )
     );
 
     return createCodemodeRuntime({
       connectors,
       ctx: this.ctx,
-      executor: new DynamicWorkerExecutor({ loader: this.env.LOADER }),
+      executor: new DynamicWorkerExecutor({
+        loader: this.env.LOADER,
+        timeout,
+      }),
     });
   }
 
@@ -301,7 +430,9 @@ export abstract class BaseGatewayRuntime<
     // again would still answer to the token minted for the previous pause.
     await clearRunNonce(this.#nonces(), executionId);
     const telemetry = createUpstreamTelemetry();
-    const runtime = this.#runtime(telemetry);
+    const startedAt = Date.now();
+    const runtime = this.#runtime(telemetry, this.approvalTimeoutMs);
+    await this.#openProgress(executionId, caller, preflight, startedAt);
 
     // Which action this decision answers is captured BEFORE the resume:
     // `approve` returns only once the resumed run reaches its next stop, so on
@@ -317,10 +448,23 @@ export abstract class BaseGatewayRuntime<
         const seq = actions.find((action) => isApplyCall(action))?.seq;
         await runtime.approve({ executionId });
 
+        // The pass is over, but the write it started may not be: a sandbox
+        // timeout ends the script and leaves the write running. Waiting here,
+        // still inside the approver's scope, means the run is reported from
+        // the write's own receipt rather than from the timeout.
+        await settleWithin(
+          this.#applying.get(executionId),
+          startedAt +
+            this.approvalTimeoutMs +
+            this.applySettleGraceMs -
+            Date.now()
+        );
+
         return seq;
       }
     );
 
+    this.#progress.delete(executionId);
     const record = await this.#record(executionId, telemetry);
     const report = await this.#reportAndSweep(executionId, telemetry, record);
 
@@ -333,6 +477,34 @@ export abstract class BaseGatewayRuntime<
       approvedReceipt ? { ...report, approvedReceipt } : report,
       telemetry
     );
+  }
+
+  // Opened before the resume, from the preview the approver answered, so the
+  // first poll already knows how many operations there are to wait for.
+  async #openProgress(
+    executionId: string,
+    caller: CallerContext,
+    preflight: ApplyPreflight | undefined,
+    startedAt: number
+  ): Promise<void> {
+    const targets = (preflight?.operations ?? []).map(
+      (operation) => operation.target
+    );
+
+    const progress: ApplyProgress = {
+      approverOpaque: caller.subjectOpaque,
+      executionId,
+      operations: [],
+      requesterOpaque:
+        (await this.#store().readRequester(executionId)) ?? "unknown",
+      startedAt,
+      targets,
+      total: targets.length,
+      updatedAt: startedAt,
+    };
+
+    this.#progress.set(executionId, progress);
+    await this.ctx.storage.put(progressKey(executionId), progress);
   }
 
   // Nothing here reaches the CMS — the runtime marks the run rejected and
@@ -424,6 +596,12 @@ export abstract class BaseGatewayRuntime<
       await this.#forget(executionId);
     }
 
+    // A write that returned its own receipt has no further use for the
+    // progress it reported on the way.
+    if (report.receipt && !report.receiptInterrupted) {
+      await this.ctx.storage.delete(progressKey(executionId));
+    }
+
     return report;
   }
 
@@ -459,7 +637,9 @@ export abstract class BaseGatewayRuntime<
     const { pending, ...report } = toRunView(
       executionId,
       record,
-      await this.ctx.storage.get<string>(intentKey(executionId))
+      await this.ctx.storage.get<string>(intentKey(executionId)),
+      await this.#readProgress(executionId),
+      this.#applying.has(executionId)
     );
 
     if (!(caller && report.status === "paused" && pending)) {
@@ -548,6 +728,25 @@ export abstract class BaseGatewayRuntime<
     return toRuntimeOutcome(value, telemetry);
   }
 
+  // Progress outlives its run only when the write never returned a receipt,
+  // as that run's record of what landed. A day later it is dropped, on the
+  // same clock as an unanswered approval.
+  async #pruneProgress(): Promise<void> {
+    const stored = await this.ctx.storage.list<ApplyProgress>({
+      prefix: PROGRESS_PREFIX,
+    });
+
+    const cutoff = Date.now() - PAUSED_MAX_AGE_MS;
+
+    const stale = [...stored].flatMap(([key, progress]) =>
+      progress.updatedAt < cutoff ? [key] : []
+    );
+
+    if (stale.length > 0) {
+      await this.ctx.storage.delete(stale);
+    }
+  }
+
   // A run nobody ever answered would otherwise sit paused forever: paused runs
   // are exempt from retention pruning by design.
   async alarm(): Promise<void> {
@@ -558,6 +757,7 @@ export abstract class BaseGatewayRuntime<
     );
 
     await Promise.all(expired.map((id) => this.#forget(id)));
+    await this.#pruneProgress();
     await this.ctx.storage.setAlarm(Date.now() + PAUSED_MAX_AGE_MS);
   }
 }

@@ -63,7 +63,10 @@ export interface OperationReceipt {
   // value it rewrote rather than the one that was requested.
   normalized_paths: string[];
   operation_index: number;
-  status: "changed" | "conflict" | "failed" | "unchanged";
+  // `unconfirmed` is never written by a connector: it marks an operation of
+  // an interrupted apply that had not reported back when the run stopped, so
+  // it may or may not have reached the CMS. See `interruptedReceipt`.
+  status: "changed" | "conflict" | "failed" | "unchanged" | "unconfirmed";
   target: string;
 }
 
@@ -86,7 +89,7 @@ const operationReceiptSchema = z.object({
   kind: z.string(),
   normalized_paths: z.array(z.string()),
   operation_index: z.number().int().min(0),
-  status: z.enum(["changed", "conflict", "failed", "unchanged"]),
+  status: z.enum(["changed", "conflict", "failed", "unchanged", "unconfirmed"]),
   target: z.string(),
 });
 
@@ -159,6 +162,9 @@ export const deepEqual = <A, B>(a: A, b: B): boolean => {
   );
 };
 
+// An operation that never reported back is not counted as failed: it may have
+// landed. So a batch holding one is `partial` even if nothing is confirmed,
+// and only a batch whose every operation reported a failure is `failed`.
 export const batchStatus = (
   operations: OperationReceipt[]
 ): BatchReceipt["status"] => {
@@ -170,5 +176,69 @@ export const batchStatus = (
     return "succeeded";
   }
 
-  return applied === 0 ? "failed" : "partial";
+  const unconfirmed = operations.some(
+    (receipt) => receipt.status === "unconfirmed"
+  );
+
+  return applied === 0 && !unconfirmed ? "failed" : "partial";
+};
+
+// What one approved `apply` has reported so far, written by the runtime as
+// each operation settles. It holds receipts only: targets, statuses and paths,
+// never a field value and never a token.
+export interface ApplyProgress {
+  approverOpaque: string;
+  executionId: string;
+  // Receipts in the order operations settled, which with concurrency is not
+  // always their index order.
+  operations: OperationReceipt[];
+  requesterOpaque: string;
+  startedAt: number;
+  // The approved preview's targets, by operation index, so an operation that
+  // never reported can still be named.
+  targets: string[];
+  total: number;
+  updatedAt: number;
+}
+
+export const INTERRUPTED_ERROR: ReceiptError = {
+  code: "interrupted",
+  message:
+    "The run stopped before this operation reported back. Check it in the CMS before trying again.",
+};
+
+// The receipt an apply would have returned had it finished, rebuilt from its
+// progress: every operation that reported keeps its own receipt, and every
+// other one in the approved preview reads `unconfirmed`. Its batch status is
+// therefore `partial` unless every operation reported.
+export const interruptedReceipt = (progress: ApplyProgress): BatchReceipt => {
+  const reported = new Map(
+    progress.operations.map((receipt) => [receipt.operation_index, receipt])
+  );
+
+  const operations: OperationReceipt[] = [];
+
+  for (let index = 0; index < progress.total; index += 1) {
+    const receipt = reported.get(index);
+
+    operations.push(
+      receipt ?? {
+        changed_paths: [],
+        error: INTERRUPTED_ERROR,
+        kind: "unknown",
+        normalized_paths: [],
+        operation_index: index,
+        status: "unconfirmed",
+        target: progress.targets.at(index) ?? `operation ${index + 1}`,
+      }
+    );
+  }
+
+  return {
+    approverOpaque: progress.approverOpaque,
+    executionId: progress.executionId,
+    operations,
+    requesterOpaque: progress.requesterOpaque,
+    status: batchStatus(operations),
+  };
 };

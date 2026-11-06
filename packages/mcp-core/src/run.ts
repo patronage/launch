@@ -1,5 +1,9 @@
-import { ApplyConflictError, batchReceiptSchema } from "./apply";
-import type { ApplyPreflight, BatchReceipt } from "./apply";
+import {
+  ApplyConflictError,
+  batchReceiptSchema,
+  interruptedReceipt,
+} from "./apply";
+import type { ApplyPreflight, ApplyProgress, BatchReceipt } from "./apply";
 import type { UpstreamRequestLog } from "./logging";
 import { ApplyValidationError } from "./operations";
 import { UpstreamRequestError } from "./upstream";
@@ -36,6 +40,15 @@ export const nonceKey = (executionId: string): string => `nonce:${executionId}`;
 
 export const requesterKey = (executionId: string): string =>
   `requester:${executionId}`;
+
+// Progress of the write an approval is running. It is deliberately not one of
+// `runStorageKeys`: a run that ends before its apply reports back keeps it as
+// the only record of what landed, and the alarm prunes it a day later. A run
+// whose apply returned a receipt has no use for it, and drops it then.
+export const PROGRESS_PREFIX = "progress:";
+
+export const progressKey = (executionId: string): string =>
+  `${PROGRESS_PREFIX}${executionId}`;
 
 export const runStorageKeys = (executionId: string): string[] => [
   intentKey(executionId),
@@ -275,6 +288,20 @@ export interface PendingApplyProblem extends RunProblem {
   seq: number;
 }
 
+// Where the latest approved write stands, apart from how the run's script
+// ended. A script can time out or throw after its write landed, and a write
+// can stop part way; neither is the same thing as "the run failed", so both
+// surfaces and `get_run` read the write from here and the script from
+// `status`.
+export interface WriteSummary {
+  // How many operations reported a result the CMS confirmed.
+  confirmed: number;
+  // `running` while the approval is still applying; otherwise the receipt's
+  // own status, `partial` included for a write that was interrupted.
+  status: BatchReceipt["status"] | "running";
+  total: number;
+}
+
 export interface RunView {
   // The receipt of the write one approval authorised, set by `approve` alone
   // and never by a report anybody reads back. See `receiptForSeq`.
@@ -289,12 +316,18 @@ export interface RunView {
   pending?: PendingOperations;
   preflight?: ApplyPreflight;
   preflightError?: RunProblem;
+  // Set while an approved write is still applying.
+  progress?: ApplyProgress;
   receipt?: BatchReceipt;
+  // The receipt was rebuilt from progress because the write stopped before
+  // it returned one: some operations may be `unconfirmed`.
+  receiptInterrupted?: true;
   // Set by a decision that named a preview other than the one stored now: a
   // form from an earlier pause, or a preview rebuilt since it was shown.
   // Nothing was decided.
   stalePreview?: true;
   status: "complete" | "error" | "paused" | "running" | "unknown";
+  write?: WriteSummary;
 }
 
 // What the Durable Object reports over RPC. Cloudflare's RPC types rewrite a
@@ -532,10 +565,73 @@ export const receiptForSeq = (
 // `intent` is read from this Worker's own storage rather than from the
 // codemode record, so the Durable Object passes it in: a run that recorded
 // none, or whose keys the terminal cleanup already deleted, simply has none.
+const confirmedCount = (receipt: BatchReceipt): number =>
+  receipt.operations.filter(
+    (operation) =>
+      operation.status === "changed" || operation.status === "unchanged"
+  ).length;
+
+const receiptSummary = (receipt: BatchReceipt): WriteSummary => ({
+  confirmed: confirmedCount(receipt),
+  status: receipt.status,
+  total: receipt.operations.length,
+});
+
+// The latest write, read in this order: a receipt the apply returned; while
+// the run is still going, the progress it has reported; once the run has
+// stopped without a receipt, that progress rebuilt into an interrupted
+// receipt. Progress is only consulted when the latest apply has left the
+// pending state, so a run paused on a second write never borrows the first
+// write's progress.
+const applyWrite = (
+  view: RunView,
+  entries: ToolLogRecord[],
+  progress: ApplyProgress | undefined,
+  applying: boolean
+): void => {
+  const receipt = lastReceipt(entries);
+
+  if (receipt) {
+    view.receipt = receipt;
+    view.write = receiptSummary(receipt);
+
+    return;
+  }
+
+  const latest = entries.findLast((entry) => isApplyCall(entry));
+
+  if (!(progress && latest && latest.state !== "pending")) {
+    return;
+  }
+
+  // `applying` is the runtime's own word that the write is still in flight,
+  // which outlasts the run's status when the sandbox gave up on the script.
+  if (view.status === "running" || applying) {
+    view.progress = progress;
+    view.write = {
+      confirmed: progress.operations.filter(
+        (operation) =>
+          operation.status === "changed" || operation.status === "unchanged"
+      ).length,
+      status: "running",
+      total: progress.total,
+    };
+
+    return;
+  }
+
+  const rebuilt = interruptedReceipt(progress);
+  view.receipt = rebuilt;
+  view.receiptInterrupted = true;
+  view.write = receiptSummary(rebuilt);
+};
+
 export const toRunView = (
   executionId: string,
   record?: ExecutionRecord,
-  intent?: string
+  intent?: string,
+  progress?: ApplyProgress,
+  applying = false
 ): RunView => {
   if (!record) {
     return { calls: [], executionId, status: "unknown" };
@@ -557,11 +653,7 @@ export const toRunView = (
     view.intent = intent;
   }
 
-  const receipt = lastReceipt(entries);
-
-  if (receipt) {
-    view.receipt = receipt;
-  }
+  applyWrite(view, entries, progress, applying);
 
   // A run that ended without answering its approval keeps the pending entry in
   // the log, so only a run still paused offers one for approval.

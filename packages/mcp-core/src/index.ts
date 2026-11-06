@@ -18,6 +18,13 @@ export type {
 
 export { createCallerScope } from "./caller";
 
+export {
+  APPLY_CONCURRENCY,
+  delay,
+  mapWithConcurrency,
+  settleWithin,
+} from "./concurrency";
+
 export type { CallerContext, CallerScope } from "./caller";
 
 export type {
@@ -72,6 +79,7 @@ export type {
   PendingApplyParser,
   PendingApplySummary,
   SiteDescription,
+  WriteSummary,
 } from "./run";
 
 export {

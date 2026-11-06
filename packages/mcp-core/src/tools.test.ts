@@ -361,7 +361,7 @@ describe("tool registration", () => {
     expect(resources.resources).toStrictEqual([]);
   });
 
-  it("advertises three model tools and two app-only tools", async () => {
+  it("advertises three model tools and three app-only tools", async () => {
     const { stub } = stubRuntime();
 
     const listing = await withClient(
@@ -375,6 +375,7 @@ describe("tool registration", () => {
       "execute",
       "get_run",
       "preview_wordpress_write",
+      "progress_wordpress_write",
     ]);
     expect(
       listing.tools.find((tool) => tool.name === "execute")?._meta

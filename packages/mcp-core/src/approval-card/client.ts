@@ -1,6 +1,8 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import { z } from "zod";
 
+import { delay } from "../concurrency";
+
 // The browser half of the inline approval card. It runs in the host's app
 // frame, not in the Worker, so it is compiled apart from the rest of `src`
 // (see the tsconfig beside this file) and bundled by
@@ -13,6 +15,11 @@ import { z } from "zod";
 const META_KEY = "com.patronage/approval";
 const DECIDE_TOOL = "decide_wordpress_write";
 const PREVIEW_TOOL = "preview_wordpress_write";
+
+const PROGRESS_TOOL = "progress_wordpress_write";
+
+// How often the card asks how an approved write is going.
+const PROGRESS_POLL_MS = 1500;
 
 const APPROVE_BUTTON =
   '<button class="approve" data-decision="approve" type="button">Approve</button>';
@@ -54,6 +61,8 @@ const cardViewSchema = z.object({
   html: z.string(),
   summary: z.string(),
 });
+
+const progressViewSchema = cardViewSchema.extend({ running: z.boolean() });
 
 type PendingApproval = z.infer<typeof pendingApprovalSchema>;
 
@@ -189,6 +198,84 @@ const call = async (
   }
 };
 
+// One look at an approved write: its progress, or its ending once it has one.
+// Answers whether the write is still running. A failed look is not an ending:
+// the next one tries again.
+const showProgress = async (executionId: string): Promise<boolean> => {
+  try {
+    const answer = await app.callServerTool({
+      arguments: { executionId },
+      name: PROGRESS_TOOL,
+    });
+
+    const view = progressViewSchema.safeParse(answer?.structuredContent);
+
+    if (!view.success) {
+      return true;
+    }
+
+    if (body) {
+      body.innerHTML = view.data.html;
+    }
+
+    return view.data.running;
+  } catch {
+    return true;
+  }
+};
+
+// Polls while `active` says the decision call is still out. Progress is shown
+// only while the decision is unanswered; the decision's own answer replaces
+// it the moment it arrives.
+const watchWhile = async (
+  executionId: string,
+  active: () => boolean
+): Promise<void> => {
+  await delay(PROGRESS_POLL_MS);
+
+  if (!active()) {
+    return;
+  }
+
+  await showProgress(executionId);
+  await watchWhile(executionId, active);
+};
+
+// After a decision call that never answered (a host that gave up on a long
+// tool call), the write may still be running on the server: keep showing its
+// progress until it ends, then its ending.
+const followToEnd = async (executionId: string): Promise<void> => {
+  if (await showProgress(executionId)) {
+    await delay(PROGRESS_POLL_MS);
+    await followToEnd(executionId);
+  }
+};
+
+const approve = async (pending: PendingApproval): Promise<void> => {
+  busy = true;
+  let answered = false;
+  void watchWhile(pending.executionId, () => !answered);
+
+  try {
+    const answer = await app.callServerTool({
+      arguments: decisionArguments(pending, "approve"),
+      name: DECIDE_TOOL,
+    });
+
+    answered = true;
+
+    if (render(answer)) {
+      await call(PREVIEW_TOOL);
+    }
+  } catch {
+    answered = true;
+    run = undefined;
+    setActions(false, false);
+    await followToEnd(pending.executionId);
+    busy = false;
+  }
+};
+
 actions?.addEventListener("click", (event) => {
   const { target } = event;
 
@@ -204,7 +291,12 @@ actions?.addEventListener("click", (event) => {
     say(
       decision === "approve" ? "Applying the change…" : "Denying the change…"
     );
-    void call(DECIDE_TOOL, decision);
+
+    if (decision === "approve" && run) {
+      void approve(run);
+    } else {
+      void call(DECIDE_TOOL, decision);
+    }
   }
 });
 

@@ -10,17 +10,30 @@ import { z } from "zod";
 import { verifyAccess } from "./access";
 import { preflightDigest } from "./apply";
 import {
+  APPLYING_HEADING,
+  APPROVE_HEADING,
+  escapeHtml,
   approvalContent,
   approvalCsrfToken,
   RE_PAUSE_NOTICE,
+  renderApprovalForm,
   renderApprovalPage,
+  renderPage,
+  renderProblemFragment,
   renderProblemPage,
-  renderReceiptPage,
+  renderProgressFragment,
+  renderProgressItem,
+  renderProgressPage,
+  renderReceiptFragment,
+  renderStreamHead,
+  renderStreamTail,
   runEndingProblem,
   verifyApprovalCsrfToken,
+  writeNotice,
 } from "./approval-page";
 import type { ApprovalView } from "./approval-page";
 import type { CallerContext } from "./caller";
+import { delay } from "./concurrency";
 import type { GatewayEnv } from "./env";
 import type { GatewayConnector } from "./gateway-connector";
 import {
@@ -30,7 +43,7 @@ import {
   withMcpRequestLog,
 } from "./logging";
 import type { McpLoggingOptions, McpRequestLogger } from "./logging";
-import { APPROVAL_ROUTE, RUNTIME_INSTANCE_NAME } from "./run";
+import { APPROVAL_ROUTE, approvalPath, RUNTIME_INSTANCE_NAME } from "./run";
 import type { RunReport, RuntimeOutcome } from "./run";
 import type { BaseGatewayRuntime } from "./runtime";
 import { registerTools } from "./tools";
@@ -265,39 +278,96 @@ const approvalForm = async (
   };
 };
 
-// Every ending a run can have once it is no longer awaiting an answer. Only
-// the receipt is a success page; the rest say, in the runtime's own words,
-// that nothing was written. Nothing here records the write: this page is
-// rendered for a GET and for a decision alike, and only the decision path
-// knows the receipt is new. See `handleDecision`.
+// Every ending a run can have once it is no longer awaiting an answer, as a
+// page body, so the plain page and the streamed answer to an Approve end the
+// same way. A receipt is the outcome whenever there is one, with a notice when
+// the write was interrupted or the script failed after it; the rest say, in
+// the runtime's own words, that nothing was written. Nothing here records the
+// write: only the decision path knows a receipt is new. See `handleDecision`.
+interface OutcomeBody {
+  body: string;
+  refresh?: true;
+  status: number;
+  title: string;
+}
+
+// Said where the page can no longer follow a write that is still running,
+// such as the end of a streamed approval that outlasted its wait. The GET page
+// refreshes itself; this link is for the page that cannot.
+const STILL_RUNNING_NOTICE = (executionId: string): string =>
+  `<p class="notice">The change is still being applied. <a href="${escapeHtml(approvalPath(executionId))}">Reload this page</a> to follow it to the end.</p>`;
+
+const outcomeBody = (
+  executionId: string,
+  report: RunReport,
+  log: McpRequestLogger
+): OutcomeBody => {
+  if (report.status === "unknown") {
+    log.set({ mcp: { outcome: "not_found" } });
+    const unknown = runEndingProblem(report);
+
+    return {
+      body: renderProblemFragment(executionId, {
+        code: "unknown_run",
+        message: unknown?.message ?? "",
+      }),
+      status: 404,
+      title: "Nothing to approve",
+    };
+  }
+
+  log.set({ mcp: { outcome: "success" } });
+
+  // An approval still applying: its progress, refreshed until it ends.
+  if (report.progress) {
+    return {
+      body: `${renderProgressFragment(report.progress)}${STILL_RUNNING_NOTICE(executionId)}`,
+      refresh: true,
+      status: 200,
+      title: APPLYING_HEADING,
+    };
+  }
+
+  const ending = runEndingProblem(report);
+
+  if (ending) {
+    return {
+      body: renderProblemFragment(executionId, ending),
+      status: 200,
+      title: "Nothing to approve",
+    };
+  }
+
+  if (report.receipt) {
+    return {
+      body: renderReceiptFragment(report.receipt, writeNotice(report)),
+      status: 200,
+      title: "Change applied",
+    };
+  }
+
+  return {
+    body: renderProblemFragment(executionId, {
+      code: "no_receipt",
+      message: "This run finished without a write receipt.",
+    }),
+    status: 200,
+    title: "Nothing to approve",
+  };
+};
+
 const outcomePage = (
   executionId: string,
   report: RunReport,
   log: McpRequestLogger
 ): Response => {
-  if (report.status === "unknown") {
-    log.set({ mcp: { outcome: "not_found" } });
-    const unknown = runEndingProblem(report);
+  const outcome = outcomeBody(executionId, report, log);
 
-    return problem(executionId, "unknown_run", unknown?.message ?? "", 404);
+  if (outcome.refresh && report.progress) {
+    return html(renderProgressPage(report.progress), outcome.status);
   }
 
-  log.set({ mcp: { outcome: "success" } });
-  const ending = runEndingProblem(report);
-
-  if (ending) {
-    return problem(executionId, ending.code, ending.message);
-  }
-
-  if (report.receipt) {
-    return html(renderReceiptPage(report.receipt));
-  }
-
-  return problem(
-    executionId,
-    "no_receipt",
-    "This run finished without a write receipt."
-  );
+  return html(renderPage(outcome.title, outcome.body), outcome.status);
 };
 
 const reportPage = async (
@@ -353,6 +423,75 @@ const runtimeReport = async (
   return outcome.value;
 };
 
+const STALE_MESSAGE =
+  "This change is not the one you were shown any more. Open the approval page again.";
+
+// What a decision ends as, as a page body: a stale form, the run's outcome,
+// or — when the script calls `apply` again — the next approval's form. The
+// receipt of the write this decision authorised is recorded first, before
+// the branch, so the audit row survives a run that pauses again.
+// `approvedReceipt` is the only field that names that write: the report's own
+// `receipt` is the latest apply, which on a script that applies twice is the
+// second, still-pending write by the time `approve` returns.
+const decisionBody = async (
+  secret: string,
+  deps: ToolDeps,
+  executionId: string,
+  answered: RunReport,
+  log: McpRequestLogger
+): Promise<OutcomeBody> => {
+  if (answered.stalePreview) {
+    log.setLevel("warn");
+    log.set({ mcp: { outcome: "error" } });
+
+    return {
+      body: renderProblemFragment(executionId, {
+        code: "stale_approval",
+        message: STALE_MESSAGE,
+      }),
+      status: 409,
+      title: "Nothing to approve",
+    };
+  }
+
+  if (answered.approvedReceipt) {
+    recordWriteReceipt(log, answered.approvedReceipt);
+  }
+
+  if (answered.status !== "paused") {
+    return outcomeBody(executionId, answered, log);
+  }
+
+  // The resumed run paused on a second write, whose preview only exists once
+  // `getRun` computes it. Its form is signed over that new preview, so the
+  // form just sent cannot answer it.
+  const next = await runtimeReport(
+    log,
+    deps.stub.getRun(executionId, deps.caller)
+  );
+
+  if (next.status !== "paused") {
+    return outcomeBody(executionId, next, log);
+  }
+
+  log.set({ mcp: { outcome: "success" } });
+
+  const form = await approvalForm(
+    secret,
+    executionId,
+    deps.caller.subjectOpaque,
+    next
+  );
+
+  return {
+    body: renderApprovalForm(
+      approvalView(form, executionId, next, RE_PAUSE_NOTICE)
+    ),
+    status: 200,
+    title: APPROVE_HEADING,
+  };
+};
+
 const decide = (
   deps: ToolDeps,
   log: McpRequestLogger,
@@ -371,6 +510,137 @@ const decide = (
     log,
     deps.stub.reject(executionId, deps.caller, previewDigest)
   );
+};
+
+// How often the streamed answer to an Approve asks the runtime what has
+// settled. Each poll is one Durable Object read and no CMS request.
+const PROGRESS_POLL_MS = 1500;
+
+// The answer to an Approve, streamed. The page head goes out at once, so the
+// browser shows the change being applied instead of a spinner; a line follows
+// for each operation as it settles; and the tail is whatever the run ended as.
+// Keeping the response open is also what keeps the approval alive: a Worker
+// has no wall-clock limit while its client is connected.
+//
+// The response is marked chunked so the request's wide event is emitted when
+// the stream ends, with the receipt on it, and not when the head goes out.
+const streamApproval = (
+  secret: string,
+  deps: ToolDeps,
+  executionId: string,
+  previewDigest: string,
+  log: McpRequestLogger
+): Response => {
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const write = (text: string): Promise<void> =>
+    writer.write(encoder.encode(text));
+
+  const run = async (): Promise<void> => {
+    let settled = false;
+    let shown = 0;
+
+    const answer = decide(deps, log, executionId, "approve", previewDigest);
+
+    const stopWaiting = new AbortController();
+
+    const done = (async () => {
+      try {
+        await answer;
+      } catch {
+        // Read again below, where a failure becomes the page's ending.
+      }
+
+      settled = true;
+      stopWaiting.abort();
+    })();
+
+    const poll = async (): Promise<void> => {
+      await delay(PROGRESS_POLL_MS, stopWaiting.signal);
+
+      if (settled) {
+        return;
+      }
+
+      // A failed poll costs one line, never the approval.
+      try {
+        const { value } = await deps.stub.getRun(executionId);
+        const settledOps = value.progress?.operations ?? [];
+        const total = value.progress?.total ?? settledOps.length;
+        const fresh = settledOps.slice(shown);
+
+        if (fresh.length > 0) {
+          await write(
+            fresh
+              .map((receipt, index) =>
+                renderProgressItem(receipt, shown + index + 1, total)
+              )
+              .join("")
+          );
+          shown += fresh.length;
+        }
+      } catch {
+        // The next poll tries again.
+      }
+
+      await poll();
+    };
+
+    await write(renderStreamHead(executionId));
+    await poll();
+    await done;
+
+    let outcome: OutcomeBody;
+
+    try {
+      outcome = await decisionBody(
+        secret,
+        deps,
+        executionId,
+        await answer,
+        log
+      );
+    } catch {
+      log.setLevel("error");
+      log.set({ mcp: { outcome: "error" } });
+      outcome = {
+        body: renderProblemFragment(executionId, {
+          code: "decision_failed",
+          message:
+            "The approval could not be completed. Reload this page to see where the run stands.",
+        }),
+        status: 500,
+        title: "Nothing to approve",
+      };
+    }
+
+    await write(renderStreamTail(outcome.body));
+  };
+
+  // A client that went away only stops the writes, and the approval itself
+  // runs to its end in the Durable Object; nothing here may reject unobserved.
+  const finish = async (): Promise<void> => {
+    try {
+      await run();
+    } catch {
+      // The run is reported from the runtime on the next page load.
+    }
+
+    try {
+      await writer.close();
+    } catch {
+      // Already closed by a client that went away.
+    }
+  };
+
+  void finish();
+
+  return new Response(readable, {
+    headers: { ...HTML_HEADERS, "Transfer-Encoding": "chunked" },
+    status: 200,
+  });
 };
 
 const handleDecision = async (
@@ -430,6 +700,10 @@ const handleDecision = async (
     executionId,
   });
 
+  if (decision.data === "approve") {
+    return streamApproval(secret, deps, executionId, preview.data, log);
+  }
+
   const answered = await decide(
     deps,
     log,
@@ -438,48 +712,9 @@ const handleDecision = async (
     preview.data
   );
 
-  if (answered.stalePreview) {
-    log.setLevel("warn");
-    log.set({ mcp: { outcome: "error" } });
+  const outcome = await decisionBody(secret, deps, executionId, answered, log);
 
-    return problem(
-      executionId,
-      "stale_approval",
-      "This change is not the one you were shown any more. Open the approval page again.",
-      409
-    );
-  }
-
-  // This is the one place a receipt is new, and `approvedReceipt` is the only
-  // field that names the write THIS decision authorised: the report's own
-  // `receipt` is the latest `wp.apply` in the run, which on a script that
-  // calls `wp.apply` twice is the second, still-pending write by the time
-  // `approve` returns. Recording happens before the branch that decides which
-  // page to render, so the audit row survives a run that pauses again.
-  if (answered.approvedReceipt) {
-    recordWriteReceipt(log, answered.approvedReceipt);
-  }
-
-  if (answered.status !== "paused") {
-    return outcomePage(executionId, answered, log);
-  }
-
-  // A script may call `wp.apply` twice: the resumed run pauses on the second
-  // write, whose preview only exists once `getRun` computes it. Its form is
-  // signed over that new preview, so the form just sent cannot answer it.
-  const next = await runtimeReport(
-    log,
-    deps.stub.getRun(executionId, deps.caller)
-  );
-
-  return await reportPage(
-    secret,
-    deps,
-    executionId,
-    next,
-    log,
-    RE_PAUSE_NOTICE
-  );
+  return html(renderPage(outcome.title, outcome.body), outcome.status);
 };
 
 // GET shows what a human is being asked to approve; POST answers it. Both run

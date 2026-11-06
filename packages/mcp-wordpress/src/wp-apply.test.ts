@@ -2,6 +2,7 @@ import {
   ApplyConflictError,
   createUpstreamTelemetry,
   deepEqual,
+  delay,
   previewValue,
 } from "@patronage/mcp-core";
 import type {
@@ -533,5 +534,106 @@ describe("update_post meta", () => {
       error: { code: "readback_mismatch" },
       status: "failed",
     });
+  });
+});
+
+describe("applyOperations concurrency", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const posts = [41, 42, 43, 44, 45];
+
+  const batch: WriteOperation[] = posts.map((id) => ({
+    fields: { title: "New title" },
+    id,
+    kind: "update_post",
+    rest_base: "pages",
+  }));
+
+  const preflight: ApplyPreflight = {
+    intent: "Retitle",
+    operations: posts.map((id, index) => snapshotFor(index, id)),
+  };
+
+  it("runs two operations at a time, reports each one, and keeps index order", async () => {
+    const written = new Set<string>();
+    let inFlight = 0;
+    let peak = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        const path = new URL(request.url).pathname;
+        const id = Number(path.split("/").at(-1));
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        // Later posts answer faster, so settling order differs from index order.
+        await delay((50 - id) * 2);
+        inFlight -= 1;
+
+        if (request.method === "POST") {
+          written.add(path);
+
+          return Response.json({ id });
+        }
+
+        return Response.json(
+          written.has(path)
+            ? record({ id, title: { raw: "New title", rendered: "New title" } })
+            : record({ id })
+        );
+      }
+    );
+
+    const reported: number[] = [];
+
+    const receipt = await applyOperations({
+      approverOpaque: "approver00000000",
+      client,
+      executionId: "exec_1",
+      onProgress: (item) => {
+        reported.push(item.operation_index);
+
+        return Promise.resolve();
+      },
+      operations: batch,
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    expect(peak).toBe(2);
+    expect(receipt.status).toBe("succeeded");
+    expect(receipt.operations.map((item) => item.target)).toStrictEqual(
+      posts.map((id) => `pages/${id}`)
+    );
+    expect(reported.toSorted()).toStrictEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("keeps writing when recording progress fails", async () => {
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      init?.method === "POST"
+        ? Response.json({})
+        : Response.json(
+            record({
+              id: Number(new URL(String(input)).pathname.split("/").at(-1)),
+            })
+          )
+    );
+
+    const receipt = await applyOperations({
+      approverOpaque: "approver00000000",
+      client,
+      executionId: "exec_1",
+      onProgress: () => Promise.reject(new Error("storage unavailable")),
+      operations: batch.slice(0, 2),
+      preflight,
+      requesterOpaque: "requester0000000",
+      telemetry: createUpstreamTelemetry(),
+    });
+
+    expect(receipt.operations).toHaveLength(2);
   });
 });

@@ -28,6 +28,8 @@ The Durable Object's class name belongs to the deployment. A gateway that alread
 
 ## A connector
 
+An approved write gets 5 minutes in the sandbox and an ordinary run gets 60 seconds (`approvalTimeoutMs` and `executionTimeoutMs` on `BaseGatewayRuntime`). The approval waits for the write itself, not only for the sandbox, so a script that times out after its write still reports the write's receipt. A connector's `apply` should call `store.recordProgress` as each operation settles: that drives the progress on the approval page and card, and is the record of what landed if a write is cut off. `mapWithConcurrency` and `APPLY_CONCURRENCY` run a batch's operations two at a time.
+
 A connector implements `GatewayConnector` (`src/gateway-connector.ts`): its sandbox name, a paragraph for the `execute` tool description, its tools, and for writes `parseApply` (validate and summarise) and `preflight` (the before-and-after the approver sees). `src/upstream.ts` has the shared fetch client, which forwards the caller's Access JWT with a gateway proof and records each request on the wide event.
 
 ## Commands
