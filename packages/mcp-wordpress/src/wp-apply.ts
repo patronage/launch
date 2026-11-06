@@ -1,7 +1,9 @@
 import {
+  APPLY_CONCURRENCY,
   ApplyConflictError,
   batchStatus,
   deepEqual,
+  mapWithConcurrency,
   previewValue,
 } from "@patronage/mcp-core";
 import type {
@@ -194,46 +196,21 @@ const preflightPost = async (
   };
 };
 
-const preflightRemaining = async (
-  client: UpstreamClient,
-  operations: WriteOperation[],
-  telemetry: UpstreamTelemetry,
-  index: number,
-  collected: OperationPreflight[]
-): Promise<OperationPreflight[]> => {
-  const operation = operations.at(index);
-
-  if (operation === undefined) {
-    return collected;
-  }
-
-  collected.push(
-    isRedirectOperation(operation)
-      ? await preflightRedirect(client, operation, telemetry, index)
-      : await preflightPost(client, operation, telemetry, index)
-  );
-
-  return preflightRemaining(
-    client,
-    operations,
-    telemetry,
-    index + 1,
-    collected
-  );
-};
-
+// Previews run `APPLY_CONCURRENCY` at a time for the same reason writes do:
+// the approval page waits on every one of them before it can render.
 export const preflightOperations = async (
   client: UpstreamClient,
   intent: string,
   operations: WriteOperation[],
   telemetry: UpstreamTelemetry
 ): Promise<ApplyPreflight> => {
-  const results = await preflightRemaining(
-    client,
+  const results = await mapWithConcurrency(
     operations,
-    telemetry,
-    0,
-    []
+    APPLY_CONCURRENCY,
+    (operation, index) =>
+      isRedirectOperation(operation)
+        ? preflightRedirect(client, operation, telemetry, index)
+        : preflightPost(client, operation, telemetry, index)
   );
 
   return { intent, operations: results };
@@ -459,24 +436,15 @@ const applyPost = async (
   };
 };
 
-const applyRemaining = async (
+const applyOne = async (
   client: UpstreamClient,
-  operations: WriteOperation[],
-  preflight: ApplyPreflight,
+  operation: WriteOperation,
+  snapshot: OperationPreflight | undefined,
   telemetry: UpstreamTelemetry,
-  index: number,
-  collected: OperationReceipt[]
-): Promise<OperationReceipt[]> => {
-  const operation = operations.at(index);
-
-  if (operation === undefined) {
-    return collected;
-  }
-
-  const snapshot = preflight.operations.at(index);
-
+  index: number
+): Promise<OperationReceipt> => {
   if (snapshot === undefined) {
-    collected.push({
+    return {
       changed_paths: [],
       error: {
         code: "missing_preflight",
@@ -487,41 +455,50 @@ const applyRemaining = async (
       operation_index: index,
       status: "failed",
       target: operationTarget(operation),
-    });
-  } else {
-    collected.push(
-      isRedirectOperation(operation)
-        ? await applyRedirect(client, operation, snapshot, telemetry)
-        : await applyPost(client, operation, snapshot, telemetry)
-    );
+    };
   }
 
-  return applyRemaining(
-    client,
-    operations,
-    preflight,
-    telemetry,
-    index + 1,
-    collected
-  );
+  return isRedirectOperation(operation)
+    ? await applyRedirect(client, operation, snapshot, telemetry)
+    : await applyPost(client, operation, snapshot, telemetry);
 };
 
+// Operations run `concurrency` at a time (default `APPLY_CONCURRENCY`) and the
+// receipt lists them in index order. That is safe because a batch never
+// addresses one target twice, and each operation re-reads and gates on its own
+// target alone. `onProgress` hears each receipt as it settles; a failure to
+// record progress never fails the write it describes.
 export const applyOperations = async (options: {
   approverOpaque: string;
   client: UpstreamClient;
+  concurrency?: number;
   executionId: string;
+  onProgress?: (receipt: OperationReceipt) => Promise<void>;
   operations: WriteOperation[];
   preflight: ApplyPreflight;
   requesterOpaque: string;
   telemetry: UpstreamTelemetry;
 }): Promise<BatchReceipt> => {
-  const receipts = await applyRemaining(
-    options.client,
+  const receipts = await mapWithConcurrency(
     options.operations,
-    options.preflight,
-    options.telemetry,
-    0,
-    []
+    options.concurrency ?? APPLY_CONCURRENCY,
+    async (operation, index) => {
+      const receipt = await applyOne(
+        options.client,
+        operation,
+        options.preflight.operations.at(index),
+        options.telemetry,
+        index
+      );
+
+      try {
+        await options.onProgress?.(receipt);
+      } catch {
+        // Progress is a view of the write, not part of it.
+      }
+
+      return receipt;
+    }
   );
 
   return {

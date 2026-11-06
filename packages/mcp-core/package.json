@@ -1,6 +1,6 @@
 {
   "name": "@patronage/mcp-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An MCP gateway Worker for Cloudflare: Access sign-in, code mode over CMS connectors, and a human approval step before every write.",
   "license": "MIT",
   "repository": {

@@ -1,4 +1,4 @@
-import type { ApplyPreflight, BatchReceipt } from "./apply";
+import type { ApplyPreflight, BatchReceipt, OperationReceipt } from "./apply";
 import type { CallerScope } from "./caller";
 import type { GatewayEnv } from "./env";
 import type { JsonValue, UpstreamTelemetry } from "./upstream";
@@ -45,6 +45,14 @@ export type ConnectorToolMap = Record<string, ConnectorToolDefinition>;
 export interface RuntimeStore {
   readPreflight: (executionId: string) => Promise<ApplyPreflight | undefined>;
   readRequester: (executionId: string) => Promise<string | undefined>;
+  // Called by a connector's `apply` as each operation settles, so a run that
+  // stops before `apply` returns still has a record of what landed, and the
+  // approval surfaces can show progress while it runs. Optional so a
+  // connector written before it existed keeps compiling.
+  recordProgress?: (
+    executionId: string,
+    receipt: OperationReceipt
+  ) => Promise<void>;
   writePreflight: (
     executionId: string,
     preflight: ApplyPreflight

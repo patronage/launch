@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BatchReceipt } from "./apply";
 import type { CallerContext } from "./caller";
+import { delay } from "./concurrency";
 import type { GatewayConnector } from "./gateway-connector";
 import { createWorker } from "./index";
 import type { UpstreamRequestLog } from "./logging";
@@ -142,6 +143,9 @@ const runReports = {
   reject: REJECTED_RUN,
 };
 
+// Set to hold an approval open, as a slow write would.
+let approveGate: Promise<void> | undefined;
+
 const runtime = {
   approve: (
     executionId: string,
@@ -150,10 +154,10 @@ const runtime = {
   ) => {
     runtimeCalls.push({ caller, method: "approve", previewDigest });
 
-    return Promise.resolve({
+    return (approveGate ?? Promise.resolve()).then(() => ({
       value: { ...runReports.approve, executionId },
       wordpress: WORDPRESS_REQUESTS,
-    });
+    }));
   },
   describeSite: (caller: CallerContext) => {
     runtimeCalls.push({ caller, method: "describeSite" });
@@ -402,6 +406,7 @@ const resetRuntime = (): void => {
   instanceNames.length = 0;
   stubsObtained = 0;
   runReports.approve = APPROVED_RUN;
+  approveGate = undefined;
   runReports.getRun = UNKNOWN_RUN;
   runReports.reject = REJECTED_RUN;
 };
@@ -698,11 +703,19 @@ describe("Approval route", () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, events, token, worker } = await openApproval();
 
-    await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+    // An approval streams its answer; the wide event is emitted once the
+    // stream ends, so the body is read before the event is.
+    const streamed = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview,
+      }),
       env,
       executionContext()
     );
+
+    await streamed.text();
 
     expect(events[1]).toMatchObject({
       write: {
@@ -739,11 +752,19 @@ describe("Approval route", () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, events, token, worker } = await openApproval();
 
-    await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+    // An approval streams its answer; the wide event is emitted once the
+    // stream ends, so the body is read before the event is.
+    const streamed = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview,
+      }),
       env,
       executionContext()
     );
+
+    await streamed.text();
 
     expect(events[1]).toMatchObject({
       wordpress: {
@@ -811,11 +832,19 @@ describe("Approval route", () => {
     };
     const { csrf, preview, events, token, worker } = await openApproval();
 
-    await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+    // An approval streams its answer; the wide event is emitted once the
+    // stream ends, so the body is read before the event is.
+    const streamed = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview,
+      }),
       env,
       executionContext()
     );
+
+    await streamed.text();
 
     expect(events[1]).toMatchObject({
       write: {
@@ -837,11 +866,19 @@ describe("Approval route", () => {
     };
     const { csrf, preview, events, token, worker } = await openApproval();
 
-    await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+    // An approval streams its answer; the wide event is emitted once the
+    // stream ends, so the body is read before the event is.
+    const streamed = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview,
+      }),
       env,
       executionContext()
     );
+
+    await streamed.text();
 
     // Two events: the GET that rendered the page and the decision. Only the
     // decision carries a write, and it names the post the approved receipt
@@ -919,11 +956,19 @@ describe("Approval route", () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, token, worker } = await openApproval();
 
-    await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+    // An approval streams its answer; the wide event is emitted once the
+    // stream ends, so the body is read before the event is.
+    const streamed = await worker.fetch(
+      approvalDecision("exec_1", token, {
+        csrf,
+        decision: "approve",
+        preview,
+      }),
       env,
       executionContext()
     );
+
+    await streamed.text();
 
     expect(preview).toMatch(/^[a-f0-9]{64}$/u);
     expect(runtimeCalls.at(-1)).toMatchObject({
@@ -954,6 +999,83 @@ describe("Approval route", () => {
     expect(runtimeCalls.map((entry) => entry.method)).toStrictEqual(["getRun"]);
   });
 
+  it("streams each operation as it settles, then the receipt", async () => {
+    runReports.getRun = PAUSED_RUN;
+    const { csrf, preview, token, worker } = await openApproval();
+
+    const held = new AbortController();
+    approveGate = delay(60_000, held.signal);
+
+    // While the approval is held open, the run reports one settled operation.
+    runReports.getRun = {
+      calls: [],
+      progress: {
+        approverOpaque: "approver00000000",
+        executionId: "exec_1",
+        operations: [
+          {
+            changed_paths: ["title"],
+            kind: "update_post",
+            normalized_paths: [],
+            operation_index: 0,
+            status: "changed",
+            target: "pages/<42>",
+          },
+        ],
+        requesterOpaque: "requester0000000",
+        startedAt: 1,
+        targets: ["pages/<42>", "pages/43"],
+        total: 2,
+        updatedAt: 2,
+      },
+      status: "running",
+    };
+
+    const response = await worker.fetch(
+      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
+      env,
+      executionContext()
+    );
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let streamed = "";
+
+    // Read until the first progress line arrives, then let the write finish.
+    while (!streamed.includes("</li>")) {
+      // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
+      const chunk = await reader?.read();
+
+      if (!chunk || chunk.done) {
+        break;
+      }
+
+      streamed += decoder.decode(chunk.value);
+    }
+
+    expect(streamed).toContain("Applying the change");
+    expect(streamed).toContain("1 of 2: <code>pages/&lt;42&gt;</code>");
+    expect(streamed).not.toContain("Result:");
+
+    held.abort();
+
+    let rest = "";
+
+    while (true) {
+      // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
+      const chunk = await reader?.read();
+
+      if (!chunk || chunk.done) {
+        break;
+      }
+
+      rest += decoder.decode(chunk.value);
+    }
+
+    expect(rest).toContain("Result: succeeded");
+    expect(rest).toContain("</html>");
+  });
+
   it("refuses a decision the runtime finds stale and decides nothing", async () => {
     runReports.getRun = PAUSED_RUN;
     runReports.approve = { ...PAUSED_RUN, stalePreview: true };
@@ -965,7 +1087,9 @@ describe("Approval route", () => {
       executionContext()
     );
 
-    expect(response.status).toBe(409);
+    // The approval streams, so its status is sent before the runtime has
+    // answered; the stale refusal arrives in the body instead of as a 409.
+    expect(response.status).toBe(200);
     await expect(response.text()).resolves.toContain("stale_approval");
   });
 

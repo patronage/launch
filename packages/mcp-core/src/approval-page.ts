@@ -1,5 +1,6 @@
 import type {
   ApplyPreflight,
+  ApplyProgress,
   BatchReceipt,
   FieldSnapshot,
   OperationPreflight,
@@ -31,6 +32,9 @@ form{margin-top:1.5rem}
 button{font:inherit;padding:.6rem 1.2rem;border-radius:6px;border:1px solid #12161f;cursor:pointer}
 button.approve{background:#12161f;color:#fff}
 button.reject{background:#fff;color:#12161f;margin-left:.75rem}
+ul.progress{list-style:none;padding-left:0}
+ul.progress li{margin:.2rem 0}
+ul.progress .status{font-weight:600}
 code{font-size:.85rem}`;
 
 const HTTPS_PREFIX = "https://";
@@ -223,6 +227,13 @@ const RUN_FAILED_MESSAGE = "The run ended without applying its change.";
 // receipt: only that one is a success. Both surfaces read it here so neither
 // explains the same ending differently.
 export const runEndingProblem = (report: RunReport): RunProblem | undefined => {
+  // A write that reported back is the run's outcome, whatever the script did
+  // after it: a timeout or a throw once the write landed is told beside the
+  // receipt (see `writeNotice`), never in place of it.
+  if (report.receipt && report.status !== "running") {
+    return undefined;
+  }
+
   if (report.status === "unknown") {
     return UNKNOWN_RUN_PROBLEM;
   }
@@ -238,7 +249,7 @@ export const runEndingProblem = (report: RunReport): RunProblem | undefined => {
   return undefined;
 };
 
-const page = (title: string, body: string): string =>
+export const renderPage = (title: string, body: string): string =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title><style>${APPROVAL_STYLE}</style></head>
@@ -318,7 +329,7 @@ ${problem}
 ${sections}`;
 };
 
-export const renderApprovalPage = (view: ApprovalView): string => {
+export const renderApprovalForm = (view: ApprovalView): string => {
   const approve = isApprovable(view)
     ? '<button class="approve" name="decision" type="submit" value="approve">Approve</button>'
     : "";
@@ -331,8 +342,11 @@ ${approve}
 <button class="reject" name="decision" type="submit" value="reject">Reject</button>
 </form>`;
 
-  return page(APPROVE_HEADING, body);
+  return body;
 };
+
+export const renderApprovalPage = (view: ApprovalView): string =>
+  renderPage(APPROVE_HEADING, renderApprovalForm(view));
 
 // The end of a run that wrote nothing: an unknown id, a rejection, an expiry,
 // a refused form. It offers no decision because there is none left to make.
@@ -365,7 +379,7 @@ export const renderProblemPage = (
   executionId: string,
   problem: RunProblem
 ): string =>
-  page("Nothing to approve", renderProblemFragment(executionId, problem));
+  renderPage("Nothing to approve", renderProblemFragment(executionId, problem));
 
 const renderReceiptRow = (operation: OperationReceipt): string => {
   const problem = operation.error
@@ -382,10 +396,45 @@ const renderReceiptRow = (operation: OperationReceipt): string => {
 
 // The receipt names both subjects because the requester asked for the write
 // and the approver's token performed it.
-export const renderReceiptFragment = (receipt: BatchReceipt): string => {
-  const rows = receipt.operations.map(renderReceiptRow).join("");
+const confirmed = (operations: OperationReceipt[]): number =>
+  operations.filter(
+    (operation) =>
+      operation.status === "changed" || operation.status === "unchanged"
+  ).length;
 
-  return `<h1>Result: ${escapeHtml(receipt.status)}</h1>
+export const receiptHeadline = (receipt: BatchReceipt): string =>
+  `Result: ${receipt.status} (${confirmed(receipt.operations)} of ${receipt.operations.length} operations confirmed)`;
+
+// What a receipt cannot say by itself: that the write stopped before every
+// operation reported back, or that the script went on to fail after the write
+// landed. The two are worded so neither reads as "nothing happened".
+export const writeNotice = (report: RunReport): string | undefined => {
+  if (!report.receipt) {
+    return undefined;
+  }
+
+  if (report.receiptInterrupted) {
+    return "The run stopped before every operation reported back. Operations marked unconfirmed may or may not have been written: check them in the CMS before trying them again.";
+  }
+
+  if (report.status === "error") {
+    const reason = report.error ? `: ${report.error}` : ".";
+
+    return `The change below was applied. The run's script stopped after the write${reason}`;
+  }
+
+  return undefined;
+};
+
+export const renderReceiptFragment = (
+  receipt: BatchReceipt,
+  notice?: string
+): string => {
+  const rows = receipt.operations.map(renderReceiptRow).join("");
+  const shown = notice ? `<p class="notice">${escapeHtml(notice)}</p>` : "";
+
+  return `<h1>${escapeHtml(receiptHeadline(receipt))}</h1>
+${shown}
 <p class="run">Run <code>${escapeHtml(receipt.executionId)}</code> &middot; requested by <code>${escapeHtml(receipt.requesterOpaque)}</code> &middot; approved by <code>${escapeHtml(receipt.approverOpaque)}</code></p>
 <table><thead><tr><th scope="col">Target</th><th scope="col">Status</th>
 <th scope="col">Changed</th><th scope="col">Stored by the CMS</th>
@@ -393,5 +442,87 @@ export const renderReceiptFragment = (receipt: BatchReceipt): string => {
 <tbody>${rows}</tbody></table>`;
 };
 
-export const renderReceiptPage = (receipt: BatchReceipt): string =>
-  page("Change applied", renderReceiptFragment(receipt));
+export const renderReceiptPage = (
+  receipt: BatchReceipt,
+  notice?: string
+): string =>
+  renderPage("Change applied", renderReceiptFragment(receipt, notice));
+
+// --- Progress -------------------------------------------------------------
+//
+// An approved write can take a minute or more on a slow CMS host. Both
+// surfaces show it operation by operation instead of a spinner: the browser
+// page streams one line per settled operation down the open request, and the
+// inline card polls for the fragment below.
+
+export const APPLYING_HEADING = "Applying the change";
+
+export const progressHeadline = (progress: ApplyProgress): string =>
+  `${progress.operations.length} of ${progress.total} operations done`;
+
+// One settled operation, as a list item. `position` is its place in the order
+// operations finished, which with concurrency is not always index order.
+export const renderProgressItem = (
+  receipt: OperationReceipt,
+  position: number,
+  total: number
+): string => {
+  const problem = receipt.error
+    ? ` &middot; ${escapeHtml(receipt.error.code)}: ${escapeHtml(receipt.error.message)}`
+    : "";
+
+  return `<li>${position} of ${total}: <code>${escapeHtml(receipt.target)}</code> &middot; <span class="status">${escapeHtml(receipt.status)}</span>${problem}</li>\n`;
+};
+
+// The whole progress so far, for a poll or a reload: what has settled, and
+// what is still waiting.
+export const renderProgressFragment = (progress: ApplyProgress): string => {
+  const { total } = progress;
+
+  const settled = progress.operations
+    .map((receipt, index) => renderProgressItem(receipt, index + 1, total))
+    .join("");
+
+  const done = new Set(
+    progress.operations.map((receipt) => receipt.operation_index)
+  );
+
+  const waiting = progress.targets
+    .filter((_, index) => !done.has(index))
+    .map((target) => `<code>${escapeHtml(target)}</code>`)
+    .join(", ");
+
+  const rest = waiting ? `<p class="run">Still working on: ${waiting}</p>` : "";
+
+  return `<h1>${APPLYING_HEADING}</h1>
+${runLine(progress.executionId)}
+<p class="intent">${escapeHtml(progressHeadline(progress))}</p>
+<ul class="progress">${settled}</ul>
+${rest}`;
+};
+
+// A reload of the approval page while the write runs: the same progress, and
+// a refresh every two seconds. The refresh is a `<meta>` tag because the page's
+// CSP allows no script.
+export const renderProgressPage = (progress: ApplyProgress): string =>
+  renderPage(APPLYING_HEADING, renderProgressFragment(progress)).replace(
+    "<title>",
+    '<meta http-equiv="refresh" content="2"><title>'
+  );
+
+// The streamed answer to an Approve: the head and the opening of the list go
+// out at once, an item follows as each operation settles, and the tail closes
+// the list and appends whatever the run ended as.
+export const renderStreamHead = (executionId: string): string =>
+  `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(APPLYING_HEADING)}</title><style>${APPROVAL_STYLE}</style></head>
+<body><main><h1>${APPLYING_HEADING}</h1>
+${runLine(executionId)}
+<p class="intent">Each operation is listed here as it finishes. Keep this page open until the result appears below.</p>
+<ul class="progress">
+`;
+
+export const renderStreamTail = (body: string): string =>
+  `</ul>
+<section>${body}</section></main></body></html>`;

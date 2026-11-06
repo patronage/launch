@@ -24,7 +24,13 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 
 The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
 
-## Use the packages on another site
+## How an approved write runs
+
+An approved write runs inside the Durable Object, as the approver, and both approval surfaces show it operation by operation: the browser page streams a line as each operation finishes, and the card polls for the same progress. Operations in one batch run two at a time (`APPLY_CONCURRENCY`), and every receipt still lists them in order. That is safe because a batch never touches one post or one redirect source twice.
+
+The sandbox gives the script 60 seconds when it runs and 5 minutes when an approval resumes it to perform the write. Neither is a Cloudflare limit: a Durable Object has no wall-clock limit while its caller is connected, and its CPU limit counts only CPU, which a write spends almost none of while it waits on the CMS. The page streams its answer partly so that the request stays connected for as long as the write takes. A deployment can change either number by overriding `executionTimeoutMs` or `approvalTimeoutMs` on its `BaseGatewayRuntime` subclass.
+
+A run reports its write apart from its script. If the script times out or throws after the write landed, the result is the write's receipt with a note that the script stopped afterwards, not a failure. If a write stops before it returns a receipt, the receipt is rebuilt from the operations that reported back, its status is `partial`, and the rest are marked `unconfirmed`, meaning they may or may not have landed. `get_run` gives the same summary in `write`.
 
 A site's gateway is a small Worker of its own that installs the packages from npm and lists the connectors it needs.
 

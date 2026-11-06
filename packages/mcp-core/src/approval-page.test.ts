@@ -7,8 +7,12 @@ import {
   escapeHtml,
   renderApprovalPage,
   renderProblemPage,
+  renderProgressFragment,
+  renderReceiptFragment,
   renderReceiptPage,
+  runEndingProblem,
   verifyApprovalCsrfToken,
+  writeNotice,
 } from "./approval-page";
 
 const operation: OperationPreflight = {
@@ -340,5 +344,73 @@ describe(renderReceiptPage, () => {
     expect(html).toContain("readback_mismatch");
     expect(html).toContain("WordPress did not store slug");
     expect(html).not.toContain("<form");
+  });
+});
+
+describe("write outcomes on the approval surfaces", () => {
+  const landed: BatchReceipt = {
+    approverOpaque: "approver00000000",
+    executionId: "exec_9",
+    operations: [
+      {
+        changed_paths: ["title"],
+        kind: "update_post",
+        normalized_paths: [],
+        operation_index: 0,
+        status: "changed",
+        target: "pages/9",
+      },
+    ],
+    requesterOpaque: "requester0000000",
+    status: "succeeded",
+  };
+
+  it("shows the receipt, not a timeout, when the script failed after the write", () => {
+    const report = {
+      calls: [],
+      error: "Execution timed out",
+      executionId: "exec_9",
+      receipt: landed,
+      status: "error" as const,
+    };
+
+    expect(runEndingProblem(report)).toBeUndefined();
+    expect(writeNotice(report)).toContain("The change below was applied");
+    expect(renderReceiptFragment(landed, writeNotice(report))).toContain(
+      "Result: succeeded (1 of 1 operations confirmed)"
+    );
+  });
+
+  it("says an interrupted write may have landed", () => {
+    expect(
+      writeNotice({
+        calls: [],
+        executionId: "exec_9",
+        receipt: { ...landed, status: "partial" },
+        receiptInterrupted: true,
+        status: "error",
+      })
+    ).toContain("may or may not have been written");
+  });
+
+  it("renders progress escaped, with what is still waiting", () => {
+    const html = renderProgressFragment({
+      approverOpaque: "a",
+      executionId: "exec_9",
+      operations: landed.operations.map((item) => ({
+        ...item,
+        target: "<b>pages/9</b>",
+      })),
+      requesterOpaque: "r",
+      startedAt: 1,
+      targets: ["<b>pages/9</b>", "pages/10"],
+      total: 2,
+      updatedAt: 1,
+    });
+
+    expect(html).toContain("1 of 2 operations done");
+    expect(html).toContain("&lt;b&gt;pages/9&lt;/b&gt;");
+    expect(html).not.toContain("<b>");
+    expect(html).toContain("Still working on: <code>pages/10</code>");
   });
 });
