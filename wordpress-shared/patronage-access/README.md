@@ -10,7 +10,7 @@ It needs PHP 8.0+ with the OpenSSL extension, and stays inactive when `openssl_v
 
 ## Install
 
-WordPress loads only top-level files in `wp-content/mu-plugins/`, so copy or symlink `patronage-access.php` there. The repo's `.gitignore` allows `wp-content/mu-plugins/patronage-*.php`. The `composer.json` here lets an install pull it in as a path repository once a loader is in place.
+With Composer, `composer require patronage/launch-access` from Launch's Composer repository, and add a one-line loader: see [Installing with Composer](../README.md#installing-with-composer). Without it, copy `patronage-access.php` into `wp-content/mu-plugins/`, as this repo's headless install does in `bin/build.sh`.
 
 ## Configuration
 

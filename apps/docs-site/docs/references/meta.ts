@@ -6,6 +6,7 @@ export default defineMeta({
     "headless-wordpress",
     "payload",
     "timber-wordpress",
+    "wordpress-plugins",
     "ui",
     "mcp",
     "mcp-workos",

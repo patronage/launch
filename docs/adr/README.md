@@ -24,3 +24,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0014](0014-mcp-gateway-worker.md) | One MCP gateway Worker per site: Access sign-in, code mode, approved writes, published to npm |
 | [0015](0015-shared-wordpress-fields.md) | Field groups, post types and seed in `wordpress-shared/patronage-fields`, shared by both WordPress installs |
 | [0016](0016-logs-to-r2-through-logpush.md) | Each site's logs in its own R2 bucket: Logpush for Workers and Cloudflare, Basin only for WordPress hosts; off unless configured |
+| [0017](0017-wordpress-plugins-through-composer.md) | Patronage mu-plugins ship as `patronage/launch-*` from Launch's Composer repository: `pnpm wp:release` in the PR, `--publish` after merge |

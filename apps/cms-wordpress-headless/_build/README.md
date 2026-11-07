@@ -5,7 +5,7 @@ This install deploys with [wp-deploy](../../../wordpress-shared/wp-deploy/README
 | File | Purpose |
 | --- | --- |
 | `deploy.env` | Committed settings: Cloudways, branch `main`, and `bin/build.sh` as the build step |
-| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) and `wp-content/mu-plugins/patronage-fields/` (copied from [`wordpress-shared/patronage-fields`](../../../wordpress-shared/patronage-fields)) |
+| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) `wp-content/mu-plugins/patronage-logging.php` (copied from [`wordpress-shared/patronage-logging`](../../../wordpress-shared/patronage-logging)), `wp-content/mu-plugins/patronage-headless-revalidate/` (copied from [`wordpress-shared/patronage-headless-revalidate`](../../../wordpress-shared/patronage-headless-revalidate)) and `wp-content/mu-plugins/patronage-fields/` (copied from [`wordpress-shared/patronage-fields`](../../../wordpress-shared/patronage-fields)) |
 | `.deploy_exclude.txt` | Keeps the local tooling (`bin/`, Docker and Composer files, this folder) out of the webroot |
 | `wp-config-environment.php` | Sample block for each environment's `wp-config.php`: `HEADLESS_*`, revalidation and Access constants |
 

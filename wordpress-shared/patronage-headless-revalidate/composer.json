@@ -1,0 +1,24 @@
+{
+  "name": "patronage/launch-headless-revalidate",
+  "description": "Tells a headless front-end which paths and cache tags to revalidate when WordPress content changes.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+  "authors": [
+    {
+      "name": "Patronage",
+      "homepage": "https://patronage.org"
+    }
+  ],
+  "support": {
+    "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-headless-revalidate",
+    "docs": "https://launch.patronage.com/references/wordpress-plugins"
+  },
+  "require": {
+    "php": ">=8.1",
+    "composer/installers": "^2.2"
+  },
+  "extra": {
+    "installer-name": "patronage-headless-revalidate"
+  }
+}
