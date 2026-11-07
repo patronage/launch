@@ -61,3 +61,7 @@ Without a server cron, set `PATRONAGE_LOGGING_WP_CRON` instead, which depends on
 ## Tests
 
 `pnpm --filter @patronage/wordpress-logging test` runs plain PHP tests, including one that loads the plugin with nothing configured and checks it registers no hooks.
+
+## Install
+
+With Composer, `composer require patronage/launch-logging` from Launch's Composer repository, and add a one-line loader: see [Installing with Composer](../README.md#installing-with-composer). This repo's WordPress installs copy `patronage-logging.php` into `wp-content/mu-plugins/` in `bin/build.sh` instead.

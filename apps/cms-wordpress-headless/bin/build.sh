@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the files a deploy adds to git's: the production plugins and libraries
-# from composer.lock, and the shared Access and fields mu-plugins.
+# from composer.lock, and the shared Access, logging, revalidate and fields mu-plugins.
 # _build/deploy.sh runs it as DEPLOY_BUILD_TASK, and _build/.deploy_include.txt adds its output.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -59,3 +59,11 @@ mkdir -p wp-content/mu-plugins/patronage-fields
 git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-fields \
   patronage-fields.php field-helpers.php post-types.php rich-text-blocks.php forms.php fields |
   tar -x -C wp-content/mu-plugins/patronage-fields
+
+# The revalidate plugin. The committed mu-plugins/patronage-headless-revalidate.php
+# loads it from this folder.
+rm -rf wp-content/mu-plugins/patronage-headless-revalidate
+mkdir -p wp-content/mu-plugins/patronage-headless-revalidate
+git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-headless-revalidate \
+  patronage-headless-revalidate.php |
+  tar -x -C wp-content/mu-plugins/patronage-headless-revalidate

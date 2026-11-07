@@ -3,3 +3,4 @@ wp-content/plugins/*
 wp-content/mu-plugins/patronage-access.php
 wp-content/mu-plugins/patronage-fields/
 wp-content/mu-plugins/patronage-logging.php
+wp-content/mu-plugins/patronage-headless-revalidate/

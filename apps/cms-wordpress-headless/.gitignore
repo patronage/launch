@@ -4,3 +4,5 @@ wp-content/mu-plugins/patronage-access.php
 wp-content/mu-plugins/patronage-fields/
 # Copied from wordpress-shared/patronage-logging by bin/build.sh for deploys.
 wp-content/mu-plugins/patronage-logging.php
+# Copied from wordpress-shared/patronage-headless-revalidate by bin/build.sh (and bind-mounted by Docker).
+wp-content/mu-plugins/patronage-headless-revalidate/
