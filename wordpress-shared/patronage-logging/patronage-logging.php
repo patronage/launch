@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Logging
  * Description: Records security-relevant WordPress events as wide events and ships them, with the host's log files, to a Basin Pipelines stream. Does nothing unless configured.
- * Version: 0.1.0
+ * Version: 1.0.0
  * License: MIT
  */
 

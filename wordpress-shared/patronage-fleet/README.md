@@ -1,8 +1,8 @@
 # Patronage Fleet
 
-A WordPress mu-plugin for sites Patronage runs. Once a day, and again a few minutes after any core, plugin or theme update, it sends the site's WordPress, PHP, plugin and theme versions to Patronage Fleet, which checks them for known vulnerabilities. It only sends: it adds no page, route or endpoint to the site. It is of no use outside Patronage's fleet, and is published here so Patronage sites can install it with Composer.
+A WordPress mu-plugin for sites Patronage runs. Once a day, and again a few minutes after any core, plugin or theme update, it sends the site's WordPress, PHP, plugin and theme versions to Patronage Fleet, which checks them for known vulnerabilities. It also answers Fleet's uptime checks at `GET /wp-json/patronage-fleet/v1/health`, which needs no configuration, takes no input and returns only `{"status":"ok"}` (200) or `{"status":"database unavailable"}` (503), never cached. It is of no use outside Patronage's fleet, and is published here so Patronage sites can install it with Composer.
 
-**It does nothing outside production, or until production's `wp-config.php` defines all four constants:**
+**The report does nothing outside production, or until production's `wp-config.php` defines all four constants:**
 
 | Constant | Value |
 | --- | --- |
@@ -15,6 +15,10 @@ Put them in the `production` entry of the site's environment block, so staging c
 ## Security
 
 Two layers. The Access service token, shared by all sites, gets a request to Fleet's report path and nowhere else; anything without it stops at Cloudflare. Each site also has its own Ed25519 key, and Fleet stores only the public half, so the key in `wp-config.php` can sign reports for this one site and nothing else. Each report signs `<site>\n<timestamp>\n<body>`, and Fleet rejects one that is unsigned, older than five minutes, a replay, or from a home URL that isn't one of the site's domains.
+
+## Uptime checks
+
+The health route is public by design: it proves PHP ran, WordPress loaded and the database answered, and reports no versions or settings. It answers outside production too. Where Cloudflare Access protects only `wp-login.php` and `wp-admin`, monitors reach it; where Access or Patronage Access's origin guard covers the whole hostname, as on Launch's headless CMS, a monitor needs an Access service token.
 
 ## Commands
 

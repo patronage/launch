@@ -10,7 +10,7 @@ Launch's WordPress plugins live in [`wordpress-shared/`](https://github.com/patr
 | `patronage/launch-access` | Locks WordPress behind Cloudflare Access, signs editors in from their Access login, and authenticates REST and WPGraphQL requests from a forwarded Access JWT. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-access) |
 | `patronage/launch-logging` | Records security events as wide events and ships them, with the host's log files, to the site's log bucket. See [Logging](/references/logging). [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-logging) |
 | `patronage/launch-headless-revalidate` | Tells a headless front-end which paths and cache tags to revalidate when content changes. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-headless-revalidate) |
-| `patronage/launch-fleet` | For sites Patronage runs: reports WordPress, plugin and theme versions to Patronage Fleet for its vulnerability scan. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-fleet) |
+| `patronage/launch-fleet` | For sites Patronage runs: reports WordPress, plugin and theme versions to Patronage Fleet for its vulnerability scan, and answers its uptime checks. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-fleet) |
 
 [`packages.json`](https://launch.patronage.com/composer/packages.json) lists every released version.
 
@@ -25,7 +25,7 @@ Add the repository and require what you need:
   ],
   "require": {
     "composer/installers": "^2.2",
-    "patronage/launch-access": "^0.5"
+    "patronage/launch-access": "^1.0"
   },
   "config": {
     "allow-plugins": { "composer/installers": true }
@@ -51,7 +51,7 @@ For contributors to Launch:
 
 1. In the PR that changes a plugin, bump the `Version:` header in its main file, then run `pnpm wp:release <folder>`, such as `pnpm wp:release patronage-access`. It adds the version, with the zip's checksum, to `apps/docs-site/public/composer/packages.json` and its download redirect to `apps/docs-site/composer-redirects.txt`. Commit both.
 2. `pnpm verify` fails if a plugin's files or `composer.json` change without a new release.
-3. After the PR merges, run `pnpm wp:release --publish` from an up-to-date `main`. It creates the GitHub release `<package>-v<version>` (for example `launch-access-v0.5.0`) with the zip, using the `gh` CLI. The docs site deploys on merge, so the version is installable once both are done.
+3. After the PR merges, run `pnpm wp:release --publish` from an up-to-date `main`. It creates the GitHub release `<package>-v<version>` (for example `launch-access-v1.0.0`) with the zip, using the `gh` CLI. The docs site deploys on merge, so the version is installable once both are done.
 
 A released version is never rebuilt or replaced. The decision, including why the plugins are public, is [ADR 0017](https://github.com/patronage/launch/blob/main/docs/adr/0017-wordpress-plugins-through-composer.md).
 

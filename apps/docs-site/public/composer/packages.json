@@ -1,14 +1,14 @@
 {
   "packages": {
     "patronage/launch-access": {
-      "0.5.0": {
+      "1.0.0": {
         "dist": {
-          "shasum": "c5e81791f5f3a3667e7c0ff20865a00e8558e436",
+          "shasum": "e2d0eec806d1fb4624a6833f840026c2be4e2572",
           "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-access/0.5.0.zip"
+          "url": "https://launch.patronage.com/composer/dist/launch-access/1.0.0.zip"
         },
         "name": "patronage/launch-access",
-        "version": "0.5.0",
+        "version": "1.0.0",
         "description": "Locks WordPress behind Cloudflare Access and authenticates REST and WPGraphQL requests from Access JWTs.",
         "type": "wordpress-muplugin",
         "license": "MIT",
@@ -34,14 +34,14 @@
       }
     },
     "patronage/launch-fleet": {
-      "1.1.0": {
+      "1.2.0": {
         "dist": {
-          "shasum": "660a58d65b484a7a10cb20f60f06f4e254fc2f67",
+          "shasum": "e318e565981aaa298014c427d2c4ed367c662b04",
           "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-fleet/1.1.0.zip"
+          "url": "https://launch.patronage.com/composer/dist/launch-fleet/1.2.0.zip"
         },
         "name": "patronage/launch-fleet",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "description": "Reports a Patronage site's WordPress, plugin and theme versions to Patronage Fleet once a day, for its vulnerability scan.",
         "type": "wordpress-muplugin",
         "license": "MIT",
@@ -98,14 +98,14 @@
       }
     },
     "patronage/launch-logging": {
-      "0.1.0": {
+      "1.0.0": {
         "dist": {
-          "shasum": "1d65512d1395eb5ef758acab7c79449fbe703382",
+          "shasum": "dbe5b5c148ca6f383674026c8b01c1c2b1506db7",
           "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-logging/0.1.0.zip"
+          "url": "https://launch.patronage.com/composer/dist/launch-logging/1.0.0.zip"
         },
         "name": "patronage/launch-logging",
-        "version": "0.1.0",
+        "version": "1.0.0",
         "description": "Records security-relevant WordPress events as wide events and ships them, with the host's log files, to a Basin Pipelines stream.",
         "type": "wordpress-muplugin",
         "license": "MIT",
