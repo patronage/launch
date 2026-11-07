@@ -37,11 +37,14 @@ This workspace ships no model-backed runner. A runner needs an egress boundary t
 
 Launch's tracked source is public, but public source does not make scanner execution trusted. Do not copy host authentication into a container or run agent-backed DeepSec `init`, `setup`, `process`, `revalidate` or `triage` against the host checkout; default `init`/`setup` can start agents automatically.
 
-If an earlier local setup left a runner behind, remove its containers and networks, all named `launch-deepsec-<id>…` as listed in that run's `subscription.json`:
+If an earlier local setup left a runner behind, its run directory under `.deepsec/runs/` has a `subscription.json` recording the runner and proxy container IDs and the `launch-deepsec-…` network names. From the repository root, remove the containers first, then the networks:
 
 ```sh
-docker ps -a --filter name=launch-deepsec- --format '{{.Names}}' | xargs -r docker rm --force
-docker network ls --filter name=launch-deepsec- --format '{{.Name}}' | xargs -r docker network rm
+for state in .deepsec/runs/*/subscription.json; do
+  [ -f "$state" ] || continue
+  node -e 'const s = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf-8")); console.log([s.runner, s.proxy].filter(Boolean).join("\n"))' "$state" | xargs docker rm --force
+done
+docker network ls --filter name=launch-deepsec- --format '{{.Name}}' | xargs docker network rm
 ```
 
 Removing a runner deletes its tmpfs login and session state; DeepSec data stays in the run's `data/` directory.
