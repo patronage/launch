@@ -36,6 +36,27 @@ export const launchMatchers = {
     },
     {
       description:
+        "Review Composer release and docs build tooling: working-tree zip contents, archive paths, checksums, gh arguments and download redirects.",
+      examples: [
+        'import { execFileSync } from "node:child_process";',
+        'import { appendFileSync } from "node:fs";',
+      ],
+      filePatterns: [
+        "wordpress-shared/plugin-release/release.ts",
+        "apps/docs-site/scripts/build-output.mjs",
+      ],
+      match: (content) =>
+        entryPoint(
+          "launch-composer-release",
+          content,
+          /^(?:import|export)\b/mu,
+          "Composer release/build entry point; trace package and redirect inputs before reporting a vulnerability"
+        ),
+      noiseTier: "noisy",
+      slug: "launch-composer-release",
+    },
+    {
+      description:
         "Review shell entry points for deployment, archive, argument and credential handling.",
       examples: ["#!/usr/bin/env bash\nset -euo pipefail", "#!/bin/sh\nset -e"],
       filePatterns: [

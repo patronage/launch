@@ -2,7 +2,7 @@
 
 ## What this codebase does
 
-Launch is a reference-site monorepo, not a multi-tenant service. Headless WordPress exposes WPGraphQL to a vinext Front-end on Cloudflare Workers. Payload 4 runs its CMS and public Front-end in one Worker, with D1 by default and optional Postgres through Hyperdrive. Shared React UI receives plain data from CMS Adapters. WordPress code is PHP; Workers and tooling are TypeScript, JavaScript and shell. Timber WordPress and the MCP Worker are planned, not built.
+Launch is a public reference-site monorepo, not a multi-tenant service. Headless WordPress exposes WPGraphQL to a vinext Front-end on Cloudflare Workers. Payload 4 runs its CMS and public Front-end in one Worker, with D1 by default and optional Postgres through Hyperdrive. Shared React UI receives plain data from CMS Adapters. WordPress code is PHP; Workers and tooling are TypeScript, JavaScript and shell. `apps/cms-wordpress-timber` renders the public site through a Timber theme, and `apps/mcp` hosts the MCP gateway using the shared MCP packages. The four Composer-distributed mu-plugins also run on WordPress installs outside Launch; do not assume those installs inherit Launch's deployment or Access configuration.
 
 ## Auth shape
 
@@ -15,6 +15,22 @@ Launch is a reference-site monorepo, not a multi-tenant service. Headless WordPr
 ## Threat model
 
 Prioritize anonymous or Service-token access to CMS writes, administrative sessions and unpublished content. Consider attacker-controlled URL paths, queries, headers, form submissions, uploads and CMS-authored rich text. A compromised editor must not gain server execution or expose server credentials. Treat documented Cloudflare protections as assumptions to trace through the provisioning and Worker code, not proof that a route is safe in production.
+
+## Composer distribution and install boundary
+
+`apps/docs-site/public/composer/packages.json` is the public package index at `https://launch.patronage.com/composer`. Its `dist.url` values lead through the static rules in `apps/docs-site/composer-redirects.txt` to GitHub release assets on `patronage/launch`. `apps/docs-site/scripts/build-output.mjs` appends those rules to Blume's `_redirects`; inspect `apps/docs-site/blume.config.ts` for overlapping routes, wildcard shadowing and redirect destinations. The index's SHA-1 `dist.shasum` binds the downloaded zip to the index entry, not to an independently authenticated publisher. An install using a committed Composer lockfile relies on the locked metadata; an update or install without a lockfile also trusts the current repository metadata.
+
+Trust includes the maintainers who can merge index/build changes, operators who can change the docs Worker or Workers Builds deployment, and GitHub identities with release-write permission. Asset replacement alone should fail the recorded checksum; control of both metadata and assets crosses that boundary. Trace these as separate capabilities. Repository source cannot prove live branch protection, release permissions, Access policies or deployment configuration.
+
+`wordpress-shared/plugin-release/release.ts` reads plugin `Version:` headers and `composer.json`, derives release tags and filenames, builds stored zips, and writes the index and redirects. Zip inputs are working-tree tracked files plus untracked files Git does not ignore, minus `.gitattributes` `export-ignore` paths, plus the root `LICENSE`. Investigate stray credentials, keys, backups, symlinks, path traversal, duplicate paths, zip size bounds and CRCs. `.gitignore`, export rules and `--publish`'s clean-tree check are different controls; none is a content secret scanner. Follow `execFileSync` argument arrays, `origin/main` verification and the checksum of the actual uploaded bytes before alleging shell injection or publication bypass.
+
+Each package's `extra.installer-name` selects its `mu-plugins/<slug>/` folder. WordPress needs a top-level loader or an mu-plugin autoloader; inspect Access and Logging with those installation assumptions. Launch's current headless `composer.json` installs third-party plugins; `bin/build.sh` copies first-party mu-plugin source from Git HEAD, and `_build/.deploy_include.txt` ships that output. The moved Headless Revalidate code is in `wordpress-shared/patronage-headless-revalidate/`; the app's PHP file is now its loader. `docker-compose.yml` mounts the shared folder for local use. Trace the build, deploy include list and loader together rather than assuming the headless app already consumes our Composer packages.
+
+## Fleet and revalidation boundaries
+
+`wordpress-shared/patronage-fleet/patronage-fleet.php` sends outbound inventory only; it registers no public endpoint. Production configuration supplies a site identifier, a per-site Ed25519 seed and an Access Service token. The report includes the home URL, WordPress/PHP versions and plugin/theme versions, active states and available updates. It signs `<site>\n<timestamp>\n<body>` and posts to the configured Fleet URL with redirects disabled. The Service token reaches the receiver; the signature identifies the reporting site. Inspect configurable destinations, credential handling, signature inputs, response handling and mu-plugin folder/version discovery. Receiver-side key lookup, freshness/replay checks and report-path Access policy are external assumptions described by the plugin README, not code reviewed in this repository.
+
+`wordpress-shared/patronage-headless-revalidate/` sends cache paths and tags to the Front-end with a shared secret and optional Access Service token. Check configured origins, redirect handling and both the queued PUT and WP-CLI verification GETs. Neither an Access Service token nor an arbitrary successful HTTP response proves that the Front-end authorized and performed cache invalidation.
 
 ## Project-specific patterns to flag
 

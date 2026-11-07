@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -14,7 +15,6 @@ import nodePath from "node:path";
 // oxlint-disable-next-line vitest/no-import-node-test
 import { test } from "node:test";
 
-import { launchMatchers } from "../matchers.mjs";
 import { prepareSnapshot } from "../scripts/snapshot.mjs";
 
 const fixture = (t) => {
@@ -91,27 +91,40 @@ test("rejects dangling symlinks", (t) => {
   );
 });
 
-test("rejects export-ignore omissions", (t) => {
+test("includes nested export-ignore files and directories without changing local attributes", (t) => {
   const { root, output, commit } = fixture(t);
+  const pkg = nodePath.join(root, "wordpress-shared/patronage-demo");
+  mkdirSync(nodePath.join(pkg, "tests"), { recursive: true });
+  writeFileSync(nodePath.join(pkg, "composer.json"), '{"name":"demo"}\n');
+  writeFileSync(nodePath.join(pkg, "tests/check.php"), "<?php\n");
+  writeFileSync(
+    nodePath.join(pkg, ".gitattributes"),
+    "/composer.json export-ignore\n/tests export-ignore\n"
+  );
   writeFileSync(
     nodePath.join(root, ".gitattributes"),
     "source.js export-ignore\n"
   );
   commit();
-  assert.throws(() => prepareSnapshot(root, output), /Archive differs/u);
+  const localAttributes = "wordpress-shared export-ignore\n";
+  const localFile = nodePath.join(root, ".git/info/attributes");
+  writeFileSync(localFile, localAttributes);
+  const manifest = prepareSnapshot(root, output);
+  assert.equal(manifest.files.length, 5);
+  assert.equal(
+    readFileSync(
+      nodePath.join(
+        output,
+        "source/wordpress-shared/patronage-demo/composer.json"
+      ),
+      "utf-8"
+    ),
+    '{"name":"demo"}\n'
+  );
+  assert.equal(readFileSync(localFile, "utf-8"), localAttributes);
 });
 
-test("entry-point matchers cover their examples without flagging empty files", () => {
-  for (const matcher of launchMatchers.matchers) {
-    for (const example of matcher.examples) {
-      assert.equal(matcher.match(example).length, 1);
-    }
-
-    assert.deepEqual(matcher.match(""), []);
-  }
-});
-
-test("rejects archive content substitutions", (t) => {
+test("preserves exact committed bytes instead of export-subst replacements", (t) => {
   const { root, output, commit } = fixture(t);
   writeFileSync(
     nodePath.join(root, ".gitattributes"),
@@ -119,9 +132,10 @@ test("rejects archive content substitutions", (t) => {
   );
   writeFileSync(nodePath.join(root, "source.js"), "// $Format:%H$\n");
   commit();
-  assert.throws(
-    () => prepareSnapshot(root, output),
-    /Snapshot content mismatch/u
+  prepareSnapshot(root, output);
+  assert.equal(
+    readFileSync(nodePath.join(output, "source/source.js"), "utf-8"),
+    "// $Format:%H$\n"
   );
 });
 

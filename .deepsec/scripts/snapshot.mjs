@@ -3,16 +3,50 @@ import { createHash } from "node:crypto";
 import {
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   readlinkSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import nodePath from "node:path";
 
 const git = (root, args) =>
   execFileSync("git", ["-C", root, ...args], { encoding: "utf-8" });
+
+// Package export rules describe release zips, not the security-review boundary.
+// Override them in a disposable bare repository that reads the same objects.
+// Its info/attributes takes precedence over committed and global attributes;
+// the live repository's attributes, index and working tree remain untouched.
+const archiveCommit = (root, archive, commit, algorithm) => {
+  const isolated = mkdtempSync(nodePath.join(tmpdir(), "launch-archive-"));
+
+  try {
+    git(isolated, ["init", "--bare", `--object-format=${algorithm}`]);
+
+    const objects = git(root, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-path",
+      "objects",
+    ]).trim();
+
+    writeFileSync(
+      nodePath.join(isolated, "objects/info/alternates"),
+      `${objects}\n`
+    );
+    writeFileSync(
+      nodePath.join(isolated, "info/attributes"),
+      "* -export-ignore -export-subst\n"
+    );
+    git(isolated, ["archive", "--format=tar", `--output=${archive}`, commit]);
+  } finally {
+    rmSync(isolated, { force: true, recursive: true });
+  }
+};
 
 export const prepareSnapshot = (root, destination, revision = "HEAD") => {
   const commit = git(root, [
@@ -77,7 +111,7 @@ export const prepareSnapshot = (root, destination, revision = "HEAD") => {
   const archive = nodePath.join(destination, "source.tar");
   const source = nodePath.join(destination, "source");
   mkdirSync(source, { recursive: true });
-  git(root, ["archive", "--format=tar", `--output=${archive}`, commit]);
+  archiveCommit(root, archive, commit, algorithm);
 
   const archived = execFileSync("tar", ["-tf", archive], { encoding: "utf-8" })
     .split("\n")
@@ -86,14 +120,12 @@ export const prepareSnapshot = (root, destination, revision = "HEAD") => {
   const expected = entries.map(({ path }) => path).toSorted();
 
   if (JSON.stringify(archived.toSorted()) !== JSON.stringify(expected)) {
-    throw new Error(
-      "Archive differs from the committed manifest; review export-ignore attributes."
-    );
+    throw new Error("Archive differs from the committed manifest.");
   }
 
   execFileSync("tar", ["-xf", archive, "-C", source]);
 
-  // Compare extracted bytes too: export-subst must not silently change the review.
+  // Compare extracted bytes too: the snapshot must contain exact Git blobs.
   for (const entry of entries) {
     const path = nodePath.join(source, entry.path);
     const stat = lstatSync(path);

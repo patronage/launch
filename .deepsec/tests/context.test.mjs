@@ -44,6 +44,22 @@ test("supplies DeepSec's on-disk context contract without replacing analysis rec
   assert.ok(
     config.priorityPaths.includes("wordpress-shared/patronage-access/")
   );
+
+  for (const target of [
+    "wordpress-shared/patronage-fleet/",
+    "wordpress-shared/patronage-headless-revalidate/",
+    "wordpress-shared/patronage-logging/",
+    "wordpress-shared/plugin-release/",
+    "apps/docs-site/public/composer/",
+    "apps/docs-site/composer-redirects.txt",
+    "apps/docs-site/scripts/build-output.mjs",
+    "apps/cms-wordpress-headless/composer.json",
+    "apps/cms-wordpress-headless/bin/build.sh",
+    "apps/cms-wordpress-headless/_build/.deploy_include.txt",
+  ]) {
+    assert.ok(config.priorityPaths.includes(target), target);
+  }
+
   assert.equal(config.promptAppend, undefined);
   assert.equal(
     readFileSync(path.join(directory, "files", "existing.json"), "utf-8"),
