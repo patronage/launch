@@ -8,7 +8,6 @@ COPY deepsec.config.ts INFO.md matchers.mjs ./
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-COPY runner/ ./runner/
 RUN mkdir /scanner/data && chown 65532:65532 /scanner/data
 USER 65532:65532
 ENTRYPOINT ["node", "/scanner/node_modules/deepsec/dist/cli.mjs"]

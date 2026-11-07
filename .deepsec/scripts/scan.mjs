@@ -132,7 +132,7 @@ try {
     `${JSON.stringify({ commit: manifest.commit, deepsec: "2.3.10", exitCode: state.ExitCode, image, modelAnalysis: false, phase: "scan" }, null, 2)}\n`
   );
   console.log(
-    "Candidate discovery only. Follow .deepsec/README.md before model-backed analysis."
+    "Candidate discovery only: these are review leads, not findings. See .deepsec/README.md."
   );
 } finally {
   docker(["rm", "--force", container]);

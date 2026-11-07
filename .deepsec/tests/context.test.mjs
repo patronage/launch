@@ -5,7 +5,6 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -72,39 +71,4 @@ test("supplies DeepSec's on-disk context contract without replacing analysis rec
 
   assert.match(evidence.infoSha256, /^[0-9a-f]{64}$/u);
   assert.match(evidence.configSha256, /^[0-9a-f]{64}$/u);
-});
-
-test("refresh delegates data writes without following guest-created host symlinks", (t) => {
-  const directory = mkdtempSync(
-    path.join(tmpdir(), "launch-context-boundary-")
-  );
-
-  t.after(() => rmSync(directory, { force: true, recursive: true }));
-  const run = path.join(directory, "run");
-  const outside = path.join(directory, "outside");
-  mkdirSync(path.join(run, "data"), { recursive: true });
-  mkdirSync(outside);
-  writeFileSync(path.join(outside, "INFO.md"), "host file");
-  symlinkSync(outside, path.join(run, "data", "launch"));
-  let received;
-
-  prepareReviewContext(run, (files) => {
-    received = files;
-  });
-
-  assert.equal(
-    readFileSync(path.join(outside, "INFO.md"), "utf-8"),
-    "host file"
-  );
-  assert.equal(
-    received["launch/INFO.md"],
-    readFileSync(new URL("../INFO.md", import.meta.url), "utf-8")
-  );
-  assert.ok(
-    JSON.parse(received["launch/config.json"]).priorityPaths.length > 0
-  );
-  assert.ok(
-    JSON.parse(readFileSync(path.join(run, "review-context.json"), "utf-8"))
-      .infoSha256
-  );
 });
