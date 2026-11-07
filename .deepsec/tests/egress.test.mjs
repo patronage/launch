@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { allowedDestination, createEgressProxy } from "../runner/egress.mjs";
 
-test("subscription egress permits only the two exact OpenAI HTTPS endpoints", () => {
+test("the disabled proxy's CONNECT authority allowlist accepts two OpenAI names", () => {
   assert.ok(allowedDestination("chatgpt.com:443"));
   assert.ok(allowedDestination("auth.openai.com:443"));
 

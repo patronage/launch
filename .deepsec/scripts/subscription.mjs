@@ -38,6 +38,16 @@ if (
   );
 }
 
+// The CONNECT allowlist does not enforce TLS SNI/HTTP authority inside the
+// tunnel. Shared upstream IPs can reach other origins, so this route must not
+// create a runner, inspect credentials or resume a guest until it is repaired.
+// Keep stop available to remove sessions created by earlier versions.
+if (action !== "stop") {
+  throw new Error(
+    "Model-backed review is disabled: the subscription proxy does not enforce the TLS upstream-name boundary. Only security:subscription stop <run-directory> is available for cleanup. Use security:scan for candidate discovery."
+  );
+}
+
 const docker = (args, options = {}) =>
   execFileSync("docker", args, { encoding: "utf-8", ...options });
 
