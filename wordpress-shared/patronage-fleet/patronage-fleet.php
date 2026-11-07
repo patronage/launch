@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: Patronage Fleet
- * Description: Reports this site's WordPress, plugin and theme versions to Patronage Fleet once a day, for the fleet vulnerability scan.
- * Version: 1.1.0
+ * Description: Reports this site's WordPress, plugin and theme versions to Patronage Fleet once a day, for the fleet vulnerability scan, and answers fleet's uptime checks.
+ * Version: 1.2.0
  * Author: Patronage
  *
- * Outbound only: the site posts a signed report and exposes no endpoint. It
- * does nothing outside production, or until production's wp-config.php
- * defines all four constants:
+ * The report is outbound: the site posts a signed report. It does nothing
+ * outside production, or until production's wp-config.php defines all four
+ * constants:
  *
  *   PATRONAGE_FLEET_SITE           the site's slug in Fleet
  *   PATRONAGE_FLEET_KEY            the Ed25519 seed from `fleet inventory keygen <slug>`
@@ -18,13 +18,19 @@
  * the signature proves which site sent it. Fleet holds only the public key, so
  * the key can sign reports for this one site and nothing else. See README.md
  * beside this file.
+ *
+ * The one inbound piece is GET /wp-json/patronage-fleet/v1/health, for uptime
+ * monitors. It needs no configuration, takes no input, and returns only
+ * {"status":"ok"} once WordPress has loaded and the database answers. Because
+ * it is a public path, it still works when Cloudflare Access protects only
+ * wp-login.php and wp-admin.
  */
 
 if (!defined('ABSPATH')) {
   exit();
 }
 
-const PATRONAGE_FLEET_VERSION = '1.1.0';
+const PATRONAGE_FLEET_VERSION = '1.2.0';
 const PATRONAGE_FLEET_HOOK = 'patronage_fleet_report';
 const PATRONAGE_FLEET_STATUS = 'patronage_fleet_last_report';
 
@@ -203,6 +209,29 @@ add_action('upgrader_process_complete', function () {
   }
 });
 add_action(PATRONAGE_FLEET_HOOK . '_soon', 'patronage_fleet_send');
+
+/**
+ * Uptime health check: proves PHP ran, WordPress loaded and the database
+ * answered. It reports no versions or settings, so it is safe to leave public.
+ */
+function patronage_fleet_health(): WP_REST_Response {
+  global $wpdb;
+  $suppress = $wpdb->suppress_errors(true);
+  $database = $wpdb->get_var('SELECT 1') === '1';
+  $wpdb->suppress_errors($suppress);
+  $response = new WP_REST_Response(['status' => $database ? 'ok' : 'database unavailable'], $database ? 200 : 503);
+  // A cached 200 would hide an outage from the monitor.
+  $response->header('Cache-Control', 'no-store, max-age=0');
+  return $response;
+}
+
+add_action('rest_api_init', function () {
+  register_rest_route('patronage-fleet/v1', '/health', [
+    'methods' => 'GET',
+    'callback' => 'patronage_fleet_health',
+    'permission_callback' => '__return_true',
+  ]);
+});
 
 if (defined('WP_CLI') && WP_CLI) {
   /**
