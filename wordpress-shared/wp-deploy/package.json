@@ -3,6 +3,6 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "bash tests/test_deploy.sh"
+    "test": "bash tests/test_deploy.sh && bash tests/test_pull.sh"
   }
 }

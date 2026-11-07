@@ -4,8 +4,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-FRONTEND_ENV="../web-wordpress/.env.local"
-
 # docker compose reads .env (gitignored). Create it once with a fresh secret,
 # or add the secret to an existing .env that lacks one.
 if [[ ! -f .env ]]; then
@@ -27,6 +25,10 @@ wp() { docker compose run --rm -T cli wp "$@"; }
 # shellcheck disable=SC2086
 docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp/composer ${COMPOSER_DOCKER_ARGS:-} \
   -v "$PWD":/app -w /app composer:2 install --no-interaction --no-progress
+# Uploads are a folder here (gitignored), so `pnpm run pull media` can fill
+# them. WordPress writes them as www-data, which needs write access on Linux.
+mkdir -p wp-content/uploads
+[[ "$(uname -s)" != Linux ]] || chmod a+rwx wp-content/uploads
 docker compose up -d --wait wordpress
 
 if ! wp core is-installed 2>/dev/null; then
@@ -40,21 +42,9 @@ wp plugin delete akismet hello 2>/dev/null || true
 
 bin/seed.sh
 
-# The front-end reads drafts with an application password for a dedicated editor.
-if ! wp user get previewer >/dev/null 2>&1; then
-  wp user create previewer previewer@example.com --role=editor --user_pass="$(openssl rand -hex 16)"
-fi
-wp user application-password delete previewer --all >/dev/null 2>&1 || true
-APP_PASSWORD="$(wp user application-password create previewer web-wordpress --porcelain)"
-
-cat >"$FRONTEND_ENV" <<ENV
-WORDPRESS_URL=${WP_URL}
-HEADLESS_SECRET=${HEADLESS_SECRET}
-WORDPRESS_PREVIEW_USER=previewer
-WORDPRESS_PREVIEW_PASSWORD=${APP_PASSWORD}
-ENV
+bin/previewer.sh
 
 echo
 echo "WordPress: ${WP_URL}/wp-admin/ (admin / admin)"
 echo "GraphQL:   ${WP_URL}/graphql"
-echo "Wrote ${FRONTEND_ENV}. Start the front-end with: pnpm --filter web-wordpress dev"
+echo "Start the front-end with: pnpm --filter web-wordpress dev"

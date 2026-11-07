@@ -29,6 +29,8 @@ x-wordpress-volumes: &wordpress-volumes
   # The revalidate plugin, loaded by mu-plugins/patronage-headless-revalidate.php.
   - ../../wordpress-shared/patronage-headless-revalidate:/var/www/html/wp-content/mu-plugins/patronage-headless-revalidate:ro
   - ./wp-content/themes/patronage-headless:/var/www/html/wp-content/themes/patronage-headless
+  # Gitignored. A folder rather than part of the volume, so `pnpm run pull media` can fill it.
+  - ./wp-content/uploads:/var/www/html/wp-content/uploads
 
 services:
   db:
@@ -82,6 +84,7 @@ services:
       - ../../wordpress-shared/patronage-fields:/var/www/html/wp-content/mu-plugins/patronage-fields:ro
       - ../../wordpress-shared/patronage-headless-revalidate:/var/www/html/wp-content/mu-plugins/patronage-headless-revalidate:ro
       - ./wp-content/themes/patronage-headless:/var/www/html/wp-content/themes/patronage-headless
+      - ./wp-content/uploads:/var/www/html/wp-content/uploads
       # Demo content for bin/seed.sh.
       - ../../wordpress-shared/patronage-fields/seed:/seed:ro
       - ../../packages/demo-content:/demo-content:ro
