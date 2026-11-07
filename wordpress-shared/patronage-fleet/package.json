@@ -1,0 +1,10 @@
+{
+  "name": "@patronage/wordpress-fleet",
+  "version": "0.0.0",
+  "private": true,
+  "description": "WordPress mu-plugin that reports versions to Patronage Fleet and answers its uptime checks. Mainly an internal monitoring tool.",
+  "license": "MIT",
+  "scripts": {
+    "test": "php -l patronage-fleet.php && php tests/health.test.php"
+  }
+}
