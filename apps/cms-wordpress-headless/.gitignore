@@ -6,3 +6,5 @@ wp-content/mu-plugins/patronage-fields/
 wp-content/mu-plugins/patronage-logging.php
 # Copied from wordpress-shared/patronage-headless-revalidate by bin/build.sh (and bind-mounted by Docker).
 wp-content/mu-plugins/patronage-headless-revalidate/
+# Database dumps from `pnpm run pull export` (_build/pull.sh). Never commit them.
+_data/

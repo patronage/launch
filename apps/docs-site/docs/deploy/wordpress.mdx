@@ -18,7 +18,7 @@ A deploy has succeeded only when the script exits 0 and prints `Deploy to <targe
 
 ## Each app's `_build` folder
 
-Each WordPress app keeps the kit in its `_build/` folder. `deploy.sh` and the Cloudways hook are symlinks to the canonical copies, so every app runs the same version. The app's own settings sit beside them:
+Each WordPress app keeps the kit in its `_build/` folder. `deploy.sh`, `pull.sh` and the Cloudways hook are symlinks to the canonical copies, so every app runs the same version. The app's own settings sit beside them:
 
 | File | What it holds |
 | --- | --- |
@@ -42,5 +42,17 @@ pnpm run deploy production
 ```
 
 On Cloudways, the hook installs one push at a time, and skips a push that a newer one has already replaced. It deletes files against the last commit it installed in full, so a refused push doesn't leave old files behind on the next one. No `.env` file, in any folder or variant, is ever deployed, apart from example files such as a plugin's `.env.example`.
+
+## Pull the database and uploads
+
+`pull.sh` copies a server's data down to the app's local Docker site. It reads the same settings as `deploy.sh` and never writes to the server. From the app folder:
+
+```bash
+pnpm run pull export production   # dump the database to _data/<time>.sql.gz
+pnpm run pull import              # load the newest dump into the local Docker database, after asking
+pnpm run pull media production    # copy wp-content/uploads/, without generated thumbnails
+```
+
+On Cloudways, staff connect as the server's master user, who can read every application on the server. So `pull.sh` never searches for WordPress: it uses the app's own webroot, from its `GIT_PATH` setting (or `WEBROOT`), and stops if that isn't set. A server behind a jump host is reached through your ssh config (`ProxyJump`). `import` only writes to a database on your own machine, and both `_data/` and the uploads folder must be gitignored. It supports Cloudways only so far.
 
 A site outside this repo copies the kit's files into its own `_build/` folder unchanged, and keeps anything site-specific in `deploy.env`. The kit's [README](https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md) covers every command, host and setting.

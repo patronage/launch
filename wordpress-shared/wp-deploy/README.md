@@ -1,16 +1,17 @@
 # wp-deploy
 
-`deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder.
+`deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder. `pull.sh` copies a site's database and uploads down from the host for local work (Cloudways so far; see [Pulls](#pulls)).
 
-This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.6.1 …`), and `bash _build/deploy.sh --version` prints it. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.7.0 …`), and `bash _build/deploy.sh --version` prints it. `pull.sh` carries the same version. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
 | File | Owner | Purpose |
 | --- | --- | --- |
 | `deploy.sh` | wp-deploy, copied or symlinked unchanged | Deploy, dry run, `verify`, audit, `prune`, `install-hook` |
+| `pull.sh` | wp-deploy, copied or symlinked unchanged | Database `export` and `import`, and `media` (uploads), for local work. Replaces the per-site `db.sh` scripts. |
 | `cloudways-hook-post-receive.sh` | wp-deploy, copied or symlinked unchanged | Cloudways `post-receive` hook. It is the same file on every site and reads its settings from the server. |
-| `tests/test_deploy.sh` | wp-deploy | Local tests against fake servers (see [Tests](#tests)) |
+| `tests/test_deploy.sh`, `tests/test_pull.sh` | wp-deploy | Local tests against fake servers (see [Tests](#tests)) |
 | `deploy.env.sample` | wp-deploy | Documents every setting |
 | `deploy.env` | site | The site's settings. Committed, non-secret. |
 | `.deploy_include.txt`, `.deploy_exclude.txt` | site | Ignored build output to add, and tracked paths to leave out |
@@ -193,11 +194,37 @@ With `--delete`, it first streams the files into a local tarball, `~/wp-deploy-b
 
 Review the dry run first, on staging before production. Deploys own the plugin folders they install. A plugin that updated itself on the server can have files the repo's history deleted.
 
+## Pulls
+
+`pull.sh` brings a server's data down to a local copy of the site. It replaces the `db.sh` scripts that sites used to carry, each slightly different. It reads the same settings files as `deploy.sh`, and nothing in it writes to a server.
+
+```bash
+bash _build/pull.sh export production     # dump the database to _data/<time>.sql.gz
+bash _build/pull.sh import                # load the newest dump into the local Docker database, after asking
+bash _build/pull.sh import _data/<file>.sql.gz --yes   # a given dump, without asking
+bash _build/pull.sh media production      # copy wp-content/uploads/ down, without generated thumbnails
+bash _build/pull.sh media production --all  # with thumbnails
+```
+
+Targets are `production` and `staging` on `DEPLOY_HOST=cloudways`, or `cloudways-production` and `cloudways-staging`. Other hosts are refused for now.
+
+- **`export`** checks SSH first, then runs `wp db export --add-drop-table` in the app's webroot over SSH and gzips the dump locally into `_data/`. It leaves out the tables in `PULL_EXCLUDED_TABLES` (or the older name `SQL_EXCLUDED_TABLES`). It keeps the dump only when it ends with the `-- Dump completed` line, so a dropped connection or a WP-CLI error leaves no partial file.
+- **`import`** loads the newest dump in `_data/` (by modification time), or the file you name, into the site's Docker Compose database service with that container's own `mariadb` or `mysql` client. It first names the dump, the database and the service, and asks; `--yes` skips the question. It refuses when Docker points at another machine (a remote `DOCKER_HOST` or Docker context), so it can only write to a database on your computer. It then applies `_data/local.sql` if there is one, and runs `PULL_IMPORT_TASK` if set, for example to point the site's URLs at local Docker.
+- **`media`** copies `wp-content/uploads/` with `rsync` into the local `wp-content/uploads/` (`PULL_UPLOADS_DIR`). It skips WordPress's generated image sizes, such as `photo-300x200.jpg`, unless you pass `--all`, and it never deletes local files.
+
+`export` and `media` refuse to write to a folder that git doesn't ignore, since a committed dump or uploads folder would publish the site's data. Add `_data/` and `wp-content/uploads/` to the site's `.gitignore`.
+
+**One app, as the master user.** Staff SSH to Cloudways as the server's master user, which can read every application on the server. Older `db.sh` copies found WordPress with `ls /home/master/applications/*/public_html/wp-config.php | head -1`, which, as master, can export another app's database. `pull.sh` never searches the server. The webroot is `COMPOSE_CLOUDWAYS_<ENV>_WEBROOT` when set, as for `deploy.sh`, otherwise `COMPOSE_CLOUDWAYS_<ENV>_GIT_PATH` with its final `private_html` replaced by `public_html`. With neither set it stops before connecting. It passes that folder to WP-CLI as both the working folder and `--path`, and stops if the folder holds no `wp-config.php`.
+
+**SSH.** `pull.sh` connects to `COMPOSE_CLOUDWAYS_<ENV>_SSH_USER@COMPOSE_CLOUDWAYS_<ENV>_SERVER_IP`, with `GIT_SSH_COMMAND` when it is set. A server reached through a jump host needs a `Host <ip>` block with `ProxyJump` in your ssh config; the kit has no jump settings. Before any work it logs in with `BatchMode`, so it fails at once rather than prompting, and says whether your key wasn't accepted or the host key isn't verified yet. It looks for its own marker line anywhere in the output, since OpenSSH 10.2 can print a post-quantum warning first.
+
+**Moving a site from `db.sh`.** Copy `pull.sh` next to `deploy.sh` and delete `db.sh`. Add any settings that differ from the defaults to `deploy.env`: older sites' Docker databases use `PULL_DB_USER=root`, `PULL_DB_PASSWORD=somewordpress` and a database named after the Compose project, and their service may not be called `db`. Keep `SQL_EXCLUDED_TABLES` where it is, or rename it `PULL_EXCLUDED_TABLES`. The commands are the same apart from the target names. [`deploy.env.sample`](deploy.env.sample) documents every setting.
+
 ## Adopting on a site
 
 One PR per site:
 
-1. Copy `deploy.sh` and `cloudways-hook-post-receive.sh` from this folder unchanged (inside this repo, symlink them instead). Copy `deploy.env.sample` alongside them if the site wants it handy. Delete the old per-environment Cloudways hooks and `cloudways-init.sh`; `install-hook` replaces them.
+1. Copy `deploy.sh`, `pull.sh` and `cloudways-hook-post-receive.sh` from this folder unchanged (inside this repo, symlink them instead). Copy `deploy.env.sample` alongside them if the site wants it handy. Delete the old per-environment Cloudways hooks and `cloudways-init.sh`; `install-hook` replaces them.
 2. Write `_build/deploy.env`. Move the old script's build command to `DEPLOY_BUILD_TASK`, its branch to `DEPLOY_REMOTE_BRANCH`, and its host settings from `.env` into `deploy.env`. Keep SSH users in `.env`.
 3. Run `bash _build/tests/test_deploy.sh`, then compare `--dry-run` with the old payload. Run the dry run from a fresh clone, so gitignored local files can't change the build (see [Usage](#usage)), or compare it with the server's commit: `git fetch <host's Git remote> <branch>`, then `git diff --stat FETCH_HEAD <commit>`, where `<commit>` is the dry run's `Split commit` if it printed one, otherwise its `Deploy commit`.
 4. Run `audit` against staging. On Cloudways, review and run `install-hook` for each environment.
@@ -216,7 +243,7 @@ A deploy with 2.0.0 to 2.2.2 pushed the source repo's history to the host. Later
 ## Tests
 
 ```bash
-pnpm --filter @launch/wp-deploy test     # or: bash tests/test_deploy.sh, from this folder
+pnpm --filter @launch/wp-deploy test     # or: bash tests/test_deploy.sh && bash tests/test_pull.sh, from this folder
 ```
 
 The tests deploy to fake servers through a fake `ssh`. Nothing touches a real host. They cover:
@@ -230,10 +257,13 @@ The tests deploy to fake servers through a fake `ssh`. Nothing touches a real ho
 - `verify` after a deploy whose SSH checks failed: exit 1 or 2 by whether the install is proven, the verify hint, stale-file removal without a push, and its options
 - the Cloudways hook, list parsing, settings precedence, payload checks, remote quoting, the no-`git` hash, a 1500-file verification, and Kinsta failure modes
 
+`tests/test_pull.sh` runs `pull.sh` against a fake Cloudways server with two apps under one master user, through stubbed `ssh`, `rsync`, `wp` and `docker`. It covers the webroot coming from `GIT_PATH` or `WEBROOT` (never from a search, and never the other app), a missing or malformed `GIT_PATH` stopping before SSH, the SSH preflight's messages behind a post-quantum warning, excluded tables, truncated and failed dumps, the gitignore checks, `import`'s question, local-Docker check, `local.sql` and `PULL_IMPORT_TASK`, and `media`'s thumbnail filter.
+
 The fake WP Engine gateway strips quotes and has no `git`, like the real one. The tests need bash (3.2 or later), git and coreutils. They are this package's `test` script, so `pnpm verify` runs them.
 
 ## Changelog
 
+- **2.7.0**: New `pull.sh`, with `export <target>`, `import [<file>]` and `media <target>`, replaces the per-site `db.sh` copies (see [Pulls](#pulls)). It finds the Cloudways webroot from the app's own `GIT_PATH` or `WEBROOT`, never by searching the server, so as the master user it can't export another app's database. Cloudways only for now. No `deploy.sh` behavior change.
 - **2.6.1**: Example `.env` files that hold no values (`.env.example`, `.env.sample`, `.env.dist`, `.env.template`) are allowed again in any folder. 2.6.0 refused them, which blocked any deploy whose Composer plugins ship one, such as wp-graphql-acf's `.env.example`. Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.6.0**: The Cloudways hook takes a deploy lock (`deploy.lock` in the server's Git folder, with `flock` where the server has it), so two pushes never write the webroot at once. Once it holds the lock, it skips a push whose commit is no longer the branch tip. It records the last commit it installed in full in `deploy-installed-rev`, and deletes files against that commit instead of the branch's previous commit, so a push Git accepted but the hook refused no longer hides its deletions from the next push. An install that stops partway is noted in `deploy-attempted-revs`, and the next full install also removes the files it wrote. Where the server has no `flock`, the lock is a folder holding its owner's pid, and a lock whose owner has died is cleared. `deploy.sh` verifies against that commit too. `prune --delete` stops if the server's branch changed while it ran, and on Cloudways it removes files under the hook's lock. `.env` and `.env.*` files are refused, and flagged by the audit, in every folder, not only at the root (2.6.1 allows example files again). `install-hook --dry-run` is refused instead of installing. Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.5.2**: The Cloudways hook writes files with `git checkout-index` from a temporary index instead of `git archive | tar`. GNU tar sets the mode of every folder in the archive even with `--no-overwrite-dir`, and only a folder's owner may do that, so deploys still failed after writing every file. `checkout-index` creates missing folders and leaves existing ones alone. Because it replaces whatever is in a file's way, the hook first refuses the install when a payload file would land on a server folder, or a payload folder on a server file or link, so it never deletes server-only files. It writes every tracked file, ignoring `export-ignore` and `export-subst` in `.gitattributes`, which matches what the deploy verifies. Reinstall the hook (`install-hook`) on every Cloudways environment.

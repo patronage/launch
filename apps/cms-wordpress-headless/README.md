@@ -8,7 +8,7 @@ WordPress as an editing tool and a GraphQL API for [`apps/web-wordpress`](../web
 - `wp-content/mu-plugins/patronage-fields.php`: loads what this install shares with the Timber install from [`wordpress-shared/patronage-fields`](../../wordpress-shared/patronage-fields): the ACF field groups (see [Fields](#fields)), post types with their admin list columns, the rich-text block shortcodes, and the form model and entry checks (see [Forms](#forms)).
 - `wp-content/themes/patronage-headless/`: registers the primary menu, the form section's GraphQL type and submissions route (`inc/forms-api.php`), points the editor's Preview button at the front-end with a signed link, redirects visitors of WordPress's own front-end to the headless site, and locks WPGraphQL to the front-end's registered queries (`inc/persisted-queries.php`, `graphql-documents.json`).
 - `wp-content/mu-plugins/patronage-headless-revalidate.php`: loads [`wordpress-shared/patronage-headless-revalidate`](../../wordpress-shared/patronage-headless-revalidate), which tells the front-end which paths and tags to revalidate when content is published, edited, moved, unpublished or trashed.
-- `_build/`: deploys to Cloudways with [wp-deploy](../../wordpress-shared/wp-deploy/README.md), and a sample `wp-config.php` block for hosted environments. See [`_build/README.md`](_build/README.md).
+- `_build/`: deploys to Cloudways, and pulls the server's database and uploads down, with [wp-deploy](../../wordpress-shared/wp-deploy/README.md), plus a sample `wp-config.php` block for hosted environments. See [`_build/README.md`](_build/README.md).
 - `bin/setup.sh` and `bin/seed.sh`: install, configure and seed invented demo content (`wordpress-shared/patronage-fields/seed/seed.php`, shared with the Timber install, with images from [`packages/demo-content`](../../packages/demo-content)): the same Neighborhood Growers pages, heroes, forms and rich-text blocks as the Payload seed, plus an about page, a post and a draft.
 
 ## Run it
@@ -28,6 +28,7 @@ pnpm --filter web-wordpress dev              # front-end on http://localhost:300
 - GraphQL as an administrator: the GraphiQL IDE in wp-admin. Signed-out callers can run only registered queries, by ID.
 - Reseed (adds missing pages, leaves existing ones alone): `pnpm --filter cms-wordpress-headless seed`
 - Stop, or wipe the database: `pnpm --filter cms-wordpress-headless stop` / `reset`
+- Work on a copy of the server's content: `pnpm --filter cms-wordpress-headless pull -- export production`, then `pull -- import` and `pull -- media production` (see [`_build/README.md`](_build/README.md#pull-the-database-and-uploads))
 
 ## Fields
 
