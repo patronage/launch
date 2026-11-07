@@ -1,0 +1,24 @@
+{
+  "name": "patronage/launch-fleet",
+  "description": "Reports a Patronage site's WordPress, plugin and theme versions to Patronage Fleet once a day, for its vulnerability scan.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+  "authors": [
+    {
+      "name": "Patronage",
+      "homepage": "https://patronage.org"
+    }
+  ],
+  "support": {
+    "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-fleet",
+    "docs": "https://launch.patronage.com/references/wordpress-plugins"
+  },
+  "require": {
+    "php": ">=8.0",
+    "composer/installers": "^2.2"
+  },
+  "extra": {
+    "installer-name": "patronage-fleet"
+  }
+}

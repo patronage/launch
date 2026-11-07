@@ -1,7 +1,9 @@
 import { createWordPressAdapter } from "@launch/adapter-wordpress";
 import type { Page } from "@launch/content-model";
-import { imagePath } from "@launch/images";
+import { imagePath, rewriteImageUrls } from "@launch/images";
+import { RichTextBlock } from "@launch/ui";
 import type { ReactNode } from "react";
+import { createElement } from "react";
 
 import type { Content } from "./content";
 import { wordpressEnv } from "./env";
@@ -9,23 +11,47 @@ import { wordpressEnv } from "./env";
 /** Where WordPress keeps uploads; app/media serves them through Cloudflare Images. */
 export const UPLOADS_PATH = "/wp-content/uploads/";
 
+/** Where form sections post (with the trailing slash every route here has); app/forms/submit passes them to WordPress. */
+export const FORM_ACTION = "/forms/submit/";
+
 /**
- * Maps a page's Page Builder sections to the shared content model, or
- * returns undefined for posts and for pages without sections.
+ * Block editor HTML with its uploaded images served through app/media, since
+ * visitors can't reach the CMS's uploads behind Access.
+ */
+export const withMediaImages = (html: string): string =>
+  rewriteImageUrls(html, `${wordpressEnv().origin}${UPLOADS_PATH}`);
+
+const adapter = () => {
+  const { origin } = wordpressEnv();
+
+  return createWordPressAdapter({
+    cmsOrigin: origin,
+    formAction: FORM_ACTION,
+    imageUrl: (src) => imagePath(src, `${origin}${UPLOADS_PATH}`),
+    renderRichTextBlock: (block) => createElement(RichTextBlock, { block }),
+  });
+};
+
+/**
+ * Maps a page or post's hero, and a page's Page Builder sections, to the
+ * shared content model, or returns undefined when it has neither.
  */
 export const toSectionsPage = (
   content: Content
 ): Page<ReactNode> | undefined => {
-  if (content.__typename !== "Page" || !content.pageBuilder?.sections?.length) {
+  if (content.__typename !== "Page" && content.__typename !== "Post") {
     return undefined;
   }
 
-  const { origin } = wordpressEnv();
-
-  const adapter = createWordPressAdapter({
-    cmsOrigin: origin,
-    imageUrl: (src) => imagePath(src, `${origin}${UPLOADS_PATH}`),
+  // Posts have no Page Builder; the adapter reads their hero alone.
+  const page = adapter().toPage({
+    data: {
+      page:
+        content.__typename === "Page"
+          ? content
+          : { ...content, pageBuilder: null },
+    },
   });
 
-  return adapter.toPage({ data: { page: content } });
+  return page && (page.hero || page.sections.length > 0) ? page : undefined;
 };

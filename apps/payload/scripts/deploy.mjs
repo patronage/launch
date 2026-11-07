@@ -12,6 +12,14 @@ run("pnpm", ["run", "build"], {
   CLOUDFLARE_PREVIEW_BUILD: preview ? "true" : "false",
 });
 
+// Payload hands the CMS to whoever creates the first user, so the deployed
+// Worker only allows that through Access (src/lib/first-user-guard.ts).
+if (!preview && !(process.env.ACCESS_TEAM_DOMAIN && process.env.ACCESS_AUD)) {
+  console.warn(
+    "ACCESS_TEAM_DOMAIN and ACCESS_AUD are not set, so the deployed admin cannot create its first user. Protect /admin and /api with Access and deploy with both."
+  );
+}
+
 const deployArgs = [
   "exec",
   "cf",

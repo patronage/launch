@@ -1,0 +1,34 @@
+{# CardGridBlock: an optional heading over two to four columns of cards. #}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set card_heading = heading_level == 'h1' ? 'h2' : 'h3' %}
+{% set card_title = block.heading ? card_heading : heading_level %}
+<div class="flex flex-col gap-10">
+  {% if block.heading %}
+    <{{ heading_level }} class="{{ ui.type(heading_level == 'h1' ? 'd1' : 'h2') }}">{{ block.heading }}</{{ heading_level }}>
+  {% endif %}
+  <ul class="{{ cx('grid gap-6 sm:grid-cols-2', block.columns == 3 ? 'lg:grid-cols-3', block.columns == 4 ? 'lg:grid-cols-4') }}"
+    data-columns="{{ block.columns }}">
+    {% for card in block.cards %}
+      <li class="flex">
+        <div class="{{ cx('bg-card text-card-foreground flex w-full flex-col gap-5 overflow-hidden rounded-xl border py-6', card.image ? 'pt-0') }}"
+          data-slot="card">
+          {% if card.image %}
+            {{ p.img(card.image, 'aspect-3/2 w-full object-cover', 'lazy', '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw') }}
+          {% endif %}
+          <div class="grid auto-rows-min items-start gap-1.5 px-6" data-slot="card-header">
+            <{{ card_title }} class="{{ ui.type('h4') }}">{{ card.title }}</{{ card_title }}>
+            {% if card.text %}
+              <div class="text-muted-foreground text-base leading-relaxed">{{ card.text }}</div>
+            {% endif %}
+          </div>
+          {% if card.link %}
+            <div class="mt-auto flex items-center px-6" data-slot="card-footer">
+              {{ p.link_list([card.link|merge({variant: 'text'})]) }}
+            </div>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</div>

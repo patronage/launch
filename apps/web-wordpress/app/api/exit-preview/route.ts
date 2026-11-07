@@ -1,13 +1,17 @@
 import { draftMode } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { sameSitePath } from "@/lib/same-site-path";
+
 export const dynamic = "force-dynamic";
 
 export const GET = async (request: Request) => {
   const draft = await draftMode();
-  const path = new URL(request.url).searchParams.get("path") ?? "/";
+  const url = new URL(request.url);
 
   draft.disable();
-  // Only same-site paths, so this cannot be used as an open redirect.
-  redirect(path.startsWith("/") && !path.startsWith("//") ? path : "/");
+  // Only paths on this site, so this cannot be used as an open redirect.
+  redirect(
+    sameSitePath(url.searchParams.get("path") ?? "/", url.origin) ?? "/"
+  );
 };

@@ -21,4 +21,5 @@ Launch is one public monorepo, started from a fresh snapshot with no imported gi
 
 - Everything an agent writes, including issue and PR text, must be fit to publish.
 - Plugins that are not on Packagist are installed from their GitHub release zips through Composer `package` repositories.
+- Patronage's own WordPress plugins are published from here to other sites through Launch's Composer repository; [ADR 0017](0017-wordpress-plugins-through-composer.md) gives that decision and the security reasoning for publishing them.
 - Free, GPL software is preferred where a paid option would stop someone running the repo (see [ADR 0010](0010-wordpress-fields-in-php.md)).

@@ -1,0 +1,1 @@
+../../../wordpress-shared/wp-deploy/cloudways-hook-post-receive.sh

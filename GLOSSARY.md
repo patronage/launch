@@ -38,9 +38,21 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Service token**: The Cloudflare Access credential a Front-end or MCP Worker uses to read from a locked CMS. It never maps to a CMS user, so it can only read. _Avoid_: API key, bot user
 
+**MCP gateway**: The one MCP Worker a site's team installs. It signs people in, lists the tools, holds writes for Approval and logs every call. _Avoid_: MCP proxy, MCP plugin (for the Worker)
+
+**Connector**: The object `execute` code calls to reach one backend (`wp`, `payload`) inside the MCP gateway's sandbox. _Avoid_: Backend plugin, adapter (that is the Content model mapping)
+
+**Approval**: A person accepting or rejecting a write that the MCP gateway paused, on the inline card or the browser approval page. The write then runs as the approver. _Avoid_: Confirmation, permission prompt (that is the MCP client's own)
+
+**Tool pack**: A set of typed MCP tools for one workflow that is not CMS content, kept in a site's own repository. _Avoid_: Extension, skill
+
 **Preview**: An editor viewing unpublished content through the Front-end, started from the CMS's preview button with a short-lived signed link. _Avoid_: Draft mode (outside vinext code)
 
 **Cache tag**: A label on a cached Front-end response (a node id, a list, or `path:<path>`) that the CMS purges when matching content changes. _Avoid_: Surrogate key, cache key
+
+**Wide event**: One structured log record per request or job that carries everything known about it, emitted by evlog in Workers and by the logging mu-plugin in WordPress. _Avoid_: Log line, trace (for the record)
+
+**Log bucket**: The one R2 bucket per site that Logpush jobs and the WordPress Basin stream write into. _Avoid_: Log store (in code), data lake
 
 **Seed**: The command that loads the Demo site into a local or new CMS instance. _Avoid_: Fixture load, import
 

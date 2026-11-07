@@ -1,0 +1,75 @@
+---
+title: MCP server
+description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that can only change content after a person approves.
+---
+
+The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. They're published to npm under `@patronage`, with `@patronage/access`, so another site installs them rather than copying the code. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
+
+## What a site's team gets
+
+- **One install.** One Agent Plugin for Claude, Codex or Cursor that carries only the MCP server's URL.
+- **Sign-in through Cloudflare Access.** The same Access application that guards the CMS. Reads run as the signed-in person.
+- **Approved writes only.** Every change to CMS content pauses with a before-and-after for a person to approve, and runs as the approver. Changes to code will go through a pull request.
+- **Tools added over time.** New tools ship in the same server, so nobody reinstalls anything.
+
+## How it fits together
+
+| Part | Status and role |
+| --- | --- |
+| `packages/mcp-core` | Built. The gateway Worker: sign-in, the code-mode runtime, tool catalog, write approval, logging and the connector contract. It names no CMS |
+| `packages/mcp-wordpress` | Built. The `wp` connector: WPGraphQL and REST reads, approved post updates (core fields, ACF fields and registered post meta) and Redirection rules |
+| `packages/mcp-payload` | Built. The `payload` connector: reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Approved edits and new documents are saved as drafts, or published when the operation asks for it and the approval card says so, and rich text can be written as Markdown |
+| `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
+| Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
+
+The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
+
+## How an approved write runs
+
+An approved write runs inside the Durable Object, as the approver, and both approval surfaces show it operation by operation: the browser page streams a line as each operation finishes, and the card polls for the same progress. Operations in one batch run two at a time (`APPLY_CONCURRENCY`), and every receipt still lists them in order. That is safe because a batch never touches one post or one redirect source twice.
+
+The sandbox gives the script 60 seconds when it runs and 5 minutes when an approval resumes it to perform the write. Neither is a Cloudflare limit: a Durable Object has no wall-clock limit while its caller is connected, and its CPU limit counts only CPU, which a write spends almost none of while it waits on the CMS. The page streams its answer partly so that the request stays connected for as long as the write takes. A deployment can change either number by overriding `executionTimeoutMs` or `approvalTimeoutMs` on its `BaseGatewayRuntime` subclass.
+
+A run reports its write apart from its script. If the script times out or throws after the write landed, the result is the write's receipt with a note that the script stopped afterwards, not a failure. If a write stops before it returns a receipt, the receipt is rebuilt from the operations that reported back, its status is `partial`, and the rest are marked `unconfirmed`, meaning they may or may not have landed. `get_run` gives the same summary in `write`.
+
+A site's gateway is a small Worker of its own that installs the packages from npm and lists the connectors it needs.
+
+```bash
+pnpm add @patronage/mcp-core @cloudflare/codemode
+pnpm add @patronage/mcp-payload     # a site with Payload
+pnpm add @patronage/mcp-wordpress   # a site with WordPress
+```
+
+```ts
+import { createWorker } from "@patronage/mcp-core";
+import { BaseGatewayRuntime } from "@patronage/mcp-core/runtime";
+import { payloadConnector } from "@patronage/mcp-payload";
+
+export { CodemodeRuntime } from "@cloudflare/codemode";
+
+const connectors = [payloadConnector];
+
+export class GatewayRuntime extends BaseGatewayRuntime<Env> {
+  protected readonly connectors = connectors;
+}
+
+export default createWorker<Env>({ connectors });
+```
+
+Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the starting point, and drop the bindings for a CMS the site doesn't have. The published `@patronage/mcp-core` already contains the approval card, so the site has no `generate` step. Then:
+
+- **Keep an existing Durable Object class name.** A gateway that already runs with another class name, such as `WordPressRuntime`, names its subclass that and points `GATEWAY_RUNTIME` at it. Cloudflare keys stored runs and pending approvals to the class.
+- **Payload** needs `@payloadcms/plugin-mcp` with read tools only, plus the `getEditingInfo`, `markdownToRichText` and `richTextToMarkdown` tools from `apps/payload/src/mcp-tools.ts`. `payload.apply` reads `getEditingInfo` before every write and refuses without it. The users collection adds `accessGatewayAuthStrategy` from `@patronage/access/payload`, so Payload trusts the forwarded sign-in.
+- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`. To let `wp.apply` change a plugin's post meta, such as Yoast's `_yoast_wpseo_metadesc`, register the key with `register_post_meta` and `show_in_rest`, with an `auth_callback` that checks `edit_post`. Redirect operations need the Redirection plugin, and the approver needs its capability (`manage_options` unless the site filters `redirection_role`).
+- **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The `access:provision` command runs only inside the Launch repo.
+- **Logging**: `@patronage/logging` is not published, so a site that wants its provisioning scripts copies `packages/logging`.
+
+## Signing in with something other than Access
+
+Launch ships Access only. [Signing in with WorkOS](/references/mcp-workos) lists what a site would need to change to use WorkOS AuthKit instead.
+
+## Usage reporting
+
+Each request writes one wide event to Workers Logs: who called, which tool, the outcome, and any write receipts. Workers Logs keep events for seven days, which is enough to debug a problem.
+
+To keep events longer, build the gateway with `WORKER_LOGPUSH=true`, and the site's log bucket will receive them through Logpush (see [Logging](/references/logging)). A weekly usage report and a read-only connector for querying the logs are not built yet.

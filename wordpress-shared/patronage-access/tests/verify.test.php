@@ -239,4 +239,30 @@ assert_same( false, $applies( false, 'fpm-fcgi', false ), 'guard off by default'
 assert_same( false, $applies( true, 'cli', false ), 'guard skips the command line' );
 assert_same( false, $applies( true, 'fpm-fcgi', true ), 'guard skips WP-CLI' );
 
+// ---------------------------------------------------------------------------
+// Browser login steps: a plain GET of the login screen probes once with the
+// guard cookie, then signs in only if the cookie came back.
+// ---------------------------------------------------------------------------
+
+$login_step = static fn ( array $query, bool $guard = false, string $method = 'GET', bool $logged_in = false, bool $enabled = true ): string =>
+	Patronage_Access_JWT_Verifier::browser_login_step( $enabled, $method, $query, $logged_in, $guard );
+
+$marked = array( 'patronage_access_login' => '1' );
+assert_same( 'probe', $login_step( array() ), 'login screen probes' );
+assert_same( 'probe', $login_step( array( 'action' => 'login' ) ), 'explicit login action probes' );
+assert_same( 'probe', $login_step( array( 'redirect_to' => 'https://cms.example.com/wp-admin/', 'reauth' => '1' ) ), 'redirect from wp-admin probes' );
+assert_same( 'login', $login_step( $marked, true ), 'guard cookie came back' );
+assert_same( 'skip', $login_step( $marked, false ), 'browser refused the guard cookie' );
+assert_same( 'skip', $login_step( array(), true ), 'sent back after a sign-in' );
+assert_same( 'skip', $login_step( array(), false, 'GET', false, false ), 'browser login off by default' );
+assert_same( 'skip', $login_step( $marked, true, 'POST' ), 'form post' );
+assert_same( 'skip', $login_step( array(), false, 'GET', true ), 'already signed in' );
+assert_same( 'skip', $login_step( array( 'loggedout' => 'true' ) ), 'after logout' );
+assert_same( 'skip', $login_step( array( 'action' => 'logout' ) ), 'logout action' );
+assert_same( 'skip', $login_step( array( 'action' => 'lostpassword' ) ), 'lost password' );
+assert_same( 'skip', $login_step( array( 'action' => array( 'login' ) ) ), 'array action' );
+assert_same( 'skip', $login_step( array( 'interim-login' => '1' ) ), 'session-expired modal' );
+assert_same( 'skip', $login_step( array( 'patronage_access_login' => 'off' ) ), 'opt out once' );
+assert_same( 'skip', $login_step( array( 'patronage_access_login' => array( '1' ) ), true ), 'array marker' );
+
 fwrite( STDOUT, "Access JWT verifier tests passed.\n" );

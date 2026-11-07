@@ -1,0 +1,10 @@
+{
+  "name": "@patronage/wordpress-logging",
+  "version": "0.0.0",
+  "private": true,
+  "description": "WordPress mu-plugin that records security events as wide events and ships them, with the host's log files, to a Basin Pipelines stream. Off unless configured.",
+  "license": "MIT",
+  "scripts": {
+    "test": "php -l patronage-logging.php && php tests/off.test.php && php tests/logging.test.php"
+  }
+}

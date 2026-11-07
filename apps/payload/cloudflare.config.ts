@@ -21,8 +21,17 @@ export default defineConfig({
           },
         ]
       : [],
-    entrypoint: "vinext/server/fetch-handler",
+    // vinext's handler wrapped with the request log (worker.ts).
+    entrypoint: "./worker.ts",
     env: {
+      // Access application for /admin and /api; empty turns the Access sign-in off.
+      ACCESS_AUD: bindings.text(process.env.ACCESS_AUD ?? ""),
+      // The MCP gateway's Access application, whose editors' JWTs the gateway
+      // forwards, and the proof secret it signs them with. Both or neither.
+      ACCESS_GATEWAY_AUD: bindings.text(process.env.ACCESS_GATEWAY_AUD ?? ""),
+      ACCESS_GATEWAY_PROOF_SECRET:
+        Boolean(process.env.ACCESS_GATEWAY_AUD) && bindings.secret(),
+      ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
       ASSETS: bindings.assets(),
       D1:
         !usePostgres &&
@@ -41,7 +50,26 @@ export default defineConfig({
       PAYLOAD_SECRET: bindings.secret(),
       R2: bindings.r2({ name: "launch-payload-media" }),
     },
+    // WORKER_LOGPUSH=true sends this Worker's logs, evlog wide events
+    // included, to the account's workers_trace_events Logpush job.
+    logpush: process.env.WORKER_LOGPUSH === "true",
     name: "launch-payload",
+    // Workers Logs: seven days of this Worker's console output, evlog wide
+    // events included, searchable in the dashboard.
+    observability: {
+      enabled: true,
+      // Group exceptions and 5xx responses into Issues in the dashboard.
+      issues: { enabled: true },
+      logs: { enabled: true, headSamplingRate: 1 },
+      // Query strings can carry preview tokens; keep them out of logs and traces.
+      redactQueryString: true,
+      // Automatic tracing: a span for each subrequest and binding call, kept
+      // seven days. WORKER_TRACE_SAMPLING (0 to 1) lowers it for busy sites.
+      traces: {
+        enabled: true,
+        headSamplingRate: Number(process.env.WORKER_TRACE_SAMPLING || 1),
+      },
+    },
     previewUrls: false,
     workersDev: true,
   }),

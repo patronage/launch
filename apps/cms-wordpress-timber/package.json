@@ -1,0 +1,25 @@
+{
+  "name": "cms-wordpress-timber",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "setup": "bin/setup.sh",
+    "seed": "bin/seed.sh",
+    "start": "docker compose up -d --wait wordpress",
+    "stop": "docker compose down",
+    "reset": "docker compose down --volumes",
+    "wp": "docker compose run --rm cli wp",
+    "composer": "docker run --rm -it -u \"$(id -u):$(id -g)\" -e COMPOSER_HOME=/tmp/composer -v \"$PWD\":/app -w /app composer:2",
+    "build": "pnpm build:css",
+    "build:css": "tailwindcss -i wp-content/themes/patronage-timber/assets/main.css -o wp-content/themes/patronage-timber/dist/main.css --minify",
+    "dev:css": "tailwindcss -i wp-content/themes/patronage-timber/assets/main.css -o wp-content/themes/patronage-timber/dist/main.css --watch",
+    "deploy": "bash _build/deploy.sh",
+    "test": "bin/lint-php.sh"
+  },
+  "devDependencies": {
+    "@launch/ui": "workspace:*",
+    "@tailwindcss/cli": "4.3.3",
+    "@tailwindcss/typography": "0.5.20",
+    "tailwindcss": "4.3.3"
+  }
+}

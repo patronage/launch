@@ -1,0 +1,46 @@
+---
+title: Signing in with WorkOS
+description: What a site needs to sign its MCP users in with WorkOS AuthKit instead of Cloudflare Access.
+---
+
+Launch's [MCP server](/references/mcp) signs people in with Cloudflare Access, and that is the only provider it ships. This page tracks what a site would need if its team cannot use Access, for example because the people using it are not in the site owner's Zero Trust organization. Patronage has run this setup on a client deployment of the earlier MCP template, so the steps below come from that.
+
+The CMS stays behind Access either way. WorkOS replaces only the sign-in between the MCP client and the MCP Worker.
+
+## Why a site might choose it
+
+- MCP clients sign in through OAuth with no Zero Trust seat or identity-provider setup per person.
+- An allowlist of WorkOS organizations decides who may sign in, with a domain policy per organization (for example, Google sign-in only).
+
+What it costs: a second vendor, a second set of keys to rotate, and code that Launch does not ship.
+
+## Code a site would add
+
+- **A WorkOS provider in the Worker.** It verifies the AuthKit access token (issuer, audience, expiry, organization) against the AuthKit JWKS, in place of the Access JWT check.
+- **OAuth discovery.** The Worker serves `/.well-known/oauth-protected-resource` and answers an unauthenticated request with `401` and `WWW-Authenticate: Bearer resource_metadata=…`, so MCP clients find AuthKit by themselves.
+- **A login for the approval page.** The browser approval page needs its own AuthKit sign-in (authorization code with PKCE) and an encrypted session cookie.
+- **A WordPress check for WorkOS tokens.** The WordPress mu-plugin verifies the same token and maps the person by email.
+- **Logging.** Log a missing or expired token as a challenge, not a denial. It is the normal start of an OAuth sign-in or refresh.
+
+## WorkOS setup
+
+Do these in each WorkOS environment (one per MCP environment):
+
+1. **Approval login client.** An OAuth application managed by you, with PKCE and no secret. Register `https://<mcp-host>/mcp/approvals/callback` as its redirect URI. MCP clients register themselves and need no entry.
+2. **MCP auth.** Turn on Dynamic Client Registration and Client ID Metadata Documents.
+3. **Resource.** Register the MCP endpoint URL as a resource. Tokens carry it as their audience.
+4. **Organizations.** One per allowed company, each with its domain policy.
+5. **JWT template.** Add the `email` and `name` claims to the access token. The CMS maps the person by email.
+6. **Google OAuth client.** Each WorkOS environment that is not using demo credentials needs its own.
+
+The Worker then needs the issuer, the approval client ID, the JWKS URL, the resource and the allowed organization IDs. The CMS needs the issuer, the audience and the same organization list.
+
+## The order that keeps it safe
+
+Without a gateway proof, WordPress would accept a valid WorkOS token sent straight to its REST or GraphQL endpoint, and the holder would skip the approval step. So:
+
+1. Deploy the WordPress mu-plugin with no WorkOS settings. It rejects every MCP token.
+2. Deploy the Worker with its gateway proof secret, so it signs every WordPress request.
+3. Set WordPress's matching proof secret and its WorkOS settings in one edit. Never turn on WorkOS in WordPress without the proof secret.
+
+To turn MCP access off, remove the WorkOS settings from WordPress and leave the proof secret in place.

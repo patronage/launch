@@ -12,6 +12,8 @@ Cloudflare Access helpers for Workers and Node. See `docs/spikes/05-access-lockd
 
 ## Provision Access
 
+From a Launch checkout:
+
 ```bash
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
   pnpm --filter @patronage/access access:provision \
@@ -20,3 +22,5 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
 ```
 
 Repeat `--destination host/path` to protect only some paths (Payload: `/admin` and `/api`). The API token needs Access: Apps and Policies Edit and Access: Service Tokens Edit. The script prints the team domain, the AUD and, for a newly created service token, its secret, which Cloudflare shows only once.
+
+The script is not in the npm package. Another project calls `provisionLockdown` from `@patronage/access/cloudflare` in its own script.

@@ -1,11 +1,12 @@
-# The query that produces fixtures/home.json, recorded from the home page that
-# `pnpm --filter cms-wordpress-headless seed` creates, with the origin set to
-# https://cms.example.com and one unknown layout added to test skipping.
+# The query that produces the fixtures, recorded by `pnpm record-fixtures`
+# (scripts/record-fixtures.mjs) from pages that `pnpm --filter
+# cms-wordpress-headless seed` creates.
 
 query PageSections($uri: ID!) {
   page(id: $uri, idType: URI) {
     title
     uri
+    ...PageHeroFields
     ...PageBuilderFields
   }
 }

@@ -3,6 +3,17 @@
     "page": {
       "title": "Home",
       "uri": "/",
+      "hero": {
+        "variant": null,
+        "title": null,
+        "eyebrow": null,
+        "skin": "light",
+        "align": "start",
+        "subhead": null,
+        "body": null,
+        "image": null,
+        "links": null
+      },
       "pageBuilder": {
         "sections": [
           {

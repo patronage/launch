@@ -1,5 +1,6 @@
-# The Page Builder's fields as the adapter reads them. Front-ends spread
-# PageBuilderFields into their page queries; `pnpm codegen` types it from
+# The Page Builder's and the hero's fields as the adapter reads them.
+# Front-ends spread PageBuilderFields and PageHeroFields into their page
+# queries; `pnpm codegen` types it from
 # apps/web-wordpress/schema.graphql into src/gql/ (committed).
 
 fragment PageBuilderImage on AcfMediaItemConnectionEdge {
@@ -34,6 +35,46 @@ fragment PageBuilderSectionOptions on PageBuilderSectionsSectionOptions {
   paddingBottom
   anchor
   hidden
+}
+
+fragment PageHeroFields on WithAcfHero {
+  hero {
+    variant
+    title
+    eyebrow
+    skin
+    align
+    subhead
+    body
+    image {
+      ...PageBuilderImage
+    }
+    links {
+      link {
+        ...PageBuilderLink
+      }
+      variant
+    }
+  }
+}
+
+fragment PageBuilderForm on PatronageForm {
+  id
+  submitLabel
+  confirmation
+  fields {
+    type
+    name
+    label
+    required
+    width
+    defaultValue
+    options {
+      label
+      value
+    }
+    message
+  }
 }
 
 fragment PageBuilderFields on WithAcfPageBuilder {
@@ -111,6 +152,16 @@ fragment PageBuilderFields on WithAcfPageBuilder {
         body
         links {
           ...PageBuilderLinks
+        }
+      }
+      ... on PageBuilderSectionsFormLayout {
+        sectionOptions {
+          ...PageBuilderSectionOptions
+        }
+        heading
+        body
+        form {
+          ...PageBuilderForm
         }
       }
     }

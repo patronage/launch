@@ -1,18 +1,25 @@
 import type {
   Block,
+  Form,
+  FormField,
+  Hero,
+  HeroVariant,
   Image,
   Link,
   Media,
   Page,
+  RichTextBlock,
   Section,
   SectionOptions,
   SelectValue,
 } from "@launch/content-model";
 import {
   compact,
+  FORM_FIELD_TYPES,
   oneOf,
   slugify,
   toColumns,
+  toHeroVariant,
   toLinkVariant,
   toSkin,
   toSpacing,
@@ -20,7 +27,16 @@ import {
 } from "@launch/content-model";
 import type { ReactNode } from "react";
 
+import {
+  hasRichTextBlocks,
+  renderHtmlWithBlocks,
+  stripRichTextBlocks,
+} from "./rich-text-blocks";
+import type { WordPressRichTextBlock } from "./rich-text-blocks";
 import type {
+  AcfForm,
+  AcfFormField,
+  AcfHero,
   AcfLinkRow,
   AcfImage,
   AcfLink,
@@ -32,6 +48,8 @@ import type {
 
 export type * from "./types";
 
+export type { WordPressRichTextBlock } from "./rich-text-blocks";
+
 export interface WordPressAdapterOptions {
   /**
    * The WordPress origin, e.g. `https://cms.example.com`. Links and rich-text
@@ -41,8 +59,19 @@ export interface WordPressAdapterOptions {
   cmsOrigin: string;
   /** Rewrites image URLs, e.g. to an image CDN. Defaults to the WordPress URL. */
   imageUrl?: (src: string) => string;
-  /** Renders WordPress HTML. Defaults to `renderHtml`. */
+  /**
+   * Renders WordPress HTML. Defaults to `renderHtml`. Rich text holding
+   * rich-text blocks is parsed into React instead when `renderRichTextBlock`
+   * is set, since a block can sit inside a paragraph.
+   */
   renderRichText?: (html: string) => ReactNode;
+  /**
+   * Draws a block placed in rich text, e.g. with @launch/ui's `RichTextBlock`.
+   * Without it, blocks are left out.
+   */
+  renderRichTextBlock?: (block: RichTextBlock) => ReactNode;
+  /** Where form sections post their submissions. */
+  formAction?: string;
 }
 
 /**
@@ -61,7 +90,22 @@ const KNOWN_LAYOUTS = new Set<string>([
   "PageBuilderSectionsCardGridLayout",
   "PageBuilderSectionsBlockquoteLayout",
   "PageBuilderSectionsCallToActionLayout",
+  "PageBuilderSectionsFormLayout",
 ]);
+
+type HeroField = "body" | "image" | "subhead";
+
+/** The optional fields each hero variant draws, as the admin shows them. */
+const HERO_FIELDS = {
+  freeform: ["body"],
+  home: ["subhead", "image"],
+  media: ["subhead", "image"],
+  simple: ["subhead"],
+  split: ["subhead", "image"],
+} satisfies Record<HeroVariant, HeroField[]>;
+
+const toFieldType = (type: string): FormField<ReactNode>["type"] | undefined =>
+  FORM_FIELD_TYPES.find((known) => known === type);
 
 const isKnownLayout = (layout: Layout | UnknownLayout): layout is Layout =>
   KNOWN_LAYOUTS.has(layout.__typename);
@@ -95,6 +139,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
   const origin = options.cmsOrigin.replace(/\/+$/u, "");
   const imageUrl = options.imageUrl ?? ((src: string) => src);
   const renderRichText = options.renderRichText ?? renderHtml;
+  const formAction = options.formAction ?? "/forms/submit";
 
   /** Makes CMS-origin URLs site-relative and drops WordPress's trailing slash. */
   const localizeUrl = (url: string): string => {
@@ -106,6 +151,42 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
 
     return path.length > 1 ? path.replace(/\/(?=$|[?#])/u, "") : path;
   };
+
+  /** A rich-text block as the content model's, with the site's URLs. */
+  const richTextBlock = (block: WordPressRichTextBlock): RichTextBlock => {
+    switch (block.type) {
+      case "button": {
+        return {
+          link: {
+            href: localizeUrl(block.link.href),
+            label: block.link.label,
+            newTab: block.link.newTab,
+            variant: toLinkVariant(block.link.variant),
+          },
+          type: "button",
+        };
+      }
+
+      case "image": {
+        const { caption, image: img } = block.media;
+
+        return {
+          media: compact({
+            caption,
+            image: compact({ ...img, src: imageUrl(img.src) }),
+          }),
+          type: "image",
+        };
+      }
+
+      default: {
+        return compact(block);
+      }
+    }
+  };
+
+  const renderBlock = (block: WordPressRichTextBlock): ReactNode =>
+    options.renderRichTextBlock?.(richTextBlock(block));
 
   const richText = (html: string | null | undefined): ReactNode | undefined => {
     const trimmed = html?.trim();
@@ -119,7 +200,17 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       (_match, href: string) => `href="${localizeUrl(href)}"`
     );
 
-    return renderRichText(localized);
+    if (!hasRichTextBlocks(localized)) {
+      return renderRichText(localized);
+    }
+
+    if (options.renderRichTextBlock) {
+      return renderHtmlWithBlocks(localized, renderBlock);
+    }
+
+    const stripped = stripRichTextBlocks(localized).trim();
+
+    return stripped ? renderRichText(stripped) : undefined;
   };
 
   const link = (
@@ -139,7 +230,9 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
     };
   };
 
-  const links = (rows: (AcfLinkRow | null)[] | null | undefined): Link[] =>
+  const links = (
+    rows: readonly (AcfLinkRow | null)[] | null | undefined
+  ): Link[] =>
     (rows ?? []).flatMap((row) => link(row?.link, row?.variant) ?? []);
 
   const image = (acf: AcfImage | null | undefined): Image | undefined => {
@@ -166,6 +259,84 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
 
     // Captions come back as HTML; the shared model keeps them as plain text.
     return compact({ caption: stripTags(acf?.node?.caption), image: img });
+  };
+
+  /** A form field, or undefined for types the UI does not draw. */
+  const formField = (field: AcfFormField): FormField<ReactNode> | undefined => {
+    const type = toFieldType(field.type);
+
+    if (!type || (type !== "message" && !field.name)) {
+      return undefined;
+    }
+
+    return compact({
+      defaultValue: field.defaultValue ?? undefined,
+      label: field.label ?? undefined,
+      message: type === "message" ? richText(field.message) : undefined,
+      name: field.name,
+      options:
+        type === "select"
+          ? (field.options ?? []).map((option) => ({
+              label: option.label,
+              value: option.value,
+            }))
+          : undefined,
+      required: field.required,
+      type,
+      width: field.width ?? undefined,
+    });
+  };
+
+  const form = (value: AcfForm): Form<ReactNode> =>
+    compact({
+      action: formAction,
+      confirmation: richText(value.confirmation),
+      fields: value.fields.flatMap((field) => formField(field) ?? []),
+      id: value.id,
+      submitLabel: value.submitLabel || "Submit",
+    });
+
+  /** A form section, or undefined when its form is missing or unpublished. */
+  const formBlock = (
+    layout: Extract<Layout, { __typename: "PageBuilderSectionsFormLayout" }>,
+    id: string
+  ): Block<ReactNode> | undefined =>
+    layout.form
+      ? compact({
+          body: richText(layout.body),
+          form: form(layout.form),
+          heading: layout.heading || undefined,
+          id,
+          type: "form",
+        })
+      : undefined;
+
+  /** The page's hero, or undefined when it has no variant. */
+  const hero = (
+    value: AcfHero | null | undefined,
+    pageTitle: string
+  ): Hero<ReactNode> | undefined => {
+    const variant = toHeroVariant(value?.variant?.flatMap((v) => v ?? []));
+
+    if (!(value && variant)) {
+      return undefined;
+    }
+
+    // Each variant draws only its own fields; the rest may linger from another.
+    const draws = (field: HeroField) =>
+      HERO_FIELDS[variant].some((drawn) => drawn === field);
+
+    return compact({
+      align: oneOf(["start", "center"] as const, value.align, "start"),
+      body: draws("body") ? richText(value.body) : undefined,
+      eyebrow: value.eyebrow || undefined,
+      image: draws("image") ? image(value.image) : undefined,
+      links: links(value.links),
+      skin: toSkin(value.skin),
+      subhead: draws("subhead") ? value.subhead || undefined : undefined,
+      title: value.title?.trim() || pageTitle,
+      variant,
+    });
   };
 
   const block = (layout: Layout, id: string): Block<ReactNode> | undefined => {
@@ -262,6 +433,10 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
         });
       }
 
+      case "PageBuilderSectionsFormLayout": {
+        return formBlock(layout, id);
+      }
+
       default: {
         return undefined;
       }
@@ -294,12 +469,16 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
       }
     }
 
-    return {
-      path: localizeUrl(page.uri ?? "/"),
+    const title = page.title ?? "";
+
+    return compact({
+      hero: hero(page.hero, title),
+      // WPGraphQL gives the URI as a path; make it a CMS URL to localize it.
+      path: localizeUrl(`${origin}${page.uri ?? "/"}`),
       sections,
-      title: page.title ?? "",
-    };
+      title,
+    });
   };
 
-  return { localizeUrl, toPage };
+  return { localizeUrl, richTextBlock, toPage };
 };

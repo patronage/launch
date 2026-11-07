@@ -1,0 +1,19 @@
+{#
+  Eyebrow, heading, rich text and links: the copy column most blocks share
+  (Copy in packages/ui/src/blocks.tsx).
+  Takes: eyebrow, heading, body, links, heading_level, align.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set center = align|default('start') == 'center' %}
+{% set level = heading_level|default('h2') %}
+<div class="{{ cx('flex flex-col gap-5', center ? 'mx-auto items-center text-center') }}">
+  {% if eyebrow %}
+    <p class="{{ ui.type('eyebrow') }}">{{ eyebrow }}</p>
+  {% endif %}
+  {% if heading %}
+    <{{ level }} class="{{ ui.type(level == 'h1' ? 'd1' : 'h2') }}">{{ heading }}</{{ level }}>
+  {% endif %}
+  {{ p.rich_text(body, center ? 'mx-auto') }}
+  {{ p.link_list(links|default([]), cx('mt-2', center ? 'justify-center')) }}
+</div>

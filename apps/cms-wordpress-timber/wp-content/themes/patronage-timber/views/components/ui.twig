@@ -1,0 +1,54 @@
+{#
+  Class names for @launch/ui's primitives (Section, Container, Typography,
+  buttons), kept the same as their cva variants in packages/ui so the Timber
+  site and the vinext front-ends look alike from the same tokens. When a
+  variant changes there, change it here too.
+#}
+
+{% macro section(padding_top = 'md', padding_bottom = 'md', extra = '') %}
+  {%- set top = {none: 'pt-0', sm: 'pt-section-sm', md: 'pt-section-md', lg: 'pt-section-lg'} -%}
+  {%- set bottom = {none: 'pb-0', sm: 'pb-section-sm', md: 'pb-section-md', lg: 'pb-section-lg'} -%}
+  {{- cx('bg-section-background text-section-foreground relative w-full', top[padding_top] ?? top.md, bottom[padding_bottom] ?? bottom.md, extra) -}}
+{% endmacro %}
+
+{% macro container(width = 'default', extra = '') %}
+  {%- set widths = {narrow: 'max-w-2xl', content: 'max-w-4xl', default: 'max-w-6xl', wide: 'max-w-7xl', full: 'max-w-none'} -%}
+  {{- cx('mx-auto w-full px-gutter', widths[width] ?? widths.default, extra) -}}
+{% endmacro %}
+
+{% macro type(variant = 'body-md', extra = '') %}
+  {%- set variants = {
+    d1: 'font-display text-section-heading text-5xl leading-[1.05] font-semibold tracking-tight text-balance md:text-7xl',
+    d2: 'font-display text-section-heading text-4xl leading-tight font-semibold tracking-tight text-balance md:text-6xl',
+    h1: 'font-display text-section-heading text-4xl leading-tight font-semibold tracking-tight text-balance md:text-5xl',
+    h2: 'font-display text-section-heading text-3xl leading-tight font-semibold tracking-tight text-balance md:text-4xl',
+    h3: 'font-display text-section-heading text-xl leading-snug font-semibold text-balance md:text-2xl',
+    h4: 'font-display text-section-heading text-lg leading-snug font-semibold text-balance',
+    lead: 'text-section-muted text-lg leading-relaxed text-pretty md:text-xl',
+    'body-lg': 'text-section-foreground text-lg leading-relaxed text-pretty',
+    'body-md': 'text-section-foreground text-base leading-relaxed text-pretty',
+    'body-sm': 'text-section-muted text-sm leading-normal text-pretty',
+    muted: 'text-section-muted text-sm leading-normal text-pretty',
+    eyebrow: 'text-section-accent font-mono text-xs font-medium tracking-widest uppercase',
+    quote: 'font-display text-section-heading text-2xl leading-snug font-medium tracking-tight text-balance md:text-4xl'
+  } -%}
+  {{- cx(variants[variant] ?? variants['body-md'], extra) -}}
+{% endmacro %}
+
+{% macro button(variant = 'default', size = 'lg', extra = '') %}
+  {%- set base = 'focus-visible:border-ring focus-visible:ring-ring/50 inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50' -%}
+  {%- set sizes = {default: 'h-9 px-4 py-2', sm: 'h-8 gap-1.5 rounded-md px-3', lg: 'h-11 rounded-md px-6 text-base'} -%}
+  {%- set variants = {
+    default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    outline: 'hover:bg-accent hover:text-accent-foreground border border-current/25 bg-transparent hover:border-current/60',
+    link: 'decoration-section-accent text-current underline underline-offset-4 hover:decoration-2'
+  } -%}
+  {#- The link variant has no padding or fixed height, as cn() resolves it in packages/ui. -#}
+  {%- set sized = variant == 'link' ? 'h-auto px-0 text-base' : (sizes[size] ?? sizes.lg) -%}
+  {{- cx(base, sized, variants[variant] ?? variants.default, extra) -}}
+{% endmacro %}
+
+{# The rich-text wrapper's classes (@launch/ui's RichText). #}
+{% macro prose(extra = '') %}
+  {{- cx('prose-section prose prose-lg prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight max-w-none', extra) -}}
+{% endmacro %}

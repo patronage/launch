@@ -1,0 +1,511 @@
+import {
+  APPLY_CONCURRENCY,
+  ApplyConflictError,
+  batchStatus,
+  deepEqual,
+  mapWithConcurrency,
+  previewValue,
+} from "@patronage/mcp-core";
+import type {
+  ApplyPreflight,
+  BatchReceipt,
+  JsonObject,
+  JsonValue,
+  OperationPreflight,
+  OperationReceipt,
+  UpstreamClient,
+  UpstreamFetchResult,
+  UpstreamTelemetry,
+} from "@patronage/mcp-core";
+import { z } from "zod";
+
+import { wordPressErrorMessage, wpFetch } from "./wordpress";
+import {
+  changedPaths,
+  isRedirectOperation,
+  operationSentence,
+  operationTarget,
+} from "./wp-operations";
+import type { UpdatePostOperation, WriteOperation } from "./wp-operations";
+import { missedPathsMessage, toReceiptError } from "./wp-receipts";
+import { applyRedirect, preflightRedirect } from "./wp-redirects";
+
+const ACF_PREFIX = "acf.";
+
+const META_PREFIX = "meta.";
+
+const UNREADABLE_MODIFIED_GMT_CODE = "unreadable_modified_gmt";
+
+// Fixed on purpose: it names no field value and no upstream text. WordPress
+// omits `modified_gmt` when the caller cannot read the post in edit context or
+// when a filter drops the field, and either way there is nothing to gate on.
+const UNREADABLE_MODIFIED_GMT_MESSAGE =
+  "WordPress did not report when this post was last modified, so the change cannot be checked against the approval preview";
+
+const recordSchema = z.record(z.string(), z.json());
+const stringSchema = z.string();
+
+// WordPress `context=edit` renders an editable field as `{ raw, rendered }`;
+// the raw value is the one a write round-trips through.
+const editableFieldSchema = z.object({ raw: z.json() });
+
+// `acf` and `meta` are both objects keyed by field name on a REST post.
+// WordPress answers an empty `meta` with `[]`, which fails the record parse and
+// reads as absent, the same as a key the site never registered.
+const nestedValue = (
+  container: JsonValue | undefined,
+  key: string
+): JsonValue | undefined => {
+  const parsed = recordSchema.safeParse(container);
+
+  return parsed.success ? parsed.data[key] : undefined;
+};
+
+export const readPath = (
+  record: JsonObject,
+  path: string
+): JsonValue | undefined => {
+  if (path.startsWith(ACF_PREFIX)) {
+    return nestedValue(record.acf, path.slice(ACF_PREFIX.length));
+  }
+
+  if (path.startsWith(META_PREFIX)) {
+    return nestedValue(record.meta, path.slice(META_PREFIX.length));
+  }
+
+  const value = record[path];
+  const editable = editableFieldSchema.safeParse(value);
+
+  return editable.success ? editable.data.raw : value;
+};
+
+export const requestedValue = (
+  operation: UpdatePostOperation,
+  path: string
+): JsonValue | undefined => {
+  if (path.startsWith(ACF_PREFIX)) {
+    return operation.acf?.[path.slice(ACF_PREFIX.length)];
+  }
+
+  if (path.startsWith(META_PREFIX)) {
+    return operation.meta?.[path.slice(META_PREFIX.length)];
+  }
+
+  const { fields } = operation;
+
+  if (fields === undefined) {
+    return undefined;
+  }
+
+  return Object.entries(fields).find(([key]) => key === path)?.[1];
+};
+
+export const adminEditUrl = (apiUrl: string, id: number): string =>
+  new URL(`/wp-admin/post.php?post=${id}&action=edit`, apiUrl).toString();
+
+// Undefined, never "": an absent revision stamp is the one case the conflict
+// gate cannot decide, and collapsing it to a string made every comparison
+// below silently pass.
+const modifiedGmt = (record: JsonObject): string | undefined => {
+  const value = stringSchema.safeParse(record.modified_gmt);
+
+  return value.success ? value.data : undefined;
+};
+
+const postSlug = (record: JsonObject): string => {
+  const value = stringSchema.safeParse(record.slug);
+
+  return value.success ? value.data : "";
+};
+
+const resourcePath = (operation: UpdatePostOperation): string =>
+  `/wp-json/wp/v2/${operation.rest_base}/${operation.id}`;
+
+const readRecord = async (
+  client: UpstreamClient,
+  operation: UpdatePostOperation,
+  telemetry: UpstreamTelemetry
+): Promise<JsonObject> => {
+  const result = await wpFetch(
+    client,
+    `${resourcePath(operation)}?context=edit`,
+    telemetry
+  );
+
+  const parsed = recordSchema.safeParse(result.json);
+
+  if (result.status < 200 || result.status >= 300 || !parsed.success) {
+    throw new ApplyConflictError(
+      result.errorCode ?? "read_failed",
+      wordPressErrorMessage(result.status, result.errorCode) ??
+        `Could not read ${operationTarget(operation)}`
+    );
+  }
+
+  return parsed.data;
+};
+
+const preflightPost = async (
+  client: UpstreamClient,
+  operation: UpdatePostOperation,
+  telemetry: UpstreamTelemetry,
+  index: number
+): Promise<OperationPreflight> => {
+  const record = await readRecord(client, operation, telemetry);
+  const current = modifiedGmt(record);
+
+  // Without it the snapshot could not be re-checked before the write, so the
+  // preview is refused rather than offered as one a human could approve.
+  if (current === undefined) {
+    throw new ApplyConflictError(
+      UNREADABLE_MODIFIED_GMT_CODE,
+      UNREADABLE_MODIFIED_GMT_MESSAGE
+    );
+  }
+
+  if (
+    operation.expected_modified_gmt !== undefined &&
+    operation.expected_modified_gmt !== current
+  ) {
+    throw new ApplyConflictError(
+      "stale_expected_modified_gmt",
+      `${operationTarget(operation)} was last modified at ${current}`
+    );
+  }
+
+  const fields = changedPaths(operation).map((path) => {
+    const before = readPath(record, path);
+    const after = requestedValue(operation, path);
+
+    return {
+      after: previewValue(after),
+      before: previewValue(before),
+      changed: !deepEqual(before, after),
+      path,
+    };
+  });
+
+  return {
+    editUrl: adminEditUrl(client.apiUrl, operation.id),
+    fields,
+    modifiedGmt: current,
+    operationIndex: index,
+    sentence: operationSentence(operation),
+    slug: postSlug(record),
+    target: operationTarget(operation),
+  };
+};
+
+// Previews run `APPLY_CONCURRENCY` at a time for the same reason writes do:
+// the approval page waits on every one of them before it can render.
+export const preflightOperations = async (
+  client: UpstreamClient,
+  intent: string,
+  operations: WriteOperation[],
+  telemetry: UpstreamTelemetry
+): Promise<ApplyPreflight> => {
+  const results = await mapWithConcurrency(
+    operations,
+    APPLY_CONCURRENCY,
+    (operation, index) =>
+      isRedirectOperation(operation)
+        ? preflightRedirect(client, operation, telemetry, index)
+        : preflightPost(client, operation, telemetry, index)
+  );
+
+  return { intent, operations: results };
+};
+
+const writeBody = (operation: UpdatePostOperation): JsonObject => {
+  const body: JsonObject = {};
+  const { fields } = operation;
+
+  if (fields !== undefined) {
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) {
+        body[key] = value;
+      }
+    }
+  }
+
+  if (operation.acf !== undefined) {
+    body.acf = operation.acf;
+  }
+
+  if (operation.meta !== undefined) {
+    body.meta = operation.meta;
+  }
+
+  return body;
+};
+
+interface ReadbackClassification {
+  changed: string[];
+  missed: string[];
+  normalized: string[];
+}
+
+// WordPress rewrites some of what it stores: `sanitize_title` and
+// `wp_unique_post_slug` on a slug, KSES filtering of content and title for a
+// user without `unfiltered_html`, ACF's own normalisation of a field value.
+// A stored value that differs from the request but also from the pre-write
+// value is that rewriting — the write landed. Only a stored value still equal
+// to the pre-write value means WordPress ignored the payload, which is the
+// silent-200 case this readback exists to catch. `before` is the record read
+// immediately ahead of the write, and the conflict gate above has already
+// proved it is the same revision the approval preview snapshotted.
+const classifyReadback = (
+  operation: UpdatePostOperation,
+  before: JsonObject,
+  after: JsonObject
+): ReadbackClassification => {
+  const changed: string[] = [];
+  const missed: string[] = [];
+  const normalized: string[] = [];
+
+  for (const path of changedPaths(operation)) {
+    const requested = requestedValue(operation, path);
+    const previous = readPath(before, path);
+
+    if (deepEqual(previous, requested)) {
+      // The request asked for the value the post already held: a no-op, not a
+      // change and not a miss.
+      continue;
+    }
+
+    const stored = readPath(after, path);
+
+    if (deepEqual(stored, requested)) {
+      changed.push(path);
+    } else if (deepEqual(stored, previous)) {
+      missed.push(path);
+    } else {
+      changed.push(path);
+      normalized.push(path);
+    }
+  }
+
+  return { changed, missed, normalized };
+};
+
+const applyPost = async (
+  client: UpstreamClient,
+  operation: UpdatePostOperation,
+  snapshot: OperationPreflight,
+  telemetry: UpstreamTelemetry
+): Promise<OperationReceipt> => {
+  const base: Pick<OperationReceipt, "kind" | "operation_index" | "target"> = {
+    kind: "update_post",
+    operation_index: snapshot.operationIndex,
+    target: snapshot.target,
+  };
+
+  // The approval preview is persisted at approval time and the operations
+  // arrive at apply time, so nothing else guarantees that snapshot i describes
+  // operation i. Everything below reports `snapshot.target` and gates on
+  // `snapshot.modifiedGmt` while writing to `operation`'s own resource, so a
+  // mismatch has to stop before the first fetch.
+  if (snapshot.target !== operationTarget(operation)) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: {
+        code: "preflight_mismatch",
+        message: "The approval preview describes a different target",
+      },
+      normalized_paths: [],
+      status: "failed",
+      target: operationTarget(operation),
+    };
+  }
+
+  let before: JsonObject;
+
+  try {
+    before = await readRecord(client, operation, telemetry);
+  } catch (error) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: toReceiptError(error),
+      normalized_paths: [],
+      status: "failed",
+    };
+  }
+
+  const currentModifiedGmt = modifiedGmt(before);
+
+  // The same gate as the preview's: a post whose revision stamp cannot be read
+  // is a post whose approval cannot be honoured, so nothing is written.
+  if (currentModifiedGmt === undefined) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: {
+        code: UNREADABLE_MODIFIED_GMT_CODE,
+        message: UNREADABLE_MODIFIED_GMT_MESSAGE,
+      },
+      normalized_paths: [],
+      status: "conflict",
+    };
+  }
+
+  if (currentModifiedGmt !== snapshot.modifiedGmt) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: {
+        code: "modified_since_preflight",
+        message: `${snapshot.target} changed after the approval preview`,
+      },
+      normalized_paths: [],
+      status: "conflict",
+    };
+  }
+
+  // A rejected fetch, an oversized body, or a non-JSON body (what a PHP fatal
+  // inside a save_post hook returns) throws here. That must not destroy the
+  // receipt for this operation, nor for the writes that already landed.
+  let write: UpstreamFetchResult;
+
+  try {
+    write = await wpFetch(client, resourcePath(operation), telemetry, {
+      body: JSON.stringify(writeBody(operation)),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+  } catch (error) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: toReceiptError(error),
+      normalized_paths: [],
+      status: "failed",
+    };
+  }
+
+  if (write.status < 200 || write.status >= 300) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: {
+        code: write.errorCode ?? "write_failed",
+        message:
+          wordPressErrorMessage(write.status, write.errorCode) ??
+          `WordPress rejected the write to ${snapshot.target}`,
+      },
+      normalized_paths: [],
+      status: "failed",
+    };
+  }
+
+  let after: JsonObject;
+
+  try {
+    after = await readRecord(client, operation, telemetry);
+  } catch (error) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: toReceiptError(error),
+      normalized_paths: [],
+      status: "failed",
+    };
+  }
+
+  const readback = classifyReadback(operation, before, after);
+
+  if (readback.missed.length > 0) {
+    return {
+      ...base,
+      changed_paths: readback.changed,
+      error: {
+        code: "readback_mismatch",
+        message: missedPathsMessage(readback.missed),
+      },
+      normalized_paths: readback.normalized,
+      status: "failed",
+    };
+  }
+
+  return {
+    ...base,
+    changed_paths: readback.changed,
+    normalized_paths: readback.normalized,
+    status: readback.changed.length > 0 ? "changed" : "unchanged",
+  };
+};
+
+const applyOne = async (
+  client: UpstreamClient,
+  operation: WriteOperation,
+  snapshot: OperationPreflight | undefined,
+  telemetry: UpstreamTelemetry,
+  index: number
+): Promise<OperationReceipt> => {
+  if (snapshot === undefined) {
+    return {
+      changed_paths: [],
+      error: {
+        code: "missing_preflight",
+        message: "No approval preview exists for this operation",
+      },
+      kind: operation.kind,
+      normalized_paths: [],
+      operation_index: index,
+      status: "failed",
+      target: operationTarget(operation),
+    };
+  }
+
+  return isRedirectOperation(operation)
+    ? await applyRedirect(client, operation, snapshot, telemetry)
+    : await applyPost(client, operation, snapshot, telemetry);
+};
+
+// Operations run `concurrency` at a time (default `APPLY_CONCURRENCY`) and the
+// receipt lists them in index order. That is safe because a batch never
+// addresses one target twice, and each operation re-reads and gates on its own
+// target alone. `onProgress` hears each receipt as it settles; a failure to
+// record progress never fails the write it describes.
+export const applyOperations = async (options: {
+  approverOpaque: string;
+  client: UpstreamClient;
+  concurrency?: number;
+  executionId: string;
+  onProgress?: (receipt: OperationReceipt) => Promise<void>;
+  operations: WriteOperation[];
+  preflight: ApplyPreflight;
+  requesterOpaque: string;
+  telemetry: UpstreamTelemetry;
+}): Promise<BatchReceipt> => {
+  const receipts = await mapWithConcurrency(
+    options.operations,
+    options.concurrency ?? APPLY_CONCURRENCY,
+    async (operation, index) => {
+      const receipt = await applyOne(
+        options.client,
+        operation,
+        options.preflight.operations.at(index),
+        options.telemetry,
+        index
+      );
+
+      try {
+        await options.onProgress?.(receipt);
+      } catch {
+        // Progress is a view of the write, not part of it.
+      }
+
+      return receipt;
+    }
+  );
+
+  return {
+    approverOpaque: options.approverOpaque,
+    executionId: options.executionId,
+    operations: receipts,
+    requesterOpaque: options.requesterOpaque,
+    status: batchStatus(receipts),
+  };
+};

@@ -10,11 +10,14 @@
   },
   "scripts": {
     "codegen": "graphql-codegen --config codegen.ts",
+    "record-fixtures": "node scripts/record-fixtures.mjs",
     "test": "graphql-codegen --config codegen.ts --check && vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@launch/content-model": "workspace:*"
+    "@launch/content-model": "workspace:*",
+    "html-react-parser": "6.1.9",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "7.4.6",

@@ -1,0 +1,46 @@
+---
+title: Deploying WordPress
+description: Both WordPress installs deploy with wp-deploy, which pushes a packaged commit to the host's Git remote and checks that the host installed it.
+---
+
+The WordPress installs are not Workers. Each one runs on a WordPress host and deploys with [`wp-deploy`](https://github.com/patronage/launch/tree/main/wordpress-shared/wp-deploy), Patronage's deploy kit, which lives in `wordpress-shared/wp-deploy` (see [ADR 0013](https://github.com/patronage/launch/blob/main/docs/adr/0013-wordpress-deploy-kit.md)). It works on Cloudways, WP Engine and Kinsta. The Launch demos use Cloudways.
+
+## How a deploy works
+
+`deploy.sh` deploys the committed `HEAD`. It refuses to run with uncommitted changes, and it never stashes or switches branches. It:
+
+1. runs the site's build step, such as a production `composer install`;
+2. builds a deploy commit in a temporary Git index: `HEAD`, plus the build output named in the include list, minus the local tooling named in the exclude list;
+3. refuses the deploy if the payload holds `.env*`, `wp-config.php` or `wp-content/uploads/`;
+4. pushes to the host's Git remote, then checks that the host installed the commit.
+
+A deploy has succeeded only when the script exits 0 and prints `Deploy to <target> complete`. On Cloudways, a `post-receive` hook on the server installs only the app's own folder into the webroot.
+
+## Each app's `_build` folder
+
+Each WordPress app keeps the kit in its `_build/` folder. `deploy.sh` and the Cloudways hook are symlinks to the canonical copies, so every app runs the same version. The app's own settings sit beside them:
+
+| File | What it holds |
+| --- | --- |
+| `deploy.env` | Committed, non-secret settings: the host, the branch, the build step |
+| `.deploy_include.txt` | Gitignored build output to ship, such as Composer's plugins and the shared mu-plugins |
+| `.deploy_exclude.txt` | Local tooling to keep out of the webroot |
+| `wp-config-environment.php` | A sample block for each environment's `wp-config.php` |
+
+The repo is public, so server IPs, application paths and SSH users go in a gitignored `.env` next to `_build/`, never in `deploy.env`.
+
+## Deploy
+
+From the app folder, with a clean working tree:
+
+```bash
+pnpm run deploy staging --dry-run      # build and show the payload; needs no SSH
+pnpm run deploy audit staging          # read-only report on the server's files
+pnpm run deploy install-hook staging   # Cloudways, once per environment and after each kit upgrade
+pnpm run deploy staging
+pnpm run deploy production
+```
+
+On Cloudways, the hook installs one push at a time, and skips a push that a newer one has already replaced. It deletes files against the last commit it installed in full, so a refused push doesn't leave old files behind on the next one. No `.env` file, in any folder or variant, is ever deployed, apart from example files such as a plugin's `.env.example`.
+
+A site outside this repo copies the kit's files into its own `_build/` folder unchanged, and keeps anything site-specific in `deploy.env`. The kit's [README](https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md) covers every command, host and setting.

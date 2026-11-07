@@ -1,0 +1,20 @@
+{# BlockquoteBlock: a centred quote with an optional portrait and attribution. #}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+<figure class="mx-auto flex max-w-3xl flex-col items-center gap-8 text-center">
+  {% if block.image %}
+    {{ p.img(block.image, 'size-16 rounded-full object-cover', 'lazy', '64px', '') }}
+  {% endif %}
+  <blockquote class="{{ ui.type('quote') }}">
+    <p>{{ block.quote }}</p>
+  </blockquote>
+  {% if block.attribution or block.role %}
+    <figcaption class="text-section-muted">
+      {%- if block.attribution -%}
+        <cite class="text-section-heading font-semibold not-italic">{{ block.attribution }}</cite>
+      {%- endif -%}
+      {%- if block.attribution and block.role %}, {% endif -%}
+      {{- block.role -}}
+    </figcaption>
+  {% endif %}
+</figure>

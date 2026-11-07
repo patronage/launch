@@ -1,0 +1,12 @@
+{# ContentMediaBlock: copy beside an image, which can lead on wide screens. #}
+{% import 'components/primitives.twig' as p %}
+<div class="grid items-center gap-10 md:grid-cols-2 lg:gap-16" data-media="{{ block.mediaPosition }}">
+  {% include 'components/copy.twig' with {
+    eyebrow: block.eyebrow,
+    heading: block.heading,
+    body: block.body,
+    links: block.links,
+    heading_level: heading_level
+  } only %}
+  {{ p.figure(block.media, block.mediaPosition == 'start' ? 'md:order-first', '(min-width: 768px) 50vw, 100vw') }}
+</div>

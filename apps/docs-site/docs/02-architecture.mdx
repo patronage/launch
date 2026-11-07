@@ -4,9 +4,10 @@ description: The apps, the shared packages, and where each CMS ends and the shar
 ---
 
 ```txt
-apps/       Deployable apps: CMS installs, vinext front-ends, the MCP Worker, this docs site
-packages/   Shared libraries: content model, UI, Access helpers, MCP core and backends
-docs/       Engineering notes for contributors; research findings in docs/spikes/
+apps/              Deployable apps: CMS installs, vinext front-ends, the MCP Worker, this docs site
+packages/          Shared libraries: content model, UI, adapters, Access helpers, logging, MCP
+wordpress-shared/  Patronage's WordPress code that both installs load, and the deploy kit
+docs/              Engineering notes: decision records in docs/adr/, research in docs/spikes/
 ```
 
 ## Apps
@@ -16,21 +17,30 @@ docs/       Engineering notes for contributors; research findings in docs/spikes
 | `cms-wordpress-headless` | WordPress in Docker as an editor and a WPGraphQL API. It renders nothing public. |
 | `web-wordpress` | The vinext front-end for headless WordPress, deployed as a Worker. |
 | `payload` | Payload as one vinext app on Workers: the admin, plus front-end pages that read through the Local API. |
-| `cms-wordpress-timber` | A traditional WordPress install with a Timber theme. It shares design tokens with the others, not components. |
-| `mcp` | One MCP Worker behind Access, with a WordPress backend and a Payload backend. |
+| `cms-wordpress-timber` | A traditional WordPress install with a Timber theme. It shares design tokens with the others, not components. See [Traditional WordPress](/references/timber-wordpress). |
+| `mcp` | Launch's deployment of the MCP gateway Worker, behind Access, with its WordPress and Payload connectors. See [MCP server](/references/mcp). |
 | `docs-site` | This site. |
-
-Some of these are still in progress; see [Research](/research) for where each one stands.
 
 ## Shared packages
 
 - **`content-model`**: the CMS-neutral shape of a page and its sections.
-- **`ui`**: components that take plain props from `content-model`. They know nothing about WordPress or Payload.
+- **`ui`**: shadcn/ui components on Tailwind 4, the `Section`, `Container` and `Typography` primitives, and one component per content-model block. They take plain props and know nothing about WordPress or Payload. See [Shared UI](/references/ui).
 - **`adapter-wordpress`** and **`adapter-payload`**: map each CMS's data to `content-model`. See [CMS-neutral sections](/research/cms-neutral-sections).
-- **`access`**: provisions the Access applications, calls the CMS through Access, and verifies Access tokens. See [Lock the CMS behind Cloudflare Access](/research/access-lockdown).
+- **`access`**: published to npm as `@patronage/access`. It provisions the Access applications, calls the CMS through Access, and verifies Access tokens. See [Lock the CMS behind Cloudflare Access](/research/access-lockdown).
+- **`logging`**: the Worker wrapper that prints one wide event per request, and the script that provisions a site's log bucket. WordPress's side is the `patronage-logging` mu-plugin. See [Logging](/references/logging).
 - **`sections-preview`**: a parity test and a static page that render the same page from both CMSs side by side.
+- **`demo-content`**: the placeholder images and their alt text that every CMS's seed uses.
+- **`images`**: serves CMS images through the Cloudflare Images binding, on one same-origin route.
+- **`mcp-core`**, **`mcp-wordpress`** and **`mcp-payload`**: the MCP gateway and its two connectors, published to npm under `@patronage`. `apps/mcp` deploys them. See [MCP server](/references/mcp).
 
-The MCP packages (`mcp-core`, `mcp-wordpress`, `mcp-payload`) are planned.
+## Shared WordPress code
+
+Both WordPress installs load the same Patronage code from `wordpress-shared/`:
+
+- **`patronage-fields`**: the ACF field groups, post types, rich-text shortcodes, the form model and the demo seed.
+- **`patronage-access`**: the mu-plugin that verifies Cloudflare Access sign-ins: an origin guard for the headless install, optional browser login to wp-admin, and gateway identity for REST and WPGraphQL.
+- **`patronage-logging`**: the mu-plugin that records WordPress events. See [Logging](/references/logging).
+- **`wp-deploy`**: the deploy kit. See [Deploying WordPress](/deploy/wordpress).
 
 ## Where the CMS stops
 

@@ -1,3 +1,6 @@
 # Gitignored build output from bin/build.sh, relative to this folder.
 wp-content/plugins/*
 wp-content/mu-plugins/patronage-access.php
+wp-content/mu-plugins/patronage-fields/
+wp-content/mu-plugins/patronage-logging.php
+wp-content/mu-plugins/patronage-headless-revalidate/

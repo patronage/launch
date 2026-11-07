@@ -1,0 +1,75 @@
+{#
+  FormBlock: heading and intro above a Formidable form, at reading width
+  (FormSection and Form in packages/ui). The form posts back to this page
+  (inc/forms.php), so it works without JavaScript.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set form = block.form %}
+{% set control = 'border-input bg-background text-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-base outline-none focus-visible:ring-2' %}
+<div class="flex max-w-2xl flex-col gap-10" id="form-{{ form.id }}">
+  {% if block.heading or block.body %}
+    {% include 'components/copy.twig' with {
+      heading: block.heading,
+      body: block.body,
+      links: [],
+      heading_level: heading_level
+    } only %}
+  {% endif %}
+
+  {% if form.sent %}
+    <output class="prose block" role="status">
+      {{- form.confirmation ? form.confirmation|rich : '<p>Thanks, we got it.</p>'|rich -}}
+    </output>
+  {% else %}
+    <form action="{{ form.action }}" class="flex flex-wrap gap-x-4 gap-y-5" method="post">
+      <input name="{{ form.idField }}" type="hidden" value="{{ form.id }}" />
+      {# Hidden from people and screen readers; bots that fill it are ignored. #}
+      <div aria-hidden="true" class="absolute -left-[9999px]">
+        <label>Website <input autocomplete="off" name="{{ form.honeypot }}" tabindex="-1" type="text" /></label>
+      </div>
+
+      {% for field in form.fields %}
+        {% set style = field.width ? 'flex-basis: calc(' ~ field.width ~ '% - 1rem)' : '' %}
+        {% if field.type == 'message' %}
+          <div class="prose basis-full" {% if style %}style="{{ style }}"{% endif %}>{{ field.message|rich }}</div>
+        {% else %}
+          {% set id = 'form-' ~ form.id ~ '-' ~ field.name %}
+          {% set name = 'fields[' ~ field.name ~ ']' %}
+          {% set value = form.values[field.name] ?? field.defaultValue %}
+          <div class="{{ cx('flex min-w-48 grow basis-full', field.type == 'checkbox' ? 'flex-row-reverse items-center justify-end gap-3' : 'flex-col gap-2') }}"
+            {%- if style %} style="{{ style }}"{% endif %}>
+            <label class="text-sm font-medium" for="{{ id }}">
+              {{- field.label ?: field.name -}}
+              {%- if field.required %}<span aria-hidden="true"> *</span>{% endif -%}
+            </label>
+            {% if field.type == 'textarea' %}
+              <textarea class="{{ cx(control, 'min-h-32') }}" id="{{ id }}" name="{{ name }}" {% if field.required %}required{% endif %}>{{ value }}</textarea>
+            {% elseif field.type == 'select' %}
+              <select class="{{ control }}" id="{{ id }}" name="{{ name }}" {% if field.required %}required{% endif %}>
+                <option disabled value="" {% if not value %}selected{% endif %}>Choose…</option>
+                {% for option in field.options %}
+                  <option value="{{ option.value }}" {% if option.value == value %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            {% elseif field.type == 'checkbox' %}
+              <input class="accent-primary size-4" id="{{ id }}" name="{{ name }}" type="checkbox" value="true"
+                {%- if value == 'true' %} checked{% endif %}
+                {%- if field.required %} required{% endif %} />
+            {% else %}
+              <input class="{{ control }}" id="{{ id }}" name="{{ name }}" type="{{ field.type }}" value="{{ value }}"
+                {%- if field.required %} required{% endif %} />
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      <div class="flex basis-full flex-col items-start gap-3">
+        <button class="{{ ui.button('default', 'default') }}" type="submit">{{ form.submitLabel }}</button>
+        {% if form.error %}
+          <p class="text-destructive text-sm" role="alert">{{ form.error }} Please check the form and try again.</p>
+        {% endif %}
+      </div>
+    </form>
+  {% endif %}
+</div>

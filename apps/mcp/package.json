@@ -1,0 +1,28 @@
+{
+  "name": "@launch/mcp",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @patronage/mcp-core generate && vite dev",
+    "build": "pnpm --filter @patronage/mcp-core generate && vite build",
+    "preview": "vite preview",
+    "deploy": "node scripts/deploy.mjs",
+    "typecheck": "pnpm --filter @patronage/mcp-core generate && cf workers types && tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/codemode": "0.5.1",
+    "@patronage/mcp-core": "workspace:*",
+    "@patronage/mcp-payload": "workspace:*",
+    "@patronage/mcp-wordpress": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.v.7",
+    "@types/node": "24.19.2",
+    "cf": "1.0.0-beta.25",
+    "vite": "8.3.5"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

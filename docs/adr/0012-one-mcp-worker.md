@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-29. Not built yet.
+Superseded by [ADR 0014](0014-mcp-gateway-worker.md).
 
 ## Context
 

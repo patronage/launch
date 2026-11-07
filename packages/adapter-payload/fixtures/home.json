@@ -2,11 +2,21 @@
   "id": 1,
   "title": "Home",
   "slug": "home",
-  "hero": null,
+  "hero": {
+    "variant": null,
+    "title": null,
+    "eyebrow": null,
+    "skin": "light",
+    "align": "start",
+    "subhead": null,
+    "body": null,
+    "image": null,
+    "links": []
+  },
   "content": null,
   "layout": [
     {
-      "id": "6ae3d5014a32ef41939b466c",
+      "id": "6ae50414c59f3513da74924b",
       "eyebrow": "Neighborhood Growers",
       "heading": "Grow food together",
       "body": {
@@ -62,7 +72,7 @@
       "blockName": "Intro",
       "links": [
         {
-          "id": "6ae3d5014a32ef41939b466a",
+          "id": "6ae50414c59f3513da749249",
           "link": {
             "type": "reference",
             "newTab": false,
@@ -76,7 +86,7 @@
                 "slug": "get-involved",
                 "breadcrumbs": [
                   {
-                    "id": "6ae3d4fe4a32ef41939b4662",
+                    "id": "6ae4de6c213e64857cdfb2df",
                     "doc": 2,
                     "url": "/get-involved",
                     "label": "Get involved"
@@ -88,7 +98,7 @@
           }
         },
         {
-          "id": "6ae3d5014a32ef41939b466b",
+          "id": "6ae50414c59f3513da74924a",
           "link": {
             "type": "custom",
             "newTab": true,
@@ -109,7 +119,7 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b466d",
+      "id": "6ae50414c59f3513da74924c",
       "eyebrow": null,
       "heading": "How a garden starts",
       "body": {
@@ -220,7 +230,7 @@
                         "slug": "guide",
                         "breadcrumbs": [
                           {
-                            "id": "6ae3d4ff4a32ef41939b4664",
+                            "id": "6ae4de6d213e64857cdfb2e1",
                             "doc": 4,
                             "url": "/guide",
                             "label": "Starter guide"
@@ -259,7 +269,7 @@
         }
       },
       "media": {
-        "id": 1,
+        "id": 3,
         "alt": "Raised garden beds in a city lot",
         "caption": "Raised beds on a former parking lot",
         "prefix": "",
@@ -294,17 +304,17 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b4671",
+      "id": "6ae50414c59f3513da749250",
       "heading": "Programs",
       "columns": "3",
       "blockName": null,
       "cards": [
         {
-          "id": "6ae3d5014a32ef41939b466e",
+          "id": "6ae50414c59f3513da74924d",
           "title": "Seed library",
           "text": "Borrow seeds in spring, return saved seeds in fall.",
           "image": {
-            "id": 2,
+            "id": 1,
             "alt": "Paper seed packets",
             "caption": null,
             "prefix": "",
@@ -337,13 +347,13 @@
                 "slug": "seed-library",
                 "breadcrumbs": [
                   {
-                    "id": "6ae3d5004a32ef41939b4666",
+                    "id": "6ae4de6d213e64857cdfb2e3",
                     "doc": 5,
                     "url": "/programs",
                     "label": "Programs"
                   },
                   {
-                    "id": "6ae3d5004a32ef41939b4667",
+                    "id": "6ae4de6d213e64857cdfb2e4",
                     "doc": 6,
                     "url": "/programs/seed-library",
                     "label": "Seed library"
@@ -355,11 +365,11 @@
           }
         },
         {
-          "id": "6ae3d5014a32ef41939b466f",
+          "id": "6ae50414c59f3513da74924e",
           "title": "Tool share",
           "text": "Shovels, wheelbarrows and hoses for every member garden.",
           "image": {
-            "id": 5,
+            "id": 2,
             "alt": "Garden tools hanging on a wall",
             "caption": null,
             "prefix": "",
@@ -392,13 +402,13 @@
                 "slug": "tool-share",
                 "breadcrumbs": [
                   {
-                    "id": "6ae3d5014a32ef41939b4668",
+                    "id": "6ae4de6d213e64857cdfb2e5",
                     "doc": 5,
                     "url": "/programs",
                     "label": "Programs"
                   },
                   {
-                    "id": "6ae3d5014a32ef41939b4669",
+                    "id": "6ae4de6d213e64857cdfb2e6",
                     "doc": 7,
                     "url": "/programs/tool-share",
                     "label": "Tool share"
@@ -410,7 +420,7 @@
           }
         },
         {
-          "id": "6ae3d5014a32ef41939b4670",
+          "id": "6ae50414c59f3513da74924f",
           "title": "Youth growers",
           "text": "After-school planting and harvest days.",
           "image": null,
@@ -433,12 +443,12 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b4672",
+      "id": "6ae50414c59f3513da749251",
       "quote": "The garden is the first place on our block where everyone knows each other's names.",
       "attribution": "Rosa Delgado",
       "role": "Garden lead",
       "image": {
-        "id": 3,
+        "id": 4,
         "alt": "Portrait of Rosa",
         "caption": null,
         "prefix": "",
@@ -471,9 +481,9 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b4673",
+      "id": "6ae50414c59f3513da749252",
       "media": {
-        "id": 4,
+        "id": 5,
         "alt": "Volunteers sorting a harvest",
         "caption": "Fall harvest day",
         "prefix": "",
@@ -506,7 +516,7 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b4675",
+      "id": "6ae50414c59f3513da749254",
       "heading": "Start a garden on your block",
       "body": {
         "root": {
@@ -542,7 +552,7 @@
       "blockName": "Join",
       "links": [
         {
-          "id": "6ae3d5014a32ef41939b4674",
+          "id": "6ae50414c59f3513da749253",
           "link": {
             "type": "reference",
             "newTab": false,
@@ -556,7 +566,7 @@
                 "slug": "apply",
                 "breadcrumbs": [
                   {
-                    "id": "6ae3d4ff4a32ef41939b4663",
+                    "id": "6ae4de6c213e64857cdfb2e0",
                     "doc": 3,
                     "url": "/apply",
                     "label": "Apply now"
@@ -579,7 +589,7 @@
       }
     },
     {
-      "id": "6ae3d5014a32ef41939b4676",
+      "id": "6ae50414c59f3513da749255",
       "heading": "Winter volunteer drive",
       "body": null,
       "blockName": null,
@@ -598,11 +608,15 @@
   "parent": null,
   "breadcrumbs": [
     {
-      "id": "6ae3d4fe4a32ef41939b4661",
+      "id": "6ae4de6c213e64857cdfb2de",
       "doc": 1,
       "url": "/home",
       "label": "Home"
     }
   ],
+  "updatedBy": {
+    "relationTo": "users",
+    "value": 1
+  },
   "_status": "published"
 }

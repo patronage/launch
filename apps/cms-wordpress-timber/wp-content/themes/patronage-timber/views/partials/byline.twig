@@ -1,0 +1,5 @@
+{# A post's author and date. #}
+{% import 'components/ui.twig' as ui %}
+<p class="{{ ui.type('muted') }}">
+  {{- post.author.name }} · <time datetime="{{ post.date('c') }}">{{ post.date('F j, Y') }}</time>
+</p>

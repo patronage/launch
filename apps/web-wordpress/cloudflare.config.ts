@@ -23,7 +23,8 @@ export default defineConfig(({ isPreview }) => ({
     domains: domain
       ? [{ hostname: domain, previews: previewsOnDomain, production: true }]
       : [],
-    entrypoint: "vinext/server/fetch-handler",
+    // vinext's handler wrapped with the request log (worker.ts).
+    entrypoint: "./worker.ts",
     env: {
       ACCESS_PREVIEW_AUD: bindings.text(process.env.ACCESS_PREVIEW_AUD ?? ""),
       ACCESS_TEAM_DOMAIN: bindings.text(process.env.ACCESS_TEAM_DOMAIN ?? ""),
@@ -46,7 +47,26 @@ export default defineConfig(({ isPreview }) => ({
         process.env.WORDPRESS_URL ?? "http://localhost:8080"
       ),
     },
+    // WORKER_LOGPUSH=true sends this Worker's logs, evlog wide events
+    // included, to the account's workers_trace_events Logpush job.
+    logpush: process.env.WORKER_LOGPUSH === "true",
     name: process.env.WORKER_NAME ?? "launch-vinext-wordpress",
+    // Workers Logs: seven days of this Worker's console output, evlog wide
+    // events included, searchable in the dashboard.
+    observability: {
+      enabled: true,
+      // Group exceptions and 5xx responses into Issues in the dashboard.
+      issues: { enabled: true },
+      logs: { enabled: true, headSamplingRate: 1 },
+      // Query strings can carry preview tokens; keep them out of logs and traces.
+      redactQueryString: true,
+      // Automatic tracing: a span for each subrequest and binding call, kept
+      // seven days. WORKER_TRACE_SAMPLING (0 to 1) lowers it for busy sites.
+      traces: {
+        enabled: true,
+        headSamplingRate: Number(process.env.WORKER_TRACE_SAMPLING || 1),
+      },
+    },
     // Production on workers.dev and Previews on <preview>-<worker>.<subdomain>.workers.dev.
     // The dashboard created this Worker with workers.dev off; a production deploy applies these.
     previewUrls: true,

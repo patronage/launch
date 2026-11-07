@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/research.mjs && blume dev",
-    "build": "node scripts/research.mjs && blume build",
+    "dev": "node scripts/publish-notes.mjs && blume dev",
+    "build": "node scripts/publish-notes.mjs && blume build",
     "start": "blume preview",
-    "test": "node scripts/research.mjs && blume validate --strict",
+    "test": "node scripts/publish-notes.mjs && blume validate --strict",
     "typecheck": "tsc --noEmit",
     "deploy": "node scripts/deploy.mjs",
     "builds:configure": "node scripts/workers-builds.mjs"

@@ -3,6 +3,7 @@
  * - WordPress HTML arrives as a string and is mounted in a `.l-rich-raw`
  *   wrapper (innerHTML needs an element); Payload's Lexical renders inline.
  * - wpautop leaves newlines between block tags.
+ * - React escapes apostrophes in text it renders; injected HTML keeps them.
  */
 export const normalizeMarkup = (html: string): string =>
   html
@@ -11,4 +12,5 @@ export const normalizeMarkup = (html: string): string =>
       "$<inner>"
     )
     .replaceAll(/>\s+</gu, "><")
+    .replaceAll("&#x27;", "'")
     .trim();

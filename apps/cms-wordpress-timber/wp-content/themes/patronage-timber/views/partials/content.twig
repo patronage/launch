@@ -1,0 +1,41 @@
+{#
+  A page or post (ContentView in apps/web-wordpress): the hero and Page
+  Builder sections, where the hero (or else the first section's heading) is
+  the <h1>; without either, a header with the title. A post's byline and any
+  block editor content follow, so content with a hero but no sections keeps
+  its body. Takes: post, page.
+#}
+{% import 'components/ui.twig' as ui %}
+{% import 'components/primitives.twig' as p %}
+{% set is_post = post.post_type == 'post' %}
+<article>
+  {% if page.hero %}
+    {% include 'heroes/hero.twig' with {hero: page.hero, skin: page.heroSkin, joins_next: page.heroJoinsNext} only %}
+  {% endif %}
+  {% for section in page.sections %}
+    {% include 'sections/section.twig' with {section: section} only %}
+  {% endfor %}
+
+  {% if not page.hero and page.sections is empty %}
+    <header class="{{ ui.section('lg', 'sm') }}" data-component="section" data-skin="light">
+      <div class="{{ ui.container() }}">
+        <div class="flex max-w-3xl flex-col gap-5">
+          <h1 class="{{ ui.type('h1') }}">{{ post.title|text }}</h1>
+          {% if is_post %}{% include 'partials/byline.twig' with {post: post} only %}{% endif %}
+        </div>
+      </div>
+    </header>
+  {% elseif page.hero and is_post %}
+    <div class="{{ ui.section('sm', 'none') }}" data-skin="light">
+      <div class="{{ ui.container() }}">{% include 'partials/byline.twig' with {post: post} only %}</div>
+    </div>
+  {% endif %}
+
+  {% if post.content is not empty and page.sections is empty %}
+    <div class="{{ ui.section(page.hero ? 'md' : 'none', 'lg') }}" data-skin="light">
+      <div class="{{ ui.container() }}">
+        {{ p.rich_text(post.content, 'max-w-3xl') }}
+      </div>
+    </div>
+  {% endif %}
+</article>

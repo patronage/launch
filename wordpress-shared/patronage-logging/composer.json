@@ -1,0 +1,24 @@
+{
+  "name": "patronage/launch-logging",
+  "description": "Records security-relevant WordPress events as wide events and ships them, with the host's log files, to a Basin Pipelines stream.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+  "authors": [
+    {
+      "name": "Patronage",
+      "homepage": "https://patronage.org"
+    }
+  ],
+  "support": {
+    "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-logging",
+    "docs": "https://launch.patronage.com/references/wordpress-plugins"
+  },
+  "require": {
+    "php": ">=8.1",
+    "composer/installers": "^2.2"
+  },
+  "extra": {
+    "installer-name": "patronage-logging"
+  }
+}

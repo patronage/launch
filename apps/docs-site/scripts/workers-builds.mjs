@@ -94,16 +94,16 @@ const shared = {
   ].join(" && "),
   build_token_uuid: env.BUILD_TOKEN_UUID,
   // The API takes each variable as { value, is_secret }, not a bare string.
-  // WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS are read when the site is built,
-  // so they are passed on when set here.
+  // WORKER_NAME, WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS are read when the
+  // site is built, so they are passed on when set here.
   environment_variables: Object.fromEntries(
     Object.entries({
       NODE_VERSION: readRepoFile(".nvmrc"),
       PNPM_VERSION: pnpmVersion,
       SKIP_DEPENDENCY_INSTALL: "1",
       ...Object.fromEntries(
-        ["WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"].flatMap((name) =>
-          env[name] ? [[name, env[name]]] : []
+        ["WORKER_NAME", "WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"].flatMap(
+          (name) => (env[name] ? [[name, env[name]]] : [])
         )
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])

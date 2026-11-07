@@ -1,0 +1,41 @@
+---
+title: Shared UI
+description: One UI package for the vinext front-ends, built on shadcn/ui and Tailwind 4, that takes plain props and knows nothing about any CMS.
+---
+
+[`packages/ui`](https://github.com/patronage/launch/tree/main/packages/ui) (`@launch/ui`) is the UI that both vinext front-ends render: [shadcn/ui](https://ui.shadcn.com) components on Tailwind 4, Patronage's layout primitives, and one component per block in the content model. See [ADR 0009](https://github.com/patronage/launch/blob/main/docs/adr/0009-shadcn-ui-package.md).
+
+## How a page is drawn
+
+1. Each CMS's adapter, `adapter-wordpress` or `adapter-payload`, maps the CMS's data to `content-model`: a hero, then a list of sections.
+2. The adapter renders rich text itself, because each editor stores it differently, and passes it in as children.
+3. `PageSections` draws the sections with the shared components.
+
+So a component never sees a WordPress field or a Payload document. A parity test in `packages/sections-preview` renders the same page from both CMSs' recorded output and checks that they match.
+
+## Primitives
+
+Build pages from these rather than app-local CSS:
+
+- **`Section`**: a full-width band. Its `skin` (`light`, `dark` or `accent`) remaps the colour variables, so buttons, cards and type inside follow it. Adjacent sections with the same skin share their padding.
+- **`Container`**: a centred max width with the site gutter, in the content model's widths (`narrow`, `default`, `wide`, `full`).
+- **`Typography`**: the type scale by role (`d1`, `d2`, `h1` to `h4`, `lead`, `body-lg`, `body-md`, `body-sm`, `muted`, `eyebrow`, `quote`). `variant` picks the look and `as` the element.
+
+```tsx
+<Section paddingTop="lg" skin="dark">
+  <Container width="narrow">
+    <Typography variant="eyebrow">News</Typography>
+    <Typography as="h1" variant="h2">
+      A heading
+    </Typography>
+  </Container>
+</Section>
+```
+
+## Blocks
+
+The content model has five hero variants (`home`, `split`, `media`, `simple` and a free-form one with rich text) and these sections: content, content with media, media, card grid, blockquote, call to action and form. Rich text can hold buttons, images, pullquotes and video or X embeds.
+
+## Tokens
+
+The colours, type and spacing are plain CSS variables in `tokens.css`, with no Tailwind, so the [Timber theme](/references/timber-wordpress) can load them on its own. `theme.css` maps them into Tailwind. To add a shadcn component, run `pnpm dlx shadcn@latest add <component>` in `packages/ui` and export it from the package.

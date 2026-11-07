@@ -33,7 +33,8 @@ Shared front-end UI for the vinext sites: [shadcn/ui](https://ui.shadcn.com) com
 | File | What it is |
 | --- | --- |
 | `src/tokens.css` | Plain CSS variables: palette, shadcn colour names, the `--section-*` layer and the `light`, `dark` and `accent` skins. No Tailwind, so the Timber install can load it on its own. |
-| `src/styles.css` | Tailwind entry: maps the tokens into the theme, adds `@tailwindcss/typography` for rich text (`.prose-section`) and scans this package. |
+| `src/theme.css` | Maps the tokens into Tailwind's theme, adds `@tailwindcss/typography` for rich text (`.prose-section`) and the base styles. No `@source`, so the Timber theme imports it after Tailwind and scans only its Twig views. |
+| `src/styles.css` | Tailwind entry for the React front-ends: Tailwind, `theme.css`, and a scan of this package. |
 | `src/components/section.tsx` | Full-width band. `skin` sets `data-skin`, which remaps the colour variables, so buttons, cards and type inside follow it. `paddingTop` and `paddingBottom` take the content model's spacing steps. |
 | `src/components/container.tsx` | Centred max width with the site gutter. Widths follow the content model (`narrow`, `default`, `wide`, `full`) plus `content`. |
 | `src/components/typography.tsx` | The type scale by role (`d1`, `h1` to `h4`, `lead`, `body-*`, `eyebrow`, `quote`). Pick the look with `variant` and the element with `as`. |

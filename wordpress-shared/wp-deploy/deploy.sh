@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wp-deploy 2.5.2 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# wp-deploy 2.6.1 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
 # Sites vendor this file unchanged. Put site settings in _build/deploy.env.
 #
@@ -57,7 +57,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.5.2"
+WP_DEPLOY_VERSION="2.6.1"
 
 BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$BUILD_DIR")"
@@ -79,9 +79,27 @@ EXCLUDE_FILE="$BUILD_DIR/.deploy_exclude.txt"
 # SERVER_MANAGED_REGEX for its targets, unless DEPLOY_SERVER_MANAGED_REGEX is set.
 
 # Paths that must never be in a deploy payload.
-FORBIDDEN_PAYLOAD_REGEX='(^|/)\.env$|^\.env\.|(^|/)wp-config\.php$|^wp-content/uploads/'
-# Its .env part. The audit warns when the webroot has a file matching it.
-ENV_FILE_REGEX='(^|/)\.env$|^\.env\.'
+FORBIDDEN_PAYLOAD_REGEX='(^|/)\.env(\.[^/]*)?$|(^|/)wp-config\.php$|^wp-content/uploads/'
+# Its .env part, .env and .env.<anything> in any folder. The audit warns when
+# the webroot has a file matching it.
+ENV_FILE_REGEX='(^|/)\.env(\.[^/]*)?$'
+# Example files that hold no values, such as a plugin's .env.example, which
+# the payload check and the audit allow. The Cloudways hook has the same list.
+ENV_TEMPLATE_REGEX='(^|/)\.env\.(example|sample|dist|template)$'
+
+# True when $1 must never be in a payload. An example .env file is exempt from
+# the .env rule only: it is checked again under a neutral name in its folder,
+# so the uploads rule and any custom rule on its folder still apply.
+forbidden_payload_path() {
+  local path="$1"
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]] || return 1
+  [[ "$path" =~ $ENV_TEMPLATE_REGEX ]] || return 0
+  case "$path" in
+    */*) path="${path%/*}/env-template" ;;
+    *) path="env-template" ;;
+  esac
+  [[ "$path" =~ $FORBIDDEN_PAYLOAD_REGEX ]]
+}
 
 # Paths the server manages itself, on every host. Deploys never delete them, and
 # seeing them on the server is expected. install-hook writes this text into the
@@ -466,7 +484,9 @@ package() {
     [ -z "$leftover" ] || die "exclude entry '$entry' is still in the payload:\n$leftover"
   done < <(read_list "$EXCLUDE_FILE")
 
-  forbidden="$(git ls-files -- . | grep -E "$FORBIDDEN_PAYLOAD_REGEX" || true)"
+  forbidden="$(git ls-files -- . | while IFS= read -r path; do
+    if forbidden_payload_path "$path"; then printf '%s\n' "$path"; fi
+  done)"
   [ -z "$forbidden" ] || die "payload contains files that must never be deployed:\n$forbidden\nAdd them to $(basename "$EXCLUDE_FILE")."
 
   DEPLOY_TREE="$(git write-tree)"
@@ -709,12 +729,37 @@ verify_files() {
 # directories they leave empty. Mirrors the Cloudways hook's deletion rules.
 # $1, optional, says why the files are removed.
 remove_stale_files() {
+  local status=0
   awk -F'\t' '$1 == "stale" { print $2 }' "$TMP_DIR/verify.bad" >"$TMP_DIR/verify.stale"
   log "Removing $(wc -l <"$TMP_DIR/verify.stale" | tr -d ' ') file(s) ${1:-the deploy deleted but the host left on the server}"
   # head reads the file first so nothing upstream gets SIGPIPE under pipefail.
   head -n 20 "$TMP_DIR/verify.stale" | sed 's/^/    /'
+  # With PRUNE_LOCK_REV set (prune on Cloudways), take the post-receive hook's
+  # deploy lock in the server's Git folder and remove nothing (exit 3) unless the
+  # branch is still that commit, so a deploy can't run between check and delete.
   remote_bash_input '
     cd "$1" || exit 1
+    if [ -n "$4" ]; then
+      if command -v flock >/dev/null; then
+        exec 9>>"$2/deploy.lock" && flock -w 600 9 || exit 4
+      else
+        waited=0
+        until mkdir "$2/deploy.lock.d" 2>/dev/null; do
+          pid="$(cat "$2/deploy.lock.d/pid" 2>/dev/null)"
+          if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$2/deploy.lock.d/pid"
+            rmdir "$2/deploy.lock.d" 2>/dev/null
+            continue
+          fi
+          [ "$waited" -lt 600 ] || exit 4
+          sleep 1
+          waited=$((waited + 1))
+        done
+        echo "$$" >"$2/deploy.lock.d/pid"
+        trap "rm -f \"$2/deploy.lock.d/pid\"; rmdir \"$2/deploy.lock.d\" 2>/dev/null" EXIT
+      fi
+      [ "$(git --git-dir="$2" rev-parse -q --verify "refs/heads/$3")" = "$4" ] || exit 3
+    fi
     keep() {
       case "$1" in
         . | /* | *..* | wp-content | wp-content/plugins | wp-content/themes | wp-content/mu-plugins) return 0 ;;
@@ -734,25 +779,51 @@ remove_stale_files() {
         dir="$(dirname -- "$dir")"
       done
     done
-    exit 0' "$REMOTE_WEBROOT" <"$TMP_DIR/verify.stale" || die "removing deleted files on the server failed"
+    exit 0' "$REMOTE_WEBROOT" "${REMOTE_GIT_DIR:-}" "$REMOTE_BRANCH_NAME" "${PRUNE_LOCK_REV:-}" <"$TMP_DIR/verify.stale" || status=$?
+  case "$status" in
+    0) ;;
+    3) die "$TARGET_NAME's $REMOTE_BRANCH_NAME changed before the files were removed. Nothing was removed; run prune again." ;;
+    4) die "another deploy held the server's deploy lock for 10 minutes. Nothing was removed." ;;
+    *) die "removing deleted files on the server failed" ;;
+  esac
 }
 
 deploy_cloudways() {
-  local want have prev
+  local want have prev installed
   want="$(expected_hook_state)"
   have="$(installed_hook_state)" || die "could not reach $SSH_HOST"
   [ "$want" = "$have" ] ||
     die "the server's post-receive hook or $HOOK_CONFIG_NAME differs from the repo.\nReview $(basename "$HOOK_FILE") and the settings, then run: bash _build/deploy.sh install-hook $TARGET_NAME"
 
   prev="$(previous_server_ref)"
+  installed="$(installed_server_ref "$prev")"
   push_ref "$prev"
   grep -q "DEPLOY_OK $PUSH_REF" "$TMP_DIR/push.log" ||
     die "git accepted the push but the server hook did not report a successful install. Check the output above."
   verify_remote_ref "$prev"
   mark_pushed "$prev"
   mark_installed
-  # A first deploy is checked against the empty tree: every file in it.
-  verify_files "${prev:-$(git hash-object -t tree /dev/null)}"
+  # Checked against the commit the hook last installed in full, which the hook
+  # diffed against too. A first deploy is checked against the empty tree.
+  verify_files "${installed:-$(git hash-object -t tree /dev/null)}"
+}
+
+# The commit the Cloudways hook last installed in full (deploy-installed-rev),
+# when it is known locally; else $1, the server's branch. A push Git accepted
+# but the hook refused moves the branch without installing it.
+installed_server_ref() {
+  local installed
+  installed="$(remote_bash 'cat "$1/deploy-installed-rev" 2>/dev/null; exit 0' "$REMOTE_GIT_DIR" | tr -d '[:space:]')" ||
+    die "could not reach $SSH_HOST"
+  if [ -z "$installed" ] || [ "$installed" = "$1" ]; then
+    printf '%s' "$1"
+  elif git cat-file -e "$installed^{commit}" 2>/dev/null; then
+    log "The server's branch is $1, but the last commit installed in full is $installed" >&2
+    printf '%s' "$installed"
+  else
+    log "WARNING: the last commit installed in full, $installed, is not in this repo; checking against the server's branch $1" >&2
+    printf '%s' "$1"
+  fi
 }
 
 # Kinsta's hook is the host's `checkout -f` and reports nothing, so success is
@@ -991,7 +1062,7 @@ server_env_files() {
     else
       for f in .env*; do [ -e "$f" ] && [ ! -d "$f" ] && printf "%s\n" "$f"; done
     fi
-    exit 0' "$REMOTE_WEBROOT" | grep -E "$ENV_FILE_REGEX" | sort -u || true
+    exit 0' "$REMOTE_WEBROOT" | grep -E "$ENV_FILE_REGEX" | grep -Ev "$ENV_TEMPLATE_REGEX" | sort -u || true
 }
 
 # The source commit of a deploy commit: its Source trailer, or the parent of an
@@ -1308,8 +1379,16 @@ prune_server() {
   fi
 
   prune_backup
+  # A deploy since the check may have installed one of these files again.
+  [ "$(remote_ref)" = "$server_rev" ] ||
+    die "$TARGET_NAME's $REMOTE_BRANCH_NAME changed while prune ran. Nothing was removed; run prune again. Backup: $PRUNE_BACKUP"
   awk '{ print "stale\t" $0 }' "$TMP_DIR/prune.remove" >"$TMP_DIR/verify.bad"
-  remove_stale_files "deleted from the repo but still on the server"
+  if [ "$PLATFORM" = cloudways ]; then
+    # Under the hook's deploy lock, and only while the branch is still the commit checked.
+    PRUNE_LOCK_REV="$server_rev" remove_stale_files "deleted from the repo but still on the server"
+  else
+    remove_stale_files "deleted from the repo but still on the server"
+  fi
   left="$(remote_bash_input '
     cd "$1" || exit 1
     while IFS= read -r path; do
@@ -1681,6 +1760,7 @@ main() {
   done
   [ -z "$from" ] || [ "$command" = verify ] || die "--from only applies to verify"
   [ "$command" != verify ] || [ "$dry_run" = false ] || die "verify pushes nothing; it takes no --dry-run"
+  [ "$command" != install-hook ] || [ "$dry_run" = false ] || die "install-hook has no dry run; it writes the hook and its settings to the server"
   [ "$delete" = false ] || [ "$command" = prune ] || die "--delete only applies to prune"
   [ "$delete" = false ] || [ "$dry_run" = false ] || die "prune is a dry run unless you pass --delete; pass one or the other"
 

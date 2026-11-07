@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 
 import { getFrontendPayload } from "@/lib/payload";
+import { sameSitePath } from "@/lib/same-site-path";
 
 /**
  * The admin's preview button and Live Preview open this route. For a
@@ -18,18 +19,19 @@ export const GET = async (req: NextRequest): Promise<Response> => {
     });
   }
 
-  const path = req.nextUrl.searchParams.get("path") ?? "";
-  const { origin } = req.nextUrl;
-  // Resolve the path the way a browser would, so "//host", "/\\host" and
-  // control characters that browsers strip cannot point it off this site.
-  const target = new URL(path, origin);
+  // Resolved the way a browser would, so "//host", "/\\host" and control
+  // characters that browsers strip cannot point it off this site.
+  const target = sameSitePath(
+    req.nextUrl.searchParams.get("path") ?? "",
+    req.nextUrl.origin
+  );
 
-  if (!path.startsWith("/") || target.origin !== origin) {
+  if (target === undefined) {
     return new Response("Expected a path on this site.", { status: 400 });
   }
 
   const draft = await draftMode();
 
   draft.enable();
-  redirect(`${target.pathname}${target.search}${target.hash}`);
+  redirect(target);
 };

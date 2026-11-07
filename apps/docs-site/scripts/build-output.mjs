@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // Turn Blume's static build (dist/) into Cloudflare Build Output in
@@ -26,6 +27,21 @@ const ctx = {
 };
 
 const config = await loadWorkerConfig(ctx);
+
+// Blume writes dist/_redirects from blume.config.ts. Add the Composer
+// repository's downloads, which `pnpm wp:release` lists in
+// composer-redirects.txt: each sends Composer to a zip on a GitHub release.
+const redirects = path.join(root, "dist", "_redirects");
+
+const composerRedirects = readFileSync(
+  path.join(root, "composer-redirects.txt"),
+  "utf-8"
+);
+
+appendFileSync(
+  redirects,
+  `${existsSync(redirects) && !readFileSync(redirects, "utf-8").endsWith("\n") ? "\n" : ""}${composerRedirects}`
+);
 
 await cleanBuildOutputDir(root);
 

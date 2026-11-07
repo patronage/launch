@@ -5,8 +5,8 @@ This install deploys with [wp-deploy](../../../wordpress-shared/wp-deploy/README
 | File | Purpose |
 | --- | --- |
 | `deploy.env` | Committed settings: Cloudways, branch `main`, and `bin/build.sh` as the build step |
-| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) and `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) |
-| `.deploy_exclude.txt` | Keeps the local tooling (`bin/`, `seed/`, Docker and Composer files, this folder) out of the webroot |
+| `.deploy_include.txt` | Adds the build's gitignored output: `wp-content/plugins/*` (Composer, `--no-dev`) `wp-content/mu-plugins/patronage-access.php` (copied from [`wordpress-shared/patronage-access`](../../../wordpress-shared/patronage-access)) `wp-content/mu-plugins/patronage-logging.php` (copied from [`wordpress-shared/patronage-logging`](../../../wordpress-shared/patronage-logging)), `wp-content/mu-plugins/patronage-headless-revalidate/` (copied from [`wordpress-shared/patronage-headless-revalidate`](../../../wordpress-shared/patronage-headless-revalidate)) and `wp-content/mu-plugins/patronage-fields/` (copied from [`wordpress-shared/patronage-fields`](../../../wordpress-shared/patronage-fields)) |
+| `.deploy_exclude.txt` | Keeps the local tooling (`bin/`, Docker and Composer files, this folder) out of the webroot |
 | `wp-config-environment.php` | Sample block for each environment's `wp-config.php`: `HEADLESS_*`, revalidation and Access constants |
 
 The repo is public, so the Cloudways server IPs, application paths and SSH users go in `.env` next to this folder (gitignored), not in `deploy.env`. `.env.example` lists the names.
@@ -30,5 +30,7 @@ The Cloudways hook receives the whole packaged commit (the monorepo, minus the e
 ## First deploy over a hand-installed site
 
 The first deploy syncs every plugin, the theme and the mu-plugins in the payload to the repo's versions, and the hook deletes nothing it didn't deploy. Check the dry run and the audit first, then deploy staging before production. Plugins installed on the server by hand stay until someone removes them (the audit lists them).
+
+Plugins arrive deactivated. After the first deploy that adds one, activate it on the server, e.g. `wp plugin activate formidable` for the form section's Formidable Forms.
 
 After a deploy that changes `graphql-documents.json`, the theme registers it on the next request, or run `wp patronage-headless documents` on the server.

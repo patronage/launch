@@ -1,0 +1,87 @@
+---
+title: Logging
+description: Wide events from each Worker and security events from WordPress, kept as files in one R2 bucket per site through Logpush and Basin Pipelines.
+---
+
+Launch keeps a site's logs as files in one R2 bucket, the site's log bucket. Workers send theirs through Logpush, and WordPress on a host without Logpush sends its own through a Basin Pipelines stream. Logging is optional: with nothing configured, nothing is sent or stored, and nothing slows down.
+
+Launch provides the plumbing: the event shapes, the Worker wrapper, the WordPress plugin and a provisioning script. Whatever reads the logs and decides what they mean, such as detection, alerting or dashboards, is out of scope.
+
+## What lands in the bucket
+
+| Source | How it gets there | Path |
+| --- | --- | --- |
+| Each request to a Launch Worker | Workers Trace Events Logpush | `logpush/workers_trace_events/<date>/` |
+| Cloudflare audit logs and Access logins | Account Logpush jobs | `logpush/audit_logs_v2/<date>/`, `logpush/access_requests/<date>/` |
+| WordPress security events and the host's log files | Basin Pipelines stream | `events/wordpress/year=/month=/day=/` |
+
+Everything is gzipped JSON, one record per line. The files can be queried in place with a tool such as DuckDB.
+
+## Workers: one wide event per request
+
+Each vinext app wraps its entry with `withRequestLog` from `@patronage/logging`. Every request then prints one JSON line with the service, method, path (without the query string), status, duration, ray ID, colo, country and ASN. Build assets are skipped. Errors and slow requests are always kept, even when you sample the healthy traffic.
+
+Two fields help with performance:
+
+- `cache` is vinext's page cache result: `HIT`, `STALE` or `MISS`. Counting it over a day gives the cache hit rate.
+- `upstream` gives the calls, errors and total milliseconds for each upstream the request waited on before its response started: `upstream.wordpress` for WPGraphQL and media reads, and `upstream.d1` for Payload's queries.
+
+That line goes wherever the Worker's console output goes. To keep it, build the Worker with `WORKER_LOGPUSH=true`, which turns on Logpush in its `cloudflare.config.ts`, and give the account a `workers_trace_events` job that writes to the log bucket. Each event arrives inside the trace record's `Logs` array.
+
+No binding, token or extra request is involved, so the logging costs a Worker nothing at request time.
+
+## Traces and Issues
+
+Launch's Workers also turn on Cloudflare's automatic tracing, Issues and query string redaction in their `cloudflare.config.ts`:
+
+- **Traces** record a span for each subrequest and binding call, such as a fetch to WordPress or a KV cache read, so a slow request shows where its time went. Find them under the Worker's Observability tab in the dashboard, kept for seven days. Every request is traced by default; set `WORKER_TRACE_SAMPLING` (0 to 1) at build time to trace fewer on a busy site.
+- **Issues** groups exceptions and 5xx responses so repeated failures show up as one issue.
+- **Query string redaction** keeps query strings, which can carry preview tokens, out of logs and traces.
+
+Traces and logs are billed together under Cloudflare Observability pricing. A demo site's traffic fits well inside the allowance that Workers Paid includes.
+
+## WordPress: security events and server logs
+
+The `patronage-logging` mu-plugin ships with both WordPress installs and stays off until it is given an endpoint and a send-only token. Once on, it records one event for each request that did something worth keeping:
+
+- logins, failed logins and logouts;
+- user, role, plugin, theme and key option changes;
+- application passwords created or used;
+- content status changes;
+- WPGraphQL mutations, admin and REST writes, and server errors.
+
+Anonymous reads are skipped. Cloudflare already sees that traffic.
+
+Requests never wait on the network. Events go to a spool file, and a server cron runs `wp patronage-logging ship` every five minutes. That command sends the spool, along with any new lines from the host's log files. The token can only send, so someone who takes over the server can't read or delete logs that were already shipped.
+
+## Turn it on for a site
+
+1. **Create the bucket and jobs.** Run the provision script with an API token (see its README for the permissions it needs):
+
+   ```bash
+   pnpm --filter @patronage/logging logging:provision --name <site> \
+     [--script <worker>]... [--no-account-logs] [--wordpress] [--zone <zone id>]
+   ```
+
+   It creates only what's missing:
+   - the bucket;
+   - the account Logpush jobs for Worker traces, audit logs and Access logins (with `--script`, the Worker job keeps only those Workers; with `--no-account-logs`, no audit or Access jobs);
+   - with `--zone`, that zone's HTTP request and firewall jobs;
+   - with `--wordpress`, the Basin stream, sink and pipeline, plus a send-only token.
+
+   If you don't pass an R2 key pair, it creates one that can write only to the bucket and prints it once. With `--wordpress`, it also prints the two WordPress constants you'll need in step 3.
+
+2. **Turn on Logpush for each Worker.** Set `WORKER_LOGPUSH=true` in the Worker's Workers Builds environment and redeploy.
+
+3. **Turn on WordPress.** Add `PATRONAGE_LOGGING_ENDPOINT` and `PATRONAGE_LOGGING_TOKEN` (and optionally `PATRONAGE_LOGGING_FILES`) to the server's `wp-config.php`. Then add the five-minute cron and check the setup with `wp patronage-logging status` and `wp patronage-logging test`.
+
+Without those two options, the jobs cover the whole account, which suits a site with its own Cloudflare account. On an account shared with other sites, pass each of the site's Workers with `--script` and add `--no-account-logs`, so one site's bucket doesn't collect every Worker's logs and the whole account's audit trail. The Launch demo is set up that way.
+
+## Things to know
+
+- The `cf` CLI can't create account Logpush jobs yet (`cf logpush account-jobs create` fails validation). The provision script calls the API directly, so it isn't affected.
+- Basin wraps each record in a `value` key. Unwrap it before reading the event.
+- On hosts where the cron user and the PHP-FPM user differ, as on Cloudways, the plugin's spool folder is shared with their common group. That way, whichever runs first doesn't lock out the other.
+- Zone HTTP request and firewall logs need a plan that includes them. The script tries each job and reports any the plan refuses.
+
+The decision is [ADR 0016](https://github.com/patronage/launch/blob/main/docs/adr/0016-logs-to-r2-through-logpush.md), and the full research is [Wide-event logging and Logpush to R2](/research/logging-logpush).
