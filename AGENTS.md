@@ -1,11 +1,12 @@
 # Project agent memory
 
-Launch is Patronage's open-source monorepo of reference sites: vinext front-ends on Cloudflare Workers, powered by WordPress (headless over WPGraphQL, and a separate Timber install) and Payload, each with the CMS locked behind Cloudflare Access. It will be public, so everything committed, and every issue, PR and commit message, must be fit to publish.
+Launch is Patronage's public, open-source monorepo of reference sites: vinext front-ends on Cloudflare Workers, powered by WordPress (headless over WPGraphQL, and a separate Timber install) and Payload, each with the CMS locked behind Cloudflare Access. Everything committed, and every issue, PR and commit message, must be fit to publish.
 
 ## Rules
 
 - **No third-party plugin or vendor code.** WordPress plugins and themes come in through Composer, and `composer-libs/`, `vendor/` and third-party `wp-content` folders are gitignored. Only Patronage's own `patronage-*` plugins, mu-plugins and themes are committed. The same applies to npm packages: depend on them, never copy them in.
 - **No client references.** No client names, hostnames, ids, content, screenshots or credentials in code, fixtures, docs, commit messages, issues or PRs. Demo content is invented.
+- **Security findings stay private until approved.** Report suspected or confirmed vulnerabilities to Cameron in this chat and keep evidence in ignored local storage. Read [Handling security findings](docs/agents/security-findings.md) before publishing a finding or remediation.
 - **No Wrangler config files.** Do not add `wrangler.json`, `wrangler.jsonc` or `wrangler.toml` (they are gitignored). Workers, bindings, secrets, Access applications and service tokens are created through the Cloudflare CLI and API by scripts in the repo.
 - **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
 - **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
@@ -37,6 +38,10 @@ The five default labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready
 ### Domain docs
 
 Single-context: root `GLOSSARY.md` plus `docs/adr/`. Read both before domain work, and flag any conflict with an ADR. See `docs/agents/domain.md`.
+
+### Security review
+
+DeepSec setup, containment and review limits are in [.deepsec/README.md](.deepsec/README.md). `pnpm security:scan` scans a committed snapshot without model access.
 
 ## Commands
 

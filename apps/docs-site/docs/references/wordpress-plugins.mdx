@@ -54,3 +54,9 @@ For contributors to Launch:
 3. After the PR merges, run `pnpm wp:release --publish` from an up-to-date `main`. It creates the GitHub release `<package>-v<version>` (for example `launch-access-v1.0.0`) with the zip, using the `gh` CLI. The docs site deploys on merge, so the version is installable once both are done.
 
 A released version is never rebuilt or replaced. The decision, including why the plugins are public, is [ADR 0017](https://github.com/patronage/launch/blob/main/docs/adr/0017-wordpress-plugins-through-composer.md).
+
+## Security review coverage
+
+Contributors can run `pnpm security:scan <commit>` from the repository root to discover security-review candidates in a committed snapshot. The setup covers the plugins' PHP, the release tool, the docs build script and headless deployment shell scripts. Package metadata, export rules, the Composer index, download redirects and install configuration are supporting review context; a snapshot containing them does not mean DeepSec analyzed them.
+
+Security snapshots retain all tracked files, including files excluded from release zips by `export-ignore`, and verify their committed bytes. The candidate scan uses an isolated container with no network or model credentials and remains available. Model-backed review is unavailable. Candidate counts are not findings or a security pass. Keep security findings private and follow the [finding workflow](https://github.com/patronage/launch/blob/main/docs/agents/security-findings.md) before publishing findings or remediation. See the [DeepSec workflow and limits](https://github.com/patronage/launch/blob/main/.deepsec/README.md) for prerequisites, evidence and cleanup of existing runners.

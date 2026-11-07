@@ -33,6 +33,8 @@ pnpm verify
 
 Contributor and agent rules are in [AGENTS.md](AGENTS.md).
 
+For an isolated DeepSec candidate scan, run `pnpm security:scan`. Model-backed review is unavailable. See the [security review workflow](.deepsec/README.md) for coverage limits, private handling of findings and cleanup of existing runners.
+
 ## License
 
 [MIT](LICENSE)
