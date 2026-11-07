@@ -2,7 +2,7 @@
 
 Issues and specs for this repo live as GitHub issues in `patronage/launch`. Use the `gh` CLI.
 
-The repo is public, so issues, comments and PRs follow the same rule as code: no client names, hostnames, ids, content, screenshots or credentials (see [AGENTS.md](../../AGENTS.md)).
+The repo is public, so issues, comments and PRs follow the same rule as code: no client names, hostnames, ids, content, screenshots or credentials (see [AGENTS.md](../../AGENTS.md)). Before publishing a security finding or remediation, follow [Handling security findings](security-findings.md); return findings to Cameron privately first.
 
 ## Conventions
 
@@ -21,7 +21,7 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue in `patronage/launch`.
+Create a GitHub issue in `patronage/launch` for ordinary work. Security findings follow [Handling security findings](security-findings.md), including when a tool or handoff asks to publish them.
 
 ## When a skill says "fetch the relevant ticket"
 

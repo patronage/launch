@@ -2,6 +2,10 @@
 
 DeepSec 2.3.10 supplies an on-demand source-security review alongside `pnpm verify`. A candidate scan is not an AI investigation or a security pass. The scanner has its own exact dependency pin and lockfile; it is not installed into the apps or run during deployment.
 
+## Handling results
+
+Follow [Handling security findings](../docs/agents/security-findings.md) for every review. Keep findings, reproductions, exports and detailed reviewer reports in ignored `.deepsec/runs/` storage and report them to Cameron in this chat. Confirm evidence is ignored and untracked before committing or uploading artifacts. Publication of findings or revealing patches requires approval of the specific material and destination, even after a fix is prepared. Aggregate candidate counts and coverage limits can be reported without publishing vulnerability details.
+
 ## Local candidate scan
 
 Requires Node 24, pnpm 12, Git, tar and a running Docker-compatible engine. From the repository root:
@@ -29,7 +33,7 @@ Run `pnpm security:test` for the snapshot-boundary regressions. Those tests also
 
 ## Model-backed review is disabled
 
-The subscription runner is unavailable until its proxy enforces the TLS upstream-name boundary. The current CONNECT allowlist checks the requested tunnel destination but does not verify the TLS server name or HTTP authority inside that tunnel. An allowed hostname can share an IP with another origin, so the allowlist does not restrict encrypted traffic to the intended OpenAI services. The retained runner code is not an approved route for model access.
+The subscription runner is unavailable pending review of its isolation controls. The retained runner code is not an approved route for model access. Detailed review evidence is handled privately under the finding workflow above.
 
 `security:subscription` rejects `start`, `login`, `status`, `process`, `revalidate` and `export` before reading run state, creating a snapshot, invoking Docker or accessing authentication. Candidate discovery through `pnpm security:scan` remains available; its scan container has no network or model credentials.
 
