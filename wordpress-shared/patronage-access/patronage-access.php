@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Access
  * Description: Locks WordPress behind Cloudflare Access. Optionally rejects any request that did not pass through Access, signs editors into wp-admin from their Access login, and authenticates REST and WPGraphQL requests as the user identified by a forwarded Access JWT, optionally requiring a gateway proof header.
- * Version: 1.0.0
+ * Version: 1.0.1
  * License: MIT
  * Requires PHP: 8.0
  */
@@ -839,7 +839,10 @@ final class Patronage_Access_REST_Auth {
 		return is_array( $parts )
 			&& 'https' === ( $parts['scheme'] ?? null )
 			&& isset( $parts['host'] )
-			&& ! isset( $parts['query'], $parts['fragment'], $parts['user'], $parts['pass'] );
+			&& ! isset( $parts['query'] )
+			&& ! isset( $parts['fragment'] )
+			&& ! isset( $parts['user'] )
+			&& ! isset( $parts['pass'] );
 	}
 
 	private static function cache_key( string $purpose, string $issuer ): string {

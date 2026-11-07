@@ -1,6 +1,7 @@
 # Written by pnpm wp:release from public/composer/packages.json. Each Composer
 # download redirects to its zip on the package's GitHub release.
 /composer/dist/launch-access/1.0.0.zip https://github.com/patronage/launch/releases/download/launch-access-v1.0.0/launch-access-1.0.0.zip 302
+/composer/dist/launch-access/1.0.1.zip https://github.com/patronage/launch/releases/download/launch-access-v1.0.1/launch-access-1.0.1.zip 302
 /composer/dist/launch-fleet/1.2.0.zip https://github.com/patronage/launch/releases/download/launch-fleet-v1.2.0/launch-fleet-1.2.0.zip 302
 /composer/dist/launch-headless-revalidate/2.1.0.zip https://github.com/patronage/launch/releases/download/launch-headless-revalidate-v2.1.0/launch-headless-revalidate-2.1.0.zip 302
 /composer/dist/launch-logging/1.0.0.zip https://github.com/patronage/launch/releases/download/launch-logging-v1.0.0/launch-logging-1.0.0.zip 302
