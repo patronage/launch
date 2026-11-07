@@ -16,7 +16,7 @@ Each deployable app is connected to Cloudflare Workers Builds on its own, so a p
 
 `SKIP_DEPENDENCY_INSTALL` is set because an app folder has no lockfile of its own; the build command installs from the workspace root instead. It runs less than the full `pnpm verify`, which also runs the WordPress installs' PHP checks, because the build image has no PHP. Run `pnpm verify` yourself before opening a pull request.
 
-The Payload app builds production only by default. Its branch Previews share the production database bindings, so they stay off until a site sets `WORKER_PREVIEWS=true` and puts every Preview hostname behind Access.
+The Payload app builds production only by default. A Payload Preview never binds the production database or media bucket: to turn Previews on, create a separate D1 database and R2 bucket, set `WORKER_PREVIEWS=true` with `PAYLOAD_PREVIEW_D1_ID`, `PAYLOAD_PREVIEW_D1_NAME` and `PAYLOAD_PREVIEW_R2_BUCKET`, and put every Preview hostname behind Access. A Preview build without them fails instead of falling back to production. Payload is served only on its custom domain once `WORKER_DOMAIN` is set, because its Access application covers that hostname.
 
 ## Connect an app
 
@@ -33,5 +33,7 @@ To keep a Worker's request logs, set `WORKER_LOGPUSH=true` before running `build
 The same goes for the other settings an app reads at build time: `WORKER_NAME`, `WORKER_DOMAIN`, and the `ACCESS_*` values (Payload's `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` turn on its Access sign-in and let the deployed admin create its first user). Set them before running `builds:configure`, or later builds fall back to the defaults.
 
 Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
+
+A Preview runs whatever a branch contains, so treat its secrets as reachable by anyone who can push a branch. Give Previews Base their own values where the CMS allows it, rather than production's: a separate Access service token, added to the CMS's Access policy, and a preview-only WordPress user, so either can be revoked without touching production. Export those before running `pnpm run secrets --preview-base`.
 
 The full write-up, including what the first run taught, is in [Workers Builds and preview URLs](/research/workers-builds).
