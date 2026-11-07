@@ -163,7 +163,7 @@
     "patronage/launch-wp-deploy": {
       "2.8.0": {
         "dist": {
-          "shasum": "c922183f45801d9a73f73cd4be1d54030a4dfbf6",
+          "shasum": "d7953d306d46e6df227e0e53eb923df6f0b5ef13",
           "type": "zip",
           "url": "https://launch.patronage.com/composer/dist/launch-wp-deploy/2.8.0.zip"
         },

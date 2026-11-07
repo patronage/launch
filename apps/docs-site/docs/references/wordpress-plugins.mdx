@@ -55,7 +55,7 @@ Updates are `composer update patronage/launch-access`. Each zip holds only the p
 composer require --dev patronage/launch-wp-deploy
 ```
 
-Then copy the package's `shim.sh` into the site's `_build/` folder twice, as `deploy.sh` and `pull.sh`, and commit them next to the site's `deploy.env`. Each shim runs the installed script of its name with the settings in `_build/`, so `bash _build/deploy.sh production` works as before. If Composer's `vendor/` folder isn't next to `_build/`, change the `kit=` line in both shims. Updates are `composer update patronage/launch-wp-deploy`; on Cloudways, run `install-hook` again when the changelog says so.
+Then copy the package's `shim.sh` into the site's `_build/` folder twice, as `deploy.sh` and `pull.sh`, and commit them next to the site's `deploy.env`. Each shim runs the installed script of its name with the settings in `_build/`, so `bash _build/deploy.sh production` works as before. If Composer's `vendor/` folder isn't next to `_build/`, change the `kit=` line in both shims. A build step's `composer install --no-dev` removes the kit, so the shim runs a temporary copy of it; run `composer install` after a deploy to get your dev dependencies back. Updates are `composer update patronage/launch-wp-deploy`; on Cloudways, run `install-hook` again when the changelog says so.
 
 ## Releasing a new version
 

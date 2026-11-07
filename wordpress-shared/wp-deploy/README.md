@@ -232,7 +232,7 @@ cp vendor/patronage/launch-wp-deploy/shim.sh _build/deploy.sh
 cp vendor/patronage/launch-wp-deploy/shim.sh _build/pull.sh
 ```
 
-Commit both shims. Require it as a dev dependency: many sites keep `vendor/` in the webroot, and `composer install --no-dev` in the build then leaves the scripts out. Each shim runs the installed script of its own name with `WP_DEPLOY_BUILD_DIR` set to `_build/`, so `deploy.env`, the include and exclude lists and a committed Kinsta hook copy stay there, and `.env` stays next to `_build/`. The Cloudways hook comes from the package. If `vendor/` isn't next to `_build/`, change the shims' `kit=` line. `composer update patronage/launch-wp-deploy` upgrades the kit; read the changelog for steps such as reinstalling the Cloudways hook.
+Commit both shims. Require it as a dev dependency: many sites keep `vendor/` in the webroot, and `composer install --no-dev` in the build then leaves the scripts out. Each shim runs the installed script of its own name with `WP_DEPLOY_BUILD_DIR` set to `_build/`, so `deploy.env`, the include and exclude lists and a committed Kinsta hook copy stay there, and `.env` stays next to `_build/`. The Cloudways hook comes from the package. If `vendor/` isn't next to `_build/`, change the shims' `kit=` line. The shim runs a temporary copy of the kit, because a build step's `composer install --no-dev` deletes dev dependencies while the deploy still needs them; run `composer install` after a deploy to get the kit and your other dev tools back. `composer update patronage/launch-wp-deploy` upgrades the kit; read the changelog for steps such as reinstalling the Cloudways hook.
 
 ## Adopting on a site
 

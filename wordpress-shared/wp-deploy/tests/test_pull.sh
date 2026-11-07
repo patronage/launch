@@ -371,6 +371,17 @@ check "through the shim, deploy.sh reports the kit version" [ "$(cd "$COMPOSER_S
 got="$(cd "$COMPOSER_SITE" && WP_DEPLOY_BUILD_DIR="$COMPOSER_SITE/_build" bash -c 'source vendor/patronage/launch-wp-deploy/deploy.sh; printf "%s|%s|%s" "$CONFIG_FILE" "$HOOK_FILE" "$INCLUDE_FILE"')"
 check "deploy.sh reads settings from WP_DEPLOY_BUILD_DIR and the hook from the kit" \
   [ "$got" = "$COMPOSER_SITE/_build/deploy.env|$KIT_COPY/cloudways-hook-post-receive.sh|$COMPOSER_SITE/_build/.deploy_include.txt" ]
+# A build step's `composer install --no-dev` deletes the kit while it runs; the
+# shim's temporary copy keeps the hook and scripts it still needs.
+cp "$KIT_COPY/pull.sh" "$WORK/real-pull.sh"
+printf '#!/usr/bin/env bash\nrm -rf "%s"\ncat "$(dirname "$0")/cloudways-hook-post-receive.sh" >/dev/null && echo kit-survived\n' "$KIT_COPY" >"$KIT_COPY/pull.sh"
+out="$(cd "$COMPOSER_SITE" && bash _build/pull.sh 2>&1)"
+check "the kit runs from a copy that survives composer removing it" grep -qx kit-survived <<<"$out"
+check "the shim removes its copy afterwards" bash -c '! ls -d "${TMPDIR:-/tmp}"/wp-deploy-kit.* 2>/dev/null | grep -q .'
+mkdir -p "$KIT_COPY" && cp "$WORK/real-pull.sh" "$KIT_COPY/pull.sh"
+out="$(cd "$COMPOSER_SITE" && bash _build/pull.sh export nowhere 2>&1)"
+status=$?
+check "the shim passes the kit's exit status through" [ "$status" != 0 ]
 rm -rf "$KIT_COPY"
 out="$(cd "$COMPOSER_SITE" && bash _build/pull.sh export production 2>&1)"
 check "the shim says to run composer install when the kit is missing" grep -q "Run composer install" <<<"$out"
