@@ -12,7 +12,6 @@
     "fix": "ultracite fix",
     "lint": "ultracite check",
     "security:scan": "node .deepsec/scripts/scan.mjs",
-    "security:subscription": "node .deepsec/scripts/subscription.mjs",
     "security:test": "node --test .deepsec/tests/*.test.mjs",
     "test": "pnpm security:test && pnpm -r --if-present run test && node --test .agents/skills/launch-verify/scripts/verify.test.ts",
     "typecheck": "pnpm -r --if-present run typecheck",

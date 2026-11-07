@@ -31,27 +31,26 @@ These files are ignored by Git. Uncommitted edits, including newly added integra
 
 Run `pnpm security:test` for the snapshot-boundary regressions. Those tests also run in `pnpm verify`; Docker and model access are not required for them.
 
-## Model-backed review is disabled
+## Model-backed review is not available
 
-The subscription runner is unavailable pending review of its isolation controls. The retained runner code is not an approved route for model access. Detailed review evidence is handled privately under the finding workflow above.
+This workspace ships no model-backed runner. A runner needs an egress boundary that is enforced and independently verified before it holds a model login and a source snapshot; add one in its own reviewed change. Until then, candidate discovery through `pnpm security:scan` is the only supported workflow, and its container has no network or model credentials.
 
-`security:subscription` rejects `start`, `login`, `status`, `process`, `revalidate` and `export` before reading run state, creating a snapshot, invoking Docker or accessing authentication. Candidate discovery through `pnpm security:scan` remains available; its scan container has no network or model credentials.
+Launch's tracked source is public, but public source does not make scanner execution trusted. Do not copy host authentication into a container or run agent-backed DeepSec `init`, `setup`, `process`, `revalidate` or `triage` against the host checkout; default `init`/`setup` can start agents automatically.
 
-Only cleanup of an existing subscription runner remains supported:
+If an earlier local setup left a runner behind, remove its containers and networks, all named `launch-deepsec-<id>…` as listed in that run's `subscription.json`:
 
 ```sh
-pnpm security:subscription stop <run-directory>
+docker ps -a --filter name=launch-deepsec- --format '{{.Names}}' | xargs -r docker rm --force
+docker network ls --filter name=launch-deepsec- --format '{{.Name}}' | xargs -r docker network rm
 ```
 
-Use the existing run directory under `.deepsec/runs/`. `stop` attempts logout and removes the runner, proxy and their networks even if logout fails. Removing the runner deletes its tmpfs login and session state; findings and DeepSec data remain in the run's `data/` directory. Check any cleanup errors before considering the session removed.
-
-Launch's tracked source is public, but public source does not make scanner execution trusted. Do not bypass the disabled route, copy host authentication into a runner, or run agent-backed `init`, `setup`, `process`, `revalidate` or `triage` against the host checkout. Default `init`/`setup` can start agents automatically. Re-enabling model-backed review requires a repaired and independently verified egress boundary.
+Removing a runner deletes its tmpfs login and session state; DeepSec data stays in the run's `data/` directory.
 
 ## Coverage and limits
 
 [INFO.md](INFO.md) describes Launch's auth boundaries and intended public surfaces, including Composer distribution, Fleet reporting and package installation outside Launch. Keep it current when those boundaries change. The Launch plugin adds first-party PHP and shell entry points that the built-in root technology detection missed, plus exact-path entry points for `wordpress-shared/plugin-release/release.ts` and `apps/docs-site/scripts/build-output.mjs`. The PHP pattern covers Fleet and the moved Headless Revalidate implementation as well as the app's loader. These candidates request investigation; they are not vulnerability findings. Inspect coverage before adding further matchers.
 
-Composer metadata and deployment configuration are supporting review context: each package's `composer.json` and `.gitattributes`, the public index and redirect rules, the headless `composer.json`, build/include files and local Docker mounts. Priority paths draw attention to those files but do not override DeepSec's own file filters or create candidates. Compare scan records with these paths and state exclusions in the review report. The package-install documentation and ADR 0017 describe intended behavior; they are not executable entry points. Model-backed processing is disabled; candidate discovery cannot establish vulnerability findings.
+Composer metadata and deployment configuration are supporting review context: each package's `composer.json` and `.gitattributes`, the public index and redirect rules, the headless `composer.json`, build/include files and local Docker mounts. Priority paths draw attention to those files but do not override DeepSec's own file filters or create candidates. Compare scan records with these paths and state exclusions in the review report. The package-install documentation and ADR 0017 describe intended behavior; they are not executable entry points. Candidate discovery alone cannot establish vulnerability findings.
 
 A whole-repository snapshot includes our PHP, TypeScript, JavaScript and shell source. DeepSec applies its own file/technology filters, so snapshot inclusion does not mean every file receives AI review. Record missed surfaces and review them explicitly. Installed WordPress/npm vendor code is absent by design. Dependency advisories, runtime deployments and Cloudflare Access policy state, full Git history, and dynamic exploit proofs need separate checks. `pnpm verify` remains the local correctness gate; DeepSec does not validate everything.
 

@@ -6,5 +6,3 @@
 !INFO.md
 !Dockerfile
 !matchers.mjs
-!runner/
-!runner/**
