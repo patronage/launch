@@ -191,7 +191,7 @@ ssh_preflight() {
     *"Host key verification failed"* | *"REMOTE HOST IDENTIFICATION HAS CHANGED"*)
       die "the host key for $SSH_HOST is not verified. Run 'ssh $SSH_HOST' once, check the fingerprint with the server's, accept it, then retry.\nssh said: $out" ;;
     *"Permission denied"*)
-      die "$SSH_HOST did not accept your SSH key: the key is not added for that user, or not loaded (ssh-add). Add your public key to the server's SSH keys for that user, then retry.\nssh said: $out" ;;
+      die "SSH refused your key for $SSH_HOST: the key is not added for that user, or not loaded (ssh-add). If your ssh config reaches the server through a jump host (ProxyJump), the host named in ssh's output below is the one that refused. Add your public key there, then retry.\nssh said: $out" ;;
     *) die "could not connect to $SSH_HOST over SSH. Check the server IP and SSH user in .env, and your ssh config if the server is reached through a jump host.\nssh said: $out" ;;
   esac
 }
@@ -257,9 +257,9 @@ db_export() {
   file="$DATA_DIR/$stamp.sql.gz"
   partial="$DATA_DIR/.$stamp.sql.gz.partial"
   require_ignored "$DATA_DIR"
-  mkdir -p "$DATA_DIR"
   log "pull.sh $WP_DEPLOY_VERSION: database of $TARGET_NAME, WordPress at $SSH_HOST:$REMOTE_WEBROOT"
   ssh_preflight
+  mkdir -p "$DATA_DIR"
   log "Exporting${tables:+ without $tables}"
   if ! remote_bash "$REMOTE_EXPORT" "$REMOTE_WEBROOT" "$tables" | gzip >"$partial"; then
     rm -f "$partial"
@@ -365,10 +365,10 @@ media_pull() {
   uploads="${PULL_UPLOADS_DIR:-wp-content/uploads}"
   dest="$WP_DIR/${uploads%/}"
   require_ignored "$dest"
-  mkdir -p "$dest"
   command -v rsync >/dev/null || die "rsync is not installed"
   log "pull.sh $WP_DEPLOY_VERSION: uploads of $TARGET_NAME, from $SSH_HOST:$REMOTE_WEBROOT/wp-content/uploads/"
   ssh_preflight
+  mkdir -p "$dest"
   TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wp-pull.XXXXXX")"
   trap cleanup EXIT
   exclude="$TMP_DIR/exclude"
@@ -382,6 +382,12 @@ media_pull() {
   rsync_ssh="${GIT_SSH_COMMAND:-ssh} ${SSH_OPTIONS[*]}"
   rsync -rltvz --exclude-from="$exclude" -e "$rsync_ssh" \
     "$SSH_HOST:$REMOTE_WEBROOT/wp-content/uploads/" "$dest/" || die "rsync failed"
+  # On Linux, a bind-mounted uploads folder keeps the host user's ownership, and
+  # WordPress in Docker runs as another user, so it couldn't add files (new
+  # uploads, edited images) to the folders rsync created. Docker Desktop maps it.
+  if [ "$(uname -s)" = Linux ]; then
+    find "$dest" -type d -exec chmod a+rwx {} + || log "Note: could not make the uploads folders writable"
+  fi
   log "Uploads copied to ${dest#"$PROJECT_DIR"/}/"
 }
 

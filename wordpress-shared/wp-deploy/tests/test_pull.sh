@@ -5,7 +5,8 @@
 set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/pull-test.XXXXXX")"
+# The real path: macOS's TMPDIR is a symlinked /var/folders, and subprocesses report /private/var.
+WORK="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/pull-test.XXXXXX")" && pwd -P)"
 trap 'rm -rf "$WORK"' EXIT
 
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
@@ -258,10 +259,12 @@ out="$(COMPOSE_CLOUDWAYS_PRODUCTION_WEBROOT=/home/master/applications/aaa-other/
 check "export stops when the webroot holds no wp-config.php" grep -q "holds no wp-config.php" <<<"$out"
 
 out="$(FAKE_SSH_MODE=denied pull export production 2>&1)"
-check "a refused key says the key is not added" grep -q "did not accept your SSH key" <<<"$out"
+check "a refused key says the key is not added" grep -q "SSH refused your key for master_user@192.0.2.10" <<<"$out"
 out="$(FAKE_SSH_MODE=hostkey pull export production 2>&1)"
 check "an unknown host key says to verify it" grep -q "host key for master_user@192.0.2.10 is not verified" <<<"$out"
+rm -rf "$SITE/_data"
 out="$(FAKE_SSH_MODE=down pull export production 2>&1)"
+check "a failed SSH check leaves no data folder" [ ! -e "$SITE/_data" ]
 check "other SSH failures print ssh's output" grep -q "Connection refused" <<<"$out"
 
 out="$(pull export development 2>&1)"
@@ -328,6 +331,9 @@ check "media copies originals and skips generated thumbnails" \
   [ "$got" = "./2026/01/logo@2x.png ./2026/01/photo-scaled.jpg ./2026/01/photo.jpg ./2026/01/report-2026.pdf " ]
 check "media reads from the app's own webroot" grep -q "master_user@192.0.2.10:/home/master/applications/bbb-site/public_html/wp-content/uploads/ $SITE/wp-content/uploads/$" "$RSYNC_LOG"
 check "media never deletes local files" bash -c '! grep -q -- "--delete" "$1"' _ "$RSYNC_LOG"
+if [ "$(uname -s)" = Linux ]; then
+  check "media leaves the folders writable for WordPress in Docker" [ "$(stat -c %a "$SITE/wp-content/uploads/2026/01")" = 777 ]
+fi
 
 rm -rf "$SITE/wp-content/uploads"
 out="$(pull media production --all 2>&1)"
