@@ -30,4 +30,4 @@ We publish anyway. The plugins don't keep sites safe by being hidden: Cloudflare
 - A plugin change can't merge without a version bump and a release; `pnpm verify` says so.
 - Publishing needs the `gh` CLI signed in with permission to create releases on `patronage/launch`. Between merge and `--publish`, the new version's download 404s.
 - Released versions are never rebuilt or replaced; the checksum in `packages.json` would stop every install of them.
-- wp-deploy is not a package yet: `deploy.sh` finds the site's settings beside itself, and these installs keep Composer's vendor folder in the webroot.
+- wp-deploy is a package too, `patronage/launch-wp-deploy` (type `library`, versioned by `deploy.sh`'s `Version:` header through `extra.launch-version-file`), added 2026-11-07. Sites require it as a dev dependency, because these installs keep Composer's vendor folder in the webroot and a production `composer install --no-dev` then leaves the shell scripts out. The site's `_build/deploy.sh` and `_build/pull.sh` are copies of the package's `shim.sh`, which run the installed script with `WP_DEPLOY_BUILD_DIR` pointing at `_build/`, where the site's settings stay.

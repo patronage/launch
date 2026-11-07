@@ -1,0 +1,20 @@
+{
+  "name": "patronage/launch-wp-deploy",
+  "description": "Deploys a WordPress site by pushing a packaged commit to the host's Git remote (Cloudways, WP Engine, Kinsta), and pulls its database and uploads down for local work.",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://launch.patronage.com/deploy/wordpress",
+  "authors": [
+    {
+      "name": "Patronage",
+      "homepage": "https://patronage.org"
+    }
+  ],
+  "support": {
+    "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/wp-deploy",
+    "docs": "https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md"
+  },
+  "extra": {
+    "launch-version-file": "deploy.sh"
+  }
+}

@@ -350,6 +350,31 @@ check "media needs a target" grep -q "needs a target" <<<"$out"
 out="$(pull export production --yes 2>&1)"
 check "--yes only applies to import" grep -q "only applies to import" <<<"$out"
 
+# --- Composer install through the _build/ shim ------------------------------------
+# The kit in vendor/, the site's _build/ holding only shims and settings.
+COMPOSER_SITE="$WORK/composer-site"
+KIT_COPY="$COMPOSER_SITE/vendor/patronage/launch-wp-deploy"
+mkdir -p "$KIT_COPY" "$COMPOSER_SITE/_build"
+cp "$KIT_DIR/deploy.sh" "$KIT_DIR/pull.sh" "$KIT_DIR/cloudways-hook-post-receive.sh" "$KIT_COPY/"
+cp "$KIT_DIR/shim.sh" "$COMPOSER_SITE/_build/deploy.sh"
+cp "$KIT_DIR/shim.sh" "$COMPOSER_SITE/_build/pull.sh"
+cp "$SITE/_build/deploy.env" "$SITE/.env" "$COMPOSER_SITE/" 2>/dev/null || true
+mv "$COMPOSER_SITE/deploy.env" "$COMPOSER_SITE/_build/deploy.env"
+printf '.env\n_data/\nvendor/\n' >"$COMPOSER_SITE/.gitignore"
+git -C "$COMPOSER_SITE" init -q
+git -C "$COMPOSER_SITE" add -A
+git -C "$COMPOSER_SITE" commit -qm site
+out="$(cd "$COMPOSER_SITE" && bash _build/pull.sh export production 2>&1)"
+check "through the shim, export reads the site's settings and writes the site's _data/" \
+  bash -c 'grep -q "Saved _data/" <<<"$1" && ls "$2"/_data/*.sql.gz >/dev/null' _ "$out" "$COMPOSER_SITE"
+check "through the shim, deploy.sh reports the kit version" [ "$(cd "$COMPOSER_SITE" && bash _build/deploy.sh --version)" = "$deploy_version" ]
+got="$(cd "$COMPOSER_SITE" && WP_DEPLOY_BUILD_DIR="$COMPOSER_SITE/_build" bash -c 'source vendor/patronage/launch-wp-deploy/deploy.sh; printf "%s|%s|%s" "$CONFIG_FILE" "$HOOK_FILE" "$INCLUDE_FILE"')"
+check "deploy.sh reads settings from WP_DEPLOY_BUILD_DIR and the hook from the kit" \
+  [ "$got" = "$COMPOSER_SITE/_build/deploy.env|$KIT_COPY/cloudways-hook-post-receive.sh|$COMPOSER_SITE/_build/.deploy_include.txt" ]
+rm -rf "$KIT_COPY"
+out="$(cd "$COMPOSER_SITE" && bash _build/pull.sh export production 2>&1)"
+check "the shim says to run composer install when the kit is missing" grep -q "Run composer install" <<<"$out"
+
 echo
 echo "$passes passed, $failures failed"
 [ "$failures" -eq 0 ]

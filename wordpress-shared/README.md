@@ -9,7 +9,7 @@ Patronage's own WordPress code, used by the WordPress apps in this repo and, thr
 | [`patronage-headless-revalidate`](patronage-headless-revalidate) | Revalidates the headless front-end when content changes | `patronage/launch-headless-revalidate` |
 | [`patronage-fleet`](patronage-fleet) | Version reports to Patronage Fleet, for Patronage-run sites | `patronage/launch-fleet` |
 | [`patronage-fields`](patronage-fields) | Field groups, post types and seed for Launch's own two installs | (none) |
-| [`wp-deploy`](wp-deploy) | The deploy kit each site copies or symlinks into `_build/` | (none yet) |
+| [`wp-deploy`](wp-deploy) | The deploy kit: `deploy.sh`, `pull.sh` and the Cloudways hook, symlinked, copied or installed into a site's `_build/` | `patronage/launch-wp-deploy` (dev dependency) |
 | [`plugin-release`](plugin-release) | `pnpm wp:release`, which publishes the Composer packages |  |
 
 ## Installing with Composer

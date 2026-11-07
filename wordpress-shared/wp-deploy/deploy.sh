@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# wp-deploy 2.7.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# wp-deploy 2.8.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# Version: 2.8.0
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
-# Sites vendor this file unchanged. Put site settings in _build/deploy.env.
+# Sites vendor this file unchanged, or install it with Composer as
+# patronage/launch-wp-deploy and run it through _build/ shims. Put site settings in _build/deploy.env.
 #
 # Usage, from anywhere in the repo:
 #   bash _build/deploy.sh <target>                    package HEAD and deploy it
@@ -57,14 +59,19 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.7.0"
+WP_DEPLOY_VERSION="2.8.0"
 
-BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The kit's own folder, and the site's _build/ folder with its settings. They
+# are the same folder when the site copies or symlinks the kit. When Composer
+# installs it (patronage/launch-wp-deploy), the site's _build/ shim sets
+# WP_DEPLOY_BUILD_DIR to itself.
+KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="$(cd "${WP_DEPLOY_BUILD_DIR:-$KIT_DIR}" && pwd)"
 PROJECT_DIR="$(dirname "$BUILD_DIR")"
 WP_DIR="$PROJECT_DIR"
 BUILD_RUN_DIR="$PROJECT_DIR"
 CONFIG_FILE="$BUILD_DIR/deploy.env"
-HOOK_FILE="$BUILD_DIR/cloudways-hook-post-receive.sh"
+HOOK_FILE="$KIT_DIR/cloudways-hook-post-receive.sh"
 HOOK_CONFIG_NAME="deploy-hook.env"
 KINSTA_HOOK_FILE="$BUILD_DIR/kinsta-hook-post-receive.sh"
 
