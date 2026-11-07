@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { pathTag } from "@/lib/wordpress/cache-tags";
 import { wordpressEnv } from "@/lib/wordpress/env";
+import { secretMatches } from "@/lib/wordpress/secret";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,9 @@ const RevalidateRequest = z.object({
 export const PUT = async (request: Request) => {
   const { secret } = wordpressEnv();
 
-  if (!secret || request.headers.get("x-headless-secret-key") !== secret) {
+  if (
+    !(await secretMatches(request.headers.get("x-headless-secret-key"), secret))
+  ) {
     return Response.json({ message: "Invalid secret" }, { status: 401 });
   }
 

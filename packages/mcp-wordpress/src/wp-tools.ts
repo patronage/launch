@@ -29,6 +29,7 @@ export const WP_CONNECTOR_INSTRUCTIONS = [
   "wp.get({path, query?}) GETs any /wp-json/ path and throws on a non-2xx response.",
   "Writes: wp.apply({intent, operations}) is the only write path and pauses for human approval.",
   `Send 1-${MAX_OPERATIONS} update_post or upsert_redirect operations per call and set expected_modified_gmt when you read the post first.`,
+  "Do every read before wp.apply: once the write is approved, reads later in the script are refused, and the returned receipt reports the result.",
 ].join(" ");
 
 // `wp.graphql` is a read. A mutation would run at once as the requester,

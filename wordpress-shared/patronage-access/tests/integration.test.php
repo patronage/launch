@@ -268,4 +268,21 @@ if ( 'patronage_access_origin_invalid' !== $origin_code() ) {
 	exit( 1 );
 }
 
+$valid_issuer = new ReflectionMethod( Patronage_Access_REST_Auth::class, 'valid_issuer' );
+foreach (
+	array(
+		'https://team.cloudflareaccess.com'              => true,
+		'http://team.cloudflareaccess.com'               => false,
+		'https://team.cloudflareaccess.com?x=1'          => false,
+		'https://team.cloudflareaccess.com#x'            => false,
+		'https://user@team.cloudflareaccess.com'         => false,
+		'https://user:pass@team.cloudflareaccess.com'    => false,
+	) as $candidate => $expected
+) {
+	if ( $valid_issuer->invoke( null, $candidate ) !== $expected ) {
+		fwrite( STDERR, "Issuer check got {$candidate} wrong.\n" );
+		exit( 1 );
+	}
+}
+
 fwrite( STDOUT, "Early GraphQL authentication and origin guard tests passed.\n" );

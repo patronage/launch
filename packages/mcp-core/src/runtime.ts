@@ -13,6 +13,7 @@ import type { ConnectorToolMap, RuntimeStore } from "./connector";
 import type { GatewayEnv } from "./env";
 import type { GatewayConnector } from "./gateway-connector";
 import { ApplyValidationError } from "./operations";
+import { canonicalArgs, guardApprovalReplay } from "./replay-guard";
 import {
   clearRunNonce,
   consumeRunNonce,
@@ -120,6 +121,10 @@ export abstract class BaseGatewayRuntime<
   E extends GatewayEnv = GatewayEnv,
 > extends DurableObject<E> {
   readonly #scope = createCallerScope();
+
+  // The recorded arguments of the write each in-flight approval answers, as
+  // canonical JSON. Set just before the resume and cleared once it returns.
+  readonly #approvedArgs = new Map<string, string>();
 
   // The progress of each write an approval is running, held in memory so two
   // operations settling together never read-modify-write the same storage
@@ -240,12 +245,35 @@ export abstract class BaseGatewayRuntime<
           ? {
               ...tool,
               execute: (args, ctx) => {
-                const work = tool.execute(args, ctx);
-
                 // The resumed call gets no execution id of its own from the
                 // codemode runtime; the approval carries it on the caller.
                 const executionId =
                   ctx?.executionId ?? this.#callerExecutionId();
+
+                const approved =
+                  executionId === undefined
+                    ? undefined
+                    : this.#approvedArgs.get(executionId);
+
+                // Only the write a person approved may run, exactly as it was
+                // recorded: anything else is refused before it reaches the CMS,
+                // and what runs is the compared JSON, not the live object.
+                let runArgs = args;
+
+                if (approved !== undefined) {
+                  if (canonicalArgs(args) !== approved) {
+                    return Promise.reject(
+                      new ApplyConflictError(
+                        "approved_write_changed",
+                        "The write that ran differs from the one that was approved, so nothing was written"
+                      )
+                    );
+                  }
+
+                  runArgs = JSON.parse(approved);
+                }
+
+                const work = tool.execute(runArgs, ctx);
 
                 if (executionId !== undefined) {
                   this.#applying.set(executionId, work);
@@ -302,7 +330,12 @@ export abstract class BaseGatewayRuntime<
           this.ctx,
           this.env,
           connector,
-          this.#tracked(connector.tools(deps))
+          this.#tracked(
+            guardApprovalReplay(
+              connector.tools(deps),
+              () => this.#callerExecutionId() !== undefined
+            )
+          )
         )
     );
 
@@ -445,8 +478,23 @@ export abstract class BaseGatewayRuntime<
         : { ...caller, executionId },
       async () => {
         const actions = await runtime.pending(executionId);
-        const seq = actions.find((action) => isApplyCall(action))?.seq;
-        await runtime.approve({ executionId });
+        const action = actions.find((candidate) => isApplyCall(candidate));
+        const seq = action?.seq;
+
+        if (action) {
+          // A recorded write that is not JSON cannot be compared, so it is
+          // pinned to a value no live call can match and the resume refuses it.
+          this.#approvedArgs.set(
+            executionId,
+            canonicalArgs(action.args) ?? "\u0000unserialisable"
+          );
+        }
+
+        try {
+          await runtime.approve({ executionId });
+        } finally {
+          this.#approvedArgs.delete(executionId);
+        }
 
         // The pass is over, but the write it started may not be: a sandbox
         // timeout ends the script and leaves the write running. Waiting here,

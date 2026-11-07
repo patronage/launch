@@ -9,7 +9,8 @@
 //   GITHUB_OWNER_ID       numeric id of the GitHub org that owns the repo
 //   GITHUB_REPO_ID        numeric id of the repo
 // and optionally PAYLOAD_DB, HYPERDRIVE_ID and WORKER_DOMAIN,
-// which become build variables.
+// which become build variables. WORKER_PREVIEWS=true also needs
+// PAYLOAD_PREVIEW_D1_ID, PAYLOAD_PREVIEW_D1_NAME and PAYLOAD_PREVIEW_R2_BUCKET.
 // The Cloudflare GitHub app must already be installed on the repo (a one-time
 // dashboard step). The Worker must exist, so run `pnpm run deploy` once first.
 //
@@ -32,7 +33,17 @@ const required = [
   "GITHUB_REPO_ID",
 ];
 
-const missing = required.filter((name) => !process.env[name]);
+// Previews never bind production content (cloudflare.config.ts), so branch
+// builds need their own D1 database and media bucket named up front.
+const previewStore = [
+  "PAYLOAD_PREVIEW_D1_ID",
+  "PAYLOAD_PREVIEW_D1_NAME",
+  "PAYLOAD_PREVIEW_R2_BUCKET",
+];
+
+const missing = [...required, ...(previewsEnabled ? previewStore : [])].filter(
+  (name) => !process.env[name]
+);
 
 if (missing.length > 0) {
   console.error(`Set ${missing.join(", ")}.`);
@@ -137,6 +148,7 @@ const shared = {
           "ACCESS_TEAM_DOMAIN",
           "ACCESS_AUD",
           "ACCESS_GATEWAY_AUD",
+          ...previewStore,
         ].flatMap((name) => (env[name] ? [[name, env[name]]] : []))
       ),
     }).map(([name, value]) => [name, { is_secret: false, value }])
