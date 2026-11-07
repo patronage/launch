@@ -2,6 +2,11 @@
   "packages": {
     "patronage/launch-access": {
       "0.5.0": {
+        "dist": {
+          "shasum": "c5e81791f5f3a3667e7c0ff20865a00e8558e436",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-access/0.5.0.zip"
+        },
         "name": "patronage/launch-access",
         "version": "0.5.0",
         "description": "Locks WordPress behind Cloudflare Access and authenticates REST and WPGraphQL requests from Access JWTs.",
@@ -25,18 +30,18 @@
         },
         "extra": {
           "installer-name": "patronage-access"
-        },
-        "dist": {
-          "shasum": "c5e81791f5f3a3667e7c0ff20865a00e8558e436",
-          "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-access/0.5.0.zip"
         }
       }
     },
     "patronage/launch-fleet": {
-      "1.0.0": {
+      "1.1.0": {
+        "dist": {
+          "shasum": "660a58d65b484a7a10cb20f60f06f4e254fc2f67",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-fleet/1.1.0.zip"
+        },
         "name": "patronage/launch-fleet",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "Reports a Patronage site's WordPress, plugin and theme versions to Patronage Fleet once a day, for its vulnerability scan.",
         "type": "wordpress-muplugin",
         "license": "MIT",
@@ -57,16 +62,16 @@
         },
         "extra": {
           "installer-name": "patronage-fleet"
-        },
-        "dist": {
-          "shasum": "a4ca90faaff942a81f809e70f520b1657b326a5b",
-          "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-fleet/1.0.0.zip"
         }
       }
     },
     "patronage/launch-headless-revalidate": {
       "2.1.0": {
+        "dist": {
+          "shasum": "ec6970496269e7aae148e6dd3ab78ea045bcdf70",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-headless-revalidate/2.1.0.zip"
+        },
         "name": "patronage/launch-headless-revalidate",
         "version": "2.1.0",
         "description": "Tells a headless front-end which paths and cache tags to revalidate when WordPress content changes.",
@@ -89,16 +94,16 @@
         },
         "extra": {
           "installer-name": "patronage-headless-revalidate"
-        },
-        "dist": {
-          "shasum": "ec6970496269e7aae148e6dd3ab78ea045bcdf70",
-          "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-headless-revalidate/2.1.0.zip"
         }
       }
     },
     "patronage/launch-logging": {
       "0.1.0": {
+        "dist": {
+          "shasum": "1d65512d1395eb5ef758acab7c79449fbe703382",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-logging/0.1.0.zip"
+        },
         "name": "patronage/launch-logging",
         "version": "0.1.0",
         "description": "Records security-relevant WordPress events as wide events and ships them, with the host's log files, to a Basin Pipelines stream.",
@@ -121,11 +126,6 @@
         },
         "extra": {
           "installer-name": "patronage-logging"
-        },
-        "dist": {
-          "shasum": "1d65512d1395eb5ef758acab7c79449fbe703382",
-          "type": "zip",
-          "url": "https://launch.patronage.com/composer/dist/launch-logging/0.1.0.zip"
         }
       }
     }

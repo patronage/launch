@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Fleet
  * Description: Reports this site's WordPress, plugin and theme versions to Patronage Fleet once a day, for the fleet vulnerability scan.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Patronage
  *
  * Outbound only: the site posts a signed report and exposes no endpoint. It
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
   exit();
 }
 
-const PATRONAGE_FLEET_VERSION = '1.0.0';
+const PATRONAGE_FLEET_VERSION = '1.1.0';
 const PATRONAGE_FLEET_HOOK = 'patronage_fleet_report';
 const PATRONAGE_FLEET_STATUS = 'patronage_fleet_last_report';
 
@@ -48,6 +48,37 @@ function patronage_fleet_url(): string {
   return defined('PATRONAGE_FLEET_URL') ? PATRONAGE_FLEET_URL : 'https://fleet.patronage.com/api/inventory/report';
 }
 
+/**
+ * Must-use plugins by slug. WordPress loads only top-level files in
+ * mu-plugins/, so a plugin Composer installs into mu-plugins/<slug>/ runs
+ * through a one-line loader file with no Version header; the version comes
+ * from <slug>/<slug>.php instead. A folder without a loader is reported as
+ * inactive.
+ *
+ * @return array<string, array{version: string, active: bool}>
+ */
+function patronage_fleet_mu_plugins(): array {
+  $found = [];
+  foreach (get_mu_plugins() as $file => $plugin) {
+    $found[basename($file, '.php')] = ['version' => (string) $plugin['Version'], 'active' => true];
+  }
+  foreach (glob(WPMU_PLUGIN_DIR . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+    $slug = basename($dir);
+    $main = "$dir/$slug.php";
+    if (!is_readable($main)) {
+      continue;
+    }
+    $version = (string) get_file_data($main, ['Version' => 'Version'])['Version'];
+    if (!isset($found[$slug])) {
+      $found[$slug] = ['version' => $version, 'active' => false];
+    } elseif ($found[$slug]['version'] === '') {
+      $found[$slug]['version'] = $version;
+    }
+  }
+  ksort($found);
+  return $found;
+}
+
 /** The same fields the fleet SSH probe reads, so fleet parses both alike. */
 function patronage_fleet_inventory(): array {
   if (!function_exists('get_plugins')) {
@@ -69,11 +100,11 @@ function patronage_fleet_inventory(): array {
         : null,
     ];
   }
-  foreach (get_mu_plugins() as $file => $plugin) {
+  foreach (patronage_fleet_mu_plugins() as $slug => $plugin) {
     $plugins[] = [
-      'slug' => basename($file, '.php'),
-      'version' => (string) $plugin['Version'],
-      'active' => true,
+      'slug' => $slug,
+      'version' => $plugin['version'],
+      'active' => $plugin['active'],
       'update' => null,
       'mu' => true,
     ];
