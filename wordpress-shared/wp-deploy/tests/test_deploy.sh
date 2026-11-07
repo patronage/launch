@@ -70,6 +70,7 @@ set +e
 
 version_line="$(sed -n 2p "$BUILD_DIR/deploy.sh")"
 check "header line carries the script version" grep -q "^# wp-deploy $WP_DEPLOY_VERSION " <<<"$version_line"
+check "the Version header, which pnpm wp:release reads, is the script version" grep -qx "# Version: $WP_DEPLOY_VERSION" <(sed -n 3p "$BUILD_DIR/deploy.sh")
 check "--version prints the version" [ "$(bash "$BUILD_DIR/deploy.sh" --version)" = "wp-deploy $WP_DEPLOY_VERSION" ]
 out="$(bash "$BUILD_DIR/deploy.sh" --help 2>&1)"
 check "--help prints usage and targets" bash -c 'grep -q "^Usage" <<<"$1" && grep -q "^Targets:" <<<"$1"' _ "$out"

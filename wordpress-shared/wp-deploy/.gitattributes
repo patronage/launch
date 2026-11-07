@@ -1,0 +1,6 @@
+# Left out of the dist zip Composer downloads (see wordpress-shared/README.md).
+/.gitattributes export-ignore
+/README.md export-ignore
+/composer.json export-ignore
+/tests export-ignore
+/package.json export-ignore

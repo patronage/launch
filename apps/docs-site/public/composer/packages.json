@@ -159,6 +159,34 @@
           "installer-name": "patronage-logging"
         }
       }
+    },
+    "patronage/launch-wp-deploy": {
+      "2.8.0": {
+        "dist": {
+          "shasum": "d7953d306d46e6df227e0e53eb923df6f0b5ef13",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-wp-deploy/2.8.0.zip"
+        },
+        "name": "patronage/launch-wp-deploy",
+        "version": "2.8.0",
+        "description": "Deploys a WordPress site by pushing a packaged commit to the host's Git remote (Cloudways, WP Engine, Kinsta), and pulls its database and uploads down for local work.",
+        "type": "library",
+        "license": "MIT",
+        "homepage": "https://launch.patronage.com/deploy/wordpress",
+        "authors": [
+          {
+            "name": "Patronage",
+            "homepage": "https://patronage.org"
+          }
+        ],
+        "support": {
+          "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/wp-deploy",
+          "docs": "https://github.com/patronage/launch/blob/main/wordpress-shared/wp-deploy/README.md"
+        },
+        "extra": {
+          "launch-version-file": "deploy.sh"
+        }
+      }
     }
   }
 }

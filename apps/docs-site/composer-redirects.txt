@@ -5,3 +5,4 @@
 /composer/dist/launch-fleet/1.2.0.zip https://github.com/patronage/launch/releases/download/launch-fleet-v1.2.0/launch-fleet-1.2.0.zip 302
 /composer/dist/launch-headless-revalidate/2.1.0.zip https://github.com/patronage/launch/releases/download/launch-headless-revalidate-v2.1.0/launch-headless-revalidate-2.1.0.zip 302
 /composer/dist/launch-logging/1.0.0.zip https://github.com/patronage/launch/releases/download/launch-logging-v1.0.0/launch-logging-1.0.0.zip 302
+/composer/dist/launch-wp-deploy/2.8.0.zip https://github.com/patronage/launch/releases/download/launch-wp-deploy-v2.8.0/launch-wp-deploy-2.8.0.zip 302

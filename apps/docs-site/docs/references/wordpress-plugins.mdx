@@ -12,6 +12,8 @@ Launch's WordPress plugins live in [`wordpress-shared/`](https://github.com/patr
 | `patronage/launch-headless-revalidate` | Tells a headless front-end which paths and cache tags to revalidate when content changes. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-headless-revalidate) |
 | `patronage/launch-fleet` | For sites Patronage runs: reports WordPress, plugin and theme versions to Patronage Fleet for its vulnerability scan, and answers its uptime checks. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-fleet) |
 
+The same repository serves the deploy kit, `patronage/launch-wp-deploy`, which isn't a plugin: see [Deploy kit](#deploy-kit) below.
+
 [`packages.json`](https://launch.patronage.com/composer/packages.json) lists every released version.
 
 ## Install
@@ -45,11 +47,21 @@ Where WordPress isn't in `wp-content/`, point `extra.installer-paths` for `type:
 
 Updates are `composer update patronage/launch-access`. Each zip holds only the plugin's PHP and its license, so nothing in the webroot names its version.
 
+## Deploy kit
+
+`patronage/launch-wp-deploy` is [wp-deploy](/deploy/wordpress): `deploy.sh`, `pull.sh` and the Cloudways hook. Require it as a dev dependency, so a production `composer install --no-dev` leaves it out of the webroot:
+
+```bash
+composer require --dev patronage/launch-wp-deploy
+```
+
+Then copy the package's `shim.sh` into the site's `_build/` folder twice, as `deploy.sh` and `pull.sh`, and commit them next to the site's `deploy.env`. Each shim runs the installed script of its name with the settings in `_build/`, so `bash _build/deploy.sh production` works as before. If Composer's `vendor/` folder isn't next to `_build/`, change the `kit=` line in both shims. A build step's `composer install --no-dev` removes the kit, so the shim runs a temporary copy of it; run `composer install` after a deploy to get your dev dependencies back. Updates are `composer update patronage/launch-wp-deploy`; on Cloudways, run `install-hook` again when the changelog says so.
+
 ## Releasing a new version
 
 For contributors to Launch:
 
-1. In the PR that changes a plugin, bump the `Version:` header in its main file, then run `pnpm wp:release <folder>`, such as `pnpm wp:release patronage-access`. It adds the version, with the zip's checksum, to `apps/docs-site/public/composer/packages.json` and its download redirect to `apps/docs-site/composer-redirects.txt`. Commit both.
+1. In the PR that changes a plugin, bump the `Version:` header in its main file (for wp-deploy, `deploy.sh`, along with its `WP_DEPLOY_VERSION` and the same in `pull.sh`), then run `pnpm wp:release <folder>`, such as `pnpm wp:release patronage-access`. It adds the version, with the zip's checksum, to `apps/docs-site/public/composer/packages.json` and its download redirect to `apps/docs-site/composer-redirects.txt`. Commit both.
 2. `pnpm verify` fails if a plugin's files or `composer.json` change without a new release.
 3. After the PR merges, run `pnpm wp:release --publish` from an up-to-date `main`. It creates the GitHub release `<package>-v<version>` (for example `launch-access-v1.0.0`) with the zip, using the `gh` CLI. The docs site deploys on merge, so the version is installable once both are done.
 

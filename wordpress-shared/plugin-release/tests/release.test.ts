@@ -102,6 +102,48 @@ describe("pnpm wp:release", () => {
     );
   });
 
+  it("a library takes its version from the file extra.launch-version-file names", () => {
+    write(
+      "wordpress-shared/demo-kit/composer.json",
+      `${JSON.stringify(
+        {
+          description: "A kit.",
+          extra: { "launch-version-file": "kit.sh" },
+          license: "MIT",
+          name: "patronage/launch-demo-kit",
+          type: "library",
+        },
+        null,
+        2
+      )}\n`
+    );
+    write(
+      "wordpress-shared/demo-kit/kit.sh",
+      "#!/bin/sh\n# Version: 3.1.0\necho kit\n"
+    );
+    const result = release("demo-kit");
+    assert.equal(result.status, 0, result.output);
+    assert.ok(packages().packages["patronage/launch-demo-kit"]?.["3.1.0"]);
+    write(
+      "wordpress-shared/demo-kit/kit.sh",
+      "#!/bin/sh\n# Version: 3.1.0\necho changed\n"
+    );
+    assert.match(
+      release("--check").output,
+      /bump the Version header in wordpress-shared\/demo-kit\/kit\.sh/u
+    );
+  });
+
+  it("extra.launch-version-file must be a file in the package's folder", () => {
+    write(
+      "wordpress-shared/demo-kit/composer.json",
+      `${JSON.stringify({ extra: { "launch-version-file": "../x.sh" }, name: "patronage/launch-demo-kit", type: "library" })}\n`
+    );
+    const result = release("demo-kit");
+    assert.equal(result.status, 1);
+    assert.match(result.output, /must name a file in the package's folder/u);
+  });
+
   it("a release writes packages.json and the redirects, and then the check passes", () => {
     const result = release("patronage-demo");
     assert.equal(result.status, 0, result.output);

@@ -2,7 +2,7 @@
 
 `deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder. `pull.sh` copies a site's database and uploads down from the host for local work (Cloudways so far; see [Pulls](#pulls)).
 
-This folder is the canonical copy. Every site keeps the script in its `_build/` folder, unchanged: a site outside this repo copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.7.0 …`), and `bash _build/deploy.sh --version` prints it. `pull.sh` carries the same version. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site runs it from its `_build/` folder, unchanged: a site outside this repo installs it with Composer (see [Composer](#composer)) or copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.8.0 …`; the third, `# Version:`, is what `pnpm wp:release` reads), and `bash _build/deploy.sh --version` prints it. `pull.sh` carries the same version. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
@@ -13,6 +13,8 @@ This folder is the canonical copy. Every site keeps the script in its `_build/` 
 | `cloudways-hook-post-receive.sh` | wp-deploy, copied or symlinked unchanged | Cloudways `post-receive` hook. It is the same file on every site and reads its settings from the server. |
 | `tests/test_deploy.sh`, `tests/test_pull.sh` | wp-deploy | Local tests against fake servers (see [Tests](#tests)) |
 | `deploy.env.sample` | wp-deploy | Documents every setting |
+| `shim.sh` | wp-deploy, copied as `_build/deploy.sh` and `_build/pull.sh` | Runs the Composer-installed kit with the site's `_build/` settings |
+| `composer.json`, `.gitattributes` | wp-deploy | The `patronage/launch-wp-deploy` package and what its zip leaves out |
 | `deploy.env` | site | The site's settings. Committed, non-secret. |
 | `.deploy_include.txt`, `.deploy_exclude.txt` | site | Ignored build output to add, and tracked paths to leave out |
 | `kinsta-hook-post-receive.sh` | site, optional | Copy of the Kinsta server's hook. The audit and deploy compare the server's hook with it. |
@@ -220,11 +222,23 @@ Targets are `production` and `staging` on `DEPLOY_HOST=cloudways`, or `cloudways
 
 **Moving a site from `db.sh`.** Copy `pull.sh` next to `deploy.sh` and delete `db.sh`. Add any settings that differ from the defaults to `deploy.env`: older sites' Docker databases use `PULL_DB_USER=root`, `PULL_DB_PASSWORD=somewordpress` and a database named after the Compose project, and their service may not be called `db`. Keep `SQL_EXCLUDED_TABLES` where it is, or rename it `PULL_EXCLUDED_TABLES`. The commands are the same apart from the target names. [`deploy.env.sample`](deploy.env.sample) documents every setting.
 
+## Composer
+
+The kit is the Composer package `patronage/launch-wp-deploy`, from Launch's repository at `https://launch.patronage.com/composer` (ADR 0017). Add that repository to the site's `composer.json`, then:
+
+```bash
+composer require --dev patronage/launch-wp-deploy
+cp vendor/patronage/launch-wp-deploy/shim.sh _build/deploy.sh
+cp vendor/patronage/launch-wp-deploy/shim.sh _build/pull.sh
+```
+
+Commit both shims. Require it as a dev dependency: many sites keep `vendor/` in the webroot, and `composer install --no-dev` in the build then leaves the scripts out. Each shim runs the installed script of its own name with `WP_DEPLOY_BUILD_DIR` set to `_build/`, so `deploy.env`, the include and exclude lists and a committed Kinsta hook copy stay there, and `.env` stays next to `_build/`. The Cloudways hook comes from the package. If `vendor/` isn't next to `_build/`, change the shims' `kit=` line. The shim runs a temporary copy of the kit, because a build step's `composer install --no-dev` deletes dev dependencies while the deploy still needs them; run `composer install` after a deploy to get the kit and your other dev tools back. `composer update patronage/launch-wp-deploy` upgrades the kit; read the changelog for steps such as reinstalling the Cloudways hook.
+
 ## Adopting on a site
 
 One PR per site:
 
-1. Copy `deploy.sh`, `pull.sh` and `cloudways-hook-post-receive.sh` from this folder unchanged (inside this repo, symlink them instead). Copy `deploy.env.sample` alongside them if the site wants it handy. Delete the old per-environment Cloudways hooks and `cloudways-init.sh`; `install-hook` replaces them.
+1. Install the kit with Composer and add the two shims (see [Composer](#composer)), or copy `deploy.sh`, `pull.sh` and `cloudways-hook-post-receive.sh` from this folder unchanged (inside this repo, symlink them instead). Copy `deploy.env.sample` alongside them if the site wants it handy. Delete the old per-environment Cloudways hooks and `cloudways-init.sh`; `install-hook` replaces them.
 2. Write `_build/deploy.env`. Move the old script's build command to `DEPLOY_BUILD_TASK`, its branch to `DEPLOY_REMOTE_BRANCH`, and its host settings from `.env` into `deploy.env`. Keep SSH users in `.env`.
 3. Run `bash _build/tests/test_deploy.sh`, then compare `--dry-run` with the old payload. Run the dry run from a fresh clone, so gitignored local files can't change the build (see [Usage](#usage)), or compare it with the server's commit: `git fetch <host's Git remote> <branch>`, then `git diff --stat FETCH_HEAD <commit>`, where `<commit>` is the dry run's `Split commit` if it printed one, otherwise its `Deploy commit`.
 4. Run `audit` against staging. On Cloudways, review and run `install-hook` for each environment.
@@ -263,6 +277,7 @@ The fake WP Engine gateway strips quotes and has no `git`, like the real one. Th
 
 ## Changelog
 
+- **2.8.0**: The kit is a Composer package, `patronage/launch-wp-deploy` (see [Composer](#composer)). `deploy.sh` and `pull.sh` read the site's settings from `WP_DEPLOY_BUILD_DIR` when it is set, as the new `shim.sh` sets it, and otherwise from their own folder as before; `deploy.sh` takes the Cloudways hook from its own folder. `deploy.sh` has a `# Version:` header for `pnpm wp:release`. No change for copied or symlinked kits.
 - **2.7.0**: New `pull.sh`, with `export <target>`, `import [<file>]` and `media <target>`, replaces the per-site `db.sh` copies (see [Pulls](#pulls)). It finds the Cloudways webroot from the app's own `GIT_PATH` or `WEBROOT`, never by searching the server, so as the master user it can't export another app's database. Cloudways only for now. No `deploy.sh` behavior change.
 - **2.6.1**: Example `.env` files that hold no values (`.env.example`, `.env.sample`, `.env.dist`, `.env.template`) are allowed again in any folder. 2.6.0 refused them, which blocked any deploy whose Composer plugins ship one, such as wp-graphql-acf's `.env.example`. Reinstall the hook (`install-hook`) on every Cloudways environment.
 - **2.6.0**: The Cloudways hook takes a deploy lock (`deploy.lock` in the server's Git folder, with `flock` where the server has it), so two pushes never write the webroot at once. Once it holds the lock, it skips a push whose commit is no longer the branch tip. It records the last commit it installed in full in `deploy-installed-rev`, and deletes files against that commit instead of the branch's previous commit, so a push Git accepted but the hook refused no longer hides its deletions from the next push. An install that stops partway is noted in `deploy-attempted-revs`, and the next full install also removes the files it wrote. Where the server has no `flock`, the lock is a folder holding its owner's pid, and a lock whose owner has died is cleared. `deploy.sh` verifies against that commit too. `prune --delete` stops if the server's branch changed while it ran, and on Cloudways it removes files under the hook's lock. `.env` and `.env.*` files are refused, and flagged by the audit, in every folder, not only at the root (2.6.1 allows example files again). `install-hook --dry-run` is refused instead of installing. Reinstall the hook (`install-hook`) on every Cloudways environment.

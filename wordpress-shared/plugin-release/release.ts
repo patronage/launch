@@ -8,7 +8,9 @@
 //   pnpm wp:release --publish [--dry-run]   # after merge: create the GitHub releases that hold the zips
 //
 // <folder> is the package's folder in wordpress-shared/, such as patronage-access.
-// Its version is the `Version:` header of <folder>/<folder>.php.
+// Its version is the `Version:` header of <folder>/<folder>.php, or of the file
+// that composer.json's extra.launch-version-file names, for a package that is
+// not a plugin (wp-deploy).
 //
 // The docs site serves packages.json, and each version's download URL there
 // (launch.patronage.com/composer/dist/<name>/<version>.zip) redirects to a zip
@@ -230,6 +232,7 @@ const packageFolders = () =>
     .toSorted();
 
 interface Package {
+  versionFile: string;
   folder: string;
   dir: string;
   name: string;
@@ -257,11 +260,33 @@ const readComposer = (dir: string) => {
   return parsed.data;
 };
 
-const readVersion = (dir: string, folder: string) => {
-  const mainFile = path.join(root(), dir, `${folder}.php`);
+// A file name in the package's folder, never a path out of it.
+const versionFileSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u);
+
+/** The file whose Version header is the package's version, inside its folder. */
+const versionFile = (dir: string, folder: string, composer: Composer) => {
+  const named = composer.extra?.["launch-version-file"];
+
+  if (named === undefined) {
+    return `${folder}.php`;
+  }
+
+  const parsed = versionFileSchema.safeParse(named);
+
+  if (!parsed.success) {
+    return fail(
+      `${dir}/composer.json: extra.launch-version-file must name a file in the package's folder`
+    );
+  }
+
+  return parsed.data;
+};
+
+const readVersion = (dir: string, file: string) => {
+  const mainFile = path.join(root(), dir, file);
 
   if (!existsSync(mainFile)) {
-    fail(`${dir}/${folder}.php does not exist`);
+    fail(`${dir}/${file} does not exist`);
   }
 
   const version =
@@ -270,9 +295,7 @@ const readVersion = (dir: string, folder: string) => {
     )?.groups?.version ?? "";
 
   if (!/^\d+\.\d+\.\d+$/u.test(version)) {
-    fail(
-      `${dir}/${folder}.php: the Version header must be x.y.z, not "${version}"`
-    );
+    fail(`${dir}/${file}: the Version header must be x.y.z, not "${version}"`);
   }
 
   return version;
@@ -285,6 +308,7 @@ const readPackage = (folder: string): Package => {
 
   const dir = `wordpress-shared/${folder}`;
   const composer = readComposer(dir);
+  const file = versionFile(dir, folder, composer);
 
   if (!/^patronage\/launch-[a-z0-9][a-z0-9-]*$/u.test(composer.name)) {
     fail(
@@ -300,7 +324,7 @@ const readPackage = (folder: string): Package => {
 
   if (composer.version !== undefined) {
     fail(
-      `${dir}/composer.json: leave out version; it comes from the ${folder}.php header`
+      `${dir}/composer.json: leave out version; it comes from the ${file} header`
     );
   }
 
@@ -318,7 +342,8 @@ const readPackage = (folder: string): Package => {
     dir,
     folder,
     name: composer.name,
-    version: readVersion(dir, folder),
+    version: readVersion(dir, file),
+    versionFile: file,
   };
 };
 
@@ -489,7 +514,7 @@ export const release = (folder: string) => {
 
   if (versions[pkg.version]) {
     fail(
-      `${pkg.name} ${pkg.version} is already released; bump the Version header in ${pkg.dir}/${folder}.php`
+      `${pkg.name} ${pkg.version} is already released; bump the Version header in ${pkg.dir}/${pkg.versionFile}`
     );
   }
 
@@ -564,7 +589,7 @@ const checkPackage = (folder: string, repository: Repository) => {
   }
 
   const entry = repository.packages[pkg.name]?.[pkg.version];
-  const how = `bump the Version header in ${pkg.dir}/${folder}.php and run pnpm wp:release ${folder}`;
+  const how = `bump the Version header in ${pkg.dir}/${pkg.versionFile} and run pnpm wp:release ${folder}`;
 
   if (!entry) {
     return [
