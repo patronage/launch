@@ -7,8 +7,9 @@ import cloudflareConfig from "../cloudflare.config.ts";
 
 // Miniflare keys local D1 state by database id, so the CLI takes the D1 and R2
 // bindings from cloudflare.config.ts to read and write the same files as the
-// preview. D1 is false when PAYLOAD_DB=postgres.
-const { worker } = cloudflareConfig;
+// preview. D1 is false when PAYLOAD_DB=postgres. The config is a function of
+// the build; the CLI runs locally, never as a Preview.
+const { worker } = await cloudflareConfig({ isPreview: false });
 const { D1, R2 } = worker.env;
 const bindings = { R2 };
 
