@@ -2,6 +2,8 @@
 
 Launch is Patronage's public monorepo of reference sites. Issues and pull requests are welcome.
 
+The documentation at [launch.patronage.com](https://launch.patronage.com) is the authoritative guide to setting up, running and deploying Launch. Start there; this file covers only how to contribute.
+
 ## Before you start
 
 - Open an [issue](https://github.com/patronage/launch/issues) before a large change, so we can agree on the approach first.
