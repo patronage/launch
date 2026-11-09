@@ -5,6 +5,6 @@
   "description": "WordPress mu-plugin that tells a headless front-end which paths and cache tags to revalidate when content changes.",
   "license": "MIT",
   "scripts": {
-    "test": "php -l patronage-headless-revalidate.php"
+    "test": "php -l patronage-headless-revalidate.php && php tests/revalidate.test.php"
   }
 }
