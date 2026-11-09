@@ -103,7 +103,13 @@ const PostPage = async ({ params }: Props) => {
                 .join(" · ")}
             </Typography>
           </header>
-          {hero ? <Figure media={{ image: hero }} /> : null}
+          {hero ? (
+            // The narrow container is at most max-w-2xl (42rem) wide.
+            <Figure
+              media={{ image: hero }}
+              sizes="(min-width: 42rem) 42rem, 100vw"
+            />
+          ) : null}
           {post.content ? (
             <RichTextFrame>
               <PayloadRichText data={post.content} />

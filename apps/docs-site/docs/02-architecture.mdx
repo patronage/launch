@@ -30,7 +30,7 @@ docs/              Engineering notes: decision records in docs/adr/, research in
 - **`logging`**: the Worker wrapper that prints one wide event per request, and the script that provisions a site's log bucket. WordPress's side is the `patronage-logging` mu-plugin. See [Logging](/references/logging).
 - **`sections-preview`**: a parity test and a static page that render the same page from both CMSs side by side.
 - **`demo-content`**: the placeholder images and their alt text that every CMS's seed uses.
-- **`images`**: serves CMS images through the Cloudflare Images binding, on one same-origin route.
+- **`images`**: serves CMS images through the Cloudflare Images binding, on one same-origin route, at a fixed set of widths that adapters offer as a `srcset`. SVG and PDF uploads pass through the same route unresized, SVG in a script-free sandbox.
 - **`mcp-core`**, **`mcp-wordpress`** and **`mcp-payload`**: the MCP gateway and its two connectors, published to npm under `@patronage`. `apps/mcp` deploys them. See [MCP server](/references/mcp).
 
 ## Shared WordPress code
