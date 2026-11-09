@@ -40,6 +40,7 @@ import {
   recordApprovalDecision,
   recordUpstreamRequests,
   recordWriteReceipt,
+  SERVICE_VERSION,
   withMcpRequestLog,
 } from "./logging";
 import type { McpLoggingOptions, McpRequestLogger } from "./logging";
@@ -184,7 +185,7 @@ const createServer = (
   const server = new McpServer(
     {
       name: "launch-mcp",
-      version: "0.2.0",
+      version: SERVICE_VERSION,
     },
     { capabilities: { extensions: { [EXTENSION_ID]: {} } } }
   );
@@ -621,6 +622,10 @@ const streamApproval = (
 
   // A client that went away only stops the writes, and the approval itself
   // runs to its end in the Durable Object; nothing here may reject unobserved.
+  // The stream is still the request's work after the response head has gone,
+  // so it is handed to `waitUntil`: otherwise the runtime may cancel it once
+  // the client disconnects, before the tail is written and the wide event
+  // logged.
   const finish = async (): Promise<void> => {
     try {
       await run();
@@ -635,7 +640,8 @@ const streamApproval = (
     }
   };
 
-  void finish();
+  const finishing = finish();
+  deps.waitUntil?.(finishing);
 
   return new Response(readable, {
     headers: { ...HTML_HEADERS, "Transfer-Encoding": "chunked" },
@@ -816,6 +822,9 @@ export const createWorker = <E extends GatewayEnv>(
           .map((connector) => connector.executeDescription),
         origin: url.origin,
         stub: runtimeStub(env),
+        waitUntil: (promise) => {
+          ctx.waitUntil(promise);
+        },
       };
 
       const started = Date.now();
@@ -832,11 +841,16 @@ export const createWorker = <E extends GatewayEnv>(
           approvalCardOverride(env.APPROVAL_CARD_FOR_UNKNOWN_CLIENTS)
         );
 
+        const hostnames = allowedMcpHostnames(env.MCP_ALLOWED_HOSTNAMES);
+
+        // A browser `Origin` must name one of the hostnames this endpoint
+        // serves. MCP clients that are not browsers send no Origin and are
+        // unaffected; a browser client served from localhost still works.
         const handler = createMcpHandler(
           () => createServer(support, deps, log),
           {
-            allowedHostnames: allowedMcpHostnames(env.MCP_ALLOWED_HOSTNAMES),
-            allowedOriginHostnames: "*",
+            allowedHostnames: hostnames,
+            allowedOriginHostnames: hostnames,
             route: "/mcp",
           }
         );

@@ -10,6 +10,7 @@ import {
   recordRun,
   recordUpstreamRequests,
   recordWriteReceipt,
+  SERVICE_VERSION,
   withMcpRequestLog,
 } from "./logging";
 import type { McpRequestLogger, McpWideEvent } from "./logging";
@@ -339,21 +340,45 @@ describe("code-mode wide-event fields", () => {
     });
   });
 
-  it("records a completed run without an execution id", () => {
+  it("records a completed run with its execution id", () => {
     const log = requestLogger();
     recordRun(log, {
       calls: [
         { connector: "wp", method: "graphql", seq: 1, state: "applied" },
         { connector: "wp", method: "get", seq: 2, state: "applied" },
       ],
+      executionId: "exec_1",
       result: null,
       status: "complete",
     });
     expect(log.getContext().run).toStrictEqual({
-      executionId: "",
+      executionId: "exec_1",
       status: "complete",
       toolCalls: 2,
     });
+  });
+
+  it("leaves the execution id out when the run never started", () => {
+    const log = requestLogger();
+    recordRun(log, {
+      calls: [],
+      error: "Runtime unavailable",
+      status: "error",
+    });
+    expect(log.getContext().run).toStrictEqual({
+      status: "error",
+      toolCalls: 0,
+    });
+  });
+
+  it("reports this package's version as the service version", async () => {
+    const { readFile } = await import("node:fs/promises");
+
+    const manifest = JSON.parse(
+      await readFile(new URL("../package.json", import.meta.url), "utf-8")
+    );
+
+    expect(SERVICE_VERSION).toBe(manifest.version);
   });
 
   it("records the approval decision with an opaque approver", () => {

@@ -14,6 +14,11 @@ const payloadWorker = process.env.PAYLOAD_WORKER;
 const payloadUrl = process.env.PAYLOAD_API_URL ?? "";
 const payloadOn = Boolean(payloadWorker || payloadUrl);
 
+// The WordPress origin, without /wp-json. Set, it turns the `wp` connector
+// on; unset, a Payload-only site has no WordPress connector to describe.
+const wordpressUrl = process.env.WORDPRESS_API_URL ?? "";
+const wordpressOn = Boolean(wordpressUrl);
+
 // The cf CLI's typed Worker config, in place of wrangler.jsonc (ADR 0003).
 // The account comes from CLOUDFLARE_ACCOUNT_ID.
 export default defineConfig({
@@ -60,13 +65,11 @@ export default defineConfig({
       // The Access service token that gets requests through the Access
       // application in front of WordPress, and the gateway proof secret that
       // WordPress's patronage-access mu-plugin checks.
-      WORDPRESS_ACCESS_CLIENT_ID: bindings.secret(),
-      WORDPRESS_ACCESS_CLIENT_SECRET: bindings.secret(),
-      WORDPRESS_ACCESS_PROOF_SECRET: bindings.secret(),
+      WORDPRESS_ACCESS_CLIENT_ID: wordpressOn && bindings.secret(),
+      WORDPRESS_ACCESS_CLIENT_SECRET: wordpressOn && bindings.secret(),
+      WORDPRESS_ACCESS_PROOF_SECRET: wordpressOn && bindings.secret(),
       // The WordPress origin, without /wp-json. HTTPS outside localhost.
-      WORDPRESS_API_URL: bindings.text(
-        process.env.WORDPRESS_API_URL ?? "http://localhost:8080"
-      ),
+      WORDPRESS_API_URL: bindings.text(wordpressUrl),
     },
     exports: {
       GatewayRuntime: exports.durableObject({ storage: "sqlite" }),

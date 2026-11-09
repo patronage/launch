@@ -193,6 +193,11 @@ export interface ApplyProgress {
   // always their index order.
   operations: OperationReceipt[];
   requesterOpaque: string;
+  // The durable log `seq` of the `apply` call this progress belongs to. A
+  // script can call `apply` more than once, and only the write that wrote
+  // this progress may read it back. Absent on progress stored before it was
+  // recorded.
+  seq?: number;
   startedAt: number;
   // The approved preview's targets, by operation index, so an operation that
   // never reported can still be named.

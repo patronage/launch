@@ -5,9 +5,11 @@ import {
   consumeRunNonce,
   executeSummaryText,
   invalidPendingApply,
+  isStalledRun,
   issueRunNonce,
   receiptForSeq,
   runStorageKeys,
+  STALLED_RUN_ERROR,
   toExecuteResult,
   toRunProblem,
   toRunView,
@@ -73,6 +75,7 @@ describe(toExecuteResult, () => {
       })
     ).toStrictEqual({
       calls: [{ connector: "wp", method: "graphql", seq: 1, state: "applied" }],
+      executionId: "exec_1",
       result: { count: 2 },
       status: "complete",
     });
@@ -132,6 +135,7 @@ describe(toExecuteResult, () => {
     expect(result).toStrictEqual({
       calls: [],
       error: "TypeError: wp.nope is not a function",
+      executionId: "exec_4",
       status: "error",
     });
     expect(executeSummaryText(result)).toBe(
@@ -262,6 +266,30 @@ describe(toRunProblem, () => {
       code: "preflight_failed",
       message: "The approval preview could not be built",
     });
+  });
+});
+
+describe(isStalledRun, () => {
+  const record = { id: "exec_7", status: "running", updatedAt: 1000 };
+  const options = { active: false, maxRunMs: 360_000, now: 1000 + 360_001 };
+
+  it("calls a running run nothing is applying, untouched past its limit, stalled", () => {
+    expect(isStalledRun(record, options)).toBeTruthy();
+  });
+
+  it("leaves a run alone while this object is still applying it", () => {
+    expect(isStalledRun(record, { ...options, active: true })).toBeFalsy();
+  });
+
+  it("leaves a run alone within its limit", () => {
+    expect(
+      isStalledRun(record, { ...options, now: 1000 + 360_000 })
+    ).toBeFalsy();
+  });
+
+  it("only ever applies to a running run", () => {
+    expect(isStalledRun({ ...record, status: "paused" }, options)).toBeFalsy();
+    expect(isStalledRun(undefined, options)).toBeFalsy();
   });
 });
 
@@ -399,6 +427,55 @@ describe(toRunView, () => {
       error: { code: "interrupted" },
       target: "redirect /a",
     });
+    expect(view.write).toStrictEqual({
+      confirmed: 1,
+      status: "partial",
+      total: 3,
+    });
+  });
+
+  it("does not borrow an earlier wp.apply's progress for a later write that was rejected", () => {
+    const view = toRunView(
+      "exec_7",
+      {
+        error: "Action wp.apply rejected by user",
+        id: "exec_7",
+        log: [
+          {
+            args: applyArgs,
+            connector: "wp",
+            method: "apply",
+            result: receipt,
+            seq: 1,
+            state: "applied",
+          },
+          { ...executing, seq: 2, state: "reverted" },
+        ],
+        status: "rejected",
+      },
+      undefined,
+      { ...progress, seq: 1 }
+    );
+
+    expect(view.status).toBe("error");
+    expect(view.receipt).toBeUndefined();
+    expect(view.receiptInterrupted).toBeUndefined();
+    expect(view.write).toBeUndefined();
+  });
+
+  it("reports a stalled run as an error with the progress it reported", () => {
+    const view = toRunView(
+      "exec_7",
+      { id: "exec_7", log: [executing], status: "running" },
+      undefined,
+      { ...progress, seq: 1 },
+      false,
+      true
+    );
+
+    expect(view.status).toBe("error");
+    expect(view.error).toBe(STALLED_RUN_ERROR);
+    expect(view.receiptInterrupted).toBeTruthy();
     expect(view.write).toStrictEqual({
       confirmed: 1,
       status: "partial",
