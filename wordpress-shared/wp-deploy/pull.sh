@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wp-deploy 2.8.0 (patronage/launch: wordpress-shared/wp-deploy/pull.sh)
+# wp-deploy 2.8.1 (patronage/launch: wordpress-shared/wp-deploy/pull.sh)
 # Pull a WordPress site's database and uploads down from its host, for local work.
 # Sites vendor this file unchanged, next to deploy.sh. Put site settings in _build/deploy.env.
 #
@@ -34,7 +34,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.8.0"
+WP_DEPLOY_VERSION="2.8.1"
 
 # The kit's own folder, and the site's _build/ folder with its settings. They
 # are the same folder when the site copies or symlinks the kit. When Composer
