@@ -94,10 +94,19 @@ export const accessFetch = async (
   return fetchImpl(input, { redirect: "manual", ...init, headers });
 };
 
-/** True when Access turned the request away instead of passing it to the origin. */
+// WordPress's REST and GraphQL errors, and Payload's, are JSON. Access answers
+// a refusal with a redirect to its login page or an HTML 403, never JSON.
+const JSON_CONTENT_TYPE = /^application\/(?:[\w.+-]+\+)?json\b/iu;
+
+/**
+ * True when Access turned the request away instead of passing it to the origin.
+ * A 401 or 403 with a JSON body is the origin's own refusal (a WordPress
+ * permission error, say), which the caller should handle as the origin's
+ * answer rather than as Access failing.
+ */
 export const isAccessRejection = (response: Response): boolean => {
   if (response.status === 401 || response.status === 403) {
-    return true;
+    return !JSON_CONTENT_TYPE.test(response.headers.get("Content-Type") ?? "");
   }
 
   const location = response.headers.get("Location") ?? "";
