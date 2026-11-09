@@ -38,10 +38,10 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261031.1",
     "@patronage/access": "workspace:*",
-    "@types/node": "24.19.2",
+    "@types/node": "catalog:",
     "evlog": "2.26.0",
     "tsdown": "0.23.4",
-    "vitest": "5.0.5"
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=24"
