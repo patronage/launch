@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-31. Supersedes [ADR 0012](0012-one-mcp-worker.md).
+Accepted, 2026-10-31. Supersedes [ADR 0012](0012-one-mcp-worker.md). Corrected 2026-11-09 to name the contract tests.
 
 ## Context
 
@@ -30,7 +30,7 @@ Payload's Local API exists only inside the Payload Worker, so a separate MCP Wor
 
 - `packages/mcp-payload` is a connector that calls Payload's own MCP endpoint, not a re-implementation of Payload's tools over REST.
 - Code mode needs Dynamic Workers, which are in open beta and need a paid Workers plan.
-- We depend on pre-1.0 pieces: Dynamic Workers, `@cloudflare/codemode`, the Payload 4 beta and its MCP plugin, and the WordPress MCP Adapter. Contract tests in `packages/mcp-core` are how we notice when an upgrade breaks a connector.
+- We depend on pre-1.0 pieces: Dynamic Workers, `@cloudflare/codemode`, the Payload 4 beta and its MCP plugin, and the WordPress MCP Adapter. Contract tests are how we notice when an upgrade breaks a connector: `packages/mcp-core/src/codemode.contract.test.ts` covers the `@cloudflare/codemode` surface mcp-core relies on, and the connector tests in `packages/mcp-payload` and `packages/mcp-wordpress` cover what each connector expects from Payload's MCP plugin and the WordPress MCP Adapter. Run them after upgrading any of those pieces.
 - The template used a Wrangler config. In this monorepo the Worker follows [ADR 0003](0003-cloudflare-config-through-cf-cli.md): `cloudflare.config.ts` and the cf CLI.
 - Publishing to npm adds versioning and a release step. Packages must stay free of site-specific names, hosts and tools ([ADR 0001](0001-public-reference-monorepo.md)).
 - The first build step is a spike that runs Payload's MCP plugin under vinext on Workers with D1.
