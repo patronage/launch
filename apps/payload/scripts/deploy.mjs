@@ -1,71 +1,25 @@
 #!/usr/bin/env node
-// The first production deploy needs secrets; later Builds retain stored values.
-import { spawnSync } from "node:child_process";
+// pnpm run deploy [--preview] [--dry-run]. The steps are shared by every
+// Worker; see packages/worker-scripts/src/deploy.ts.
+import path from "node:path";
 
-import { readWorkerConfig, root, run, secretNames } from "./worker-config.mjs";
+import { deploy } from "@launch/worker-scripts/deploy";
+import { main } from "@launch/worker-scripts/script";
 
-const args = new Set(process.argv.slice(2));
-const preview = args.has("--preview");
-const dryRun = args.has("--dry-run");
+const root = path.resolve(import.meta.dirname, "..");
 
-run("pnpm", ["run", "build"], {
-  CLOUDFLARE_PREVIEW_BUILD: preview ? "true" : "false",
-});
-
-// Payload hands the CMS to whoever creates the first user, so the deployed
-// Worker only allows that through Access (src/lib/first-user-guard.ts).
-if (!preview && !(process.env.ACCESS_TEAM_DOMAIN && process.env.ACCESS_AUD)) {
-  console.warn(
-    "ACCESS_TEAM_DOMAIN and ACCESS_AUD are not set, so the deployed admin cannot create its first user. Protect /admin and /api with Access and deploy with both."
-  );
-}
-
-const deployArgs = [
-  "exec",
-  "cf",
-  ...(preview ? ["previews", "deploy"] : ["deploy"]),
-  "--prebuilt",
-  ...(dryRun ? ["--dry-run"] : []),
-];
-
-// Previews use their base secrets. A dry run must never pass secret values
-// to cf, because cf can include them in its diagnostic output.
-if (preview || dryRun) {
-  run("pnpm", deployArgs);
-  process.exit(0);
-}
-
-const names = secretNames(readWorkerConfig());
-const present = names.filter((name) => process.env[name]);
-
-if (present.length === 0) {
-  run("pnpm", deployArgs);
-  process.exit(0);
-}
-
-if (present.length !== names.length) {
-  console.error(
-    `Missing secret values: ${names.filter((name) => !process.env[name]).join(", ")}`
-  );
-  process.exit(1);
-}
-
-const result = spawnSync(
-  "pnpm",
-  [...deployArgs, "--secrets-file", "/dev/stdin"],
-  {
-    cwd: root,
-    encoding: "utf-8",
-    input: JSON.stringify(
-      Object.fromEntries(names.map((name) => [name, process.env[name]]))
-    ),
-  }
+await main(root, (ctx) =>
+  deploy(ctx, {
+    // Payload hands the CMS to whoever creates the first user, so the deployed
+    // Worker only allows that through Access (src/lib/first-user-guard.ts).
+    beforeDeploy: ({ env, warn }, { preview }) => {
+      if (!preview && !(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD)) {
+        warn(
+          "ACCESS_TEAM_DOMAIN and ACCESS_AUD are not set, so the deployed admin cannot create its first user. Protect /admin and /api with Access and deploy with both."
+        );
+      }
+    },
+    previews: true,
+    secrets: true,
+  })
 );
-
-// Suppress cf output when it receives values, including API error responses.
-if (result.status !== 0) {
-  console.error(`Deployment failed (exit ${result.status ?? "unknown"}).`);
-  process.exit(result.status ?? 1);
-}
-
-console.log(`Deployed ${readWorkerConfig().name}; set ${names.join(", ")}.`);
