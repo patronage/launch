@@ -9,7 +9,8 @@
     "directory": "packages/mcp-wordpress"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "type": "module",
   "exports": {

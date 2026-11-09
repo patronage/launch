@@ -11,6 +11,7 @@ Launch is Patronage's public, open-source monorepo of reference sites: vinext fr
 - **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
 - **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
 - **Front-end UI is shadcn/ui on Tailwind 4, in `packages/ui`.** Build pages from its `Section`, `Container` and `Typography` primitives and shadcn components rather than app-local CSS; add new shadcn components to the package (see `packages/ui/README.md`).
+- **Published packages need a changeset.** A PR that changes `src/` or `package.json` in `@patronage/access` or an `@patronage/mcp-*` package adds one with `pnpm changeset`; `pnpm verify` fails without it. See [.changeset/README.md](.changeset/README.md).
 - **Update the public docs in the same PR.** If a PR changes what a reader of the docs site (`apps/docs-site`, live at launch.patronage.com) would run, deploy, configure or decide, such as a new app, package, command, deploy step or decision, update the affected pages under `apps/docs-site/docs` in that PR. Spike notes publish themselves; ADRs and READMEs don't, so summarize a new decision on the site's Decisions page. Run `pnpm --filter docs-site test` to check links.
 
 ## Layout

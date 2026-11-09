@@ -32,5 +32,5 @@ Payload's Local API exists only inside the Payload Worker, so a separate MCP Wor
 - Code mode needs Dynamic Workers, which are in open beta and need a paid Workers plan.
 - We depend on pre-1.0 pieces: Dynamic Workers, `@cloudflare/codemode`, the Payload 4 beta and its MCP plugin, and the WordPress MCP Adapter. Contract tests in `packages/mcp-core` are how we notice when an upgrade breaks a connector.
 - The template used a Wrangler config. In this monorepo the Worker follows [ADR 0003](0003-cloudflare-config-through-cf-cli.md): `cloudflare.config.ts` and the cf CLI.
-- Publishing to npm adds versioning and a release step. Packages must stay free of site-specific names, hosts and tools ([ADR 0001](0001-public-reference-monorepo.md)).
+- Publishing to npm adds versioning and a release step. Since 2026-11-09 that is Changesets: each change to a published package carries a changeset, `pnpm changeset version` writes the versions and changelogs, and `pnpm release` publishes and tags. Packages must stay free of site-specific names, hosts and tools ([ADR 0001](0001-public-reference-monorepo.md)).
 - The first build step is a spike that runs Payload's MCP plugin under vinext on Workers with D1.
