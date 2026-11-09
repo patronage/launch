@@ -13,13 +13,9 @@ import {
   withMcpRequestLog,
 } from "./logging";
 import type { McpRequestLogger, McpWideEvent } from "./logging";
+import { testGatewayEnv } from "./test-env";
 
-const env: Env = {
-  ACCESS_AUD: "replace-me",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  DEPLOYMENT_ENVIRONMENT: "test",
-  WORDPRESS_API_URL: "https://wordpress.example",
-};
+const env = testGatewayEnv();
 
 const requestLogger = (): McpRequestLogger => {
   const log = createLogger<McpWideEvent>();

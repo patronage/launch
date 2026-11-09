@@ -118,7 +118,7 @@ export const createWordPressTools = (deps: ConnectorDeps<WordPressEnv>) =>
   ({
     apply: {
       description: `Apply 1-${MAX_OPERATIONS} update_post or upsert_redirect operations to WordPress. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
-      execute: async (args, ctx) => {
+      execute: async (args, ctx?) => {
         // Validation runs before anything else so a malformed batch — a batch
         // addressing one post twice included — fails as a typed error rather
         // than as a half-applied write.

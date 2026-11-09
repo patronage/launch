@@ -462,7 +462,7 @@ describe("tool registration", () => {
     );
 
     const content = resource.contents.at(0);
-    const text = "text" in (content ?? {}) ? (content?.text ?? "") : "";
+    const text = content && "text" in content ? content.text : "";
 
     expect(content).toMatchObject({
       _meta: {

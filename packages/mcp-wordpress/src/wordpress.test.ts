@@ -33,9 +33,6 @@ const client: UpstreamClient = {
 };
 
 const workerEnv: WordPressEnv = {
-  ACCESS_AUD: "replace-me",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  DEPLOYMENT_ENVIRONMENT: "test",
   WORDPRESS_API_URL: "https://wordpress.example",
 };
 
