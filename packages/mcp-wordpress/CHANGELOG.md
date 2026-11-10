@@ -1,5 +1,11 @@
 # @patronage/mcp-wordpress
 
+## 0.3.1
+
+### Patch Changes
+
+- f6dba0d: Match the optional execution context in the connector tool contract for wp.apply.
+
 ## 0.3.0
 
 ### Minor Changes
