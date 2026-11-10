@@ -58,6 +58,11 @@ export interface PayloadAdapterOptions {
   serverUrl?: string;
   /** Rewrites image URLs, e.g. to an image CDN. Runs after `serverUrl`. */
   imageUrl?: (src: string) => string;
+  /**
+   * A `srcset` for an image, given its URL after `imageUrl` and its original
+   * width, e.g. @launch/images' `imageSrcset`. Without it, images have none.
+   */
+  imageSrcset?: (src: string, width?: number) => string | undefined;
   /** Slug of the page served at `/`. */
   homeSlug?: string;
   /** Replaces the built-in Lexical renderer, e.g. with Payload's own `RichText`. */
@@ -125,6 +130,14 @@ const sectionOptions = (
 export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
   const serverUrl = options.serverUrl?.replace(/\/+$/u, "") ?? "";
   const imageUrl = options.imageUrl ?? ((src: string) => src);
+
+  /** An image's URL and the srcset for it, from its original URL and width. */
+  const imageSource = (original: string, width?: number) => {
+    const src = imageUrl(original);
+
+    return { src, srcset: options.imageSrcset?.(src, width) };
+  };
+
   const homeSlug = options.homeSlug ?? "home";
   const formAction = options.formAction ?? "/forms/submit";
 
@@ -187,7 +200,7 @@ export const createPayloadAdapter = (options: PayloadAdapterOptions = {}) => {
     return compact({
       alt: upload.alt ?? "",
       height: upload.height ?? undefined,
-      src: imageUrl(src),
+      ...imageSource(src, upload.width ?? undefined),
       width: upload.width ?? undefined,
     });
   };

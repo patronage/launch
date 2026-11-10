@@ -1,6 +1,11 @@
 import { createWordPressAdapter } from "@launch/adapter-wordpress";
 import type { Page } from "@launch/content-model";
-import { imagePath, rewriteImageUrls } from "@launch/images";
+import {
+  imagePath,
+  imageSrcset,
+  mediaPath,
+  rewriteMediaUrls,
+} from "@launch/images";
 import { RichTextBlock } from "@launch/ui";
 import type { ReactNode } from "react";
 import { createElement } from "react";
@@ -15,11 +20,12 @@ export const UPLOADS_PATH = "/wp-content/uploads/";
 export const FORM_ACTION = "/forms/submit/";
 
 /**
- * Block editor HTML with its uploaded images served through app/media, since
- * visitors can't reach the CMS's uploads behind Access.
+ * Block editor HTML with its uploaded images, and links to uploaded images,
+ * SVG and PDF files, served through app/media, since visitors can't reach the
+ * CMS's uploads behind Access.
  */
 export const withMediaImages = (html: string): string =>
-  rewriteImageUrls(html, `${wordpressEnv().origin}${UPLOADS_PATH}`);
+  rewriteMediaUrls(html, `${wordpressEnv().origin}${UPLOADS_PATH}`);
 
 const adapter = () => {
   const { origin } = wordpressEnv();
@@ -27,7 +33,9 @@ const adapter = () => {
   return createWordPressAdapter({
     cmsOrigin: origin,
     formAction: FORM_ACTION,
+    imageSrcset,
     imageUrl: (src) => imagePath(src, `${origin}${UPLOADS_PATH}`),
+    mediaUrl: (url) => mediaPath(url, `${origin}${UPLOADS_PATH}`),
     renderRichTextBlock: (block) => createElement(RichTextBlock, { block }),
   });
 };
