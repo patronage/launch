@@ -2,7 +2,7 @@
 
 `deploy.sh` deploys a WordPress site by pushing a packaged commit to the host's Git remote. It works on Cloudways, WP Engine and Kinsta, with WordPress at the repo root or in a subfolder. `pull.sh` copies a site's database and uploads down from the host for local work (Cloudways so far; see [Pulls](#pulls)).
 
-This folder is the canonical copy. Every site runs it from its `_build/` folder, unchanged: a site outside this repo installs it with Composer (see [Composer](#composer)) or copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.8.0 …`; the third, `# Version:`, is what `pnpm wp:release` reads), and `bash _build/deploy.sh --version` prints it. `pull.sh` carries the same version. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
+This folder is the canonical copy. Every site runs it from its `_build/` folder, unchanged: a site outside this repo installs it with Composer (see [Composer](#composer)) or copies the files, and a WordPress app inside it, such as [`apps/cms-wordpress-headless`](../../apps/cms-wordpress-headless/_build), symlinks them. The script's second line names its version (`# wp-deploy 2.8.1 …`; the third, `# Version:`, is what `pnpm wp:release` reads), and `bash _build/deploy.sh --version` prints it. `pull.sh` carries the same version. Anything that differs between sites goes in `_build/deploy.env`, not in the script. Versions up to 2.4.0 lived in Patronage's earlier `launch-wordpress` repo.
 
 ## Files
 
@@ -277,6 +277,7 @@ The fake WP Engine gateway strips quotes and has no `git`, like the real one. Th
 
 ## Changelog
 
+- **2.8.1**: Post-deploy verification handles non-ASCII file names (the expected list was read with quoted paths) and symlinks (compared by their target, as Git stores them, and a dangling one left by a deletion counts as stale).
 - **2.8.0**: The kit is a Composer package, `patronage/launch-wp-deploy` (see [Composer](#composer)). `deploy.sh` and `pull.sh` read the site's settings from `WP_DEPLOY_BUILD_DIR` when it is set, as the new `shim.sh` sets it, and otherwise from their own folder as before; `deploy.sh` takes the Cloudways hook from its own folder. `deploy.sh` has a `# Version:` header for `pnpm wp:release`. No change for copied or symlinked kits.
 - **2.7.0**: New `pull.sh`, with `export <target>`, `import [<file>]` and `media <target>`, replaces the per-site `db.sh` copies (see [Pulls](#pulls)). It finds the Cloudways webroot from the app's own `GIT_PATH` or `WEBROOT`, never by searching the server, so as the master user it can't export another app's database. Cloudways only for now. No `deploy.sh` behavior change.
 - **2.6.1**: Example `.env` files that hold no values (`.env.example`, `.env.sample`, `.env.dist`, `.env.template`) are allowed again in any folder. 2.6.0 refused them, which blocked any deploy whose Composer plugins ship one, such as wp-graphql-acf's `.env.example`. Reinstall the hook (`install-hook`) on every Cloudways environment.

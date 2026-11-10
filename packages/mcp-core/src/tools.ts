@@ -102,6 +102,9 @@ export interface ToolDeps {
   // One paragraph per configured connector, describing its sandbox global.
   executeDescriptions: string[];
   stub: RuntimeStub;
+  // The request's `ctx.waitUntil`, for work that outlives the response head:
+  // the streamed approval page writes its tail after the head is returned.
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 // `describe_site` answers with the site model or, when the runtime call fails,

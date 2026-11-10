@@ -173,6 +173,55 @@ describe("cloudflare access api", () => {
       ).rejects.toThrow(/at least one/u);
     });
 
+    it("reports a new token before a later step fails", async () => {
+      const heard: unknown[] = [];
+
+      const { client } = fakeApi({
+        "GET /access/service_tokens?name=web": () => [],
+        "POST /access/service_tokens": () => ({
+          client_id: "cid.access",
+          client_secret: "secret",
+          expires_at: "2027-11-09T00:00:00Z",
+          id: "tok-1",
+        }),
+      });
+
+      await expect(
+        provisionLockdown(
+          client,
+          {
+            destinations: ["cms.example.org"],
+            name: "Broken",
+            serviceTokens: ["web"],
+          },
+          { onServiceToken: (token) => heard.push(token) }
+        )
+      ).rejects.toThrow(/no route GET/u);
+
+      expect(heard).toStrictEqual([
+        {
+          clientId: "cid.access",
+          clientSecret: "secret",
+          expiresAt: "2027-11-09T00:00:00Z",
+          id: "tok-1",
+          name: "web",
+        },
+      ]);
+    });
+
+    it("creates nothing for a lockdown that would admit nobody", async () => {
+      const { calls, client } = fakeApi({});
+
+      await expect(
+        provisionLockdown(client, {
+          destinations: ["cms.example.org"],
+          name: "Empty",
+          serviceTokens: [],
+        })
+      ).rejects.toThrow(/at least one/u);
+      expect(calls).toStrictEqual([]);
+    });
+
     it("surfaces API errors", async () => {
       const { client } = fakeApi({});
 
