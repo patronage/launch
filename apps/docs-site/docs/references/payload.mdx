@@ -44,6 +44,7 @@ The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket.
 
 - `vite dev` does not work with Payload yet. Develop with `vite build` and `vite preview` until it does.
 - Every Local API call made for a visitor passes the visitor's `user` and `overrideAccess: false` explicitly. Only trusted server code, such as seeding and migrations, overrides access.
+- Front-end reads are wrapped in React's `cache()`, so the layout, the page and their `generateMetadata` share one auth check and one read of each document per request.
 - There is no schema push on Workers. Every environment uses migrations, and the Worker applies pending ones on its first request.
 - Image cropping and focal points are off, because there is no `sharp` on Workers.
 

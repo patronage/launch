@@ -5,7 +5,6 @@
 ### Minor Changes
 
 - Cloudflare list endpoints are read page by page. `CloudflareClient` has a new `list` method, and `ensurePolicy` and `ensureApplication` use it, so a policy or application past the first page is updated instead of created again. Paging follows `total_pages`, else `total_count`, else a full page (`LIST_PAGE_SIZE`). A custom `CloudflareClient` must now implement `list`.
-
 - `isAccessRejection` treats an origin's own JSON 401 or 403 as the origin's answer, not an Access refusal.
 - `provisionLockdown` takes `onServiceToken`, called as soon as each service token exists, so a one-time secret survives a later failing step. It refuses a spec that admits nobody before creating anything, and `ServiceTokenResult` reports `expiresAt` where Cloudflare gives it.
 

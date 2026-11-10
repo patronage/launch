@@ -7,6 +7,7 @@ import {
 } from "@launch/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
@@ -21,9 +22,11 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-/** Reads a post by slug: the latest draft in preview, else the published one. */
-const findPost = async (params: Props["params"]) => {
-  const { slug } = await params;
+/**
+ * Reads a post by slug: the latest draft in preview, else the published one.
+ * Cached per request by slug, so generateMetadata and the page share a read.
+ */
+const findPostBySlug = cache(async (slug: string) => {
   const { draft, payload, user } = await getFrontendPayload();
 
   const {
@@ -39,6 +42,12 @@ const findPost = async (params: Props["params"]) => {
   });
 
   return { draft, post };
+});
+
+const findPost = async (params: Props["params"]) => {
+  const { slug } = await params;
+
+  return findPostBySlug(slug);
 };
 
 /** At depth 1 relationships are documents; ids mean the reader lacks access. */
@@ -94,7 +103,13 @@ const PostPage = async ({ params }: Props) => {
                 .join(" · ")}
             </Typography>
           </header>
-          {hero ? <Figure media={{ image: hero }} /> : null}
+          {hero ? (
+            // The narrow container is at most max-w-2xl (42rem) wide.
+            <Figure
+              media={{ image: hero }}
+              sizes="(min-width: 42rem) 42rem, 100vw"
+            />
+          ) : null}
           {post.content ? (
             <RichTextFrame>
               <PayloadRichText data={post.content} />

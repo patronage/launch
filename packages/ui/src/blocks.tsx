@@ -17,7 +17,13 @@ import {
 } from "./components/card";
 import { Form } from "./components/form";
 import { Typography } from "./components/typography";
-import { Figure, Img, LinkList, RichText } from "./primitives";
+import {
+  CARD_IMAGE_SIZES,
+  Figure,
+  Img,
+  LinkList,
+  RichText,
+} from "./primitives";
 import { cn } from "./utils";
 
 /** Shared props: `headingLevel` lets the page decide the outline, not the block. */
@@ -102,6 +108,7 @@ export const ContentMedia = ({
     <Figure
       className={cn(block.mediaPosition === "start" && "md:order-first")}
       media={block.media}
+      sizes="(min-width: 768px) 50vw, 100vw"
     />
   </div>
 );
@@ -142,6 +149,7 @@ export const CardGrid = ({
                 <Img
                   className="aspect-3/2 w-full object-cover"
                   image={card.image}
+                  sizes={CARD_IMAGE_SIZES}
                 />
               ) : null}
               <CardHeader>
@@ -176,6 +184,7 @@ export const Blockquote = ({ block }: BlockProps<BlockquoteBlock>) => {
         <Img
           className="size-16 rounded-full object-cover"
           image={{ ...block.image, alt: "" }}
+          sizes="64px"
         />
       ) : null}
       <Typography as="blockquote" variant="quote">

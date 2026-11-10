@@ -1,12 +1,12 @@
 import type { PayloadRichTextBlock } from "@launch/adapter-payload";
-import { RichTextBlock } from "@launch/ui";
+import { Img, RichTextBlock } from "@launch/ui";
 import type { SerializedEditorState } from "@payloadcms/richtext-lexical/lexical";
 import type { JSXConvertersFunction } from "@payloadcms/richtext-lexical/react";
 import { LinkJSXConverter, RichText } from "@payloadcms/richtext-lexical/react";
 
 import { postPath } from "@/lib/posts";
-import { payloadAdapter } from "@/lib/sections";
-import type { Page, Post } from "@/payload-types";
+import { payloadAdapter, toImage } from "@/lib/sections";
+import type { Media, Page, Post } from "@/payload-types";
 
 type LinkNode = Parameters<
   NonNullable<Parameters<typeof LinkJSXConverter>[0]["internalDocToHref"]>
@@ -53,11 +53,38 @@ const block = ({ node }: { node: { fields: object } }) => {
   return found ? <RichTextBlock block={found} /> : null;
 };
 
+/** Rich text is at most max-w-3xl (48rem) wide. */
+const RICH_TEXT_IMAGE_SIZES = "(min-width: 48rem) 48rem, 100vw";
+
 const converters: JSXConvertersFunction = ({ defaultConverters }) => ({
   ...defaultConverters,
   ...LinkJSXConverter({ internalDocToHref: internalHref }),
   blocks: { embed: block, image: block, pullquote: block },
   inlineBlocks: { button: block },
+  // Uploaded images go through the media route at the width the reader
+  // needs, as section images do. Other files link to Payload's file URL, as
+  // Payload's own converter does.
+  upload: ({ node }) => {
+    // SAFETY: uploads in rich text can only come from the media collection;
+    // at depth 1 the value is its document, and an id means it wasn't read.
+    const media = node.relationTo === "media" ? (node.value as Media) : null;
+
+    if (!(media instanceof Object && media.url)) {
+      return null;
+    }
+
+    const image = media.mimeType?.startsWith("image/")
+      ? toImage(media)
+      : undefined;
+
+    return image ? (
+      <Img image={image} sizes={RICH_TEXT_IMAGE_SIZES} />
+    ) : (
+      <a href={media.url} rel="noopener noreferrer">
+        {media.filename}
+      </a>
+    );
+  },
 });
 
 /** Payload's rich text renderer, with internal links resolved to paths. */
