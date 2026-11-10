@@ -66,7 +66,7 @@ The JWT must contain a valid email claim. WordPress resolves it with `get_user_b
 
 The gateway forwards the user's token as `X-Access-User-Jwt`, not `Cf-Access-Jwt-Assertion`, because Cloudflare overwrites its own `Cf-Access-*` headers when the request crosses this site's Access application.
 
-The verifier pins RS256 and checks the signature, exact issuer, an accepted audience, `exp` and `nbf` with 60 seconds of leeway, and the email. It fetches PEM certificates from `<team domain>/cdn-cgi/access/certs`, caches them for six hours, and refreshes once (throttled to a minute) when a token names an unknown `kid`.
+The verifier pins RS256 and checks the signature, exact issuer, an accepted audience, `exp` and `nbf` with 60 seconds of leeway, and the email. It fetches PEM certificates from `<team domain>/cdn-cgi/access/certs`, caches them for six hours, and refreshes once (throttled to a minute) when a token names an unknown `kid`. A failed fetch is remembered for a minute, and while Cloudflare can't be reached the last good certificates (kept a day past their cache) stand in, so an outage doesn't cost every request a fetch timeout.
 
 After success it fires `do_action( 'patronage_access_authenticated', $user_id, $sub )`, and authenticated REST responses carry `X-Access-WordPress-User-ID` and `X-Access-WordPress-User-Slug` (the URL-encoded `user_nicename`, never the email) so the gateway can attribute writes.
 

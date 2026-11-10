@@ -1,4 +1,4 @@
-// A copy of apps/web-wordpress/lib/same-site-path.ts, which has the tests.
+// A copy of apps/web-wordpress/lib/same-site-path.ts; same-site-path.test.ts keeps the two identical.
 
 /**
  * The path, query and hash of `path` once a browser resolves it against

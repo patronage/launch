@@ -29,22 +29,35 @@ const DENY_BUTTON =
 
 const LOADING = "Loading the change to approve…";
 
-const UNREACHABLE =
-  "The approval card could not reach the server. Use the approval link instead.";
+// Neutral on purpose: a failed call may never have left the host, so the card
+// does not claim the server was unreachable. The reason, when the host gave
+// one, is shown beneath in small print.
+const LOAD_FAILED = "This card couldn't load the change.";
 
-const UNSTARTED =
-  "This approval card could not start. Use the approval link instead.";
+const DECIDE_FAILED = "This card couldn't send your decision.";
+
+const UNSTARTED = "This approval card couldn't start.";
+
+const USE_LINK = "You can still approve or deny it on the approval page.";
+
+const NO_LINK = "Ask for the approval link to answer it instead.";
+
+// The longest reason shown in small print, so a verbose host error cannot push
+// the approval link out of view.
+const MAX_REASON = 200;
 
 // The two halves of what a paused tool result hands this card: the state in
 // `_meta`, which carries the one-time approval token, and the server-rendered
 // fragment in `structuredContent`. Both are parsed rather than trusted.
 const pendingApprovalSchema = z.object({
   approvalToken: z.string(),
+  approvalUrl: z.string().optional(),
   executionId: z.string(),
   status: z.literal("pending"),
 });
 
 const endedApprovalSchema = z.object({
+  approvalUrl: z.string().optional(),
   executionId: z.string(),
   status: z.enum(["approved", "denied", "error"]),
   summary: z.string(),
@@ -93,6 +106,134 @@ const setActions = (canApprove: boolean, canDeny: boolean): void => {
   }
 };
 
+// The approval page for the run this card shows, kept from the last state
+// that named one so a failure after it can still offer the page.
+let link: string | undefined;
+
+// Only an https page (or a local one, in development) is offered: the URL came
+// from the server, but the card opens nothing it has not checked.
+const safeLink = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+
+    return url.protocol === "https:" || (local && url.protocol === "http:")
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// What the card reads off a failed call: a JSON-RPC error carries a numeric
+// code and a message, and anything else thrown is described by its message
+// alone. The host, not this card, decides what it throws, so it is parsed.
+const hostErrorSchema = z.object({
+  code: z.number().optional(),
+  message: z.string().optional(),
+});
+
+type HostError = z.infer<typeof hostErrorSchema>;
+
+const parseHostError = (
+  parsed: ReturnType<typeof hostErrorSchema.safeParse>
+): HostError | undefined => (parsed.success ? parsed.data : undefined);
+
+const reasonOf = (error: HostError | undefined): string | undefined => {
+  const text = error?.message?.trim() ?? "";
+  const prefix = error?.code === undefined ? "" : `Error ${error.code}`;
+  const reason = [prefix, text].filter(Boolean).join(": ");
+
+  if (!reason) {
+    return undefined;
+  }
+
+  return reason.length > MAX_REASON
+    ? `${reason.slice(0, MAX_REASON)}…`
+    : reason;
+};
+
+// A tool result that came back as an error, rather than a thrown call: its
+// first text block is the reason.
+const resultReason = (result: ToolAnswer): string | undefined => {
+  const [first] = Array.isArray(result?.content) ? result.content : [];
+
+  return first?.type === "text" ? reasonOf({ message: first.text }) : undefined;
+};
+
+// Best effort: the host may surface it in its own logs. The gateway sees
+// nothing of a call that never left the host.
+const report = async (data: Record<string, string | undefined>) => {
+  try {
+    await app.sendLog({ data, level: "error", logger: "launch-mcp approval" });
+  } catch {
+    // A host without logging support drops it; the card already shows it.
+  }
+};
+
+const element = (
+  tag: string,
+  text: string,
+  className?: string
+): HTMLElement => {
+  const node = document.createElement(tag);
+  node.textContent = text;
+
+  if (className) {
+    node.className = className;
+  }
+
+  return node;
+};
+
+const openLink = async (url: string): Promise<void> => {
+  try {
+    await app.openLink({ url });
+  } catch {
+    // The URL is shown as text beside the button, so it can still be copied.
+  }
+};
+
+// Every failure lands here: a sentence of its own, the reason in small print,
+// and the approval page for the same run, as a button and as text. Nothing is
+// written as markup, so no part of the reason can inject any.
+const fail = (headline: string, reason?: string): void => {
+  const executionId = run?.executionId;
+  busy = false;
+  run = undefined;
+  setActions(false, false);
+
+  if (!body) {
+    return;
+  }
+
+  void report({ executionId, headline, reason });
+  const url = safeLink(link);
+  body.replaceChildren(element("p", headline));
+
+  if (reason) {
+    body.append(element("p", reason, "reason"));
+  }
+
+  if (!url) {
+    body.append(element("p", NO_LINK));
+
+    return;
+  }
+
+  const open = element("button", "Open the approval page", "approve");
+  open.setAttribute("type", "button");
+  open.addEventListener("click", () => {
+    void openLink(url);
+  });
+
+  body.append(element("p", USE_LINK), open, element("p", url, "link"));
+};
+
 // An `execute` result with no approval state is a read, a failure, or a run
 // somebody else already answered: the card asks the host to remove it rather
 // than leave an empty panel in the conversation.
@@ -126,15 +267,23 @@ const decisionArguments = (
 // made. It answers whether the preview still has to be fetched — a paused
 // state that came without a fragment — rather than fetching it itself, so the
 // card has one direction of control flow and no mutual recursion.
-const render = (result: ToolAnswer): boolean => {
+const render = (result: ToolAnswer, failure?: string): boolean => {
   busy = false;
   const state = approvalStateSchema.safeParse(result?._meta?.[META_KEY]);
 
   if (!state.success) {
-    void teardown();
+    // An error answer to one of this card's own calls (an unknown tool, a
+    // refused token) is a failure to show, not an empty result to remove.
+    if (failure && result?.isError) {
+      fail(failure, resultReason(result));
+    } else {
+      void teardown();
+    }
 
     return false;
   }
+
+  link = state.data.approvalUrl ?? link;
 
   const view = cardViewSchema.safeParse(result?.structuredContent);
 
@@ -152,6 +301,17 @@ const render = (result: ToolAnswer): boolean => {
     say(LOADING);
 
     return true;
+  }
+
+  // A card that could not be armed names the page that answers the run.
+  if (
+    state.data.status === "error" &&
+    state.data.approvalUrl &&
+    !view.success
+  ) {
+    fail(state.data.summary);
+
+    return false;
   }
 
   run = undefined;
@@ -188,13 +348,14 @@ const call = async (
 
     // A decision that re-pauses the run comes back as a new pending state with
     // its own fragment, so only a state with no fragment asks for one.
-    if (render(answer)) {
+    if (render(answer, decision ? DECIDE_FAILED : LOAD_FAILED)) {
       await call(PREVIEW_TOOL);
     }
-  } catch {
-    busy = false;
-    setActions(false, false);
-    say(UNREACHABLE);
+  } catch (error) {
+    fail(
+      decision ? DECIDE_FAILED : LOAD_FAILED,
+      reasonOf(parseHostError(hostErrorSchema.safeParse(error)))
+    );
   }
 };
 
@@ -264,7 +425,7 @@ const approve = async (pending: PendingApproval): Promise<void> => {
 
     answered = true;
 
-    if (render(answer)) {
+    if (render(answer, DECIDE_FAILED)) {
       await call(PREVIEW_TOOL);
     }
   } catch {
@@ -309,8 +470,8 @@ app.ontoolresult = (result) => {
 const start = async (): Promise<void> => {
   try {
     await app.connect();
-  } catch {
-    say(UNSTARTED);
+  } catch (error) {
+    fail(UNSTARTED, reasonOf(parseHostError(hostErrorSchema.safeParse(error))));
   }
 };
 

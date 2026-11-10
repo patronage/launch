@@ -198,6 +198,7 @@ const applicationSchema = z.object({ aud: z.string(), id: z.string() });
 const serviceTokenSchema = z.object({
   client_id: z.string(),
   client_secret: z.string().optional(),
+  expires_at: z.string().optional(),
   id: z.string(),
   name: z.string().optional(),
 });
@@ -219,6 +220,8 @@ export interface ServiceTokenResult {
   clientId: string;
   /** Only present when the token was created by this call; Cloudflare never returns it again. */
   clientSecret?: string;
+  /** When Cloudflare stops accepting the token (ISO 8601), where it says. */
+  expiresAt?: string;
 }
 
 /** Find a service token by name, or create it. */
@@ -236,7 +239,17 @@ export const ensureServiceToken = async (
   const found = existing.find((token) => token.name === name);
 
   if (found) {
-    return { clientId: found.client_id, id: found.id, name };
+    const result: ServiceTokenResult = {
+      clientId: found.client_id,
+      id: found.id,
+      name,
+    };
+
+    if (found.expires_at) {
+      result.expiresAt = found.expires_at;
+    }
+
+    return result;
   }
 
   const created = await client.request(
@@ -254,6 +267,10 @@ export const ensureServiceToken = async (
 
   if (created.client_secret) {
     result.clientSecret = created.client_secret;
+  }
+
+  if (created.expires_at) {
+    result.expiresAt = created.expires_at;
   }
 
   return result;
@@ -353,20 +370,43 @@ export interface LockdownResult {
  * Lock a CMS behind Access: one application over the given destinations, an
  * `allow` policy for editors and a `non_identity` policy for service tokens.
  */
+export interface ProvisionLockdownOptions {
+  /**
+   * Hears each service token as soon as it is found or created. A new
+   * token's secret is shown only once, so a caller that prints it here keeps
+   * it even if a later step (a policy, the application) fails.
+   */
+  onServiceToken?: (token: ServiceTokenResult) => void;
+}
+
 export const provisionLockdown = async (
   client: CloudflareClient,
-  spec: LockdownSpec
+  spec: LockdownSpec,
+  options: ProvisionLockdownOptions = {}
 ): Promise<LockdownResult> => {
-  const serviceTokens = await Promise.all(
-    (spec.serviceTokens ?? []).map((name) => ensureServiceToken(client, name))
-  );
-
   const people: PolicyRule[] = [
     ...(spec.allowEmails ?? []).map((email) => ({ email: { email } })),
     ...(spec.allowEmailDomains ?? []).map((domain) => ({
       email_domain: { domain },
     })),
   ];
+
+  // Checked before anything is created, so a spec that admits nobody leaves
+  // no orphaned service token behind.
+  if (people.length === 0 && (spec.serviceTokens ?? []).length === 0) {
+    throw new Error(
+      "A lockdown needs at least one allowed email, email domain or service token."
+    );
+  }
+
+  const serviceTokens = await Promise.all(
+    (spec.serviceTokens ?? []).map(async (name) => {
+      const token = await ensureServiceToken(client, name);
+      options.onServiceToken?.(token);
+
+      return token;
+    })
+  );
 
   const policies: PolicySpec[] = [];
 
@@ -386,12 +426,6 @@ export const provisionLockdown = async (
       })),
       name: `${spec.name} service tokens`,
     });
-  }
-
-  if (policies.length === 0) {
-    throw new Error(
-      "A lockdown needs at least one allowed email, email domain or service token."
-    );
   }
 
   const policyIds = await Promise.all(

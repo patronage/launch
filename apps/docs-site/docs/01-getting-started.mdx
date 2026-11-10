@@ -61,6 +61,8 @@ pnpm --filter docs-site build   # static site in apps/docs-site/dist
 
 Versions are pinned exactly, and pnpm only installs versions older than the `minimumReleaseAge` in `pnpm-workspace.yaml`. Update them with the `deps:*` scripts in the root `package.json`, which read the same window.
 
+Dependencies that most packages share, such as React, Vite, Vitest and `@types/node`, have one version for the whole workspace in the `catalog` in `pnpm-workspace.yaml`. A package lists them as `"catalog:"` instead of a version, so they can't drift apart. `@types/node` follows the Node major the repo runs on.
+
 ## Rules for contributors
 
 The repo is public, so everything in it must be fit to publish. The short version, from `AGENTS.md`:

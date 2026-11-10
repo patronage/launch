@@ -11,6 +11,7 @@ import {
 import type {
   ApplyPreflight,
   JsonObject,
+  OperationReceipt,
   PendingApplyParser,
   RuntimeStore,
 } from "@patronage/mcp-core";
@@ -33,16 +34,11 @@ const parse: PendingApplyParser = (_connector, args) =>
   payloadConnector.parseApply(args);
 
 const urlEnv: PayloadEnv = {
-  ACCESS_AUD: "aud",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  APPROVAL_CSRF_SECRET: "csrf-secret",
-  DEPLOYMENT_ENVIRONMENT: "test",
   PAYLOAD_ACCESS_CLIENT_ID: "client-id",
   PAYLOAD_ACCESS_CLIENT_SECRET: "client-secret",
   PAYLOAD_ACCESS_PROOF_SECRET: "proof-secret",
   PAYLOAD_ADMIN_URL: "",
   PAYLOAD_API_URL: "https://payload.example",
-  WORDPRESS_API_URL: "https://wordpress.example",
 };
 
 const caller = { subjectOpaque: "editor0000000000", token: "editor-jwt" };
@@ -55,7 +51,7 @@ const operation: DraftOperation = {
 };
 
 interface Seen {
-  body?: string;
+  body?: string | undefined;
   headers: Headers;
   method: string;
   url: string;
@@ -890,6 +886,48 @@ describe("Payload Markdown and new drafts", () => {
     expect(JSON.parse(write?.body ?? "{}")).not.toHaveProperty("_status");
   });
 
+  it("reports each settled operation as progress, a created draft included", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    const reported: OperationReceipt[] = [];
+    const scope = createCallerScope();
+
+    const payload = createPayloadTools({
+      env: urlEnv,
+      scope,
+      store: {
+        ...memoryStore(preflight),
+        recordProgress: (executionId, receipt) => {
+          expect(executionId).toBe("exec_1");
+          reported.push(receipt);
+
+          return Promise.resolve();
+        },
+      },
+      telemetry: () => createUpstreamTelemetry(),
+    });
+
+    const receipt = await scope.run({ ...caller, executionId: "exec_1" }, () =>
+      payload.apply.execute({
+        intent: "Start a post",
+        operations: [createOperation],
+      })
+    );
+
+    expect(reported).toStrictEqual([
+      expect.objectContaining({ status: "changed", target: "posts/34" }),
+    ]);
+    expect(receipt).toMatchObject({ status: "succeeded" });
+  });
+
   it("names a created draft even when reading it back fails", async () => {
     vi.stubGlobal("fetch", fakePayload({ failCreatedRead: true }).handler);
 
@@ -935,8 +973,11 @@ describe("Payload Markdown and new drafts", () => {
 
 describe("a paused payload.apply", () => {
   it("is the write path a decision answers", () => {
-    expect(isApplyCall({ connector: "payload", method: "apply" })).toBeTruthy();
-    expect(isApplyCall({ connector: "payload", method: "call" })).toBeFalsy();
+    const apply = { connector: "payload", method: "apply" };
+    const call = { connector: "payload", method: "call" };
+
+    expect(isApplyCall(apply)).toBeTruthy();
+    expect(isApplyCall(call)).toBeFalsy();
   });
 
   it("is validated with Payload's operations, not WordPress's", () => {

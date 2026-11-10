@@ -2,19 +2,13 @@ import { FontLinks, navLinkClass, SiteFooter, SiteHeader } from "@launch/ui";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { getFrontendPayload } from "@/lib/payload";
+import { getFrontendPayload, getSiteSettings } from "@/lib/payload";
 import { NEWS_PATH } from "@/lib/posts";
 
 import "./styles.css";
 
 export const generateMetadata = async () => {
-  const { payload, user } = await getFrontendPayload();
-
-  const { siteName, tagline } = await payload.findGlobal({
-    overrideAccess: false,
-    slug: "site-settings",
-    user,
-  });
+  const { siteName, tagline } = await getSiteSettings();
 
   return {
     description: tagline ?? undefined,
@@ -23,13 +17,8 @@ export const generateMetadata = async () => {
 };
 
 const RootLayout = async ({ children }: { children: ReactNode }) => {
-  const { payload, user } = await getFrontendPayload();
-
-  const settings = await payload.findGlobal({
-    overrideAccess: false,
-    slug: "site-settings",
-    user,
-  });
+  const { user } = await getFrontendPayload();
+  const settings = await getSiteSettings();
 
   return (
     <html lang="en">

@@ -58,6 +58,12 @@ export interface Image {
   alt: string;
   width?: number;
   height?: number;
+  /**
+   * Candidate URLs at other widths, as an `<img>` `srcset`. Set by adapters
+   * whose images can be resized; the UI pairs it with a `sizes` that fits
+   * the layout.
+   */
+  srcset?: string;
 }
 
 export interface Media {

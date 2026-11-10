@@ -3,18 +3,13 @@ import {
   createCallerScope,
   createUpstreamTelemetry,
 } from "@patronage/mcp-core";
-import type { ApplyPreflight } from "@patronage/mcp-core";
+import type { ApplyPreflight, RuntimeStore } from "@patronage/mcp-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { WordPressEnv } from "./env";
 import { createWordPressTools } from "./wp-tools";
-import type { RuntimeStore } from "./wp-tools";
 
 const env: WordPressEnv = {
-  ACCESS_AUD: "aud",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  APPROVAL_CSRF_SECRET: "csrf-secret",
-  DEPLOYMENT_ENVIRONMENT: "test",
   WORDPRESS_API_URL: "https://wordpress.example",
 };
 
@@ -84,7 +79,7 @@ const stubWriteRoundTrip = (): void => {
   };
 
   let reads = 0;
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+  vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
     if ((init?.method ?? "GET") === "POST") {
       return Response.json(written);
     }
@@ -305,10 +300,11 @@ describe("wp connector tools", () => {
       await wp.graphql.execute({ query: "{ __typename }" });
     });
 
-    expect(telemetry.wordpress).toStrictEqual({
+    expect(telemetry.upstream).toStrictEqual({
       auth: "access-jwt",
       requests: [
         {
+          connector: "wp",
           durationMs: expect.any(Number),
           method: "GET",
           outcome: "success",
@@ -316,6 +312,7 @@ describe("wp connector tools", () => {
           status: 200,
         },
         {
+          connector: "wp",
           durationMs: expect.any(Number),
           method: "POST",
           outcome: "success",

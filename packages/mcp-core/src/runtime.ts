@@ -21,6 +21,7 @@ import {
   isFresh,
   invalidPendingApply,
   isApplyCall,
+  isStalledRun,
   issueRunNonce,
   PAUSED_MAX_AGE_MS,
   PROGRESS_PREFIX,
@@ -93,16 +94,16 @@ const RECORD_WINDOW = 100;
 
 // Every CMS request one RPC makes is collected on that RPC's telemetry
 // and returned beside its result, because the Worker no longer talks to
-// the CMS and has no other way to put the `wordpress` field on its wide
+// the CMS and has no other way to put the `upstream` field on its wide
 // event. An RPC that made no request (a cache hit, a read of a stored run)
 // reports none.
 const toRuntimeOutcome = <TValue>(
   value: TValue,
   telemetry: UpstreamTelemetry
 ): RuntimeOutcome<TValue> => {
-  const { wordpress } = telemetry;
+  const { upstream } = telemetry;
 
-  return wordpress ? { value, wordpress } : { value };
+  return upstream ? { upstream, value } : { value };
 };
 
 // One instance per deployment. It is shared by every caller, so it holds no
@@ -465,7 +466,6 @@ export abstract class BaseGatewayRuntime<
     const telemetry = createUpstreamTelemetry();
     const startedAt = Date.now();
     const runtime = this.#runtime(telemetry, this.approvalTimeoutMs);
-    await this.#openProgress(executionId, caller, preflight, startedAt);
 
     // Which action this decision answers is captured BEFORE the resume:
     // `approve` returns only once the resumed run reaches its next stop, so on
@@ -480,6 +480,16 @@ export abstract class BaseGatewayRuntime<
         const actions = await runtime.pending(executionId);
         const action = actions.find((candidate) => isApplyCall(candidate));
         const seq = action?.seq;
+
+        // Progress names the write it is for, so a later write in the same
+        // script never reads this one's progress as its own.
+        await this.#openProgress(
+          executionId,
+          caller,
+          preflight,
+          startedAt,
+          seq
+        );
 
         if (action) {
           // A recorded write that is not JSON cannot be compared, so it is
@@ -521,6 +531,14 @@ export abstract class BaseGatewayRuntime<
         ? receiptForSeq(record, approvedSeq)
         : undefined;
 
+    // The approved write returned its own receipt, so the progress it
+    // reported on the way is no longer the record of anything. Dropping it
+    // here, rather than only when the run ends, keeps a script that pauses
+    // again on a second write from carrying the first write's progress.
+    if (approvedReceipt) {
+      await this.ctx.storage.delete(progressKey(executionId));
+    }
+
     return toRuntimeOutcome(
       approvedReceipt ? { ...report, approvedReceipt } : report,
       telemetry
@@ -533,7 +551,8 @@ export abstract class BaseGatewayRuntime<
     executionId: string,
     caller: CallerContext,
     preflight: ApplyPreflight | undefined,
-    startedAt: number
+    startedAt: number,
+    seq: number | undefined
   ): Promise<void> {
     const targets = (preflight?.operations ?? []).map(
       (operation) => operation.target
@@ -550,6 +569,10 @@ export abstract class BaseGatewayRuntime<
       total: targets.length,
       updatedAt: startedAt,
     };
+
+    if (seq !== undefined) {
+      progress.seq = seq;
+    }
 
     this.#progress.set(executionId, progress);
     await this.ctx.storage.put(progressKey(executionId), progress);
@@ -682,12 +705,19 @@ export abstract class BaseGatewayRuntime<
   ): Promise<RunReport> {
     // `pending` stays here: it holds the raw write, and only the preview built
     // from it crosses the RPC boundary.
+    const applying = this.#applying.has(executionId);
+
     const { pending, ...report } = toRunView(
       executionId,
       record,
       await this.ctx.storage.get<string>(intentKey(executionId)),
       await this.#readProgress(executionId),
-      this.#applying.has(executionId)
+      applying,
+      isStalledRun(record, {
+        active: applying || this.#progress.has(executionId),
+        maxRunMs: this.approvalTimeoutMs + this.applySettleGraceMs,
+        now: Date.now(),
+      })
     );
 
     if (!(caller && report.status === "paused" && pending)) {

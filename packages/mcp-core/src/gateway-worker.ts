@@ -40,13 +40,18 @@ import {
   recordApprovalDecision,
   recordUpstreamRequests,
   recordWriteReceipt,
+  SERVICE_VERSION,
   withMcpRequestLog,
 } from "./logging";
-import type { McpLoggingOptions, McpRequestLogger } from "./logging";
+import type {
+  McpLoggingOptions,
+  McpRequestLogger,
+  McpWideEvent,
+} from "./logging";
 import { APPROVAL_ROUTE, approvalPath, RUNTIME_INSTANCE_NAME } from "./run";
 import type { RunReport, RuntimeOutcome } from "./run";
 import type { BaseGatewayRuntime } from "./runtime";
-import { registerTools } from "./tools";
+import { APP_ONLY_TOOLS, registerTools } from "./tools";
 import type { ClientAppSupport, RuntimeStub, ToolDeps } from "./tools";
 
 // Access Managed OAuth owns client OAuth. Do not add workers-oauth-provider.
@@ -102,9 +107,29 @@ const clientEnvelopeSchema = z.object({
         })
         .optional(),
       capabilities: clientCapabilitiesSchema.optional(),
+      name: z.string().optional(),
+      uri: z.string().optional(),
     })
     .optional(),
 });
+
+type ClientEnvelope = z.infer<typeof clientEnvelopeSchema>;
+
+// The longest method or resource identifier the wide event keeps, and the most
+// methods it lists for one batch.
+const MAX_LOGGED_IDENTIFIER = 128;
+const MAX_LOGGED_METHODS = 16;
+
+const boundedIdentifier = (value: string): string =>
+  value.length > MAX_LOGGED_IDENTIFIER
+    ? `${value.slice(0, MAX_LOGGED_IDENTIFIER)}…`
+    : value;
+
+// A resource URI is logged without its query string or fragment, which a
+// client could fill with anything; the identifier itself is what a debug
+// question needs ("did the host fetch the card?").
+const resourceIdentifier = (uri: string): string =>
+  boundedIdentifier(uri.split(/[?#]/u, 1)[0] || "unknown");
 
 const INITIALIZE_METHOD = "initialize";
 
@@ -140,42 +165,120 @@ const advertisesApps = (
 // answer. `APPROVAL_CARD_FOR_UNKNOWN_CLIENTS` exists because a host proven to
 // render the card may not send the envelope; see the README for the risk of
 // turning it on.
-const clientAppSupport = async (
-  request: Request,
-  cardForUnknownClients: boolean
-): Promise<ClientAppSupport> => {
-  const unreadable = cardForUnknownClients ? "unknown" : "absent";
+// Everything this Worker reads from the JSON-RPC body before the MCP handler
+// does: what the client can render, the method(s) for the wide event, and
+// whether the call is one of the approval card's own tools.
+interface McpRequestInfo {
+  appToolCall: boolean;
+  methods: string[];
+  resource?: string;
+  support: ClientAppSupport;
+}
 
+const readMessages = async (request: Request): Promise<ClientEnvelope[]> => {
   if (request.method !== "POST") {
-    return unreadable;
+    return [];
   }
 
   try {
-    const body = await request.clone().text();
-    const envelope = clientEnvelopeSchema.safeParse(JSON.parse(body));
+    const parsed: unknown = JSON.parse(await request.clone().text());
+    const list = Array.isArray(parsed) ? parsed : [parsed];
 
-    if (!envelope.success) {
-      return unreadable;
-    }
+    return list.flatMap((message) => {
+      const envelope = clientEnvelopeSchema.safeParse(message);
 
-    const { method, params } = envelope.data;
-
-    const stated =
-      params?._meta?.[CLIENT_CAPABILITIES_META_KEY] ??
-      (method === INITIALIZE_METHOD ? params?.capabilities : undefined);
-
-    if (!stated) {
-      return unreadable;
-    }
-
-    return advertisesApps(stated) ? "advertised" : "absent";
+      return envelope.success ? [envelope.data] : [];
+    });
   } catch {
-    return unreadable;
+    return [];
   }
 };
 
+const supportOf = (
+  envelope: ClientEnvelope | undefined,
+  unreadable: ClientAppSupport
+): ClientAppSupport => {
+  if (!envelope) {
+    return unreadable;
+  }
+
+  const { method, params } = envelope;
+
+  const stated =
+    params?._meta?.[CLIENT_CAPABILITIES_META_KEY] ??
+    (method === INITIALIZE_METHOD ? params?.capabilities : undefined);
+
+  if (!stated) {
+    return unreadable;
+  }
+
+  return advertisesApps(stated) ? "advertised" : "absent";
+};
+
+const readMcpRequest = async (
+  request: Request,
+  cardForUnknownClients: boolean
+): Promise<McpRequestInfo> => {
+  const unreadable = cardForUnknownClients ? "unknown" : "absent";
+  const messages = await readMessages(request);
+  // A batch is read by its first message, as a single message always was.
+  const [first] = messages;
+
+  const methods = messages
+    .flatMap((message) => (message.method ? [message.method] : []))
+    .slice(0, MAX_LOGGED_METHODS)
+    .map(boundedIdentifier);
+
+  const read = messages.find(
+    (message) => message.method === "resources/read" && message.params?.uri
+  );
+
+  const appToolCall = messages.some(
+    (message) =>
+      message.method === "tools/call" &&
+      APP_ONLY_TOOLS.some((name) => name === message.params?.name)
+  );
+
+  const info: McpRequestInfo = {
+    appToolCall,
+    methods,
+    support: supportOf(first, unreadable),
+  };
+
+  if (read?.params?.uri) {
+    info.resource = resourceIdentifier(read.params.uri);
+  }
+
+  return info;
+};
+
+const recordMcpRequest = (
+  log: McpRequestLogger,
+  info: McpRequestInfo
+): void => {
+  const [method] = info.methods;
+
+  const mcp: Partial<NonNullable<McpWideEvent["mcp"]>> = {
+    transport: "streamable-http",
+  };
+
+  if (method) {
+    mcp.method = method;
+  }
+
+  if (info.methods.length > 1) {
+    mcp.methods = info.methods;
+  }
+
+  if (info.resource) {
+    mcp.resource = info.resource;
+  }
+
+  log.set({ mcp });
+};
+
 const createServer = (
-  support: ClientAppSupport,
+  info: McpRequestInfo,
   deps: ToolDeps,
   log: McpRequestLogger
 ): McpServer => {
@@ -184,12 +287,12 @@ const createServer = (
   const server = new McpServer(
     {
       name: "launch-mcp",
-      version: "0.2.0",
+      version: SERVICE_VERSION,
     },
     { capabilities: { extensions: { [EXTENSION_ID]: {} } } }
   );
 
-  registerTools(server, deps, log, support);
+  registerTools(server, deps, log, info.support, info.appToolCall);
 
   return server;
 };
@@ -418,7 +521,7 @@ const runtimeReport = async (
   call: Promise<RuntimeOutcome<RunReport>>
 ): Promise<RunReport> => {
   const outcome = await call;
-  recordUpstreamRequests(log, outcome.wordpress);
+  recordUpstreamRequests(log, outcome.upstream);
 
   return outcome.value;
 };
@@ -621,6 +724,10 @@ const streamApproval = (
 
   // A client that went away only stops the writes, and the approval itself
   // runs to its end in the Durable Object; nothing here may reject unobserved.
+  // The stream is still the request's work after the response head has gone,
+  // so it is handed to `waitUntil`: otherwise the runtime may cancel it once
+  // the client disconnects, before the tail is written and the wide event
+  // logged.
   const finish = async (): Promise<void> => {
     try {
       await run();
@@ -635,7 +742,8 @@ const streamApproval = (
     }
   };
 
-  void finish();
+  const finishing = finish();
+  deps.waitUntil?.(finishing);
 
   return new Response(readable, {
     headers: { ...HTML_HEADERS, "Transfer-Encoding": "chunked" },
@@ -777,6 +885,9 @@ export interface WorkerOptions<
   connectors: readonly GatewayConnector<E>[];
 }
 
+const isMcpPath = (pathname: string): boolean =>
+  pathname === "/mcp" || pathname.startsWith("/mcp/");
+
 const allowedMcpHostnames = (configured = ""): string[] => {
   const deploymentHosts = configured
     .split(",")
@@ -793,6 +904,18 @@ export const createWorker = <E extends GatewayEnv>(
 
   return withMcpRequestLog<Record<never, never>, E>(
     async (request, env, ctx, log) => {
+      const url = new URL(request.url);
+
+      // Only `/mcp` and the paths beneath it are served. Anything else is
+      // answered before Access is checked and is not logged as an MCP request,
+      // so scanner probes for `/.env` and the like never read as MCP errors.
+      if (!isMcpPath(url.pathname)) {
+        return new Response("Not Found", {
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+          status: 404,
+        });
+      }
+
       const accessDeps = accessKey ? { getKey: accessKey, log } : { log };
       const access = await verifyAccess(request, env, accessDeps);
 
@@ -807,8 +930,6 @@ export const createWorker = <E extends GatewayEnv>(
         token: access.token,
       };
 
-      const url = new URL(request.url);
-
       const deps: ToolDeps = {
         caller,
         executeDescriptions: connectors
@@ -816,6 +937,9 @@ export const createWorker = <E extends GatewayEnv>(
           .map((connector) => connector.executeDescription),
         origin: url.origin,
         stub: runtimeStub(env),
+        waitUntil: (promise) => {
+          ctx.waitUntil(promise);
+        },
       };
 
       const started = Date.now();
@@ -827,19 +951,23 @@ export const createWorker = <E extends GatewayEnv>(
       if (approvalId) {
         response = await handleApproval(request, env, deps, approvalId, log);
       } else {
-        const support = await clientAppSupport(
+        const info = await readMcpRequest(
           request,
           approvalCardOverride(env.APPROVAL_CARD_FOR_UNKNOWN_CLIENTS)
         );
 
-        const handler = createMcpHandler(
-          () => createServer(support, deps, log),
-          {
-            allowedHostnames: allowedMcpHostnames(env.MCP_ALLOWED_HOSTNAMES),
-            allowedOriginHostnames: "*",
-            route: "/mcp",
-          }
-        );
+        recordMcpRequest(log, info);
+
+        const hostnames = allowedMcpHostnames(env.MCP_ALLOWED_HOSTNAMES);
+
+        // A browser `Origin` must name one of the hostnames this endpoint
+        // serves. MCP clients that are not browsers send no Origin and are
+        // unaffected; a browser client served from localhost still works.
+        const handler = createMcpHandler(() => createServer(info, deps, log), {
+          allowedHostnames: hostnames,
+          allowedOriginHostnames: hostnames,
+          route: "/mcp",
+        });
 
         // SAFETY: Evlog's Workers context is the same runtime object supplied by
         // Cloudflare; its public type intentionally declares only waitUntil().

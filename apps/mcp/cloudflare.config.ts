@@ -2,8 +2,9 @@ import { bindings, defineConfig, defineWorker, exports } from "cf/config";
 
 const name = process.env.WORKER_NAME ?? "launch-mcp";
 
-// The MCP endpoint's hostname. The Access application must cover `/mcp*`,
-// because the browser approval page lives under `/mcp/approvals/`.
+// The MCP endpoint's hostname, used for nothing else. The Access application
+// must cover the whole hostname: that protects the approval page under
+// `/mcp/approvals/` and stops scanner probes before they reach the Worker.
 const domain = process.env.WORKER_DOMAIN;
 
 // The Payload Worker to reach over a Service binding, when this site has one.
@@ -13,6 +14,11 @@ const payloadWorker = process.env.PAYLOAD_WORKER;
 // service token. One of the two turns the `payload` connector on.
 const payloadUrl = process.env.PAYLOAD_API_URL ?? "";
 const payloadOn = Boolean(payloadWorker || payloadUrl);
+
+// The WordPress origin, without /wp-json. Set, it turns the `wp` connector
+// on; unset, a Payload-only site has no WordPress connector to describe.
+const wordpressUrl = process.env.WORDPRESS_API_URL ?? "";
+const wordpressOn = Boolean(wordpressUrl);
 
 // The cf CLI's typed Worker config, in place of wrangler.jsonc (ADR 0003).
 // The account comes from CLOUDFLARE_ACCOUNT_ID.
@@ -60,13 +66,13 @@ export default defineConfig({
       // The Access service token that gets requests through the Access
       // application in front of WordPress, and the gateway proof secret that
       // WordPress's patronage-access mu-plugin checks.
-      WORDPRESS_ACCESS_CLIENT_ID: bindings.secret(),
-      WORDPRESS_ACCESS_CLIENT_SECRET: bindings.secret(),
-      WORDPRESS_ACCESS_PROOF_SECRET: bindings.secret(),
+      WORDPRESS_ACCESS_CLIENT_ID: wordpressOn && bindings.secret(),
+      WORDPRESS_ACCESS_CLIENT_SECRET: wordpressOn && bindings.secret(),
+      WORDPRESS_ACCESS_PROOF_SECRET: wordpressOn && bindings.secret(),
       // The WordPress origin, without /wp-json. HTTPS outside localhost.
-      WORDPRESS_API_URL: bindings.text(
-        process.env.WORDPRESS_API_URL ?? "http://localhost:8080"
-      ),
+      WORDPRESS_API_URL: bindings.text(wordpressUrl),
+      // Logged as each wide event's `service`, to match Workers Logs.
+      WORKER_NAME: bindings.text(name),
     },
     exports: {
       GatewayRuntime: exports.durableObject({ storage: "sqlite" }),
