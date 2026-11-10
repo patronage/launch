@@ -69,7 +69,7 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 `@patronage/access`, `@patronage/mcp-core`, `@patronage/mcp-payload` and `@patronage/mcp-wordpress` are versioned with [Changesets](https://github.com/changesets/changesets). Each package's `CHANGELOG.md` says what changed in each version and ships in the npm package.
 
 1. A pull request that changes a published package's `src/` or `package.json` adds a changeset: run `pnpm changeset`, pick the packages and the bump, and write the changelog line. While the packages are 0.x, a change that can break a site is a minor bump and anything else is a patch. `pnpm verify` runs `pnpm release:check`, which fails when such a change has no changeset.
-2. To cut a release, run `pnpm changeset version` on a branch. It bumps the versions, writes the changelogs and removes the changesets. Open a pull request with the result.
+2. To cut a release, run `pnpm changeset version` on a branch. It bumps the versions, writes the changelogs and removes the changesets. Open a pull request with the result; `release:check` lets that branch through without a changeset of its own.
 3. Once that merges, run `pnpm release` from an up-to-date `main`. It runs `pnpm verify`, then publishes every package whose version isn't on npm yet, building each one's `dist/` first and replacing `workspace:*` and `catalog:` with real versions, and tags each release as `<package>@<version>`. Push the tags with `git push --follow-tags`.
 
 ## Signing in with something other than Access

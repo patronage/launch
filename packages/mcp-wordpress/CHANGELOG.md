@@ -7,6 +7,7 @@
 - Uses `@patronage/mcp-core` 0.2.0: approved writes get 5 minutes, run two operations at a time and report progress. The approval card polls the new app-only `progress_write` tool.
 - Its requests are tagged `connector: "wp"` on the wide event's `upstream` field.
 - The connector's instructions tell the model to do every read before `wp.apply`, since reads after an approved write are refused.
+- The connector tool contract for `wp.apply` matches the optional execution context.
 
 ## 0.2.0
 
