@@ -305,10 +305,11 @@ describe("wp connector tools", () => {
       await wp.graphql.execute({ query: "{ __typename }" });
     });
 
-    expect(telemetry.wordpress).toStrictEqual({
+    expect(telemetry.upstream).toStrictEqual({
       auth: "access-jwt",
       requests: [
         {
+          connector: "wp",
           durationMs: expect.any(Number),
           method: "GET",
           outcome: "success",
@@ -316,6 +317,7 @@ describe("wp connector tools", () => {
           status: 200,
         },
         {
+          connector: "wp",
           durationMs: expect.any(Number),
           method: "POST",
           outcome: "success",

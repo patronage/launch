@@ -183,6 +183,7 @@ export const createWordPressClient = (
   return {
     apiUrl,
     auth,
+    connector: "wp",
     inspect: inspectWordPressResponse,
     label: "WordPress",
   };

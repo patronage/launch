@@ -136,8 +136,8 @@ interface StubOverrides {
 // Every stubbed RPC answers with the value plus the same WordPress record, so
 // each tool can be asked whether it put that record on the wide event.
 const outcome = async <T>(value: Promise<T> | T) => ({
+  upstream: wordpress,
   value: await value,
-  wordpress,
 });
 
 interface StubbedRuntime {
@@ -651,24 +651,61 @@ describe("execute", () => {
     });
   });
 
-  // The card carries the decision, so the model must not be handed an external
-  // link to repeat beside it.
-  it("withholds the approval URL once the card is armed", async () => {
+  // The server armed the card, but it cannot know the host will run the card's
+  // calls: a card that fails must still leave a way to answer the run.
+  it("still names the approval URL once the card is armed", async () => {
+    const log = requestLogger();
     const { stub } = stubRuntime();
 
-    const result = await callTool(
-      toolServer(stub, requestLogger()),
-      "execute",
-      { code: "async () => wp.apply({})" }
-    );
+    const result = await callTool(toolServer(stub, log), "execute", {
+      code: "async () => wp.apply({})",
+    });
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
       status: "pending",
     });
-    expect(JSON.stringify(result.structuredContent)).not.toContain(
-      "/mcp/approvals/"
+    expect(result.structuredContent).toMatchObject({
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
+    });
+    expect(summaryText(result)).toContain(
+      "https://wordpress.example/mcp/approvals/exec_1"
     );
-    expect(summaryText(result)).not.toContain("/mcp/approvals/");
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "armed", clientApps: "advertised" },
+      status: "paused",
+    });
+  });
+
+  it("records an approval card that could not be armed", async () => {
+    const log = requestLogger();
+    const { stub } = stubRuntime();
+
+    const failing: RuntimeStub = {
+      ...stub,
+      issueNonce: () => Promise.reject(new Error("storage unavailable")),
+    };
+
+    await callTool(toolServer(failing, log), "execute", {
+      code: "async () => wp.apply({})",
+    });
+
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "not_armed", clientApps: "advertised" },
+    });
+  });
+
+  it("records a paused run offered no card", async () => {
+    const log = requestLogger();
+    const { stub } = stubRuntime();
+
+    await callTool(toolServer(stub, log, "absent"), "execute", {
+      code: "async () => wp.apply({})",
+    });
+
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "not_offered", clientApps: "absent" },
+    });
   });
 
   it("arms the card with a one-time token and previews nothing yet", async () => {
@@ -682,6 +719,7 @@ describe("execute", () => {
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toStrictEqual({
       approvalToken: "nonce-exec_1-1",
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
       executionId: "exec_1",
       status: "pending",
     });
@@ -1155,9 +1193,9 @@ describe("WordPress requests on the wide event", () => {
     });
 
     expect({
-      describe_site: describeLog.getContext().wordpress,
-      execute: executeLog.getContext().wordpress,
-      get_run: runLog.getContext().wordpress,
+      describe_site: describeLog.getContext().upstream,
+      execute: executeLog.getContext().upstream,
+      get_run: runLog.getContext().upstream,
     }).toStrictEqual({
       describe_site: wordpress,
       execute: wordpress,

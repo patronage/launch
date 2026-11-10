@@ -28,6 +28,7 @@ import {
 const client: UpstreamClient = {
   apiUrl: "https://wordpress.example",
   auth: { kind: "access-jwt", token: "signed-access-jwt" },
+  connector: "wp",
   inspect: inspectWordPressResponse,
   label: "WordPress",
 };
@@ -93,6 +94,7 @@ describe("WordPress client authentication", () => {
         proofSecret: "shared-secret",
         token: "signed-access-jwt",
       },
+      connector: "wp",
       inspect: inspectWordPressResponse,
       label: "WordPress",
     });
@@ -206,7 +208,7 @@ describe(wpFetch, () => {
           JSON.stringify(log.getContext())
         ),
       telemetry: telemetry.requests,
-      wordpress: log.getContext().wordpress,
+      upstream: log.getContext().upstream,
     }).toStrictEqual({
       sensitiveDataPresent: false,
       telemetry: [
@@ -217,11 +219,12 @@ describe(wpFetch, () => {
           status: 200,
         }),
       ],
-      wordpress: {
+      upstream: {
         actor: { id: 42, slug: "editor" },
         auth: "access-jwt",
         requests: [
           {
+            connector: "wp",
             durationMs: expect.any(Number),
             method: "GET",
             outcome: "success",
@@ -331,10 +334,10 @@ describe("collected WordPress request records", () => {
     await fetchPages(telemetry, MAX_LOGGED_UPSTREAM_REQUESTS + overflow, 0);
 
     expect({
-      first: telemetry.wordpress?.requests.at(0)?.path,
-      kept: telemetry.wordpress?.requests.length,
-      last: telemetry.wordpress?.requests.at(-1)?.path,
-      truncated: telemetry.wordpress?.truncated,
+      first: telemetry.upstream?.requests.at(0)?.path,
+      kept: telemetry.upstream?.requests.length,
+      last: telemetry.upstream?.requests.at(-1)?.path,
+      truncated: telemetry.upstream?.truncated,
     }).toStrictEqual({
       first: "/wp-json/wp/v2/pages/0",
       kept: MAX_LOGGED_UPSTREAM_REQUESTS,
@@ -352,8 +355,8 @@ describe("collected WordPress request records", () => {
       method: "POST",
     });
 
-    expect(JSON.stringify(telemetry.wordpress)).not.toContain("secret draft");
-    expect(telemetry.wordpress?.requests.at(0)).toMatchObject({
+    expect(JSON.stringify(telemetry.upstream)).not.toContain("secret draft");
+    expect(telemetry.upstream?.requests.at(0)).toMatchObject({
       method: "POST",
       path: "/wp-json/wp/v2/pages/7",
     });

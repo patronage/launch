@@ -74,7 +74,13 @@ export const createPayloadClient = (
   };
 
   if (env.PAYLOAD) {
-    return { apiUrl: PAYLOAD_BINDING_ORIGIN, auth, fetcher: env.PAYLOAD };
+    return {
+      apiUrl: PAYLOAD_BINDING_ORIGIN,
+      auth,
+      connector: "payload",
+      fetcher: env.PAYLOAD,
+      label: "Payload",
+    };
   }
 
   const apiUrl = env.PAYLOAD_API_URL?.trim();
@@ -91,7 +97,7 @@ export const createPayloadClient = (
     auth.serviceToken = { clientId, clientSecret };
   }
 
-  return { apiUrl, auth };
+  return { apiUrl, auth, connector: "payload", label: "Payload" };
 };
 
 // Only fixed, site-relative REST paths built in this module reach Payload.

@@ -36,7 +36,15 @@ export type AuthenticationOutcome =
   | "denied"
   | "pending";
 
-export type McpOutcome = "error" | "not_found" | "pending" | "success";
+// `challenged` and `denied` mirror the Access result for a request that never
+// reached the MCP handler, so `error` is left for failures of signed-in calls.
+export type McpOutcome =
+  | "challenged"
+  | "denied"
+  | "error"
+  | "not_found"
+  | "pending"
+  | "success";
 
 export type StreamOutcome =
   | "cancelled"
@@ -47,6 +55,8 @@ export type StreamOutcome =
   | "pending";
 
 export interface UpstreamRequestEvent {
+  // The connector that made the request (`wp`, `payload`).
+  connector?: string;
   durationMs: number;
   errorCode?: string;
   method: "DELETE" | "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "OTHER";
@@ -86,6 +96,9 @@ export interface UpstreamRequestLog {
 }
 
 export interface McpWideEvent {
+  // The Worker's name, so the event's own field agrees with Workers Logs'
+  // `$metadata.service`. Set from `WORKER_NAME`; `launch-mcp` without it.
+  service?: string;
   approval?: {
     actor?: string;
     approverOpaque?: string;
@@ -94,7 +107,7 @@ export interface McpWideEvent {
     outcome: "approved" | "denied" | "not_required";
     source?: string;
     targets?: string[];
-    wordpressActor?: UpstreamActor;
+    upstreamActor?: UpstreamActor;
   };
   authentication: {
     actor: string;
@@ -111,15 +124,24 @@ export interface McpWideEvent {
       outcome: StreamOutcome;
     };
   };
-  mcp: {
+  // Absent on a request that never reached `/mcp` (a scanner probe).
+  mcp?: {
     durationMs?: number;
     // The class name of a failure whose message the caller was not given. It
     // is the only trace of what went wrong, and a class name carries no
     // upstream text.
     errorName?: string;
+    // The JSON-RPC method of the message, or of each message in a batch, so
+    // `initialize`, `tools/list` and `resources/read` can be told apart.
+    method?: string;
+    methods?: string[];
     outcome: McpOutcome;
+    // The resource a `resources/read` asked for: a `ui://` identifier, never
+    // user data.
+    resource?: string;
     tool?: string;
-    transport: "streamable-http";
+    // Set only once a request reaches the MCP handler.
+    transport?: "streamable-http";
   };
   plugin?: {
     download?: {
@@ -135,12 +157,19 @@ export interface McpWideEvent {
     returnedItems: number;
   };
   run?: {
+    // How a paused run was offered to a person: what the client said it can
+    // render, and whether the inline card was armed with a one-time token. The
+    // approval URL is named on every paused result, so it is not recorded.
+    approval?: {
+      card: "armed" | "not_armed" | "not_offered";
+      clientApps: "absent" | "advertised" | "unknown";
+    };
     executionId?: string;
     pausedOn?: string;
     status: "complete" | "error" | "paused";
     toolCalls: number;
   };
-  wordpress?: UpstreamRequestLog;
+  upstream?: UpstreamRequestLog;
   write?: {
     action: string;
     changed?: number;
@@ -237,7 +266,7 @@ export const recordConsumerWrite = <TConsumer extends object>(
   const audit = {
     action: event.write.action,
     actor: { id: actor, type: "user" as const },
-    target: { id: target, type: "wordpress" },
+    target: { id: target, type: "cms" },
   };
 
   if (event.write.outcome === "denied") {
@@ -257,10 +286,10 @@ export const recordConsumerWrite = <TConsumer extends object>(
 // merges arrays, so two RPCs in one HTTP request contribute both their records.
 export const recordUpstreamRequests = <TConsumer extends object>(
   log: McpRequestLogger<TConsumer>,
-  wordpress: UpstreamRequestLog | undefined
+  upstream: UpstreamRequestLog | undefined
 ): void => {
-  if (wordpress) {
-    log.set({ wordpress });
+  if (upstream) {
+    log.set({ upstream });
   }
 };
 
@@ -296,6 +325,20 @@ export const recordRun = <TConsumer extends object>(
   }
 
   log.set({ run });
+};
+
+export const recordApprovalSurface = <TConsumer extends object>(
+  log: McpRequestLogger<TConsumer>,
+  clientApps: "absent" | "advertised" | "unknown",
+  state: { status: string } | undefined
+): void => {
+  let card: "armed" | "not_armed" | "not_offered" = "not_offered";
+
+  if (state) {
+    card = state.status === "pending" ? "armed" : "not_armed";
+  }
+
+  log.set({ run: { approval: { card, clientApps } } });
 };
 
 export const recordApprovalDecision = <TConsumer extends object>(
@@ -340,12 +383,12 @@ export const recordWriteReceipt = <TConsumer extends object>(
 
   const target = targets[0] ?? "unknown";
   const context = log.getContext();
-  const parsedActor = upstreamActorSchema.safeParse(context.wordpress?.actor);
-  const wordpressActor = parsedActor.success ? parsedActor.data : undefined;
+  const parsedActor = upstreamActorSchema.safeParse(context.upstream?.actor);
+  const upstreamActor = parsedActor.success ? parsedActor.data : undefined;
   const { approval } = context;
 
   if (approval) {
-    const actor = wordpressActor?.slug ?? approval.actor;
+    const actor = upstreamActor?.slug ?? approval.actor;
 
     const approvalEvent: NonNullable<McpWideEvent["approval"]> = {
       outcome: approval.outcome ?? "approved",
@@ -356,8 +399,8 @@ export const recordWriteReceipt = <TConsumer extends object>(
       approvalEvent.actor = actor;
     }
 
-    if (wordpressActor) {
-      approvalEvent.wordpressActor = wordpressActor;
+    if (upstreamActor) {
+      approvalEvent.upstreamActor = upstreamActor;
     }
 
     if (approval.approverOpaque) {
@@ -393,9 +436,9 @@ export const recordWriteReceipt = <TConsumer extends object>(
     },
   });
 
-  const auditActor = wordpressActor
+  const auditActor = upstreamActor
     ? {
-        displayName: wordpressActor.slug,
+        displayName: upstreamActor.slug,
         id: receipt.approverOpaque,
         type: "user" as const,
       }
@@ -409,7 +452,7 @@ export const recordWriteReceipt = <TConsumer extends object>(
     target: {
       id: target,
       targets,
-      type: "wordpress",
+      type: "cms",
     },
   });
 };
@@ -529,6 +572,11 @@ export const withMcpRequestLog = <
     // SAFETY: Evlog creates this request logger without runtime field metadata;
     // this wrapper owns every base field and the consumer type exists only at compile time.
     const log = untypedLogger as McpRequestLogger<TConsumer>;
+
+    if (env.WORKER_NAME) {
+      log.set({ service: env.WORKER_NAME });
+    }
+
     log.set({
       authentication: {
         actor: "unknown",
@@ -541,10 +589,6 @@ export const withMcpRequestLog = <
         outcome: "server_error",
         status: 500,
         stream: { outcome: "not_started" },
-      },
-      mcp: {
-        outcome: "pending",
-        transport: "streamable-http",
       },
     });
 

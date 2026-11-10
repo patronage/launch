@@ -155,14 +155,15 @@ const runtime = {
     runtimeCalls.push({ caller, method: "approve", previewDigest });
 
     return (approveGate ?? Promise.resolve()).then(() => ({
+      upstream: WORDPRESS_REQUESTS,
       value: { ...runReports.approve, executionId },
-      wordpress: WORDPRESS_REQUESTS,
     }));
   },
   describeSite: (caller: CallerContext) => {
     runtimeCalls.push({ caller, method: "describeSite" });
 
     return Promise.resolve({
+      upstream: WORDPRESS_REQUESTS,
       value: [
         {
           connector: "wp",
@@ -174,7 +175,6 @@ const runtime = {
           },
         },
       ],
-      wordpress: WORDPRESS_REQUESTS,
     });
   },
   execute: (
@@ -185,16 +185,16 @@ const runtime = {
     runtimeCalls.push({ caller, method: "execute" });
 
     return Promise.resolve({
+      upstream: WORDPRESS_REQUESTS,
       value: { calls: [], result: { ok: true }, status: "complete" },
-      wordpress: WORDPRESS_REQUESTS,
     });
   },
   getRun: (executionId: string, caller?: CallerContext) => {
     runtimeCalls.push({ caller, method: "getRun" });
 
     return Promise.resolve({
+      upstream: WORDPRESS_REQUESTS,
       value: { ...runReports.getRun, executionId },
-      wordpress: WORDPRESS_REQUESTS,
     });
   },
   reject: (
@@ -205,9 +205,14 @@ const runtime = {
     runtimeCalls.push({ caller, method: "reject", previewDigest });
 
     return Promise.resolve({
+      upstream: WORDPRESS_REQUESTS,
       value: { ...runReports.reject, executionId },
-      wordpress: WORDPRESS_REQUESTS,
     });
+  },
+  verifyNonce: (_executionId: string, approvalToken: string) => {
+    runtimeCalls.push({ method: "verifyNonce" });
+
+    return Promise.resolve(approvalToken === "good-token");
   },
 };
 
@@ -399,6 +404,45 @@ const listToolNames = async (
   );
 
   return await response.text();
+};
+
+// One JSON-RPC message or batch to /mcp, signed in, with no client
+// capabilities stated anywhere.
+interface JsonRpcMessage {
+  id?: number;
+  jsonrpc: "2.0";
+  method: string;
+  params?: {
+    arguments?: Record<string, string>;
+    capabilities?: Record<string, never>;
+    clientInfo?: { name: string; version: string };
+    name?: string;
+    protocolVersion?: string;
+    uri?: string;
+  };
+}
+
+const sendRpc = async (message: JsonRpcMessage | JsonRpcMessage[]) => {
+  const events: unknown[] = [];
+  const { publicKey, token } = await accessIdentity();
+  const worker = collectingWorker(publicKey, events);
+
+  const response = await worker.fetch(
+    new Request("http://localhost:8787/mcp", {
+      body: JSON.stringify(message),
+      headers: new Headers({
+        Accept: "application/json, text/event-stream",
+        "Cf-Access-Jwt-Assertion": token,
+        "Content-Type": "application/json",
+        Host: "localhost:8787",
+      }),
+      method: "POST",
+    }),
+    env,
+    executionContext()
+  );
+
+  return { body: await response.text(), events, response };
 };
 
 const resetRuntime = (): void => {
@@ -621,25 +665,154 @@ describe("Worker fetch", () => {
     expect(body).toContain("preview_wordpress_write");
   });
 
-  it("emits one final event for an unknown route", async () => {
+  it("answers a path outside /mcp with 404 before Access and logs no MCP fields", async () => {
     const events: unknown[] = [];
-    const { publicKey, token } = await accessIdentity();
+    const { publicKey } = await accessIdentity();
     const worker = collectingWorker(publicKey, events);
 
     const response = await worker.fetch(
-      new Request("http://localhost:8787/unknown", {
-        headers: { "Cf-Access-Jwt-Assertion": token, Host: "localhost" },
+      new Request("https://launch-mcp.example.com/smtp/.env", {
+        headers: { Host: "launch-mcp.example.com" },
       }),
       env,
       executionContext()
     );
 
     expect(response.status).toBe(404);
+    expect(runtimeCalls).toHaveLength(0);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
+      authentication: { outcome: "pending" },
       http: { status: 404, stream: { outcome: "not_streamed" } },
-      mcp: { outcome: "not_found", transport: "streamable-http" },
     });
+    expect(events[0]).not.toHaveProperty("mcp");
+  });
+
+  it("logs the Worker's own name as the event's service", async () => {
+    const events: unknown[] = [];
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, events);
+
+    const response = await worker.fetch(
+      toolRequest("http://localhost:8787/mcp", token),
+      { ...env, WORKER_NAME: "site-mcp" },
+      executionContext()
+    );
+
+    await response.text();
+
+    expect(events[0]).toMatchObject({ service: "site-mcp" });
+  });
+
+  it("logs a challenged request as challenged, not as an MCP error", async () => {
+    const events: unknown[] = [];
+    const { publicKey } = await accessIdentity();
+    const worker = collectingWorker(publicKey, events);
+
+    await worker.fetch(
+      toolRequest("https://launch-mcp.example.com/mcp"),
+      env,
+      executionContext()
+    );
+
+    expect(events[0]).toMatchObject({ mcp: { outcome: "challenged" } });
+    expect(events[0]).not.toHaveProperty("mcp.transport");
+  });
+
+  it("logs a denied request as denied, not as an MCP error", async () => {
+    const events: unknown[] = [];
+    const { publicKey } = await accessIdentity();
+    const worker = collectingWorker(publicKey, events);
+
+    await worker.fetch(
+      toolRequest("https://launch-mcp.example.com/mcp", "not-a-jwt"),
+      env,
+      executionContext()
+    );
+
+    expect(events[0]).toMatchObject({
+      authentication: { outcome: "denied" },
+      mcp: { outcome: "denied" },
+    });
+  });
+
+  it.each([
+    [
+      "initialize",
+      {
+        capabilities: {},
+        clientInfo: { name: "t", version: "1" },
+        protocolVersion: "2025-06-18",
+      },
+    ],
+    ["tools/list", {}],
+  ])("logs the JSON-RPC method of %s", async (method, params) => {
+    const { events } = await sendRpc({ id: 1, jsonrpc: "2.0", method, params });
+
+    expect(events[0]).toMatchObject({
+      mcp: { method, transport: "streamable-http" },
+    });
+  });
+
+  it("logs the resource a resources/read asked for", async () => {
+    const { events } = await sendRpc({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "resources/read",
+      params: { uri: "ui://patronage/wordpress-approval-v3.html" },
+    });
+
+    expect(events[0]).toMatchObject({
+      mcp: {
+        method: "resources/read",
+        resource: "ui://patronage/wordpress-approval-v3.html",
+      },
+    });
+  });
+
+  it("logs every method of a JSON-RPC batch", async () => {
+    const { events } = await sendRpc([
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { id: 2, jsonrpc: "2.0", method: "tools/list", params: {} },
+    ]);
+
+    expect(events[0]).toMatchObject({
+      mcp: {
+        method: "notifications/initialized",
+        methods: ["notifications/initialized", "tools/list"],
+      },
+    });
+  });
+
+  // A host may forward the card's own call without the capabilities `_meta`
+  // it sent on `execute`. The card was already offered, so the tool answers.
+  it("serves the card's preview tool on a tools/call that states no capabilities", async () => {
+    const { body } = await sendRpc({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { approvalToken: "bad-token", executionId: "exec_1" },
+        name: "preview_wordpress_write",
+      },
+    });
+
+    expect(body).not.toMatch(/not found/iu);
+    expect(body).toContain("invalid_approval_token");
+    expect(runtimeCalls.map((call) => call.method)).toStrictEqual([
+      "verifyNonce",
+    ]);
+  });
+
+  it("still hides the card's tools from tools/list without capabilities", async () => {
+    const { body } = await sendRpc({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "tools/list",
+      params: {},
+    });
+
+    expect(body).not.toContain("preview_wordpress_write");
   });
 });
 
@@ -770,7 +943,7 @@ describe("Approval route", () => {
 
     const { events } = await openApproval();
 
-    expect(events[0]).toMatchObject({ wordpress: WORDPRESS_REQUESTS });
+    expect(events[0]).toMatchObject({ upstream: WORDPRESS_REQUESTS });
   });
 
   it("records the runtime's WordPress requests on the approval decision event", async () => {
@@ -792,7 +965,7 @@ describe("Approval route", () => {
     await streamed.text();
 
     expect(events[1]).toMatchObject({
-      wordpress: {
+      upstream: {
         auth: "access-jwt",
         requests: [{ path: "/wp-json/wp/v2/pages/42" }],
         target: "wordpress.example",
@@ -915,7 +1088,7 @@ describe("Approval route", () => {
       approval: {
         actor: "editor",
         targets: ["pages/42"],
-        wordpressActor: { id: 42, slug: "editor" },
+        upstreamActor: { id: 42, slug: "editor" },
       },
       audit: {
         action: "wp.apply",
@@ -929,7 +1102,7 @@ describe("Approval route", () => {
         target: {
           id: "pages/42",
           targets: ["pages/42"],
-          type: "wordpress",
+          type: "cms",
         },
       },
       write: {

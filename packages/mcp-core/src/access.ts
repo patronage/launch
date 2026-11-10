@@ -41,7 +41,7 @@ const denyAccess = (
       outcome: "denied",
       reason,
     },
-    mcp: { outcome: "error" },
+    mcp: { outcome: "denied" },
   });
   log.setLevel("warn");
   log.audit.deny(reason, {
@@ -62,7 +62,7 @@ const challengeAccess = (log: McpRequestLogger): AccessResult => {
       outcome: "challenged",
       reason: "missing_token",
     },
-    mcp: { outcome: "error" },
+    mcp: { outcome: "challenged" },
   });
   log.setLevel("info");
 
