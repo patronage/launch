@@ -1,7 +1,9 @@
 // `pnpm release:check`: a branch that changes a published package needs a
 // changeset. The one exception is the release-prep branch itself, where
 // `changeset version` has consumed the changesets (deleting them) and written
-// the versions and changelogs, so there is nothing left to describe.
+// the versions and changelogs, so there is nothing left to describe. Such a
+// branch touches no package source, so a branch that deletes a changeset and
+// also changes any `packages/*/src` file is checked as usual.
 import { execFileSync } from "node:child_process";
 
 const git = (...args) =>
@@ -18,7 +20,15 @@ const consumed = git(
   .split("\n")
   .filter((file) => file && !file.endsWith("README.md"));
 
-if (consumed.length > 0) {
+const sourceChanged = git(
+  "diff",
+  "--name-only",
+  "origin/main...HEAD",
+  "--",
+  "packages/*/src/**"
+);
+
+if (consumed.length > 0 && !sourceChanged) {
   console.log(
     `release:check: ${consumed.length} changeset(s) consumed by changeset version; nothing to add.`
   );
