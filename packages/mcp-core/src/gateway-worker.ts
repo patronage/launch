@@ -125,6 +125,12 @@ const boundedIdentifier = (value: string): string =>
     ? `${value.slice(0, MAX_LOGGED_IDENTIFIER)}…`
     : value;
 
+// A resource URI is logged without its query string or fragment, which a
+// client could fill with anything; the identifier itself is what a debug
+// question needs ("did the host fetch the card?").
+const resourceIdentifier = (uri: string): string =>
+  boundedIdentifier(uri.split(/[?#]/u, 1)[0] || "unknown");
+
 const INITIALIZE_METHOD = "initialize";
 
 // The opt-in that offers the approval card to clients this Worker cannot read.
@@ -240,7 +246,7 @@ const readMcpRequest = async (
   };
 
   if (read?.params?.uri) {
-    info.resource = boundedIdentifier(read.params.uri);
+    info.resource = resourceIdentifier(read.params.uri);
   }
 
   return info;

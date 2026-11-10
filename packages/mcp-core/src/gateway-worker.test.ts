@@ -759,7 +759,9 @@ describe("Worker fetch", () => {
       id: 1,
       jsonrpc: "2.0",
       method: "resources/read",
-      params: { uri: "ui://patronage/wordpress-approval-v3.html" },
+      params: {
+        uri: "ui://patronage/wordpress-approval-v3.html?token=secret#frag",
+      },
     });
 
     expect(events[0]).toMatchObject({
@@ -768,6 +770,7 @@ describe("Worker fetch", () => {
         resource: "ui://patronage/wordpress-approval-v3.html",
       },
     });
+    expect(JSON.stringify(events[0])).not.toContain("secret");
   });
 
   it("logs every method of a JSON-RPC batch", async () => {
