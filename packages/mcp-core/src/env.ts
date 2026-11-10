@@ -17,4 +17,6 @@ export interface GatewayEnv {
   LOADER: WorkerLoader;
   // Hostnames the MCP endpoint answers on, comma separated.
   MCP_ALLOWED_HOSTNAMES?: string;
+  // The Worker's own name, logged as the wide event's `service`.
+  WORKER_NAME?: string;
 }

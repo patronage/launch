@@ -2,8 +2,9 @@ import { bindings, defineConfig, defineWorker, exports } from "cf/config";
 
 const name = process.env.WORKER_NAME ?? "launch-mcp";
 
-// The MCP endpoint's hostname. The Access application must cover `/mcp*`,
-// because the browser approval page lives under `/mcp/approvals/`.
+// The MCP endpoint's hostname, used for nothing else. The Access application
+// must cover the whole hostname: that protects the approval page under
+// `/mcp/approvals/` and stops scanner probes before they reach the Worker.
 const domain = process.env.WORKER_DOMAIN;
 
 // The Payload Worker to reach over a Service binding, when this site has one.
@@ -70,6 +71,8 @@ export default defineConfig({
       WORDPRESS_ACCESS_PROOF_SECRET: wordpressOn && bindings.secret(),
       // The WordPress origin, without /wp-json. HTTPS outside localhost.
       WORDPRESS_API_URL: bindings.text(wordpressUrl),
+      // Logged as each wide event's `service`, to match Workers Logs.
+      WORKER_NAME: bindings.text(name),
     },
     exports: {
       GatewayRuntime: exports.durableObject({ storage: "sqlite" }),

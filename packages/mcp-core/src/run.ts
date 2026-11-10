@@ -351,14 +351,14 @@ export interface RunView {
 export type RunReport = Omit<RunView, "pending">;
 
 // What every Durable Object RPC answers with. The value is what the caller
-// asked for; `wordpress` is the bounded record of the CMS requests that
+// asked for; `upstream` is the bounded record of the CMS requests that
 // RPC made on the way to it. They are separate because the record belongs on
 // the wide event and never in the model-facing result — `SiteDescription` in
 // particular is cached for ten minutes, and a cached body must not carry one
 // caller's request log to the next.
 export interface RuntimeOutcome<TValue> {
   value: TValue;
-  wordpress?: UpstreamRequestLog;
+  upstream?: UpstreamRequestLog;
 }
 
 // The log hands a recorded result back as opaque JSON. A zod parse would
