@@ -7,7 +7,7 @@ import {
 } from "@patronage/mcp-core";
 import type {
   ApplyPreflight,
-  JsonObject,
+  JsonValue,
   OperationPreflight,
   UpstreamClient,
 } from "@patronage/mcp-core";
@@ -32,7 +32,9 @@ const operation: WriteOperation = {
   rest_base: "pages",
 };
 
-const record = (overrides: JsonObject = {}) => ({
+// An override set to `undefined` drops that field from the JSON WordPress
+// returns, as when WordPress does not report it.
+const record = (overrides: Record<string, JsonValue | undefined> = {}) => ({
   acf: { hero_heading: "Old heading" },
   id: 42,
   modified_gmt: "2026-09-01T10:00:00",

@@ -1,6 +1,7 @@
 import { createLogger } from "evlog";
 import { describe, expect, it, vi } from "vitest";
 
+import manifest from "../package.json";
 import {
   boundedPath,
   opaqueSubject,
@@ -14,13 +15,9 @@ import {
   withMcpRequestLog,
 } from "./logging";
 import type { McpRequestLogger, McpWideEvent } from "./logging";
+import { testGatewayEnv } from "./test-env";
 
-const env: Env = {
-  ACCESS_AUD: "replace-me",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  DEPLOYMENT_ENVIRONMENT: "test",
-  WORDPRESS_API_URL: "https://wordpress.example",
-};
+const env = testGatewayEnv();
 
 const requestLogger = (): McpRequestLogger => {
   const log = createLogger<McpWideEvent>();
@@ -373,13 +370,7 @@ describe("code-mode wide-event fields", () => {
     });
   });
 
-  it("reports this package's version as the service version", async () => {
-    const { readFile } = await import("node:fs/promises");
-
-    const manifest = JSON.parse(
-      await readFile(new URL("../package.json", import.meta.url), "utf-8")
-    );
-
+  it("reports this package's version as the service version", () => {
     expect(SERVICE_VERSION).toBe(manifest.version);
   });
 

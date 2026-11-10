@@ -4,19 +4,16 @@ import type { JWK, JWTPayload } from "jose";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { verifyAccess } from "./access";
+import type { GatewayEnv } from "./env";
 import { withMcpRequestLog } from "./logging";
 import type { McpWideEvent } from "./logging";
+import { testGatewayEnv } from "./test-env";
 
 const ACCESS_TEAM_DOMAIN = "https://example.cloudflareaccess.com";
 const ACCESS_AUD = "replace-me";
 
-const env = (overrides: Partial<Env> = {}): Env => ({
-  ACCESS_AUD,
-  ACCESS_TEAM_DOMAIN,
-  DEPLOYMENT_ENVIRONMENT: "test",
-  WORDPRESS_API_URL: "https://wordpress.example",
-  ...overrides,
-});
+const env = (overrides: Partial<GatewayEnv> = {}): GatewayEnv =>
+  testGatewayEnv({ ACCESS_AUD, ACCESS_TEAM_DOMAIN, ...overrides });
 
 const accessDeps = () => ({ log: createLogger<McpWideEvent>() });
 

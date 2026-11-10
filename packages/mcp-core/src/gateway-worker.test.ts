@@ -9,6 +9,7 @@ import type { GatewayConnector } from "./gateway-connector";
 import { createWorker } from "./index";
 import type { UpstreamRequestLog } from "./logging";
 import type { RunReport } from "./run";
+import { fakeBinding, testGatewayEnv } from "./test-env";
 
 // The worker reads only whether a connector is configured and its paragraph
 // of the `execute` description; the runtime is stubbed in these tests.
@@ -23,9 +24,9 @@ const fakeConnector: GatewayConnector = {
 };
 
 interface RuntimeCall {
-  caller: CallerContext | undefined;
+  caller?: CallerContext | undefined;
   method: string;
-  previewDigest?: string;
+  previewDigest?: string | undefined;
 }
 
 type StubReport = Omit<RunReport, "executionId">;
@@ -216,27 +217,27 @@ const runtime = {
   },
 };
 
-const env: Env = {
-  ACCESS_AUD: "replace-me",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
+// The worker calls only `idFromName` and `get` on the namespace, and only the
+// RPC methods `runtime` stubs on the object `get` returns.
+const runtimeNamespace = fakeBinding<DurableObjectNamespace>({
+  get: () => {
+    stubsObtained += 1;
+
+    return runtime;
+  },
+  idFromName: (name: string) => {
+    instanceNames.push(name);
+
+    return name;
+  },
+});
+
+const env = testGatewayEnv({
   APPROVAL_CARD_FOR_UNKNOWN_CLIENTS: "false",
   APPROVAL_CSRF_SECRET: "csrf-secret",
-  DEPLOYMENT_ENVIRONMENT: "test",
-  GATEWAY_RUNTIME: {
-    get: () => {
-      stubsObtained += 1;
-
-      return runtime;
-    },
-    idFromName: (name: string) => {
-      instanceNames.push(name);
-
-      return name;
-    },
-  },
+  GATEWAY_RUNTIME: runtimeNamespace,
   MCP_ALLOWED_HOSTNAMES: "launch-mcp.example.com",
-  WORDPRESS_API_URL: "https://wordpress.example",
-};
+});
 
 const APPROVAL_ORIGIN = "https://launch-mcp.example.com";
 

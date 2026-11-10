@@ -23,3 +23,7 @@ A theme adds its own with `patronage_headless_revalidate_queue_paths()` and `pat
 ## Install
 
 See [Installing with Composer](../README.md#installing-with-composer). Inside this repo, the headless install commits a one-line `wp-content/mu-plugins/patronage-headless-revalidate.php` that loads this folder: Docker bind-mounts it, and `bin/build.sh` copies it in for deploys.
+
+## Tests
+
+`pnpm --filter @patronage/wordpress-headless-revalidate test` runs `tests/revalidate.test.php`, plain PHP that loads the plugin against an in-memory WordPress: path mapping, the queue, the request it sends and how it reads the answer, and which post changes send which paths. `verify` above is the end-to-end check against a real front-end.
