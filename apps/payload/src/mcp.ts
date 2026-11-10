@@ -54,6 +54,7 @@ const collections: MCPPluginConfig["collections"] = {
   media: READ_ONLY_COLLECTION,
   pages: RICH_TEXT_COLLECTION,
   posts: RICH_TEXT_COLLECTION,
+  redirects: READ_ONLY_COLLECTION,
   // Auth tools (login, password reset) stay off because they are opt-in.
   users: HIDDEN_COLLECTION,
 };

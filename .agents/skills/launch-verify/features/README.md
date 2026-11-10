@@ -8,5 +8,6 @@ What a visitor or editor can do on Launch's local front ends, and how to prove e
 | [Forms](forms.md) | payload (web-wordpress by hand) | `drive payload apply-form` |
 | [News](news.md) | payload, web-wordpress | `capture` |
 | [Payload admin](payload-admin.md) | payload | by hand, after `apply-form` signs in |
+| [SEO and redirects](seo.md) | payload | `drive payload seo` |
 
 A proof covers the entry points its feature file lists. Driving only the most convenient one leaves the rest unverified, so say which you skipped.

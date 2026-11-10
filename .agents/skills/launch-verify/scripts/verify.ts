@@ -861,7 +861,7 @@ Commands:
   launch <surface> [--port N]      Prepare and start a server this run owns, then run doctor
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
-  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form; web-wordpress: pages)
+  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages)
   cleanup <surface>                Stop only the process group in this surface's receipt
   status                           Show each surface's receipt
 

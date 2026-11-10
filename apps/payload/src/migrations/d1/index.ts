@@ -3,6 +3,7 @@ import * as migration_20261029_230616_sections from './20261029_230616_sections'
 import * as migration_20261030_185138_posts_preview from './20261030_185138_posts_preview';
 import * as migration_20261030_191931_forms from './20261030_191931_forms';
 import * as migration_20261030_201407_heroes from './20261030_201407_heroes';
+import * as migration_20261110_222855_seo_redirects from './20261110_222855_seo_redirects';
 
 export const migrations = [
   {
@@ -28,6 +29,11 @@ export const migrations = [
   {
     up: migration_20261030_201407_heroes.up,
     down: migration_20261030_201407_heroes.down,
-    name: '20261030_201407_heroes'
+    name: '20261030_201407_heroes',
+  },
+  {
+    up: migration_20261110_222855_seo_redirects.up,
+    down: migration_20261110_222855_seo_redirects.down,
+    name: '20261110_222855_seo_redirects'
   },
 ];

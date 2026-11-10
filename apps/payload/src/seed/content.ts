@@ -1,4 +1,10 @@
-import type { Link, Page, PageHero, SectionOptions } from "../payload-types";
+import type {
+  Link,
+  Page,
+  PageHero,
+  SectionOptions,
+  SeoMeta,
+} from "../payload-types";
 import type { FormTitle } from "./forms";
 import {
   block,
@@ -28,6 +34,22 @@ export const PAGES = [
 ] as const;
 
 export type PageSlug = (typeof PAGES)[number]["slug"];
+
+/** Old addresses that moved, one of them with another CMS's trailing slash. */
+export const REDIRECTS: { from: string; to: PageSlug }[] = [
+  { from: "/seeds", to: "seed-library" },
+  { from: "/2024/05/tool-library/", to: "tool-share" },
+];
+
+/** Editor-written search and social text, for the pages that have it. */
+export const pageMeta: Partial<Record<PageSlug, SeoMeta>> = {
+  "seed-library": {
+    description:
+      "Borrow seeds in spring, return some of your harvest in the fall. Free for every neighbor.",
+    title: "Free seed library for neighbors",
+  },
+  "tool-share": { noindex: true },
+};
 
 /** Image files in @launch/demo-content. */
 export type ImageFile =

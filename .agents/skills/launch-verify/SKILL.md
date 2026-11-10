@@ -15,7 +15,7 @@ node .agents/skills/launch-verify/scripts/verify.ts --help
 
 | Surface | App | Port | Drives |
 | --- | --- | --- | --- |
-| `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form` |
+| `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form`, `seo` |
 | `web-wordpress` | `apps/web-wordpress` on `vite dev`, reading WordPress in Docker | 3000 | `pages` |
 
 The feature map is in [features/README.md](features/README.md). The Timber install renders its own pages in PHP and isn't covered here.
@@ -82,6 +82,7 @@ Read [features/README.md](features/README.md), then the matching feature file. S
 ```bash
 node .agents/skills/launch-verify/scripts/verify.ts drive payload pages
 node .agents/skills/launch-verify/scripts/verify.ts drive payload apply-form
+node .agents/skills/launch-verify/scripts/verify.ts drive payload seo
 node .agents/skills/launch-verify/scripts/verify.ts drive web-wordpress pages
 ```
 
