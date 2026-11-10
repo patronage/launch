@@ -24,7 +24,7 @@ const fakeConnector: GatewayConnector = {
 };
 
 interface RuntimeCall {
-  caller: CallerContext | undefined;
+  caller?: CallerContext | undefined;
   method: string;
   previewDigest?: string | undefined;
 }
