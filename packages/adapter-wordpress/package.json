@@ -25,13 +25,13 @@
     "@graphql-codegen/typescript-operations": "6.2.0",
     "@graphql-typed-document-node/core": "3.2.0",
     "@launch/ui": "workspace:*",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.3",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "graphql": "17.0.2",
-    "react": "19.2.9",
-    "react-dom": "19.2.9",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "7.0.2",
-    "vitest": "4.1.12"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.2.0"
