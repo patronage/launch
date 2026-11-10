@@ -41,7 +41,7 @@ The approval runs as the approver, through the same Access sign-in. `APPROVAL_CS
 
 ## Signing in
 
-The Access application in front of this Worker must cover `/mcp*`, so the approval page is protected too. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
+The Access application in front of this Worker must cover the whole MCP hostname, not just `/mcp*`. The approval page under `/mcp/approvals/` is then protected too, and scanner probes for paths like `/.env` are stopped at the edge, so they never invoke the Worker or reach its logs. Give the gateway a hostname of its own (other services, such as a docs site, go on their own hostnames). As a backstop, the Worker answers any path outside `/mcp*` with a plain 404 before it checks Access, and logs it without MCP fields. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
 
 Calls to WordPress and Payload forward that JWT. WordPress's `patronage-access` mu-plugin (`wordpress-shared/patronage-access`) maps it to a WordPress user, and checks the gateway proof signed with `WORDPRESS_ACCESS_PROOF_SECRET`. When WordPress is itself behind Access, `WORDPRESS_ACCESS_CLIENT_ID` and `WORDPRESS_ACCESS_CLIENT_SECRET` hold the service token that gets requests through. `WORDPRESS_API_URL` turns the `wp` connector on; with it unset, the connector and its three secrets are left out, so a Payload-only site doesn't list a WordPress connector. Local development sets it in `.dev.vars` (for example `http://localhost:8080`).
 

@@ -136,8 +136,8 @@ interface StubOverrides {
 // Every stubbed RPC answers with the value plus the same WordPress record, so
 // each tool can be asked whether it put that record on the wide event.
 const outcome = async <T>(value: Promise<T> | T) => ({
+  upstream: wordpress,
   value: await value,
-  wordpress,
 });
 
 interface StubbedRuntime {
@@ -316,19 +316,19 @@ describe("tool registration", () => {
       server.toolInputSchemaJson(name) !== undefined;
 
     expect({
-      decide_wordpress_write: registered("decide_wordpress_write"),
+      decide_write: registered("decide_write"),
       describe_site: registered("describe_site"),
       execute: registered("execute"),
       get_run: registered("get_run"),
       inspect_wordpress_site: registered("inspect_wordpress_site"),
-      preview_wordpress_write: registered("preview_wordpress_write"),
+      preview_write: registered("preview_write"),
     }).toStrictEqual({
-      decide_wordpress_write: true,
+      decide_write: true,
       describe_site: true,
       execute: true,
       get_run: true,
       inspect_wordpress_site: false,
-      preview_wordpress_write: true,
+      preview_write: true,
     });
   });
 
@@ -370,12 +370,12 @@ describe("tool registration", () => {
     );
 
     expect(listing.tools.map((tool) => tool.name).toSorted()).toStrictEqual([
-      "decide_wordpress_write",
+      "decide_write",
       "describe_site",
       "execute",
       "get_run",
-      "preview_wordpress_write",
-      "progress_wordpress_write",
+      "preview_write",
+      "progress_write",
     ]);
     expect(
       listing.tools.find((tool) => tool.name === "execute")?._meta
@@ -383,8 +383,7 @@ describe("tool registration", () => {
       ui: { resourceUri: APPROVAL_APP_URI, visibility: ["model"] },
     });
     expect(
-      listing.tools.find((tool) => tool.name === "decide_wordpress_write")
-        ?._meta
+      listing.tools.find((tool) => tool.name === "decide_write")?._meta
     ).toMatchObject({
       ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
     });
@@ -413,8 +412,7 @@ describe("tool registration", () => {
       readOnlyHint: true,
     });
     expect(
-      listing.tools.find((tool) => tool.name === "decide_wordpress_write")
-        ?.annotations
+      listing.tools.find((tool) => tool.name === "decide_write")?.annotations
     ).toStrictEqual({
       destructiveHint: true,
       idempotentHint: false,
@@ -462,7 +460,7 @@ describe("tool registration", () => {
     );
 
     const content = resource.contents.at(0);
-    const text = "text" in (content ?? {}) ? (content?.text ?? "") : "";
+    const text = content && "text" in content ? content.text : "";
 
     expect(content).toMatchObject({
       _meta: {
@@ -496,8 +494,8 @@ describe("tool registration", () => {
       teardown: true,
     });
     expect({
-      decide: text.includes("decide_wordpress_write"),
-      preview: text.includes("preview_wordpress_write"),
+      decide: text.includes("decide_write"),
+      preview: text.includes("preview_write"),
     }).toStrictEqual({ decide: true, preview: true });
   });
 
@@ -651,24 +649,61 @@ describe("execute", () => {
     });
   });
 
-  // The card carries the decision, so the model must not be handed an external
-  // link to repeat beside it.
-  it("withholds the approval URL once the card is armed", async () => {
+  // The server armed the card, but it cannot know the host will run the card's
+  // calls: a card that fails must still leave a way to answer the run.
+  it("still names the approval URL once the card is armed", async () => {
+    const log = requestLogger();
     const { stub } = stubRuntime();
 
-    const result = await callTool(
-      toolServer(stub, requestLogger()),
-      "execute",
-      { code: "async () => wp.apply({})" }
-    );
+    const result = await callTool(toolServer(stub, log), "execute", {
+      code: "async () => wp.apply({})",
+    });
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
       status: "pending",
     });
-    expect(JSON.stringify(result.structuredContent)).not.toContain(
-      "/mcp/approvals/"
+    expect(result.structuredContent).toMatchObject({
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
+    });
+    expect(summaryText(result)).toContain(
+      "https://wordpress.example/mcp/approvals/exec_1"
     );
-    expect(summaryText(result)).not.toContain("/mcp/approvals/");
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "armed", clientApps: "advertised" },
+      status: "paused",
+    });
+  });
+
+  it("records an approval card that could not be armed", async () => {
+    const log = requestLogger();
+    const { stub } = stubRuntime();
+
+    const failing: RuntimeStub = {
+      ...stub,
+      issueNonce: () => Promise.reject(new Error("storage unavailable")),
+    };
+
+    await callTool(toolServer(failing, log), "execute", {
+      code: "async () => wp.apply({})",
+    });
+
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "not_armed", clientApps: "advertised" },
+    });
+  });
+
+  it("records a paused run offered no card", async () => {
+    const log = requestLogger();
+    const { stub } = stubRuntime();
+
+    await callTool(toolServer(stub, log, "absent"), "execute", {
+      code: "async () => wp.apply({})",
+    });
+
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "not_offered", clientApps: "absent" },
+    });
   });
 
   it("arms the card with a one-time token and previews nothing yet", async () => {
@@ -682,6 +717,7 @@ describe("execute", () => {
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toStrictEqual({
       approvalToken: "nonce-exec_1-1",
+      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
       executionId: "exec_1",
       status: "pending",
     });
@@ -730,7 +766,7 @@ describe("execute", () => {
           approvalToken: approvalToken(execution),
           executionId: "exec_1",
         },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
     });
 
@@ -787,7 +823,7 @@ describe("execute", () => {
           approvalToken: approvalToken(execution),
           executionId: "exec_1",
         },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
     });
 
@@ -812,11 +848,11 @@ describe("execute", () => {
       const token = approvalToken(execution);
       await client.callTool({
         arguments: { approvalToken: token, executionId: "exec_1" },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
       await client.callTool({
         arguments: { approvalToken: token, executionId: "exec_1" },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
 
       return await client.callTool({
@@ -825,7 +861,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 
@@ -854,7 +890,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
 
       expect(decision._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
@@ -872,7 +908,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 
@@ -906,7 +942,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
 
       return { first: firstToken, second: approvalToken(decision) };
@@ -942,7 +978,7 @@ describe("execute", () => {
             decision: "approve",
             executionId: "exec_1",
           },
-          name: "decide_wordpress_write",
+          name: "decide_write",
         }),
       };
     });
@@ -962,7 +998,7 @@ describe("execute", () => {
 
     const result = await callTool(
       toolServer(stub, requestLogger()),
-      "decide_wordpress_write",
+      "decide_write",
       {
         approvalToken: "00".repeat(32),
         decision: "approve",
@@ -984,7 +1020,7 @@ describe("execute", () => {
 
     const result = await callTool(
       toolServer(stub, requestLogger()),
-      "preview_wordpress_write",
+      "preview_write",
       { approvalToken: "00".repeat(32), executionId: "exec_1" }
     );
 
@@ -1008,7 +1044,7 @@ describe("execute", () => {
           decision: "reject",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 
@@ -1155,9 +1191,9 @@ describe("WordPress requests on the wide event", () => {
     });
 
     expect({
-      describe_site: describeLog.getContext().wordpress,
-      execute: executeLog.getContext().wordpress,
-      get_run: runLog.getContext().wordpress,
+      describe_site: describeLog.getContext().upstream,
+      execute: executeLog.getContext().upstream,
+      get_run: runLog.getContext().upstream,
     }).toStrictEqual({
       describe_site: wordpress,
       execute: wordpress,

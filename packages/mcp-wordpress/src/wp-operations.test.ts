@@ -41,7 +41,7 @@ describe(parseApplyInput, () => {
     });
 
     expect(parsed.operations).toHaveLength(1);
-    expect(parsed.operations[0]?.fields?.title).toBe("Hello");
+    expect(parsed.operations[0]).toMatchObject({ fields: { title: "Hello" } });
   });
 
   it("rejects an operation that changes nothing", () => {

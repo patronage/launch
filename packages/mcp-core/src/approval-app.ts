@@ -11,28 +11,33 @@ import { APPROVAL_STYLE, escapeHtml } from "./approval-page";
 // The suffix is bumped whenever the embedded app shell changes incompatibly;
 // the older URIs keep serving the current shell so a host pinned to one of
 // them still gets a card that works against today's tools.
-export const APPROVAL_APP_URI = "ui://patronage/wordpress-approval-v3.html";
+export const APPROVAL_APP_URI = "ui://patronage/cms-approval-v4.html";
 
 export const LEGACY_APPROVAL_APP_URIS = [
   "ui://patronage/wordpress-approval.html",
   "ui://patronage/wordpress-approval-v2.html",
+  "ui://patronage/wordpress-approval-v3.html",
 ];
 
 export const APPROVAL_APP_META_KEY = "com.patronage/approval";
 export const APPROVAL_APP_NAME = "CMS write approval";
 
-// What the paused tool result hands the card, and nothing else. The host is
+// What the paused tool result hands the card, and nothing else. A run the card
+// may still answer also names its approval URL, so a card whose calls fail can
+// show the person the page that answers the same run. The host is
 // expected to keep tool-result `_meta` out of the model's context, so the
 // one-time approval token lives here and is never copied into `content` or
 // `structuredContent`. Everything a person reads is fetched by the card
-// itself, from `preview_wordpress_write`, once the card is open.
+// itself, from `preview_write`, once the card is open.
 export type ApprovalAppState =
   | {
       approvalToken: string;
+      approvalUrl?: string;
       executionId: string;
       status: "pending";
     }
   | {
+      approvalUrl?: string;
       executionId: string;
       status: "approved" | "denied" | "error";
       summary: string;
@@ -69,7 +74,8 @@ main{padding:1.25rem;border-radius:10px}
 h1{font-size:1.15rem}
 p.actions{margin:1.25rem 0 0}
 p.actions:empty{display:none}
-button:disabled{cursor:not-allowed;opacity:.5}`;
+button:disabled{cursor:not-allowed;opacity:.5}
+p.reason,p.link{font-size:.8rem;opacity:.75;overflow-wrap:anywhere}`;
 
 // One self-contained document: no external stylesheet, no font, no script
 // source, no image. The card's browser client is the official MCP Apps `App`

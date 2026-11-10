@@ -26,6 +26,7 @@ import { CallerScopeError } from "./caller";
 import type { CallerContext } from "./caller";
 import {
   recordApprovalDecision,
+  recordApprovalSurface,
   recordRun,
   recordUpstreamRequests,
   recordWriteReceipt,
@@ -79,20 +80,26 @@ export interface RuntimeApi {
 export type RuntimeStub = RuntimeApi;
 
 // What this caller's client said it can render, and therefore which approval
-// surfaces a paused run is given.
+// surfaces a paused run is given. Every paused result names the approval URL,
+// whatever the answer: a card the server armed is not a card the host can run,
+// and a card that fails must leave a way to answer the run.
 //
 // - `advertised`: the client named the MCP Apps UI extension. It gets the card
-//   and the app-only tools, and an armed card gets NO approval URL in text or
-//   structured content — the model must not repeat an external link beside the
-//   native card.
+//   and the app-only tools, and the URL as the fallback.
 // - `absent`: the client named its capabilities and the extension was not among
 //   them. No app surface at all, and the approval URL is the whole answer.
-// - `unknown`: the card and the tools AND the URL. A client that never
+// - `unknown`: the card and the tools as well as the URL. A client that never
 //   advertised MCP Apps has promised nothing about tool-result `_meta`, so this
 //   is not what an unreadable client gets by default — `index.ts` maps it to
-//   `absent` unless `APPROVAL_CARD_FOR_UNKNOWN_CLIENTS` is on, and the URL
-//   rides along because such a client may have no card to answer with.
+//   `absent` unless `APPROVAL_CARD_FOR_UNKNOWN_CLIENTS` is on.
 export type ClientAppSupport = "absent" | "advertised" | "unknown";
+
+// The approval card's own tools, which only the card calls.
+export const APP_ONLY_TOOLS = [
+  "preview_write",
+  "progress_write",
+  "decide_write",
+] as const;
 
 export interface ToolDeps {
   caller: CallerContext;
@@ -523,9 +530,12 @@ const pendingCardState = async (
   log: McpRequestLogger,
   executionId: string
 ): Promise<ApprovalAppState> => {
+  const link = approvalUrl(deps.origin, executionId);
+
   try {
     return {
       approvalToken: await deps.stub.issueNonce(executionId),
+      approvalUrl: link,
       executionId,
       status: "pending",
     };
@@ -533,6 +543,7 @@ const pendingCardState = async (
     log.set({ mcp: { errorName: toolFailure(error).name } });
 
     return {
+      approvalUrl: link,
       executionId,
       status: "error",
       summary:
@@ -584,7 +595,7 @@ const answerDecision = async (
       ? await deps.stub.approve(executionId, deps.caller)
       : await deps.stub.reject(executionId, deps.caller);
 
-  recordUpstreamRequests(log, outcome.wordpress);
+  recordUpstreamRequests(log, outcome.upstream);
   const answered = outcome.value;
 
   if (answered.approvedReceipt) {
@@ -602,7 +613,7 @@ const answerDecision = async (
   // write, whose preview only exists once `getRun` computes it. A fresh token
   // is minted for that pause, so one pause is still exactly one decision.
   const next = await deps.stub.getRun(executionId, deps.caller);
-  recordUpstreamRequests(log, next.wordpress);
+  recordUpstreamRequests(log, next.upstream);
 
   return {
     state: await pendingCardState(deps, log, executionId),
@@ -621,7 +632,7 @@ const registerApprovalTools = (
 ): void => {
   registerAppTool(
     server,
-    "preview_wordpress_write",
+    "preview_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -642,7 +653,7 @@ const registerApprovalTools = (
     },
     async (input) => {
       const { executionId } = input;
-      log.set({ mcp: { outcome: "pending", tool: "preview_wordpress_write" } });
+      log.set({ mcp: { outcome: "pending", tool: "preview_write" } });
 
       if (!(await deps.stub.verifyNonce(executionId, input.approvalToken))) {
         log.setLevel("warn");
@@ -652,11 +663,11 @@ const registerApprovalTools = (
       }
 
       const { failed, value } = await withToolLog<ApprovalCardView>(
-        "preview_wordpress_write",
+        "preview_write",
         log,
         async () => {
           const outcome = await deps.stub.getRun(executionId, deps.caller);
-          recordUpstreamRequests(log, outcome.wordpress);
+          recordUpstreamRequests(log, outcome.upstream);
 
           return outcome.value.status === "paused"
             ? approvalCardView(outcome.value, executionId)
@@ -671,6 +682,7 @@ const registerApprovalTools = (
         value.canApprove
           ? {
               approvalToken: input.approvalToken,
+              approvalUrl: approvalUrl(deps.origin, executionId),
               executionId,
               status: "pending",
             }
@@ -687,7 +699,7 @@ const registerApprovalTools = (
   // never field values — and the token is already spent by the decision.
   registerAppTool(
     server,
-    "progress_wordpress_write",
+    "progress_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -706,7 +718,7 @@ const registerApprovalTools = (
       const { executionId } = input;
 
       const { failed, value } = await withToolLog<ProgressCardView>(
-        "progress_wordpress_write",
+        "progress_write",
         log,
         async () => {
           const outcome = await deps.stub.getRun(executionId);
@@ -729,7 +741,7 @@ const registerApprovalTools = (
 
   registerAppTool(
     server,
-    "decide_wordpress_write",
+    "decide_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -747,7 +759,7 @@ const registerApprovalTools = (
     async (input) => {
       const { decision, executionId } = input;
       const startedAt = Date.now();
-      log.set({ mcp: { outcome: "pending", tool: "decide_wordpress_write" } });
+      log.set({ mcp: { outcome: "pending", tool: "decide_write" } });
 
       // The token is spent BEFORE the runtime is touched, so a second press of
       // Approve, or a replayed tool call, finds nothing to verify against.
@@ -768,7 +780,7 @@ const registerApprovalTools = (
       });
 
       const { value } = await withToolLog<DecisionOutcome>(
-        "decide_wordpress_write",
+        "decide_write",
         log,
         async () => ({
           answer: await answerDecision(deps, log, executionId, decision),
@@ -802,7 +814,14 @@ export const registerTools = (
   server: McpServer,
   deps: ToolDeps,
   log: McpRequestLogger,
-  support: ClientAppSupport
+  support: ClientAppSupport,
+  // The request is a `tools/call` for one of `APP_ONLY_TOOLS`. A host may
+  // forward the card's call without the capabilities `_meta` it sent on
+  // `execute`, and the card was already offered, so those tools are served
+  // anyway. Preview and decide check the one-time approval token, which only
+  // ever reached a client that was handed the card; progress reports no more
+  // than the model-visible `get_run` already does.
+  appToolCall = false
 ): void => {
   const apps = support !== "absent";
 
@@ -831,7 +850,7 @@ export const registerTools = (
           deps.caller
         );
 
-        recordUpstreamRequests(log, outcome.wordpress);
+        recordUpstreamRequests(log, outcome.upstream);
 
         return outcome.value;
       },
@@ -845,13 +864,15 @@ export const registerTools = (
         ? await pendingCardState(deps, log, value.executionId)
         : undefined;
 
-    // The link is withheld only where the card actually carries the decision:
-    // a client that advertised the extension and whose card was armed. A card
-    // the Worker could not arm, and a client that advertised nothing, would
-    // otherwise be left with no way to approve at all.
-    const armed = support === "advertised" && state?.status === "pending";
-    const shown = armed ? value : withApprovalUrl(value, deps.origin);
+    // The link is always named. The card stays the first choice, but the
+    // server cannot know whether the host will run the card's calls, and a
+    // card that fails would otherwise leave the write with no way to answer.
+    const shown = withApprovalUrl(value, deps.origin);
     const result = textResult(shown, executeText(shown), failed);
+
+    if (value.status === "paused") {
+      recordApprovalSurface(log, support, state);
+    }
 
     return state ? { ...result, _meta: approvalMeta(state) } : result;
   };
@@ -872,6 +893,9 @@ export const registerTools = (
 
   if (apps) {
     registerApprovalAppResource(server);
+  }
+
+  if (apps || appToolCall) {
     registerApprovalTools(server, deps, log);
   }
 
@@ -895,7 +919,7 @@ export const registerTools = (
         log,
         async () => {
           const outcome = await deps.stub.describeSite(deps.caller);
-          recordUpstreamRequests(log, outcome.wordpress);
+          recordUpstreamRequests(log, outcome.upstream);
 
           return outcome.value;
         },
@@ -926,7 +950,7 @@ export const registerTools = (
         log,
         async () => {
           const outcome = await deps.stub.getRun(input.executionId);
-          recordUpstreamRequests(log, outcome.wordpress);
+          recordUpstreamRequests(log, outcome.upstream);
 
           return outcome.value;
         },

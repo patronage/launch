@@ -66,6 +66,9 @@ export interface UpstreamResponseInfo {
 
 export interface UpstreamClient {
   apiUrl: string;
+  // The connector's sandbox global (`wp`, `payload`), recorded on each request
+  // in the wide event so a gateway with two CMSs can tell their traffic apart.
+  connector?: string;
   auth: UpstreamAuth;
   inspect?: (response: Response, json: JsonValue) => UpstreamResponseInfo;
   // Names the CMS in error messages ("Payload returned invalid JSON").
@@ -82,7 +85,7 @@ export interface UpstreamTelemetry {
   // The bounded, wide-event-shaped record of the same requests. The Durable
   // Object returns this on every RPC because it, not the Worker, is the side
   // that talks to the CMS. Undefined until the first request is made.
-  wordpress?: UpstreamRequestLog;
+  upstream?: UpstreamRequestLog;
 }
 
 export class UpstreamRequestError extends Error {
@@ -274,7 +277,7 @@ const collectUpstreamEvent = (
   event: UpstreamRequestEvent,
   actor?: UpstreamActor
 ): void => {
-  const collected: UpstreamRequestLog = telemetry.wordpress ?? {
+  const collected: UpstreamRequestLog = telemetry.upstream ?? {
     auth,
     requests: [],
     target,
@@ -290,17 +293,18 @@ const collectUpstreamEvent = (
     collected.truncated = (collected.truncated ?? 0) + 1;
   }
 
-  telemetry.wordpress = collected;
+  telemetry.upstream = collected;
 };
 
 const recordUpstreamRequest = (
   telemetry: UpstreamTelemetry,
   url: URL,
-  auth: UpstreamAuth["kind"],
+  client: UpstreamClient,
   request: UpstreamRequestMeasurement,
   actor?: UpstreamActor
 ): void => {
   telemetry.requests.push(request);
+  const auth = client.auth.kind;
 
   const event: UpstreamRequestEvent = {
     durationMs: request.durationMs,
@@ -314,19 +318,23 @@ const recordUpstreamRequest = (
     event.errorCode = request.errorCode;
   }
 
+  if (client.connector) {
+    event.connector = client.connector;
+  }
+
   collectUpstreamEvent(telemetry, auth, url.hostname, event, actor);
 
-  const wordpress: UpstreamRequestLog = {
+  const upstream: UpstreamRequestLog = {
     auth,
     requests: [event],
     target: url.hostname,
   };
 
   if (actor) {
-    wordpress.actor = actor;
+    upstream.actor = actor;
   }
 
-  telemetry.log?.set({ wordpress });
+  telemetry.log?.set({ upstream });
 };
 
 export const upstreamFetch = async (
@@ -374,7 +382,7 @@ export const upstreamFetch = async (
       measurement.errorCode = errorCode;
     }
 
-    recordUpstreamRequest(telemetry, url, client.auth.kind, measurement, actor);
+    recordUpstreamRequest(telemetry, url, client, measurement, actor);
     const { totalItems, totalPages } = info;
 
     const result: UpstreamFetchResult = {
@@ -397,7 +405,7 @@ export const upstreamFetch = async (
 
     return result;
   } catch (error) {
-    recordUpstreamRequest(telemetry, url, client.auth.kind, {
+    recordUpstreamRequest(telemetry, url, client, {
       durationMs: Date.now() - startedAt,
       method,
       outcome: "error",

@@ -94,16 +94,16 @@ const RECORD_WINDOW = 100;
 
 // Every CMS request one RPC makes is collected on that RPC's telemetry
 // and returned beside its result, because the Worker no longer talks to
-// the CMS and has no other way to put the `wordpress` field on its wide
+// the CMS and has no other way to put the `upstream` field on its wide
 // event. An RPC that made no request (a cache hit, a read of a stored run)
 // reports none.
 const toRuntimeOutcome = <TValue>(
   value: TValue,
   telemetry: UpstreamTelemetry
 ): RuntimeOutcome<TValue> => {
-  const { wordpress } = telemetry;
+  const { upstream } = telemetry;
 
-  return wordpress ? { value, wordpress } : { value };
+  return upstream ? { upstream, value } : { value };
 };
 
 // One instance per deployment. It is shared by every caller, so it holds no
