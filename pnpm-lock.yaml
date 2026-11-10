@@ -207,6 +207,9 @@ importers:
       '@cloudflare/config':
         specifier: 0.29.0
         version: 0.29.0
+      '@launch/worker-scripts':
+        specifier: workspace:*
+        version: link:../../packages/worker-scripts
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
@@ -238,6 +241,9 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.v.7
         version: 2.0.0-beta.v.7(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261023.1)
+      '@launch/worker-scripts':
+        specifier: workspace:*
+        version: link:../../packages/worker-scripts
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
@@ -338,6 +344,9 @@ importers:
       '@launch/demo-content':
         specifier: workspace:*
         version: link:../../packages/demo-content
+      '@launch/worker-scripts':
+        specifier: workspace:*
+        version: link:../../packages/worker-scripts
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.0(@types/node@24.12.3)(esbuild@0.25.12)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -429,6 +438,9 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@17.0.2)
+      '@launch/worker-scripts':
+        specifier: workspace:*
+        version: link:../../packages/worker-scripts
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -779,6 +791,19 @@ importers:
       vitest:
         specifier: 4.1.12
         version: 4.1.12(@types/node@26.6.6)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/worker-scripts:
+    dependencies:
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   wordpress-shared/patronage-access: {}
 

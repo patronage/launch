@@ -1,148 +1,26 @@
 #!/usr/bin/env node
-// Connect this Worker to Workers Builds through the Cloudflare API, so pushes
-// to the repo build and deploy it with no GitHub Actions.
-//
-//   pnpm run builds:configure [--dry-run]
-//
-// Needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, plus:
-//   BUILD_TOKEN_UUID      from `cf builds tokens list`
-//   GITHUB_OWNER_ID       numeric id of the GitHub org that owns the repo
-//   GITHUB_REPO_ID        numeric id of the repo
-// and optionally WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS, which become build
-// variables.
-// The Cloudflare GitHub app must already be installed on the repo (a one-time
-// dashboard step). The Worker must exist, so run `pnpm run deploy` once first.
-//
-// Production builds run on PRODUCTION_BRANCH (default main). Every other
-// branch gets a Worker Preview named after the branch. A build only starts
-// when a file under this app, the research notes in docs/, packages/ or the
-// workspace lockfile changes.
-import { readFileSync } from "node:fs";
-import path from "node:path";
+// pnpm run builds:configure [--dry-run]. The steps and required ids are in
+// packages/worker-scripts/src/workers-builds.ts.
+import { main } from "@launch/worker-scripts/script";
+import { configureWorkersBuilds } from "@launch/worker-scripts/workers-builds";
 
-import { loadWorkerConfig, root, run } from "./worker-config.mjs";
+import { loadWorkerConfig, root } from "./worker-config.mjs";
 
-const dryRun = process.argv.includes("--dry-run");
+await main(root, (ctx) =>
+  configureWorkersBuilds(ctx, {
+    // Read when the site is built.
+    buildVariables: ["WORKER_NAME", "WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"],
+    // The research notes in docs/ publish on this site.
+    extraWatchPaths: ["docs/*"],
+    previews: true,
+    // Blume has no Vite build, so read cloudflare.config.ts directly.
+    resolveWorker: async () => {
+      const { worker } = await loadWorkerConfig({
+        isPreview: false,
+        mode: "production",
+      });
 
-const required = [
-  "CLOUDFLARE_ACCOUNT_ID",
-  "CLOUDFLARE_API_TOKEN",
-  "BUILD_TOKEN_UUID",
-  "GITHUB_OWNER_ID",
-  "GITHUB_REPO_ID",
-];
-
-const missing = required.filter((name) => !process.env[name]);
-
-if (missing.length > 0) {
-  console.error(`Set ${missing.join(", ")}.`);
-  process.exit(1);
-}
-
-const { env } = process;
-const repoRoot = path.resolve(root, "../..");
-const appDir = path.relative(repoRoot, root);
-
-const readRepoFile = (file) =>
-  readFileSync(path.join(repoRoot, file), "utf-8").trim();
-
-const appName = JSON.parse(
-  readFileSync(path.join(root, "package.json"), "utf-8")
-).name;
-
-const [, pnpmVersion] = JSON.parse(
-  readRepoFile("package.json")
-).packageManager.split("@");
-
-const { worker } = await loadWorkerConfig({
-  isPreview: false,
-  mode: "production",
-});
-
-const workerName = worker.name;
-
-const lookupScriptTag = async () => {
-  if (dryRun) {
-    return "<script-tag>";
-  }
-
-  const res = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts`,
-    { headers: { Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` } }
-  );
-
-  const body = await res.json();
-  const script = body.result?.find((item) => item.id === workerName);
-
-  if (!script) {
-    console.error(`Worker ${workerName} not found. Run pnpm run deploy first.`);
-    process.exit(1);
-  }
-
-  return script.tag;
-};
-
-// Install and lint the workspace, then check this app and its dependencies.
-// The full verify also runs PHP checks, which the build image cannot execute.
-const shared = {
-  build_caching_enabled: true,
-  build_command: [
-    "pnpm -w run deps:verify",
-    "pnpm -w run lint",
-    `pnpm --filter "${appName}..." --if-present run typecheck`,
-    `pnpm --filter "${appName}..." --if-present run test`,
-  ].join(" && "),
-  build_token_uuid: env.BUILD_TOKEN_UUID,
-  // The API takes each variable as { value, is_secret }, not a bare string.
-  // WORKER_NAME, WORKER_DOMAIN and WORKER_DOMAIN_PREVIEWS are read when the
-  // site is built, so they are passed on when set here.
-  environment_variables: Object.fromEntries(
-    Object.entries({
-      NODE_VERSION: readRepoFile(".nvmrc"),
-      PNPM_VERSION: pnpmVersion,
-      SKIP_DEPENDENCY_INSTALL: "1",
-      ...Object.fromEntries(
-        ["WORKER_NAME", "WORKER_DOMAIN", "WORKER_DOMAIN_PREVIEWS"].flatMap(
-          (name) => (env[name] ? [[name, env[name]]] : [])
-        )
-      ),
-    }).map(([name, value]) => [name, { is_secret: false, value }])
-  ),
-  path_includes: [
-    `${appDir}/*`,
-    "docs/*",
-    "packages/*",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-  ],
-  root_directory: appDir,
-};
-
-const body = {
-  git_repository: {
-    branch: env.PRODUCTION_BRANCH ?? "main",
-    provider_account_id: env.GITHUB_OWNER_ID,
-    provider_account_name: env.GITHUB_OWNER ?? "patronage",
-    provider_type: "github",
-    repo_id: env.GITHUB_REPO_ID,
-    repo_name: env.GITHUB_REPO ?? "launch",
-  },
-  previews_base_config: {
-    ...shared,
-    deploy_command: "pnpm run deploy --preview",
-  },
-  previews_enabled: true,
-  production_settings: { ...shared, deploy_command: "pnpm run deploy" },
-  script_tag: await lookupScriptTag(),
-};
-
-run("pnpm", [
-  "exec",
-  "cf",
-  "builds",
-  "workers",
-  "create",
-  "--body",
-  JSON.stringify(body),
-  ...(dryRun ? ["--dry-run"] : []),
-]);
+      return { name: worker.name, secretNames: [] };
+    },
+  })
+);
