@@ -158,4 +158,14 @@ describe("WordPress Access transport", () => {
 
     await expect(wordpressFetch(graphqlUrl)).rejects.toThrow("Access refused");
   });
+
+  it("returns WordPress's own JSON 403 for the caller to handle", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ code: "rest_forbidden" }, { status: 403 })
+    );
+
+    const response = await wordpressFetch(graphqlUrl);
+
+    expect(response.status).toBe(403);
+  });
 });

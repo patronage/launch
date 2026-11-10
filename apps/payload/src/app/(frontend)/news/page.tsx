@@ -1,4 +1,5 @@
 import {
+  CARD_IMAGE_SIZES,
   Card,
   CardContent,
   CardDescription,
@@ -58,6 +59,7 @@ const NewsPage = async () => {
                         <Img
                           className="aspect-3/2 w-full object-cover"
                           image={image}
+                          sizes={CARD_IMAGE_SIZES}
                         />
                       ) : null}
                       <CardHeader>

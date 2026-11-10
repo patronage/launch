@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# wp-deploy 2.8.0 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
-# Version: 2.8.0
+# wp-deploy 2.8.1 (patronage/launch: wordpress-shared/wp-deploy/deploy.sh)
+# Version: 2.8.1
 # Deploy WordPress by pushing a packaged commit to the host's Git remote.
 # Sites vendor this file unchanged, or install it with Composer as
 # patronage/launch-wp-deploy and run it through _build/ shims. Put site settings in _build/deploy.env.
@@ -59,7 +59,7 @@
 
 set -euo pipefail
 
-WP_DEPLOY_VERSION="2.8.0"
+WP_DEPLOY_VERSION="2.8.1"
 
 # The kit's own folder, and the site's _build/ folder with its settings. They
 # are the same folder when the site copies or symlinks the kit. When Composer
@@ -403,9 +403,17 @@ remote_program() {
 }
 
 # Shell function for remote scripts: print a file's Git blob id. WP Engine's
-# gateway has no git, so hash "blob <size>\0<content>" with sha1sum.
+# gateway has no git, so hash "blob <size>\0<content>" with sha1sum. Git
+# stores a symlink as a blob of its target, so a link is hashed by its target
+# rather than by the file it points to.
 # shellcheck disable=SC2016
 REMOTE_BLOB_HASH='blob_hash() {
+  if [ -L "$1" ]; then
+    local target; target="$(readlink -- "$1")"
+    if command -v git >/dev/null; then printf %s "$target" | git hash-object --stdin; return; fi
+    { printf "blob %d\0" "$(printf %s "$target" | wc -c)"; printf %s "$target"; } | sha1sum | cut -c1-40
+    return
+  fi
   if command -v git >/dev/null; then git hash-object -- "$1"; return; fi
   { printf "blob %d\0" "$(($(wc -c <"$1")))"; cat -- "$1"; } | sha1sum | cut -c1-40
 }'
@@ -543,11 +551,13 @@ pushed_diff() {
   fi
 }
 
+# Unquoted paths, like pushed_diff's: the two are joined by path, and a quoted
+# non-ASCII name would never match its unquoted twin.
 pushed_ls_tree() {
   if [ "$PUSH_REF" = "$DEPLOY_COMMIT" ]; then
-    git ls-tree -r "$1" -- .
+    git -c core.quotePath=false ls-tree -r "$1" -- .
   else
-    git ls-tree -r --full-tree "$1"
+    git -c core.quotePath=false ls-tree -r --full-tree "$1"
   fi
 }
 
@@ -686,8 +696,8 @@ check_server_files() {
     cd "$1" || exit 1
     while IFS=$'"'"'\t'"'"' read -r status path; do
       if [ "$status" = D ]; then
-        [ -e "$path" ] && printf "present\t%s\n" "$path"
-      elif [ -f "$path" ]; then
+        { [ -e "$path" ] || [ -L "$path" ]; } && printf "present\t%s\n" "$path"
+      elif [ -L "$path" ] || [ -f "$path" ]; then
         printf "%s\t%s\n" "$(blob_hash "$path")" "$path"
       else
         printf "missing\t%s\n" "$path"

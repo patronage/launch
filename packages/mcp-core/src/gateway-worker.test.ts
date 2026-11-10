@@ -527,6 +527,31 @@ describe("Worker fetch", () => {
     expect(runtimeCalls).toHaveLength(0);
   });
 
+  it("refuses a browser request from an Origin the deployment does not serve", async () => {
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, []);
+    const request = toolRequest("https://launch-mcp.example.com/mcp", token);
+    request.headers.set("Origin", "https://elsewhere.example");
+
+    const response = await worker.fetch(request, env, executionContext());
+    await response.text();
+
+    expect(response.status).toBe(403);
+    expect(runtimeCalls).toHaveLength(0);
+  });
+
+  it("accepts a browser request from the deployment's own Origin", async () => {
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, []);
+    const request = toolRequest("https://launch-mcp.example.com/mcp", token);
+    request.headers.set("Origin", "https://launch-mcp.example.com");
+
+    const response = await worker.fetch(request, env, executionContext());
+    await response.text();
+
+    expect(response.status).toBe(200);
+  });
+
   it("challenges a request without an Access assertion", async () => {
     const events: unknown[] = [];
 

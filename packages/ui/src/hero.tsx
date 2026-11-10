@@ -100,6 +100,7 @@ const SplitHero = ({ hero, joinsNext }: HeroProps) => (
           className="aspect-4/3 w-full rounded-xl object-cover"
           image={hero.image}
           loading="eager"
+          sizes="(min-width: 768px) 50vw, 100vw"
         />
       ) : null}
     </Container>

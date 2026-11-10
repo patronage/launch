@@ -129,6 +129,24 @@ function set_transient( string $key, mixed $value, int $expiration ): bool {
 	return true;
 }
 
+/** @var array<int,array{response:array{code:int},body:string}|WP_Error> */
+$test_remote_responses = array();
+$test_remote_calls     = 0;
+
+function wp_remote_get( string $url, array $args = array() ): array|WP_Error {
+	global $test_remote_responses, $test_remote_calls;
+	++$test_remote_calls;
+	return array_shift( $test_remote_responses ) ?? new WP_Error( 'http_request_failed', 'unreachable' );
+}
+
+function wp_remote_retrieve_response_code( array $response ): int {
+	return $response['response']['code'];
+}
+
+function wp_remote_retrieve_body( array $response ): string {
+	return $response['body'];
+}
+
 function wp_parse_url( string $url ): array|false {
 	return parse_url( $url );
 }
@@ -283,6 +301,48 @@ foreach (
 		fwrite( STDERR, "Issuer check got {$candidate} wrong.\n" );
 		exit( 1 );
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Certificate fetch. An outage must not cost every request its own fetch
+// timeout, and the last good certificates stand in while it lasts.
+// ---------------------------------------------------------------------------
+
+$certificates = new ReflectionMethod( Patronage_Access_REST_Auth::class, 'certificates' );
+$test_transients = array();
+$test_remote_calls = 0;
+$test_remote_responses = array(
+	array(
+		'body'     => (string) json_encode( array( 'public_certs' => array( array( 'cert' => 'PEM', 'kid' => 'k1' ) ) ) ),
+		'response' => array( 'code' => 200 ),
+	),
+);
+
+if ( array( 'k1' => 'PEM' ) !== $certificates->invoke( null, PATRONAGE_ACCESS_TEAM_DOMAIN, false ) ) {
+	fwrite( STDERR, "Certificates were not fetched.\n" );
+	exit( 1 );
+}
+
+// The fresh cache expires; Cloudflare is now unreachable.
+unset( $test_transients[ $cache_key ] );
+$first  = $certificates->invoke( null, PATRONAGE_ACCESS_TEAM_DOMAIN, false );
+$second = $certificates->invoke( null, PATRONAGE_ACCESS_TEAM_DOMAIN, true );
+if ( array( 'k1' => 'PEM' ) !== $first || array( 'k1' => 'PEM' ) !== $second ) {
+	fwrite( STDERR, "The last good certificates did not stand in during an outage.\n" );
+	exit( 1 );
+}
+if ( 2 !== $test_remote_calls ) {
+	fwrite( STDERR, "A failed certificate fetch was retried on the next request.\n" );
+	exit( 1 );
+}
+
+// With no good set on record, the outage fails closed, still without a refetch.
+$test_transients = array( 'patronage_access_certs_failed_' . substr( hash( 'sha256', PATRONAGE_ACCESS_TEAM_DOMAIN ), 0, 32 ) => '1' );
+$test_remote_calls = 0;
+$result = $certificates->invoke( null, PATRONAGE_ACCESS_TEAM_DOMAIN, false );
+if ( ! ( $result instanceof WP_Error ) || 0 !== $test_remote_calls ) {
+	fwrite( STDERR, "An outage with no stored certificates did not fail closed.\n" );
+	exit( 1 );
 }
 
 fwrite( STDOUT, "Early GraphQL authentication and origin guard tests passed.\n" );

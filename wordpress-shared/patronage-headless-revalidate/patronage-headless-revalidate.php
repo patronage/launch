@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Headless Revalidate
  * Description: Tells the headless front-end to revalidate a page when its WordPress content is published, edited, renamed, unpublished or trashed.
- * Version: 2.1.0
+ * Version: 2.2.0
  * Author: Patronage
  *
  * It does nothing until this environment's wp-config.php defines the first
@@ -28,8 +28,14 @@ if (!defined('ABSPATH')) {
   exit();
 }
 
-const PATRONAGE_HEADLESS_REVALIDATE_VERSION = '2.1.0';
+const PATRONAGE_HEADLESS_REVALIDATE_VERSION = '2.2.0';
 const PATRONAGE_HEADLESS_REVALIDATE_STATUS = 'patronage_headless_revalidate_last_send';
+// Paths and tags whose send failed, kept for the next send and a cron retry.
+const PATRONAGE_HEADLESS_REVALIDATE_RETRY = 'patronage_headless_revalidate_retry';
+const PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK = 'patronage_headless_revalidate_retry';
+// The most paths a retry keeps; the newest win. Each send also carries the
+// `wordpress` tag, so a page past the limit is still revalidated by tag.
+const PATRONAGE_HEADLESS_REVALIDATE_RETRY_LIMIT = 500;
 
 const PATRONAGE_HEADLESS_REVALIDATE_EMPTY = [
   'paths' => [],
@@ -145,16 +151,54 @@ function patronage_headless_revalidate_log(string $message): void {
 }
 
 /**
- * Sends the queue now and empties it. Logs and stores the paths, tags and
- * response code, never the request, whose body or headers carry the secret.
+ * Paths and tags a failed send left for retry.
+ *
+ * @return array{paths: string[], tags: string[], attempts: int}
+ */
+function patronage_headless_revalidate_pending_retry(): array {
+  $stored = get_option(PATRONAGE_HEADLESS_REVALIDATE_RETRY, []);
+  $stored = is_array($stored) ? $stored : [];
+  return [
+    'paths' => array_values(array_filter((array) ($stored['paths'] ?? []), 'is_string')),
+    'tags' => array_values(array_filter((array) ($stored['tags'] ?? []), 'is_string')),
+    'attempts' => (int) ($stored['attempts'] ?? 0),
+  ];
+}
+
+/**
+ * Keeps a failed send's paths and tags, so the next send carries them, and
+ * schedules a retry that backs off from a minute to an hour.
+ */
+function patronage_headless_revalidate_keep_for_retry(array $paths, array $tags, int $attempts): void {
+  update_option(
+    PATRONAGE_HEADLESS_REVALIDATE_RETRY,
+    [
+      'paths' => array_slice($paths, -PATRONAGE_HEADLESS_REVALIDATE_RETRY_LIMIT),
+      'tags' => $tags,
+      'attempts' => $attempts,
+    ],
+    false,
+  );
+  if (!wp_next_scheduled(PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK)) {
+    $delay = min(60 * 2 ** min($attempts - 1, 6), HOUR_IN_SECONDS);
+    wp_schedule_single_event(time() + $delay, PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK);
+  }
+}
+
+/**
+ * Sends the queue now, with anything a failed send left for retry, and
+ * empties it. A send that fails keeps its paths and tags for the next one.
+ * Logs and stores the paths, tags and response code, never the request,
+ * whose body or headers carry the secret.
  *
  * @return array{ok: bool, status: int, message: string, paths: string[], tags: string[]}
  */
 function patronage_headless_revalidate_flush(): array {
   patronage_headless_revalidate_resolve_posts();
   $queue = &patronage_headless_revalidate_queue();
-  $paths = array_keys($queue['paths']);
-  $tags = array_keys($queue['tags']);
+  $retry = patronage_headless_revalidate_pending_retry();
+  $paths = array_values(array_unique(array_merge($retry['paths'], array_keys($queue['paths']))));
+  $tags = array_values(array_unique(array_merge($retry['tags'], array_keys($queue['tags']))));
   $queue = PATRONAGE_HEADLESS_REVALIDATE_EMPTY;
 
   $result = ['paths' => $paths, 'tags' => $tags];
@@ -207,8 +251,19 @@ function patronage_headless_revalidate_flush(): array {
       wp_json_encode($tags),
   );
   update_option(PATRONAGE_HEADLESS_REVALIDATE_STATUS, $result + ['at' => time()], false);
+  if ($result['ok']) {
+    if ($retry['paths'] || $retry['tags']) {
+      delete_option(PATRONAGE_HEADLESS_REVALIDATE_RETRY);
+    }
+  } else {
+    patronage_headless_revalidate_keep_for_retry($paths, $tags, $retry['attempts'] + 1);
+  }
   return $result;
 }
+
+add_action(PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK, function (): void {
+  patronage_headless_revalidate_flush();
+});
 
 // Late, so cache purges that other code runs at shutdown (WPGraphQL Smart
 // Cache, a theme's CDN purge) land before the frontend refetches. On PHP-FPM

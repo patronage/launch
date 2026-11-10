@@ -11,6 +11,7 @@ import {
 import type {
   ApplyPreflight,
   JsonObject,
+  OperationReceipt,
   PendingApplyParser,
   RuntimeStore,
 } from "@patronage/mcp-core";
@@ -883,6 +884,48 @@ describe("Payload Markdown and new drafts", () => {
       "https://payload.example/api/posts?draft=true&depth=0"
     );
     expect(JSON.parse(write?.body ?? "{}")).not.toHaveProperty("_status");
+  });
+
+  it("reports each settled operation as progress, a created draft included", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Start a post",
+      [createOperation],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    const reported: OperationReceipt[] = [];
+    const scope = createCallerScope();
+
+    const payload = createPayloadTools({
+      env: urlEnv,
+      scope,
+      store: {
+        ...memoryStore(preflight),
+        recordProgress: (executionId, receipt) => {
+          expect(executionId).toBe("exec_1");
+          reported.push(receipt);
+
+          return Promise.resolve();
+        },
+      },
+      telemetry: () => createUpstreamTelemetry(),
+    });
+
+    const receipt = await scope.run({ ...caller, executionId: "exec_1" }, () =>
+      payload.apply.execute({
+        intent: "Start a post",
+        operations: [createOperation],
+      })
+    );
+
+    expect(reported).toStrictEqual([
+      expect.objectContaining({ status: "changed", target: "posts/34" }),
+    ]);
+    expect(receipt).toMatchObject({ status: "succeeded" });
   });
 
   it("names a created draft even when reading it back fails", async () => {

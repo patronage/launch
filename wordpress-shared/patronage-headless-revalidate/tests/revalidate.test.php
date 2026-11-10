@@ -7,6 +7,7 @@ declare(strict_types=1);
 // a recorded wp_remote_request. Each section resets the queue by flushing.
 
 define( 'ABSPATH', __DIR__ );
+define( 'HOUR_IN_SECONDS', 3600 );
 
 // The plugin logs every send; keep the test output to failures.
 ini_set( 'error_log', '/dev/null' );
@@ -110,6 +111,26 @@ function update_option( string $name, mixed $value, bool $autoload = true ): boo
 function get_option( string $name, mixed $fallback = false ): mixed {
 	global $test_options;
 	return $test_options[ $name ] ?? $fallback;
+}
+
+function delete_option( string $name ): bool {
+	global $test_options;
+	unset( $test_options[ $name ] );
+	return true;
+}
+
+/** @var array<string,int> */
+$test_scheduled = array();
+
+function wp_next_scheduled( string $hook ): int|false {
+	global $test_scheduled;
+	return $test_scheduled[ $hook ] ?? false;
+}
+
+function wp_schedule_single_event( int $timestamp, string $hook ): bool {
+	global $test_scheduled;
+	$test_scheduled[ $hook ] = $timestamp;
+	return true;
 }
 
 // Posts. A published post's permalink is its ancestors' slugs and its own,
@@ -309,13 +330,21 @@ check( ! str_contains( (string) json_encode( $stored ), 'revalidate-secret' ), '
 // How the front-end's answer reads.
 patronage_headless_revalidate_queue_paths( array( '/a' ) );
 test_respond( 308, array( 'location' => 'https://www.example.org/sign-in' ) );
+$before_retry = time();
 $result = patronage_headless_revalidate_flush();
 check( ! $result['ok'] && str_contains( $result['message'], 'redirected to https://www.example.org/sign-in' ), 'a redirect fails and names where it went' );
+$retry = get_option( PATRONAGE_HEADLESS_REVALIDATE_RETRY );
+check( array( '/a' ) === $retry['paths'] && 1 === $retry['attempts'], 'a failed send keeps its paths for retry' );
+$scheduled_retry = wp_next_scheduled( PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK );
+check( false !== $scheduled_retry && $scheduled_retry >= $before_retry + 60 && $scheduled_retry <= time() + 60, 'the first retry is scheduled one minute later' );
+check( ! str_contains( (string) json_encode( $retry ), 'revalidate-secret' ), 'the saved retry never holds the secret' );
 
 patronage_headless_revalidate_queue_paths( array( '/a' ) );
 test_respond( 401 );
 $result = patronage_headless_revalidate_flush();
 check( ! $result['ok'] && str_contains( $result['message'], 'refused PATRONAGE_REVALIDATE_SECRET' ), 'a 401 fails naming the secret' );
+check( $scheduled_retry === wp_next_scheduled( PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK ), 'another failure does not duplicate the scheduled retry' );
+check( 2 === get_option( PATRONAGE_HEADLESS_REVALIDATE_RETRY )['attempts'], 'another failure increments the retry attempts' );
 
 patronage_headless_revalidate_queue_paths( array( '/a' ) );
 test_respond( 503 );
@@ -327,6 +356,13 @@ $test_response = new WP_Error( 'http_request_failed', 'Connection timed out' );
 $result        = patronage_headless_revalidate_flush();
 check( ! $result['ok'] && 0 === $result['status'] && 'Connection timed out' === $result['message'], 'a transport error fails with its message' );
 test_respond( 200 );
+
+// WordPress removes a single event before invoking its callback.
+unset( $test_scheduled[ PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK ] );
+do_action( PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK );
+check( array( '/a' ) === json_decode( test_last_request()['args']['body'], true )['paths'], 'the scheduled retry sends the failed paths without a new queue' );
+check( false === get_option( PATRONAGE_HEADLESS_REVALIDATE_RETRY ), 'a successful retry clears the saved work' );
+check( false === wp_next_scheduled( PATRONAGE_HEADLESS_REVALIDATE_RETRY_HOOK ), 'a successful retry does not schedule another event' );
 
 // The endpoint filter, for a front-end without trailing slashes.
 add_filter( 'patronage_headless_revalidate_endpoint', static fn (): string => '/api/revalidate' );

@@ -1,6 +1,6 @@
 {
   "name": "@patronage/mcp-payload",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The Payload connector for @patronage/mcp-core: Payload's own MCP read tools, and draft writes through the approval step.",
   "license": "MIT",
   "repository": {
@@ -9,7 +9,8 @@
     "directory": "packages/mcp-payload"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "type": "module",
   "exports": {
@@ -37,9 +38,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261031.1",
     "@patronage/access": "workspace:*",
-    "@types/node": "24.19.2",
+    "@types/node": "catalog:",
     "tsdown": "0.23.4",
-    "vitest": "5.0.5"
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=24"

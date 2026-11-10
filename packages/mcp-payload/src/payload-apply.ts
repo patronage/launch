@@ -812,6 +812,10 @@ interface DraftApplyOptions {
   approverOpaque: string;
   client: UpstreamClient;
   executionId: string;
+  // Hears each receipt as its operation settles, so a run that stops part
+  // way still has a record of what landed (a created draft above all). A
+  // failure to record progress never fails the write it describes.
+  onProgress?: (receipt: OperationReceipt) => Promise<void>;
   operations: DraftOperation[];
   preflight: ApplyPreflight;
   requesterOpaque: string;
@@ -844,6 +848,12 @@ const applyFrom = async (
         status: "failed",
         target: draftTarget(operation),
       };
+
+  try {
+    await options.onProgress?.(receipt);
+  } catch {
+    // Progress is a view of the write, not part of it.
+  }
 
   return [receipt, ...(await applyFrom(options, index + 1))];
 };

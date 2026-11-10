@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Patronage Access
  * Description: Locks WordPress behind Cloudflare Access. Optionally rejects any request that did not pass through Access, signs editors into wp-admin from their Access login, and authenticates REST and WPGraphQL requests as the user identified by a forwarded Access JWT, optionally requiring a gateway proof header.
- * Version: 1.0.1
+ * Version: 1.0.2
  * License: MIT
  * Requires PHP: 8.0
  */
@@ -269,6 +269,13 @@ if ( ! function_exists( 'openssl_verify' ) || defined( 'PATRONAGE_ACCESS_TESTING
  */
 final class Patronage_Access_REST_Auth {
 	private const CACHE_SECONDS = 6 * HOUR_IN_SECONDS;
+	// How long after it goes stale the last good certificate set may still
+	// stand in while Cloudflare cannot be reached.
+	private const CERTS_STALE_SECONDS = 24 * HOUR_IN_SECONDS;
+	// How long a failed certificate fetch is remembered, so an outage costs
+	// one slow request a minute rather than one per request.
+	private const CERTS_FAILURE_SECONDS = 60;
+	private const CERTS_TIMEOUT_SECONDS = 5;
 	private const DEFAULT_HEADER = 'X-Access-User-Jwt';
 	private const LOGIN_GUARD_COOKIE = 'patronage_access_login_tried';
 	private const LOGIN_GUARD_SECONDS = 30;
@@ -639,6 +646,11 @@ final class Patronage_Access_REST_Auth {
 	/**
 	 * Fetch or read cached Access certificates indexed by kid.
 	 *
+	 * A failed fetch is remembered for CERTS_FAILURE_SECONDS, and until the
+	 * next fetch succeeds the last good set (kept CERTS_STALE_SECONDS past its
+	 * normal expiry) answers in its place. Without either, every request made
+	 * while Cloudflare is unreachable would wait out its own fetch timeout.
+	 *
 	 * @return array<string,string>|WP_Error
 	 */
 	private static function certificates( string $issuer, bool $force_refresh ): array|WP_Error {
@@ -650,11 +662,37 @@ final class Patronage_Access_REST_Auth {
 			}
 		}
 
+		$stale_key   = self::cache_key( 'certs_stale', $issuer );
+		$failure_key = self::cache_key( 'certs_failed', $issuer );
+		$stale       = get_transient( $stale_key );
+		$stale       = is_array( $stale ) && array() !== $stale ? $stale : null;
+
+		if ( false !== get_transient( $failure_key ) ) {
+			return $stale ?? self::not_configured_error();
+		}
+
+		$fetched = self::fetch_certificates( $issuer );
+		if ( is_wp_error( $fetched ) ) {
+			set_transient( $failure_key, '1', self::CERTS_FAILURE_SECONDS );
+			return $stale ?? $fetched;
+		}
+
+		set_transient( $cache_key, $fetched, self::CACHE_SECONDS );
+		set_transient( $stale_key, $fetched, self::CACHE_SECONDS + self::CERTS_STALE_SECONDS );
+		return $fetched;
+	}
+
+	/**
+	 * Fetch Access certificates indexed by kid from the team domain.
+	 *
+	 * @return array<string,string>|WP_Error
+	 */
+	private static function fetch_certificates( string $issuer ): array|WP_Error {
 		$response = wp_remote_get(
 			rtrim( $issuer, '/' ) . '/cdn-cgi/access/certs',
 			array(
 				'redirection' => 0,
-				'timeout'     => 10,
+				'timeout'     => self::CERTS_TIMEOUT_SECONDS,
 			)
 		);
 		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
@@ -680,7 +718,6 @@ final class Patronage_Access_REST_Auth {
 			return self::not_configured_error();
 		}
 
-		set_transient( $cache_key, $certificates, self::CACHE_SECONDS );
 		return $certificates;
 	}
 

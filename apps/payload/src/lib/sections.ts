@@ -1,6 +1,7 @@
 import { createPayloadAdapter } from "@launch/adapter-payload";
 import type { Image } from "@launch/content-model";
-import { imagePath } from "@launch/images";
+import { compact } from "@launch/content-model";
+import { imagePath, imageSrcset } from "@launch/images";
 import { RichTextBlock } from "@launch/ui";
 import { createElement } from "react";
 
@@ -15,6 +16,7 @@ export const mediaUrl = (src: string): string =>
 
 /** Maps page documents (read at depth 1) to the shared content model. */
 export const payloadAdapter = createPayloadAdapter({
+  imageSrcset,
   imageUrl: mediaUrl,
   renderRichTextBlock: (block) => createElement(RichTextBlock, { block }),
 });
@@ -30,10 +32,13 @@ export const toImage = (
     return undefined;
   }
 
-  return {
+  const src = mediaUrl(media.url);
+
+  return compact({
     alt: media.alt,
     height: media.height ?? undefined,
-    src: mediaUrl(media.url),
+    src,
+    srcset: imageSrcset(src, media.width ?? undefined),
     width: media.width ?? undefined,
-  };
+  });
 };

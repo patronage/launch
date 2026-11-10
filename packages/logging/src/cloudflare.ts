@@ -177,6 +177,20 @@ export interface S3Credentials {
   secretAccessKey: string;
 }
 
+/**
+ * Credentials, or a way to get them that is asked only when something is
+ * actually created. Passing a source keeps a run that finds everything in
+ * place from minting a token it never uses.
+ */
+export type S3CredentialsSource =
+  | S3Credentials
+  | (() => Promise<S3Credentials>);
+
+const resolveCredentials = async (
+  source: S3CredentialsSource
+): Promise<S3Credentials> =>
+  "accessKeyId" in source ? source : await source();
+
 const findPermissionGroup = async (
   client: ApiClient,
   pattern: RegExp
@@ -267,7 +281,7 @@ export interface LogpushJobSpec {
   bucket: string;
   /** Folder in the bucket; `{DATE}` is appended for daily folders. */
   prefix: string;
-  credentials: S3Credentials;
+  credentials: S3CredentialsSource;
   /** A Logpush filter, as JSON text, such as the one `scriptFilter` builds. */
   filter?: string;
 }
@@ -339,7 +353,7 @@ export const ensureLogpushJob = async (
       client.accountId,
       spec.bucket,
       spec.prefix,
-      spec.credentials
+      await resolveCredentials(spec.credentials)
     ),
     enabled: true,
     name: spec.name,
@@ -391,7 +405,7 @@ export interface WordPressStreamSpec {
   bucket: string;
   /** Folder in the bucket, such as `events/wordpress`. */
   path: string;
-  credentials: S3Credentials;
+  credentials: S3CredentialsSource;
 }
 
 export interface WordPressStream {
@@ -430,13 +444,15 @@ export const ensureWordPressStream = async (
   }
 
   if (!(await findByName(client, "sinks", sinkName))) {
+    const credentials = await resolveCredentials(spec.credentials);
+
     await client.request("POST", "/pipelines/v1/sinks", z.unknown(), {
       config: {
         account_id: client.accountId,
         bucket: spec.bucket,
         credentials: {
-          access_key_id: spec.credentials.accessKeyId,
-          secret_access_key: spec.credentials.secretAccessKey,
+          access_key_id: credentials.accessKeyId,
+          secret_access_key: credentials.secretAccessKey,
         },
         partitioning: { time_pattern: "year=%Y/month=%m/day=%d" },
         path: spec.path.replaceAll(/^\/+|\/+$/gu, ""),

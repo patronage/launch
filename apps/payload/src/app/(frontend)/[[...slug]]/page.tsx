@@ -9,6 +9,7 @@ import {
 } from "@launch/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
@@ -29,10 +30,11 @@ interface Props {
  * Finds the page at a path. Slugs are unique, so the last segment picks the
  * document (the home slug at /), and its nested-docs breadcrumbs must give
  * back the same path, so /home and /wrong-parent/child are not found.
+ * Cached per request by path, so generateMetadata and the page share a read.
  */
-const findPage = async (segments: string[]) => {
+const findPage = cache(async (path: string) => {
   const { draft, payload, user } = await getFrontendPayload();
-  const path = `/${segments.join("/")}`;
+  const segments = path.split("/").filter(Boolean);
 
   const { docs } = await payload.find({
     ...PAGE_QUERY,
@@ -47,7 +49,7 @@ const findPage = async (segments: string[]) => {
   const [page] = docs;
 
   return page && payloadAdapter.pagePath(page) === path ? page : null;
-};
+});
 
 /** The page index, shown at / until a page with the home slug exists. */
 const PageIndex = async () => {
@@ -86,7 +88,7 @@ const PageIndex = async () => {
 const pageFor = async (params: Props["params"]) => {
   const { slug = [] } = await params;
 
-  return { page: await findPage(slug), slug };
+  return { page: await findPage(`/${slug.join("/")}`), slug };
 };
 
 export const generateMetadata = async ({ params }: Props) => {
