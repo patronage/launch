@@ -560,23 +560,23 @@ describe("Worker fetch", () => {
       extensions: { "io.modelcontextprotocol/ui": {} },
     });
 
-    expect(body).toContain("decide_wordpress_write");
-    expect(body).toContain("preview_wordpress_write");
+    expect(body).toContain("decide_write");
+    expect(body).toContain("preview_write");
   });
 
   it("hides the app-only tools from a client that advertises without it", async () => {
     const body = await listToolNames({ extensions: { "vendor/other": {} } });
 
     expect(body).toContain("execute");
-    expect(body).not.toContain("decide_wordpress_write");
-    expect(body).not.toContain("preview_wordpress_write");
+    expect(body).not.toContain("decide_write");
+    expect(body).not.toContain("preview_write");
   });
 
   it("hides the app-only tools from a client that advertises no extension", async () => {
     const body = await listToolNames({});
 
     expect(body).toContain("execute");
-    expect(body).not.toContain("decide_wordpress_write");
+    expect(body).not.toContain("decide_write");
   });
 
   // A client that never advertised MCP Apps has promised nothing about
@@ -585,15 +585,15 @@ describe("Worker fetch", () => {
     const body = await listToolNames();
 
     expect(body).toContain("execute");
-    expect(body).not.toContain("decide_wordpress_write");
-    expect(body).not.toContain("preview_wordpress_write");
+    expect(body).not.toContain("decide_write");
+    expect(body).not.toContain("preview_write");
   });
 
   it("offers the card to unreadable clients only when the var says so", async () => {
     const body = await listToolNames(undefined, true);
 
-    expect(body).toContain("decide_wordpress_write");
-    expect(body).toContain("preview_wordpress_write");
+    expect(body).toContain("decide_write");
+    expect(body).toContain("preview_write");
   });
 
   it("emits one final event for an unknown route", async () => {

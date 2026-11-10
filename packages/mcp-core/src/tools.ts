@@ -618,7 +618,7 @@ const registerApprovalTools = (
 ): void => {
   registerAppTool(
     server,
-    "preview_wordpress_write",
+    "preview_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -639,7 +639,7 @@ const registerApprovalTools = (
     },
     async (input) => {
       const { executionId } = input;
-      log.set({ mcp: { outcome: "pending", tool: "preview_wordpress_write" } });
+      log.set({ mcp: { outcome: "pending", tool: "preview_write" } });
 
       if (!(await deps.stub.verifyNonce(executionId, input.approvalToken))) {
         log.setLevel("warn");
@@ -649,7 +649,7 @@ const registerApprovalTools = (
       }
 
       const { failed, value } = await withToolLog<ApprovalCardView>(
-        "preview_wordpress_write",
+        "preview_write",
         log,
         async () => {
           const outcome = await deps.stub.getRun(executionId, deps.caller);
@@ -684,7 +684,7 @@ const registerApprovalTools = (
   // never field values — and the token is already spent by the decision.
   registerAppTool(
     server,
-    "progress_wordpress_write",
+    "progress_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -703,7 +703,7 @@ const registerApprovalTools = (
       const { executionId } = input;
 
       const { failed, value } = await withToolLog<ProgressCardView>(
-        "progress_wordpress_write",
+        "progress_write",
         log,
         async () => {
           const outcome = await deps.stub.getRun(executionId);
@@ -726,7 +726,7 @@ const registerApprovalTools = (
 
   registerAppTool(
     server,
-    "decide_wordpress_write",
+    "decide_write",
     {
       _meta: {
         ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
@@ -744,7 +744,7 @@ const registerApprovalTools = (
     async (input) => {
       const { decision, executionId } = input;
       const startedAt = Date.now();
-      log.set({ mcp: { outcome: "pending", tool: "decide_wordpress_write" } });
+      log.set({ mcp: { outcome: "pending", tool: "decide_write" } });
 
       // The token is spent BEFORE the runtime is touched, so a second press of
       // Approve, or a replayed tool call, finds nothing to verify against.
@@ -765,7 +765,7 @@ const registerApprovalTools = (
       });
 
       const { value } = await withToolLog<DecisionOutcome>(
-        "decide_wordpress_write",
+        "decide_write",
         log,
         async () => ({
           answer: await answerDecision(deps, log, executionId, decision),
