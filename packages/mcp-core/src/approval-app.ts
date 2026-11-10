@@ -11,11 +11,12 @@ import { APPROVAL_STYLE, escapeHtml } from "./approval-page";
 // The suffix is bumped whenever the embedded app shell changes incompatibly;
 // the older URIs keep serving the current shell so a host pinned to one of
 // them still gets a card that works against today's tools.
-export const APPROVAL_APP_URI = "ui://patronage/wordpress-approval-v3.html";
+export const APPROVAL_APP_URI = "ui://patronage/cms-approval-v4.html";
 
 export const LEGACY_APPROVAL_APP_URIS = [
   "ui://patronage/wordpress-approval.html",
   "ui://patronage/wordpress-approval-v2.html",
+  "ui://patronage/wordpress-approval-v3.html",
 ];
 
 export const APPROVAL_APP_META_KEY = "com.patronage/approval";
@@ -27,7 +28,7 @@ export const APPROVAL_APP_NAME = "CMS write approval";
 // expected to keep tool-result `_meta` out of the model's context, so the
 // one-time approval token lives here and is never copied into `content` or
 // `structuredContent`. Everything a person reads is fetched by the card
-// itself, from `preview_wordpress_write`, once the card is open.
+// itself, from `preview_write`, once the card is open.
 export type ApprovalAppState =
   | {
       approvalToken: string;

@@ -6,6 +6,7 @@
 
 - Uses `@patronage/mcp-core` 0.2.0, so a site installs both at the same version. 0.1.0 depends on mcp-core 0.1.0.
 - The connector's instructions tell the model to do every read before `payload.apply`, since reads after an approved write are refused.
+- Its requests are tagged `connector: "payload"` on the wide event's `upstream` field, and its errors name Payload.
 
 ## 0.1.0
 

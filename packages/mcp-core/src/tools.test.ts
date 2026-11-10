@@ -316,19 +316,19 @@ describe("tool registration", () => {
       server.toolInputSchemaJson(name) !== undefined;
 
     expect({
-      decide_wordpress_write: registered("decide_wordpress_write"),
+      decide_write: registered("decide_write"),
       describe_site: registered("describe_site"),
       execute: registered("execute"),
       get_run: registered("get_run"),
       inspect_wordpress_site: registered("inspect_wordpress_site"),
-      preview_wordpress_write: registered("preview_wordpress_write"),
+      preview_write: registered("preview_write"),
     }).toStrictEqual({
-      decide_wordpress_write: true,
+      decide_write: true,
       describe_site: true,
       execute: true,
       get_run: true,
       inspect_wordpress_site: false,
-      preview_wordpress_write: true,
+      preview_write: true,
     });
   });
 
@@ -370,12 +370,12 @@ describe("tool registration", () => {
     );
 
     expect(listing.tools.map((tool) => tool.name).toSorted()).toStrictEqual([
-      "decide_wordpress_write",
+      "decide_write",
       "describe_site",
       "execute",
       "get_run",
-      "preview_wordpress_write",
-      "progress_wordpress_write",
+      "preview_write",
+      "progress_write",
     ]);
     expect(
       listing.tools.find((tool) => tool.name === "execute")?._meta
@@ -383,8 +383,7 @@ describe("tool registration", () => {
       ui: { resourceUri: APPROVAL_APP_URI, visibility: ["model"] },
     });
     expect(
-      listing.tools.find((tool) => tool.name === "decide_wordpress_write")
-        ?._meta
+      listing.tools.find((tool) => tool.name === "decide_write")?._meta
     ).toMatchObject({
       ui: { resourceUri: APPROVAL_APP_URI, visibility: ["app"] },
     });
@@ -413,8 +412,7 @@ describe("tool registration", () => {
       readOnlyHint: true,
     });
     expect(
-      listing.tools.find((tool) => tool.name === "decide_wordpress_write")
-        ?.annotations
+      listing.tools.find((tool) => tool.name === "decide_write")?.annotations
     ).toStrictEqual({
       destructiveHint: true,
       idempotentHint: false,
@@ -496,8 +494,8 @@ describe("tool registration", () => {
       teardown: true,
     });
     expect({
-      decide: text.includes("decide_wordpress_write"),
-      preview: text.includes("preview_wordpress_write"),
+      decide: text.includes("decide_write"),
+      preview: text.includes("preview_write"),
     }).toStrictEqual({ decide: true, preview: true });
   });
 
@@ -768,7 +766,7 @@ describe("execute", () => {
           approvalToken: approvalToken(execution),
           executionId: "exec_1",
         },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
     });
 
@@ -825,7 +823,7 @@ describe("execute", () => {
           approvalToken: approvalToken(execution),
           executionId: "exec_1",
         },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
     });
 
@@ -850,11 +848,11 @@ describe("execute", () => {
       const token = approvalToken(execution);
       await client.callTool({
         arguments: { approvalToken: token, executionId: "exec_1" },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
       await client.callTool({
         arguments: { approvalToken: token, executionId: "exec_1" },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       });
 
       return await client.callTool({
@@ -863,7 +861,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 
@@ -892,7 +890,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
 
       expect(decision._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
@@ -910,7 +908,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 
@@ -944,7 +942,7 @@ describe("execute", () => {
           decision: "approve",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
 
       return { first: firstToken, second: approvalToken(decision) };
@@ -980,7 +978,7 @@ describe("execute", () => {
             decision: "approve",
             executionId: "exec_1",
           },
-          name: "decide_wordpress_write",
+          name: "decide_write",
         }),
       };
     });
@@ -1000,7 +998,7 @@ describe("execute", () => {
 
     const result = await callTool(
       toolServer(stub, requestLogger()),
-      "decide_wordpress_write",
+      "decide_write",
       {
         approvalToken: "00".repeat(32),
         decision: "approve",
@@ -1022,7 +1020,7 @@ describe("execute", () => {
 
     const result = await callTool(
       toolServer(stub, requestLogger()),
-      "preview_wordpress_write",
+      "preview_write",
       { approvalToken: "00".repeat(32), executionId: "exec_1" }
     );
 
@@ -1046,7 +1044,7 @@ describe("execute", () => {
           decision: "reject",
           executionId: "exec_1",
         },
-        name: "decide_wordpress_write",
+        name: "decide_write",
       });
     });
 

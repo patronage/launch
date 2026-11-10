@@ -13,10 +13,10 @@ import { delay } from "../concurrency";
 // rather than as markup. It fetches nothing and loads nothing — the resource's
 // declared CSP allows no origin at all.
 const META_KEY = "com.patronage/approval";
-const DECIDE_TOOL = "decide_wordpress_write";
-const PREVIEW_TOOL = "preview_wordpress_write";
+const DECIDE_TOOL = "decide_write";
+const PREVIEW_TOOL = "preview_write";
 
-const PROGRESS_TOOL = "progress_wordpress_write";
+const PROGRESS_TOOL = "progress_write";
 
 // How often the card asks how an approved write is going.
 const PROGRESS_POLL_MS = 1500;
