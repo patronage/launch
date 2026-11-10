@@ -797,7 +797,7 @@ describe("Worker fetch", () => {
       method: "tools/call",
       params: {
         arguments: { approvalToken: "bad-token", executionId: "exec_1" },
-        name: "preview_wordpress_write",
+        name: "preview_write",
       },
     });
 
@@ -816,7 +816,7 @@ describe("Worker fetch", () => {
       params: {},
     });
 
-    expect(body).not.toContain("preview_wordpress_write");
+    expect(body).not.toContain("preview_write");
   });
 });
 

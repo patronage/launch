@@ -96,9 +96,9 @@ export type ClientAppSupport = "absent" | "advertised" | "unknown";
 
 // The approval card's own tools, which only the card calls.
 export const APP_ONLY_TOOLS = [
-  "preview_wordpress_write",
-  "progress_wordpress_write",
-  "decide_wordpress_write",
+  "preview_write",
+  "progress_write",
+  "decide_write",
 ] as const;
 
 export interface ToolDeps {
