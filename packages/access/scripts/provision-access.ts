@@ -15,7 +15,10 @@
 import { parseArgs } from "node:util";
 
 import { cloudflareClient, provisionLockdown } from "../src/cloudflare-api.ts";
-import type { LockdownSpec } from "../src/cloudflare-api.ts";
+import type {
+  LockdownSpec,
+  ServiceTokenResult,
+} from "../src/cloudflare-api.ts";
 
 const { values } = parseArgs({
   options: {
@@ -52,25 +55,50 @@ if (values["session-duration"]) {
   spec.sessionDuration = values["session-duration"];
 }
 
+// Service tokens Cloudflare stops accepting within this many days are flagged.
+const EXPIRY_WARNING_DAYS = 30;
+const DAY_MS = 86_400_000;
+
+// Each token is printed the moment it exists: a new token's secret is shown
+// only once, and a later step that fails must not take it with it.
+const printToken = (token: ServiceTokenResult): void => {
+  console.log(`# service token "${token.name}"`);
+  console.log(`ACCESS_CLIENT_ID=${token.clientId}`);
+  console.log(
+    token.clientSecret
+      ? `ACCESS_CLIENT_SECRET=${token.clientSecret}  # shown once; save it now`
+      : "# token already existed; its secret is not retrievable (rotate it to get a new one)"
+  );
+
+  if (!token.expiresAt) {
+    return;
+  }
+
+  const daysLeft = Math.floor(
+    (Date.parse(token.expiresAt) - Date.now()) / DAY_MS
+  );
+
+  console.log(`# expires ${token.expiresAt}`);
+
+  if (daysLeft < EXPIRY_WARNING_DAYS) {
+    console.warn(
+      daysLeft < 0
+        ? `# WARNING: service token "${token.name}" has expired; rotate it in Zero Trust and update the Workers that use it`
+        : `# WARNING: service token "${token.name}" expires in ${daysLeft} days; rotate it in Zero Trust before then`
+    );
+  }
+};
+
 const result = await provisionLockdown(
   cloudflareClient({
     accountId,
     apiToken,
     dryRun: values["dry-run"] ?? false,
   }),
-  spec
+  spec,
+  { onServiceToken: printToken }
 );
 
 console.log(`ACCESS_TEAM_DOMAIN=${result.teamDomain}`);
 
 console.log(`ACCESS_AUD=${result.aud}`);
-
-for (const token of result.serviceTokens) {
-  console.log(`# service token "${token.name}"`);
-  console.log(`ACCESS_CLIENT_ID=${token.clientId}`);
-  console.log(
-    token.clientSecret
-      ? `ACCESS_CLIENT_SECRET=${token.clientSecret}  # shown once; store it with \`wrangler secret put\` now`
-      : "# token already existed; its secret is not retrievable (rotate it to get a new one)"
-  );
-}

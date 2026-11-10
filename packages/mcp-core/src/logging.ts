@@ -11,7 +11,10 @@ import type { GatewayEnv } from "./env";
 import type { ExecuteResult } from "./run";
 
 const MAX_PATH = 128;
-const SERVICE_VERSION = "0.1.0";
+
+// The version the MCP server reports in its handshake and every wide event
+// carries. Kept equal to this package's version; a test checks it.
+export const SERVICE_VERSION = "0.2.0";
 
 const REDACTION: RedactConfig = {
   paths: [
@@ -132,7 +135,7 @@ export interface McpWideEvent {
     returnedItems: number;
   };
   run?: {
-    executionId: string;
+    executionId?: string;
     pausedOn?: string;
     status: "complete" | "error" | "paused";
     toolCalls: number;
@@ -283,13 +286,16 @@ export const recordRun = <TConsumer extends object>(
     return;
   }
 
-  log.set({
-    run: {
-      executionId: "",
-      status: result.status,
-      toolCalls: result.calls.length,
-    },
-  });
+  const run: NonNullable<McpWideEvent["run"]> = {
+    status: result.status,
+    toolCalls: result.calls.length,
+  };
+
+  if (result.executionId) {
+    run.executionId = result.executionId;
+  }
+
+  log.set({ run });
 };
 
 export const recordApprovalDecision = <TConsumer extends object>(

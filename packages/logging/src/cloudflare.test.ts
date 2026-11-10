@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   apiClient,
@@ -155,6 +155,28 @@ describe(ensureLogpushJob, () => {
 
     await expect(ensureLogpushJob(client, spec)).resolves.toBe("exists");
     expect(calls).toHaveLength(1);
+  });
+
+  it("asks a credentials source only when it creates the job", async () => {
+    const existing = fakeApi(() => ({
+      result: [{ id: 1, name: "demo-audit-logs-v2" }],
+    }));
+
+    const source = vi.fn<() => Promise<typeof credentials>>(() =>
+      Promise.resolve(credentials)
+    );
+
+    await ensureLogpushJob(existing.client, { ...spec, credentials: source });
+    expect(source).not.toHaveBeenCalled();
+
+    const empty = fakeApi((call) =>
+      call.method === "GET" && call.path.endsWith("/jobs")
+        ? { result: [] }
+        : { result: {} }
+    );
+
+    await ensureLogpushJob(empty.client, { ...spec, credentials: source });
+    expect(source).toHaveBeenCalledOnce();
   });
 
   it("uses the zone path for zone datasets", async () => {

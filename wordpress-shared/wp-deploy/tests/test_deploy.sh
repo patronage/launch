@@ -240,6 +240,21 @@ check "verification catches a deleted file left on the server" grep -q "old-name
 rm "$WEBROOT/old-name.php"
 write "$WEBROOT/wp-content/plugins/kept/kept.php" v2
 
+# Non-ASCII names and symlinks verify too: ls-tree must not quote the path, and
+# a link is compared by its target, as Git stores it.
+write "$SRC/wordpress/wp-content/plugins/kept/café.php" accent
+ln -s kept.php "$SRC/wordpress/wp-content/plugins/kept/alias.php"
+git -C "$SRC" add -A
+git -C "$SRC" commit -qm three
+git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/master >/dev/null 2>&1
+rev3="$(git -C "$SRC" rev-parse HEAD)"
+out="$(cd "$SRC/wordpress" && DEPLOY_COMMIT="$rev3" && PUSH_REF="$rev3" && verify_files "$rev2" 2>&1)" || true
+check "verification passes for a non-ASCII name and a symlink" grep -q "^==> Verified 2 changed paths" <<<"$out"
+ln -sfn new-name.php "$WEBROOT/wp-content/plugins/kept/alias.php"
+out="$(cd "$SRC/wordpress" && DEPLOY_COMMIT="$rev3" && PUSH_REF="$rev3" && verify_files "$rev2" 2>&1)" || true
+check "verification catches a symlink pointing elsewhere" grep -q "alias.php (server:" <<<"$out"
+ln -sfn kept.php "$WEBROOT/wp-content/plugins/kept/alias.php"
+
 # Verification of a large changeset, run as the deploy runs it (set -e, pipefail).
 # Regression: an early-exiting reader in a pipe raised SIGPIPE and killed the deploy.
 big_prev="$(git -C "$SRC" rev-parse HEAD)"

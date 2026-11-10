@@ -3,30 +3,23 @@
 //
 //   pnpm run deploy [--preview] [--dry-run]
 //
-// Production: `blume build`, then Build Output (scripts/build-output.mjs),
-// then `cf deploy --prebuilt`, which creates the Worker on first run and
-// updates it after that.
-//
-// --preview: the same build with CLOUDFLARE_PREVIEW_BUILD=true, then
-// `cf previews deploy --prebuilt`, which names the Preview after the current
-// Git branch. Workers Builds runs this for non-production branches.
-//
-// Auth comes from CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (Workers
-// Builds provides them) or a `cf auth login` session. The site has no secrets.
-import { run } from "./worker-config.mjs";
+// `blume build`, then Build Output (scripts/build-output.mjs), then the
+// shared deploy steps in packages/worker-scripts/src/deploy.ts. Workers
+// Builds runs --preview for non-production branches. The site has no secrets.
+import { deploy } from "@launch/worker-scripts/deploy";
+import { main, run } from "@launch/worker-scripts/script";
 
-const args = new Set(process.argv.slice(2));
-const dryRun = args.has("--dry-run") ? ["--dry-run"] : [];
-const preview = args.has("--preview");
+import { root } from "./worker-config.mjs";
 
-run("pnpm", ["run", "build"]);
-
-run("node", ["scripts/build-output.mjs"], {
-  CLOUDFLARE_PREVIEW_BUILD: preview ? "true" : "false",
-});
-
-if (preview) {
-  run("pnpm", ["exec", "cf", "previews", "deploy", "--prebuilt", ...dryRun]);
-} else {
-  run("pnpm", ["exec", "cf", "deploy", "--prebuilt", ...dryRun]);
-}
+await main(root, (ctx) =>
+  deploy(ctx, {
+    build: (_, { preview }) => {
+      run(ctx, "pnpm", ["run", "build"]);
+      run(ctx, "node", ["scripts/build-output.mjs"], {
+        CLOUDFLARE_PREVIEW_BUILD: preview ? "true" : "false",
+      });
+    },
+    previews: true,
+    secrets: false,
+  })
+);

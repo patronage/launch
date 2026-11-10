@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 // Helpers shared by the scripts. The Worker's name and settings live only in
@@ -6,18 +5,6 @@ import path from "node:path";
 import { loadAndParseConfig } from "@cloudflare/config";
 
 export const root = path.resolve(import.meta.dirname, "..");
-
-export const run = (cmd, cmdArgs, env = {}) => {
-  const result = spawnSync(cmd, cmdArgs, {
-    cwd: root,
-    env: { ...process.env, ...env },
-    stdio: "inherit",
-  });
-
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-};
 
 // Evaluate cloudflare.config.ts the way the cf CLI does.
 export const loadWorkerConfig = async (ctx) => {
