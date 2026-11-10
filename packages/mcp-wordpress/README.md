@@ -5,7 +5,7 @@ The WordPress connector for [`@patronage/mcp-core`](../mcp-core). In the gateway
 - `wp.graphql({ query, variables? })` runs WPGraphQL queries, never mutations.
 - `wp.get({ path, query? })` reads the REST API under `/wp-json/`, and refuses method overrides.
 - `wp.apply({ intent, operations })` stages operations for approval:
-  - `update_post` changes core fields, ACF fields and registered post meta (`meta`), with an optional `expected_modified_gmt` check.
+  - `update_post` changes core fields, ACF fields and registered post meta (`meta`), with an optional `expected_modified_gmt` check. On `rest_base: "media"`, `fields.alt_text` sets an image's alt text.
   - `upsert_redirect` creates or updates one plain-URL rule in the Redirection plugin: `{ source: "/old-page", target: "/new-page", code?: 301 | 302 | 307 | 308 }`.
 
 It also gives `describe_site` the site's post types and GraphQL types.
@@ -30,6 +30,12 @@ foreach ( [ '_yoast_wpseo_metadesc', '_yoast_wpseo_meta-robots-noindex' ] as $ke
 	] );
 }
 ```
+
+## Media alt text
+
+Set alt text with `{ kind: "update_post", rest_base: "media", id, fields: { alt_text: "A redwood forest" } }`. An empty string clears it. `alt_text` is refused on any other `rest_base`.
+
+Both the existing and the requested text must fit the approval preview's 400 characters, so the approver sees all of each. WordPress doesn't always advance `modified_gmt` when alt text changes, so apply also compares the stored text with the approved before-value and reports a conflict if they differ. The saved text must match the request exactly: a value WordPress rewrote fails the readback rather than counting as normalized.
 
 ## Redirects
 

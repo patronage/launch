@@ -34,6 +34,50 @@ const thrownBy = (fn: () => void): Error | undefined => {
 };
 
 describe(parseApplyInput, () => {
+  it("accepts bounded media alt text and refuses it elsewhere", () => {
+    const media = {
+      fields: { alt_text: "A redwood forest" },
+      id: 7,
+      kind: "update_post",
+      rest_base: "media",
+    };
+
+    expect(
+      parseApplyInput({ intent: "Add alt text", operations: [media] })
+        .operations[0]
+    ).toMatchObject({ fields: { alt_text: "A redwood forest" } });
+    expect(() =>
+      parseApplyInput({
+        intent: "Wrong resource",
+        operations: [{ ...media, rest_base: "pages" }],
+      })
+    ).toThrow(ApplyValidationError);
+    expect(() =>
+      parseApplyInput({
+        intent: "Too long",
+        operations: [{ ...media, fields: { alt_text: "x".repeat(401) } }],
+      })
+    ).toThrow(ApplyValidationError);
+  });
+
+  it("accepts an empty alt text as a real change", () => {
+    const parsed = parseApplyInput({
+      intent: "Mark the image decorative",
+      operations: [
+        {
+          fields: { alt_text: "" },
+          id: 7,
+          kind: "update_post",
+          rest_base: "media",
+        },
+      ],
+    });
+
+    expect(parsed.operations.map((item) => changedPaths(item))).toStrictEqual([
+      ["alt_text"],
+    ]);
+  });
+
   it("accepts a batch of update_post operations", () => {
     const parsed = parseApplyInput({
       intent: "Fix the launch page headline",

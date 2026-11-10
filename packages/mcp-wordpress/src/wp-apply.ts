@@ -21,6 +21,8 @@ import { z } from "zod";
 
 import { wordPressErrorMessage, wpFetch } from "./wordpress";
 import {
+  ALT_TEXT_LIMIT,
+  ALT_TEXT_PATH,
   changedPaths,
   isRedirectOperation,
   operationSentence,
@@ -145,6 +147,20 @@ const readRecord = async (
   return parsed.data;
 };
 
+// An approver must see the whole value being replaced, and the apply step
+// compares the stored text against the preview, so a value the preview would
+// cut off, or one that is not text, is refused here.
+const assertPreviewableAltText = (before: JsonValue | undefined): void => {
+  const parsed = stringSchema.safeParse(before);
+
+  if (!parsed.success || parsed.data.length > ALT_TEXT_LIMIT) {
+    throw new ApplyConflictError(
+      "unpreviewable_alt_text",
+      `The existing alt text must be a readable string of at most ${ALT_TEXT_LIMIT} characters for a complete approval preview`
+    );
+  }
+};
+
 const preflightPost = async (
   client: UpstreamClient,
   operation: UpdatePostOperation,
@@ -176,6 +192,10 @@ const preflightPost = async (
   const fields = changedPaths(operation).map((path) => {
     const before = readPath(record, path);
     const after = requestedValue(operation, path);
+
+    if (path === ALT_TEXT_PATH) {
+      assertPreviewableAltText(before);
+    }
 
     return {
       after: previewValue(after),
@@ -254,6 +274,9 @@ interface ReadbackClassification {
 // silent-200 case this readback exists to catch. `before` is the record read
 // immediately ahead of the write, and the conflict gate above has already
 // proved it is the same revision the approval preview snapshotted.
+//
+// Alt text is the exception: it is compared exactly, because a rewritten value
+// is not the text the approver read, so anything but the request is a miss.
 const classifyReadback = (
   operation: UpdatePostOperation,
   before: JsonObject,
@@ -266,18 +289,21 @@ const classifyReadback = (
   for (const path of changedPaths(operation)) {
     const requested = requestedValue(operation, path);
     const previous = readPath(before, path);
+    const stored = readPath(after, path);
 
     if (deepEqual(previous, requested)) {
+      if (path === ALT_TEXT_PATH && !deepEqual(stored, requested)) {
+        missed.push(path);
+      }
+
       // The request asked for the value the post already held: a no-op, not a
       // change and not a miss.
       continue;
     }
 
-    const stored = readPath(after, path);
-
     if (deepEqual(stored, requested)) {
       changed.push(path);
-    } else if (deepEqual(stored, previous)) {
+    } else if (deepEqual(stored, previous) || path === ALT_TEXT_PATH) {
       missed.push(path);
     } else {
       changed.push(path);
@@ -357,6 +383,29 @@ const applyPost = async (
       error: {
         code: "modified_since_preflight",
         message: `${snapshot.target} changed after the approval preview`,
+      },
+      normalized_paths: [],
+      status: "conflict",
+    };
+  }
+
+  // Editing an attachment's alt text does not always advance `modified_gmt`,
+  // so the revision check above can pass after someone else changed it.
+  if (
+    operation.fields?.alt_text !== undefined &&
+    !snapshot.fields.some(
+      (field) =>
+        field.path === ALT_TEXT_PATH &&
+        field.before === readPath(before, ALT_TEXT_PATH) &&
+        field.after === operation.fields?.alt_text
+    )
+  ) {
+    return {
+      ...base,
+      changed_paths: [],
+      error: {
+        code: "alt_text_changed_since_preflight",
+        message: "The media alt text differs from the approved preview",
       },
       normalized_paths: [],
       status: "conflict",
