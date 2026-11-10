@@ -7,6 +7,8 @@
 - Uses `@patronage/mcp-core` 0.2.0, so a site installs both at the same version. 0.1.0 depends on mcp-core 0.1.0.
 - The connector's instructions tell the model to do every read before `payload.apply`, since reads after an approved write are refused.
 
+- `payload.apply` reports progress as each operation settles, so an interrupted write no longer marks drafts it already created as unconfirmed.
+
 ## 0.1.0
 
 ### Minor Changes
