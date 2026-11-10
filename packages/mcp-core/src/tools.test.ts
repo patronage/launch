@@ -11,6 +11,21 @@ import {
   LEGACY_APPROVAL_APP_URIS,
 } from "./approval-app";
 import type { CallerContext } from "./caller";
+import {
+  listFeedbackQueue,
+  listOwnFeedback,
+  readFeedback,
+  readOwnFeedback,
+  submitFeedback,
+  updateFeedback,
+} from "./feedback";
+import type {
+  FeedbackRecord,
+  FeedbackStatus,
+  FeedbackStore,
+  FeedbackSubmission,
+  FeedbackUpdate,
+} from "./feedback";
 import type {
   McpRequestLogger,
   McpWideEvent,
@@ -133,6 +148,48 @@ interface StubOverrides {
   reject?: () => Promise<RunReport>;
 }
 
+const memoryFeedbackStore = (): FeedbackStore => {
+  const records = new Map<string, FeedbackRecord>();
+
+  return {
+    delete: (keys) => {
+      for (const key of keys) {
+        records.delete(key);
+      }
+
+      return Promise.resolve();
+    },
+    get: (key) => Promise.resolve(records.get(key)),
+    list: (prefix) =>
+      Promise.resolve(
+        new Map([...records].filter(([key]) => key.startsWith(prefix)))
+      ),
+    put: (key, record) => {
+      records.set(key, record);
+
+      return Promise.resolve();
+    },
+  };
+};
+
+// The feedback RPCs run the real queue logic over an in-memory store, so the
+// tool tests exercise the same lifecycle the Durable Object does.
+const feedbackRuntime = () => {
+  const store = memoryFeedbackStore();
+
+  return {
+    get: (id: string, submitterOpaque: string) =>
+      readOwnFeedback(store, id, submitterOpaque),
+    own: (submitterOpaque: string) => listOwnFeedback(store, submitterOpaque),
+    queue: (status?: FeedbackStatus) => listFeedbackQueue(store, status),
+    read: (id: string) => readFeedback(store, id),
+    submit: (submission: FeedbackSubmission, submitterOpaque: string) =>
+      submitFeedback(store, submission, submitterOpaque),
+    update: (id: string, update: FeedbackUpdate) =>
+      updateFeedback(store, id, update),
+  };
+};
+
 // Every stubbed RPC answers with the value plus the same WordPress record, so
 // each tool can be asked whether it put that record on the wide event.
 const outcome = async <T>(value: Promise<T> | T) => ({
@@ -149,6 +206,7 @@ interface StubbedRuntime {
 }
 
 const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
+  const feedback = feedbackRuntime();
   const nonces = new Map<string, string>();
   let minted = 0;
 
@@ -211,6 +269,8 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
 
       return outcome(overrides.execute?.() ?? pausedExecute);
     },
+    getFeedback: (feedbackId, submitterOpaque) =>
+      feedback.get(feedbackId, submitterOpaque),
     getRun: (executionId, context) => {
       calls.getRun.push({ caller: context, executionId });
       calls.order.push("getRun");
@@ -224,6 +284,9 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
 
       return Promise.resolve(nonce);
     },
+    listFeedbackQueue: (status) => feedback.queue(status),
+    listOwnFeedback: (submitterOpaque) => feedback.own(submitterOpaque),
+    readFeedbackRecord: (feedbackId) => feedback.read(feedbackId),
     reject: (executionId, context) => {
       calls.reject.push({ caller: context, executionId });
       calls.order.push("reject");
@@ -236,6 +299,9 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
         }
       );
     },
+    submitFeedback: (submission, submitterOpaque) =>
+      feedback.submit(submission, submitterOpaque),
+    updateFeedback: (feedbackId, update) => feedback.update(feedbackId, update),
     verifyNonce: (executionId, nonce) =>
       Promise.resolve(nonces.get(executionId) === nonce),
   };
@@ -343,7 +409,9 @@ describe("tool registration", () => {
     expect(listing.tools.map((tool) => tool.name).toSorted()).toStrictEqual([
       "describe_site",
       "execute",
+      "get_feedback",
       "get_run",
+      "submit_feedback",
     ]);
     expect(
       listing.tools.find((tool) => tool.name === "execute")?._meta
@@ -373,9 +441,11 @@ describe("tool registration", () => {
       "decide_write",
       "describe_site",
       "execute",
+      "get_feedback",
       "get_run",
       "preview_write",
       "progress_write",
+      "submit_feedback",
     ]);
     expect(
       listing.tools.find((tool) => tool.name === "execute")?._meta
@@ -1199,5 +1269,140 @@ describe("WordPress requests on the wide event", () => {
       execute: wordpress,
       get_run: wordpress,
     });
+  });
+});
+
+describe("agent feedback tools", () => {
+  const report = {
+    category: "confusing_error",
+    details: "wp.get threw invalid_path with no hint that ? is refused.",
+    summary: "wp.get rejects a path with a query string without saying why",
+    tool: "execute",
+  };
+
+  it("files a report and hands back an id the caller can read", async () => {
+    const { stub } = stubRuntime();
+    const server = toolServer(stub, requestLogger());
+
+    const submitted = await callTool(server, "submit_feedback", report);
+
+    const filed = z
+      .object({ feedback: z.object({ id: z.string(), status: z.string() }) })
+      .parse(submitted.structuredContent);
+
+    expect(submitted.isError).toBeUndefined();
+    expect(filed.feedback.status).toBe("open");
+    expect(filed.feedback.id).toMatch(/^fb_/u);
+    expect(submitted.structuredContent).not.toHaveProperty(
+      "feedback.submitterOpaque"
+    );
+
+    const read = await callTool(
+      toolServer(stub, requestLogger()),
+      "get_feedback",
+      {
+        feedbackId: filed.feedback.id,
+      }
+    );
+
+    expect(summaryText(read)).toBe(`Feedback ${filed.feedback.id}: open`);
+  });
+
+  it("tells the submitting agent when the maintainer ships a fix", async () => {
+    const { stub } = stubRuntime();
+
+    const submitted = await callTool(
+      toolServer(stub, requestLogger()),
+      "submit_feedback",
+      report
+    );
+
+    const { id } = z
+      .object({ feedback: z.object({ id: z.string() }) })
+      .parse(submitted.structuredContent).feedback;
+
+    await stub.updateFeedback(id, {
+      note: "wp.get now names the query parameter to move.",
+      status: "resolved",
+      version: "0.3.0",
+    });
+
+    const listed = await callTool(
+      toolServer(stub, requestLogger()),
+      "get_feedback",
+      {}
+    );
+
+    expect(listed.structuredContent).toMatchObject({
+      reports: [
+        {
+          id,
+          resolution: {
+            note: "wp.get now names the query parameter to move.",
+            version: "0.3.0",
+          },
+          status: "resolved",
+        },
+      ],
+    });
+    expect(summaryText(listed)).toContain("(shipped in 0.3.0)");
+  });
+
+  it("puts the report's enums on the wide event and never its text", async () => {
+    const { stub } = stubRuntime();
+    const log = requestLogger();
+    await callTool(toolServer(stub, log), "submit_feedback", report);
+
+    const event = log.getContext();
+    expect(event.feedback).toMatchObject({
+      action: "submit",
+      category: "confusing_error",
+      status: "open",
+      tool: "execute",
+    });
+    expect(JSON.stringify(event)).not.toContain("query string");
+  });
+
+  it("refuses a category outside the documented set", async () => {
+    const { stub } = stubRuntime();
+
+    const result = await callTool(
+      toolServer(stub, requestLogger()),
+      "submit_feedback",
+      { ...report, category: "praise" }
+    );
+
+    expect(result.isError).toBeTruthy();
+  });
+
+  it("answers an unknown id as an error rather than an empty report", async () => {
+    const { stub } = stubRuntime();
+
+    const result = await callTool(
+      toolServer(stub, requestLogger()),
+      "get_feedback",
+      { feedbackId: "fb_missing" }
+    );
+
+    expect(result.isError).toBeTruthy();
+    expect(summaryText(result)).toContain("fb_missing");
+  });
+
+  it("does not show one caller's report to another", async () => {
+    const { stub } = stubRuntime();
+
+    const filed = await stub.submitFeedback(
+      { category: "bug", summary: "Someone else's report", tool: "execute" },
+      "someone-else0000"
+    );
+
+    const result = await callTool(
+      toolServer(stub, requestLogger()),
+      "get_feedback",
+      { feedbackId: filed.id }
+    );
+
+    expect(result.isError).toBeTruthy();
+    expect(summaryText(result)).not.toContain("Someone else's report");
   });
 });

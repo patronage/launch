@@ -25,6 +25,22 @@ import {
 import { CallerScopeError } from "./caller";
 import type { CallerContext } from "./caller";
 import {
+  FeedbackLimitError,
+  feedbackCategories,
+  feedbackIdSchema,
+  feedbackStatuses,
+  feedbackSummaryText,
+  feedbackTools,
+  submitFeedbackInputSchema,
+} from "./feedback";
+import type {
+  FeedbackRecord,
+  FeedbackStatus,
+  FeedbackSubmission,
+  FeedbackUpdate,
+  FeedbackView,
+} from "./feedback";
+import {
   recordApprovalDecision,
   recordApprovalSurface,
   recordRun,
@@ -68,12 +84,30 @@ export interface RuntimeApi {
     executionId: string,
     caller?: CallerContext
   ) => Promise<RuntimeOutcome<RunReport>>;
+  // The feedback queue answers with bare values too: none of it reaches a CMS.
+  getFeedback: (
+    feedbackId: string,
+    submitterOpaque: string
+  ) => Promise<FeedbackView | undefined>;
   issueNonce: (executionId: string) => Promise<string>;
+  listFeedbackQueue: (status?: FeedbackStatus) => Promise<FeedbackRecord[]>;
+  listOwnFeedback: (submitterOpaque: string) => Promise<FeedbackView[]>;
+  readFeedbackRecord: (
+    feedbackId: string
+  ) => Promise<FeedbackRecord | undefined>;
   reject: (
     executionId: string,
     caller: CallerContext,
     previewDigest?: string
   ) => Promise<RuntimeOutcome<RunReport>>;
+  submitFeedback: (
+    submission: FeedbackSubmission,
+    submitterOpaque: string
+  ) => Promise<FeedbackView>;
+  updateFeedback: (
+    feedbackId: string,
+    update: FeedbackUpdate
+  ) => Promise<FeedbackRecord | undefined>;
   verifyNonce: (executionId: string, nonce: string) => Promise<boolean>;
 }
 
@@ -462,6 +496,7 @@ const MAX_ERROR_NAME = 64;
 const RETAINED_ERROR_NAMES: ReadonlySet<string> = new Set([
   ApplyValidationError.name,
   CallerScopeError.name,
+  FeedbackLimitError.name,
   UpstreamRequestError.name,
 ]);
 
@@ -487,6 +522,70 @@ const toolFailure = <E>(error: E): ToolFailureReport => {
     message: RETAINED_ERROR_NAMES.has(name) ? error.message : OPAQUE_TOOL_ERROR,
     name,
   };
+};
+
+const feedbackViewSchema = z.object({
+  attempted: z.string().optional(),
+  category: z.enum(feedbackCategories),
+  details: z.string().optional(),
+  executionId: z.string().optional(),
+  expected: z.string().optional(),
+  id: z.string(),
+  resolution: z
+    .object({
+      at: z.string(),
+      note: z.string().optional(),
+      version: z.string().optional(),
+    })
+    .optional(),
+  status: z.enum(feedbackStatuses),
+  submittedAt: z.string(),
+  summary: z.string(),
+  tool: z.enum(feedbackTools),
+  updatedAt: z.string(),
+});
+
+// Flat, like the rest. One report, the caller's own list, or the failure
+// shape: nothing is on all three, so nothing is required.
+const feedbackOutputSchema = z.object({
+  error: z.string().optional(),
+  feedback: feedbackViewSchema.optional(),
+  reports: z.array(feedbackViewSchema).optional(),
+});
+
+const getFeedbackInputSchema = z.object({
+  feedbackId: feedbackIdSchema
+    .optional()
+    .describe(
+      "The id submit_feedback returned. Omit it to list your own reports, newest first."
+    ),
+});
+
+type FeedbackResult =
+  | { error: string }
+  | { feedback: FeedbackView }
+  | { reports: FeedbackView[] };
+
+const SUBMIT_FEEDBACK_DESCRIPTION = [
+  "Report a problem you had using this MCP so its maintainers can fix the tools or their documentation: an error that did not say how to recover, a description that misled you, a capability the task needed, or a result that did not match the docs.",
+  "Use it after you have worked around or given up on the problem, not instead of telling the user. Describe the tool's behaviour, not the user's content: leave site content and personal data out.",
+  "Returns a feedbackId. Call get_feedback later to see whether it was fixed and in which version.",
+].join(" ");
+
+const feedbackText = (value: FeedbackResult): string => {
+  if ("error" in value) {
+    return `Feedback unavailable: ${value.error}`;
+  }
+
+  if ("feedback" in value) {
+    return feedbackSummaryText(value.feedback);
+  }
+
+  if (value.reports.length === 0) {
+    return "You have no feedback reports on record.";
+  }
+
+  return value.reports.map((report) => feedbackSummaryText(report)).join("\n");
 };
 
 const withToolLog = async <T>(
@@ -805,6 +904,109 @@ const registerApprovalTools = (
   );
 };
 
+// The submission half of the agent feedback channel and the way the submitting
+// agent hears back. Neither touches a CMS. The maintainer half — reading
+// the queue and answering a report — is the `/mcp/feedback` HTTP route in
+// `gateway-worker.ts`, behind a maintainer token, and is never a model-visible tool.
+const registerFeedbackTools = (
+  server: McpServer,
+  deps: ToolDeps,
+  log: McpRequestLogger
+): void => {
+  server.registerTool(
+    "submit_feedback",
+    {
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+        readOnlyHint: false,
+      },
+      description: SUBMIT_FEEDBACK_DESCRIPTION,
+      inputSchema: submitFeedbackInputSchema,
+      outputSchema: feedbackOutputSchema,
+    },
+    async (input) => {
+      const { failed, value } = await withToolLog<FeedbackResult>(
+        "submit_feedback",
+        log,
+        async () => ({
+          feedback: await deps.stub.submitFeedback(
+            input,
+            deps.caller.subjectOpaque
+          ),
+        }),
+        (message) => ({ error: message })
+      );
+
+      if ("feedback" in value) {
+        log.set({
+          feedback: {
+            action: "submit",
+            category: value.feedback.category,
+            id: value.feedback.id,
+            status: value.feedback.status,
+            tool: value.feedback.tool,
+          },
+        });
+      }
+
+      return textResult(value, feedbackText(value), failed);
+    }
+  );
+
+  server.registerTool(
+    "get_feedback",
+    {
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+        readOnlyHint: true,
+      },
+      description:
+        "Return the status of feedback you submitted: open, acknowledged, resolved, or wont_fix, with the maintainer's note and the version that shipped the fix. Omit feedbackId to list your own reports.",
+      inputSchema: getFeedbackInputSchema,
+      outputSchema: feedbackOutputSchema,
+    },
+    async (input) => {
+      const { feedbackId } = input;
+
+      const { failed, value } = await withToolLog<FeedbackResult>(
+        "get_feedback",
+        log,
+        async () => {
+          if (!feedbackId) {
+            return {
+              reports: await deps.stub.listOwnFeedback(
+                deps.caller.subjectOpaque
+              ),
+            };
+          }
+
+          const feedback = await deps.stub.getFeedback(
+            feedbackId,
+            deps.caller.subjectOpaque
+          );
+
+          return feedback
+            ? { feedback }
+            : { error: `No feedback report ${feedbackId} is on record.` };
+        },
+        (message) => ({ error: message })
+      );
+
+      log.set({
+        feedback: feedbackId
+          ? { action: "read", id: feedbackId }
+          : { action: "list" },
+      });
+
+      return textResult(value, feedbackText(value), failed || "error" in value);
+    }
+  );
+};
+
 // `support` is what the client said it can render; see `ClientAppSupport` for
 // what each answer buys. A client that positively advertised without the
 // extension gets three ordinary tools, no card resource, no app-only tools,
@@ -965,4 +1167,6 @@ export const registerTools = (
       return textResult(value, runText(value), failed);
     }
   );
+
+  registerFeedbackTools(server, deps, log);
 };

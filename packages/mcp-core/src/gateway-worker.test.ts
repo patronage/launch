@@ -133,6 +133,19 @@ const WORDPRESS_REQUESTS: UpstreamRequestLog = {
   target: "wordpress.example",
 };
 
+const FEEDBACK_REPORT = {
+  category: "docs_gap",
+  id: "fb_report-1",
+  status: "open",
+  submittedAt: "2026-11-10T00:00:00.000Z",
+  submitterOpaque: "agent0000000000",
+  summary: "Paging is undocumented",
+  tool: "execute",
+  updatedAt: "2026-11-10T00:00:00.000Z",
+};
+
+const MAINTAINER_TOKEN = "maintainer-token";
+
 const runtimeCalls: RuntimeCall[] = [];
 const instanceNames: string[] = [];
 let stubsObtained = 0;
@@ -198,6 +211,15 @@ const runtime = {
       value: { ...runReports.getRun, executionId },
     });
   },
+  listFeedbackQueue: (status?: string) => {
+    runtimeCalls.push({ method: "listFeedbackQueue" });
+
+    return Promise.resolve(
+      [FEEDBACK_REPORT].filter((report) =>
+        status ? report.status === status : true
+      )
+    );
+  },
   reject: (
     executionId: string,
     caller: CallerContext,
@@ -209,6 +231,18 @@ const runtime = {
       upstream: WORDPRESS_REQUESTS,
       value: { ...runReports.reject, executionId },
     });
+  },
+  updateFeedback: (
+    feedbackId: string,
+    update: { note?: string; status: string; version?: string }
+  ) => {
+    runtimeCalls.push({ method: "updateFeedback" });
+
+    return Promise.resolve(
+      feedbackId === FEEDBACK_REPORT.id
+        ? { ...FEEDBACK_REPORT, status: update.status }
+        : undefined
+    );
   },
   verifyNonce: (_executionId: string, approvalToken: string) => {
     runtimeCalls.push({ method: "verifyNonce" });
@@ -1400,6 +1434,148 @@ describe("Approval route", () => {
     );
 
     expect(response.status).toBe(403);
+    expect(runtimeCalls).toHaveLength(0);
+  });
+});
+
+const feedbackRequest = (
+  path: string,
+  token: string,
+  init: { body?: unknown; maintainer?: string; method?: string } = {}
+): Request => {
+  const headers = new Headers({ "Cf-Access-Jwt-Assertion": token });
+
+  if (init.maintainer) {
+    headers.set("X-Feedback-Maintainer-Token", init.maintainer);
+  }
+
+  const request: RequestInit = { headers, method: init.method ?? "GET" };
+
+  if (init.body !== undefined) {
+    request.body = JSON.stringify(init.body);
+    headers.set("Content-Type", "application/json");
+  }
+
+  return new Request(`${APPROVAL_ORIGIN}${path}`, request);
+};
+
+describe("feedback maintainer route", () => {
+  beforeEach(resetRuntime);
+
+  const maintainerEnv = { ...env, FEEDBACK_MAINTAINER_TOKEN: MAINTAINER_TOKEN };
+
+  it("does not exist on a deployment with no maintainer token", async () => {
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, []);
+
+    const response = await worker.fetch(
+      feedbackRequest("/mcp/feedback", token, { maintainer: MAINTAINER_TOKEN }),
+      env,
+      executionContext()
+    );
+
+    expect(response.status).toBe(404);
+    expect(runtimeCalls).toHaveLength(0);
+  });
+
+  it("refuses an Access user without the maintainer token", async () => {
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, []);
+
+    const response = await worker.fetch(
+      feedbackRequest("/mcp/feedback", token, { maintainer: "guess" }),
+      maintainerEnv,
+      executionContext()
+    );
+
+    expect(response.status).toBe(403);
+    expect(runtimeCalls).toHaveLength(0);
+  });
+
+  it("denies the route without an Access assertion, token or not", async () => {
+    const worker = createWorker({
+      connectors: [fakeConnector],
+      drain: () => {},
+    });
+
+    const response = await worker.fetch(
+      new Request(`${APPROVAL_ORIGIN}/mcp/feedback`, {
+        headers: { "X-Feedback-Maintainer-Token": MAINTAINER_TOKEN },
+      }),
+      maintainerEnv,
+      executionContext()
+    );
+
+    expect(response.status).toBe(403);
+    expect(runtimeCalls).toHaveLength(0);
+  });
+
+  it("serves the open queue to the maintainer", async () => {
+    const events: unknown[] = [];
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, events);
+
+    const response = await worker.fetch(
+      feedbackRequest("/mcp/feedback", token, { maintainer: MAINTAINER_TOKEN }),
+      maintainerEnv,
+      executionContext()
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({
+      reports: [FEEDBACK_REPORT],
+    });
+    expect(events[0]).toMatchObject({
+      feedback: { action: "queue" },
+      mcp: { outcome: "success", tool: "feedback_queue" },
+    });
+  });
+
+  it("records a resolution and audits who made it", async () => {
+    const events: unknown[] = [];
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, events);
+
+    const response = await worker.fetch(
+      feedbackRequest(`/mcp/feedback/${FEEDBACK_REPORT.id}`, token, {
+        body: { note: "Documented.", status: "resolved", version: "0.3.0" },
+        maintainer: MAINTAINER_TOKEN,
+        method: "POST",
+      }),
+      maintainerEnv,
+      executionContext()
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      report: { id: FEEDBACK_REPORT.id, status: "resolved" },
+    });
+    expect(events[0]).toMatchObject({
+      feedback: {
+        action: "update",
+        id: FEEDBACK_REPORT.id,
+        status: "resolved",
+      },
+    });
+    expect(JSON.stringify(events[0])).not.toContain("Documented.");
+  });
+
+  it("rejects an update with a status outside the lifecycle", async () => {
+    const { publicKey, token } = await accessIdentity();
+    const worker = collectingWorker(publicKey, []);
+
+    const response = await worker.fetch(
+      feedbackRequest(`/mcp/feedback/${FEEDBACK_REPORT.id}`, token, {
+        body: { status: "deleted" },
+        maintainer: MAINTAINER_TOKEN,
+        method: "POST",
+      }),
+      maintainerEnv,
+      executionContext()
+    );
+
+    expect(response.status).toBe(400);
     expect(runtimeCalls).toHaveLength(0);
   });
 });

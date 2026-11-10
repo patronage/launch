@@ -20,6 +20,10 @@ const payloadOn = Boolean(payloadWorker || payloadUrl);
 const wordpressUrl = process.env.WORDPRESS_API_URL ?? "";
 const wordpressOn = Boolean(wordpressUrl);
 
+// Turns on the maintainer's /mcp/feedback routes, and with them the
+// FEEDBACK_MAINTAINER_TOKEN secret. Agents can submit feedback either way.
+const feedbackMaintainerOn = process.env.FEEDBACK_MAINTAINER === "true";
+
 // The cf CLI's typed Worker config, in place of wrangler.jsonc (ADR 0003).
 // The account comes from CLOUDFLARE_ACCOUNT_ID.
 export default defineConfig({
@@ -42,6 +46,8 @@ export default defineConfig({
       DEPLOYMENT_ENVIRONMENT: bindings.text(
         process.env.DEPLOYMENT_ENVIRONMENT ?? "development"
       ),
+      // Sent as X-Feedback-Maintainer-Token on the /mcp/feedback routes.
+      FEEDBACK_MAINTAINER_TOKEN: feedbackMaintainerOn && bindings.secret(),
       // Runs the model's code in a Dynamic Worker (paid plan, open beta).
       GATEWAY_RUNTIME: bindings.durableObject({
         exportName: "GatewayRuntime",

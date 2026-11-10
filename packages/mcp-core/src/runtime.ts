@@ -11,6 +11,23 @@ import type { CallerContext } from "./caller";
 import { settleWithin } from "./concurrency";
 import type { ConnectorToolMap, RuntimeStore } from "./connector";
 import type { GatewayEnv } from "./env";
+import {
+  listFeedbackQueue,
+  listOwnFeedback,
+  pruneFeedback,
+  readFeedback,
+  readOwnFeedback,
+  submitFeedback,
+  updateFeedback,
+} from "./feedback";
+import type {
+  FeedbackRecord,
+  FeedbackStatus,
+  FeedbackStore,
+  FeedbackSubmission,
+  FeedbackUpdate,
+  FeedbackView,
+} from "./feedback";
 import type { GatewayConnector } from "./gateway-connector";
 import { ApplyValidationError } from "./operations";
 import { canonicalArgs, guardApprovalReplay } from "./replay-guard";
@@ -168,6 +185,19 @@ export abstract class BaseGatewayRuntime<
 
     return connector.parseApply(args);
   };
+
+  #feedback(): FeedbackStore {
+    const { storage } = this.ctx;
+
+    return {
+      delete: async (keys) => {
+        await storage.delete(keys);
+      },
+      get: (key) => storage.get<FeedbackRecord>(key),
+      list: (prefix) => storage.list<FeedbackRecord>({ prefix }),
+      put: (key, record) => storage.put(key, record),
+    };
+  }
 
   #store(): RuntimeStore {
     const { storage } = this.ctx;
@@ -806,6 +836,42 @@ export abstract class BaseGatewayRuntime<
     return toRuntimeOutcome(value, telemetry);
   }
 
+  // The agent feedback queue. None of these reach a CMS, so each answers with
+  // a bare value and no request log, like the nonce RPCs.
+  submitFeedback(
+    submission: FeedbackSubmission,
+    submitterOpaque: string
+  ): Promise<FeedbackView> {
+    return submitFeedback(this.#feedback(), submission, submitterOpaque);
+  }
+
+  getFeedback(
+    feedbackId: string,
+    submitterOpaque: string
+  ): Promise<FeedbackView | undefined> {
+    return readOwnFeedback(this.#feedback(), feedbackId, submitterOpaque);
+  }
+
+  listOwnFeedback(submitterOpaque: string): Promise<FeedbackView[]> {
+    return listOwnFeedback(this.#feedback(), submitterOpaque);
+  }
+
+  // Maintainer-only: `gateway-worker.ts` checks the maintainer token first.
+  readFeedbackRecord(feedbackId: string): Promise<FeedbackRecord | undefined> {
+    return readFeedback(this.#feedback(), feedbackId);
+  }
+
+  listFeedbackQueue(status?: FeedbackStatus): Promise<FeedbackRecord[]> {
+    return listFeedbackQueue(this.#feedback(), status);
+  }
+
+  updateFeedback(
+    feedbackId: string,
+    update: FeedbackUpdate
+  ): Promise<FeedbackRecord | undefined> {
+    return updateFeedback(this.#feedback(), feedbackId, update);
+  }
+
   // Progress outlives its run only when the write never returned a receipt,
   // as that run's record of what landed. A day later it is dropped, on the
   // same clock as an unanswered approval.
@@ -836,6 +902,7 @@ export abstract class BaseGatewayRuntime<
 
     await Promise.all(expired.map((id) => this.#forget(id)));
     await this.#pruneProgress();
+    await pruneFeedback(this.#feedback());
     await this.ctx.storage.setAlarm(Date.now() + PAUSED_MAX_AGE_MS);
   }
 }

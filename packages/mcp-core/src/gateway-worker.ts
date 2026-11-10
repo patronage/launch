@@ -35,6 +35,14 @@ import type { ApprovalView } from "./approval-page";
 import type { CallerContext } from "./caller";
 import { delay } from "./concurrency";
 import type { GatewayEnv } from "./env";
+import {
+  FEEDBACK_MAINTAINER_HEADER,
+  FEEDBACK_ROUTE,
+  feedbackListFilterSchema,
+  feedbackUpdateSchema,
+  isMaintainerToken,
+} from "./feedback";
+import type { FeedbackRecord, FeedbackUpdate } from "./feedback";
 import type { GatewayConnector } from "./gateway-connector";
 import {
   recordApprovalDecision,
@@ -876,6 +884,154 @@ const handleApproval = async (
   return await reportPage(secret, deps, executionId, report, log);
 };
 
+const FEEDBACK_TOOL = "feedback_queue";
+
+const JSON_HEADERS = {
+  "Cache-Control": "no-store",
+  "Content-Type": "application/json; charset=utf-8",
+  "X-Content-Type-Options": "nosniff",
+} satisfies Record<string, string>;
+
+type FeedbackRouteBody =
+  | { error: string }
+  | { report: FeedbackRecord }
+  | { reports: FeedbackRecord[] };
+
+const feedbackJson = (
+  body: FeedbackRouteBody,
+  status = 200,
+  headers: Record<string, string> = {}
+): Response =>
+  Response.json(body, {
+    headers: { ...headers, ...JSON_HEADERS },
+    status,
+  });
+
+// A body that is not JSON, or not a valid answer, is the same 400.
+const readFeedbackUpdate = async (
+  request: Request
+): Promise<FeedbackUpdate | undefined> => {
+  try {
+    const parsed = feedbackUpdateSchema.safeParse(await request.json());
+
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+// The maintainer half of the agent feedback channel: the queue a maintainer's
+// agent reads, and the answer it writes back once a fix has shipped. Access
+// has already verified the caller — a person or an Access service token — and
+// the maintainer token narrows that to the people who own this deployment.
+// Without a configured token the routes do not exist.
+const handleFeedback = async (
+  request: Request,
+  env: GatewayEnv,
+  deps: ToolDeps,
+  url: URL,
+  feedbackId: string | undefined,
+  log: McpRequestLogger
+): Promise<Response> => {
+  log.set({ mcp: { outcome: "pending", tool: FEEDBACK_TOOL } });
+
+  if (!env.FEEDBACK_MAINTAINER_TOKEN) {
+    log.set({ mcp: { outcome: "not_found" } });
+
+    return feedbackJson({ error: "not_found" }, 404);
+  }
+
+  if (
+    !(await isMaintainerToken(
+      env.FEEDBACK_MAINTAINER_TOKEN,
+      request.headers.get(FEEDBACK_MAINTAINER_HEADER)
+    ))
+  ) {
+    log.setLevel("warn");
+    log.set({ mcp: { outcome: "error" } });
+    log.audit.deny("feedback_maintainer_token", {
+      action: "feedback.maintain",
+      actor: { id: deps.caller.subjectOpaque, type: "user" },
+      target: { id: "/mcp/feedback", type: "route" },
+    });
+
+    return feedbackJson({ error: "forbidden" }, 403);
+  }
+
+  if (request.method === "GET" && !feedbackId) {
+    const filter = feedbackListFilterSchema.safeParse({
+      status: url.searchParams.get("status") ?? undefined,
+    });
+
+    if (!filter.success) {
+      log.set({ mcp: { outcome: "error" } });
+
+      return feedbackJson({ error: "invalid_status" }, 400);
+    }
+
+    const reports = await deps.stub.listFeedbackQueue(filter.data.status);
+    log.set({ feedback: { action: "queue" }, mcp: { outcome: "success" } });
+
+    return feedbackJson({ reports });
+  }
+
+  if (request.method === "GET" && feedbackId) {
+    const report = await deps.stub.readFeedbackRecord(feedbackId);
+    log.set({ feedback: { action: "read", id: feedbackId } });
+
+    if (!report) {
+      log.set({ mcp: { outcome: "not_found" } });
+
+      return feedbackJson({ error: "not_found" }, 404);
+    }
+
+    log.set({ mcp: { outcome: "success" } });
+
+    return feedbackJson({ report });
+  }
+
+  if (request.method === "POST" && feedbackId) {
+    const update = await readFeedbackUpdate(request);
+
+    if (!update) {
+      log.set({ mcp: { outcome: "error" } });
+
+      return feedbackJson({ error: "invalid_update" }, 400);
+    }
+
+    const report = await deps.stub.updateFeedback(feedbackId, update);
+    log.set({
+      feedback: {
+        action: "update",
+        id: feedbackId,
+        status: update.status,
+      },
+    });
+
+    if (!report) {
+      log.set({ mcp: { outcome: "not_found" } });
+
+      return feedbackJson({ error: "not_found" }, 404);
+    }
+
+    log.set({ mcp: { outcome: "success" } });
+    log.audit({
+      action: "feedback.update",
+      actor: { id: deps.caller.subjectOpaque, type: "user" },
+      outcome: "success",
+      target: { id: feedbackId, type: "feedback" },
+    });
+
+    return feedbackJson({ report });
+  }
+
+  log.set({ mcp: { outcome: "error" } });
+
+  return feedbackJson({ error: "method_not_allowed" }, 405, {
+    Allow: feedbackId ? "GET, POST" : "GET",
+  });
+};
+
 export interface WorkerOptions<
   E extends GatewayEnv = GatewayEnv,
 > extends McpLoggingOptions {
@@ -946,10 +1102,20 @@ export const createWorker = <E extends GatewayEnv>(
       // The approval route (`/mcp/approvals/:id`) is answered here, ahead of the
       // MCP handler, on the same verified caller and stub.
       const approvalId = APPROVAL_ROUTE.exec(url.pathname)?.groups?.executionId;
+      const feedbackRoute = FEEDBACK_ROUTE.exec(url.pathname);
       let response: Response;
 
       if (approvalId) {
         response = await handleApproval(request, env, deps, approvalId, log);
+      } else if (feedbackRoute) {
+        response = await handleFeedback(
+          request,
+          env,
+          deps,
+          url,
+          feedbackRoute.groups?.feedbackId,
+          log
+        );
       } else {
         const info = await readMcpRequest(
           request,

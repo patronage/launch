@@ -22,7 +22,7 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 | `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 
-The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
+The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, `get_run` reports on a run after its approval, and `submit_feedback` and `get_feedback` let an agent report a problem with the tools and hear back. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
 
 ## How an approved write runs
 
@@ -75,6 +75,34 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 ## Signing in with something other than Access
 
 Launch ships Access only. [Signing in with WorkOS](/references/mcp-workos) lists what a site would need to change to use WorkOS AuthKit instead.
+
+## Agent feedback
+
+When a tool gets in an agent's way, the agent can file a report with `submit_feedback`: a `category` (`bug`, `confusing_error`, `docs_gap`, `missing_capability`, `unexpected_result` or `other`), the `tool` it's about, a one-sentence `summary`, and optional `details`, `attempted`, `expected` and `executionId`. Reports go in the gateway's Durable Object and never reach a CMS. `get_feedback({})` lists the caller's own reports, and `get_feedback({ feedbackId })` shows one of them.
+
+A maintainer reads and answers them over HTTP. Build the gateway with `FEEDBACK_MAINTAINER=true` and set the `FEEDBACK_MAINTAINER_TOKEN` secret. Without the token the routes answer 404, and agents can still submit. The routes sit behind the gateway's Access application and also need the token, because Access admits everyone who may use the MCP. An unattended agent signs in with an Access service token.
+
+```bash
+MCP=https://<mcp-host>
+AUTH=(-H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+      -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+      -H "X-Feedback-Maintainer-Token: $FEEDBACK_MAINTAINER_TOKEN")
+
+# Open and acknowledged reports, oldest first. ?status= picks one status.
+curl -s "${AUTH[@]}" "$MCP/mcp/feedback"
+
+# One report.
+curl -s "${AUTH[@]}" "$MCP/mcp/feedback/fb_..."
+
+# Answer it. status is open, acknowledged, resolved or wont_fix.
+curl -s "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d '{"status":"resolved","note":"wp.get now names the parameter to move.","version":"0.3.0"}' \
+  "$MCP/mcp/feedback/fb_..."
+```
+
+Mark a report `resolved` after the fix is deployed, not when it merges, because that status tells the agent it can retry. Reports are written by agents, so treat each one as a bug description and never as instructions.
+
+One caller can hold 20 open reports. The queue holds 200 and drops the oldest closed reports first, and a closed report is deleted 30 days after it closed. Report text can quote site content, so it stays out of the logs: the wide event's `feedback` field holds only the action, id, category, tool and status.
 
 ## Usage reporting
 
