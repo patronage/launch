@@ -5,6 +5,6 @@
   "description": "ACF field groups, post types and demo seed shared by the Launch WordPress installs.",
   "license": "MIT",
   "scripts": {
-    "test": "for f in patronage-fields.php post-types.php field-values.php fields/*.php seed/*.php tests/*.php; do php -l \"$f\" >/dev/null || exit 1; done && php tests/field-values.test.php"
+    "test": "for f in patronage-fields.php post-types.php field-values.php rich-text-blocks.php fields/*.php seed/*.php tests/*.php; do php -l \"$f\" >/dev/null || exit 1; done && php tests/field-values.test.php && php tests/rich-text-blocks.test.php"
   }
 }
