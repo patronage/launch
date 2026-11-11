@@ -8,7 +8,9 @@ if (!defined('ABSPATH')) {
 }
 
 add_filter('timber/twig', function (\Twig\Environment $twig): \Twig\Environment {
-  // Rich text WordPress has already filtered (wpautop, shortcodes, kses on save).
+  // Rich text that is already filtered and formatted (wpautop, shortcodes):
+  // the fields plugin filters rich-text fields with wp_kses_post() when they
+  // load, and WordPress filters post content when it is saved.
   $twig->addFilter(new \Twig\TwigFilter('rich', fn(?string $html): string => (string) $html, ['is_safe' => ['html']]));
   // WordPress's plain text (titles, the site name, excerpts) arrives with HTML
   // entities from wptexturize and friends, and archive titles with tags. Decode

@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 // field-values.php against WordPress and ACF stubs: the post meta the field
-// groups store is protected, other meta is left as WordPress decided, and
-// get_field() is told not to return values that have no field behind them.
+// groups store is protected, other meta is left as WordPress decided,
+// get_field() is told not to return values that have no field behind them,
+// and rich text goes through wp_kses_post() when it is loaded.
 
 define('ABSPATH', __DIR__);
 
@@ -25,6 +26,10 @@ function apply_filters(string $hook, mixed $value, mixed ...$args): mixed {
 }
 function __return_true(): bool {
   return true;
+}
+// Stands in for WordPress's filter, which the local-WordPress run exercises.
+function wp_kses_post(string $html): string {
+  return '[kses]' . $html;
 }
 function did_action(string $hook): int {
   global $test_acf_init;
@@ -112,6 +117,15 @@ check(
   apply_filters('acf/prevent_access_to_unknown_fields', false),
   true,
 );
+
+check(
+  'rich text is filtered when it is loaded',
+  apply_filters('acf/load_value/type=wysiwyg', '<p>Text</p>'),
+  '[kses]<p>Text</p>',
+);
+check('an empty rich-text value is still a string', apply_filters('acf/load_value/type=wysiwyg', ''), '[kses]');
+check('a rich-text field with no stored value stays null', apply_filters('acf/load_value/type=wysiwyg', null), null);
+check('a value that is not a string is left alone', apply_filters('acf/load_value/type=wysiwyg', false), false);
 
 if ($failures > 0) {
   echo "\n{$failures} failed\n";

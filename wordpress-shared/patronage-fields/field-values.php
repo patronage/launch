@@ -10,6 +10,9 @@
  * closes WordPress's own paths (ACF's editor and update_field() do not go
  * through them), and get_field() does not return a value that has no field
  * behind it.
+ *
+ * Rich text is also filtered when it is loaded, whoever saved it and
+ * however it was stored.
  */
 
 if (!defined('ABSPATH')) {
@@ -84,3 +87,9 @@ add_filter(
 // would return it as stored; with this it returns null. Write field values
 // with update_field(), as seed/seed.php does.
 add_filter('acf/prevent_access_to_unknown_fields', '__return_true');
+
+// ACF filters a WYSIWYG value only when a user without unfiltered_html saves
+// it in its editor. Filtering the stored value on every load covers the rest:
+// administrators' pastes and values stored some other way. It runs before
+// wpautop and the shortcodes, so the rich-text blocks' markup is untouched.
+add_filter('acf/load_value/type=wysiwyg', fn($value) => is_string($value) ? wp_kses_post($value) : $value);
