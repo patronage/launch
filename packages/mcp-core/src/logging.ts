@@ -362,6 +362,21 @@ export const recordApprovalDecision = <TConsumer extends object>(
   });
 };
 
+// A write on a deployment that does not hold writes for Approval: nobody was
+// asked, so there is no decision and no surface to name, only who wrote.
+export const recordApprovalNotRequired = <TConsumer extends object>(
+  log: McpRequestLogger<TConsumer>,
+  event: { actorOpaque: string; executionId: string }
+): void => {
+  log.set({
+    approval: {
+      actor: event.actorOpaque,
+      executionId: event.executionId,
+      outcome: "not_required",
+    },
+  });
+};
+
 // A receipt never carries field values on the wide event, only the counts a
 // dashboard needs: how many operations landed, were no-ops, failed, hit a
 // conflict, or landed with a CMS-normalised value.

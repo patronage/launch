@@ -4,7 +4,7 @@ The WordPress connector for [`@patronage/mcp-core`](../mcp-core). In the gateway
 
 - `wp.graphql({ query, variables? })` runs WPGraphQL queries, never mutations.
 - `wp.get({ path, query? })` reads the REST API under `/wp-json/`, and refuses method overrides.
-- `wp.apply({ intent, operations })` stages operations for approval:
+- `wp.apply({ intent, operations })` stages operations, held for approval where the deployment requires it:
   - `update_post` changes core fields, ACF fields and registered post meta (`meta`), with an optional `expected_modified_gmt` check.
   - `upsert_redirect` creates or updates one plain-URL rule in the Redirection plugin: `{ source: "/old-page", target: "/new-page", code?: 301 | 302 | 307 | 308 }`.
 

@@ -92,11 +92,12 @@ const clientCapabilitiesSchema = z.object({
   extensions: z.record(z.string(), z.json()).optional(),
 });
 
-// Both places a stateless deployment can learn what the client can render: the
-// per-request envelope of protocol revision 2026-07-28, and the `initialize`
-// handshake a 2025-era client sends once. This handler builds a fresh server
-// per request and keeps no memory of that handshake, so for every request but
-// `initialize` the envelope is the only signal there is.
+// Both places a client states what it can render: the per-request envelope of
+// protocol revision 2026-07-28, and the `initialize` handshake a 2025-era
+// client sends once. This handler builds a fresh server per request and keeps
+// no memory of that handshake, so the handshake's answer is handed back to the
+// client as its session id (see `issueSessionId`) and read from there on every
+// request after it.
 const clientEnvelopeSchema = z.object({
   method: z.string().optional(),
   params: z
@@ -114,6 +115,10 @@ const clientEnvelopeSchema = z.object({
 });
 
 type ClientEnvelope = z.infer<typeof clientEnvelopeSchema>;
+
+// What a client can say for itself; `unknown` is only ever this Worker's word
+// for a client that said nothing.
+type StatedSupport = Exclude<ClientAppSupport, "unknown">;
 
 // The longest method or resource identifier the wide event keeps, and the most
 // methods it lists for one batch.
@@ -144,21 +149,59 @@ const approvalCardOverride = (configured: string | undefined): boolean => {
   return parsed.success && parsed.data === "true";
 };
 
+// `APPROVAL_REQUIRED`: whether this deployment holds writes for Approval. It
+// does not by default, so only unset, empty and exactly "false" read as off.
+// Anything else a deployment wrote there was an attempt to ask for Approval,
+// and a mistyped "True" must not quietly leave a site's writes unheld.
+const approvalRequired = (configured: string | undefined): boolean =>
+  configured !== undefined && configured !== "" && configured !== "false";
+
 const advertisesApps = (
   capabilities: z.infer<typeof clientCapabilitiesSchema>
 ): boolean => Object.hasOwn(capabilities.extensions ?? {}, EXTENSION_ID);
+
+const SESSION_HEADER = "mcp-session-id";
+
+// What a 2025-era client said in `initialize`, carried as the session id it
+// must echo on every later request: the answer, then a random id. Nothing is
+// stored, so the deployment stays stateless.
+//
+// It is not signed, and does not need to be. It repeats a claim the client
+// made about itself, on a header only the client's transport writes, exactly
+// as the per-request envelope does; a client that forges it has done no more
+// than state the capability in `initialize`. It says nothing about who is
+// calling: Access decides that on every request.
+const sessionIdSchema = z
+  .string()
+  .max(64)
+  .regex(/^(?:absent|advertised)\.[0-9a-f-]{36}$/u);
+
+const issueSessionId = (stated: StatedSupport): string =>
+  `${stated}.${crypto.randomUUID()}`;
+
+const sessionSupport = (request: Request): StatedSupport | undefined => {
+  const parsed = sessionIdSchema.safeParse(request.headers.get(SESSION_HEADER));
+
+  if (!parsed.success) {
+    return undefined;
+  }
+
+  return parsed.data.startsWith("advertised.") ? "advertised" : "absent";
+};
 
 // What this caller's client said it can render. It is read from the request
 // body here rather than inside the server factory, because the factory is
 // handed the HTTP request and not the JSON-RPC message it carries.
 //
-// A client that states its capabilities decides the answer outright. A request
-// that states none at all — no envelope, and not an `initialize` — reads as
-// `unknown`, and `unknown` is NOT a licence to hand out the app surface. The
-// approval card's one-time token travels in tool-result `_meta`, and a client
-// that never advertised MCP Apps has promised nothing about `_meta`: it may
-// put it in front of the model, which could then call the app-only decision
-// tool itself and approve a CMS write with no human in the loop.
+// A client that states its capabilities decides the answer outright: on this
+// request's envelope first, then in the `initialize` it is making, then in the
+// session id an earlier `initialize` was answered with. A request that states
+// none at all reads as `unknown`, and `unknown` is NOT a licence to hand out
+// the app surface. The approval card's one-time token travels in tool-result
+// `_meta`, and a client that never advertised MCP Apps has promised nothing
+// about `_meta`: it may put it in front of the model, which could then call
+// the app-only decision tool itself and approve a CMS write with no human in
+// the loop.
 // `visibility: ["app"]` is honoured by conforming hosts only, so on an unknown
 // client neither the token nor the tool hiding can be relied on. Such a client
 // gets the browser approval page instead, which nothing but a person can
@@ -172,6 +215,9 @@ interface McpRequestInfo {
   appToolCall: boolean;
   methods: string[];
   resource?: string;
+  // Set on an `initialize` that stated its capabilities: the session id that
+  // carries the answer to the requests after it.
+  sessionId?: string;
   support: ClientAppSupport;
 }
 
@@ -194,22 +240,18 @@ const readMessages = async (request: Request): Promise<ClientEnvelope[]> => {
   }
 };
 
-const supportOf = (
-  envelope: ClientEnvelope | undefined,
-  unreadable: ClientAppSupport
-): ClientAppSupport => {
-  if (!envelope) {
-    return unreadable;
-  }
-
-  const { method, params } = envelope;
-
+// What the message itself says: the envelope, or the handshake it is making.
+const statedSupport = (
+  envelope: ClientEnvelope | undefined
+): StatedSupport | undefined => {
   const stated =
-    params?._meta?.[CLIENT_CAPABILITIES_META_KEY] ??
-    (method === INITIALIZE_METHOD ? params?.capabilities : undefined);
+    envelope?.params?._meta?.[CLIENT_CAPABILITIES_META_KEY] ??
+    (envelope?.method === INITIALIZE_METHOD
+      ? envelope.params?.capabilities
+      : undefined);
 
   if (!stated) {
-    return unreadable;
+    return undefined;
   }
 
   return advertisesApps(stated) ? "advertised" : "absent";
@@ -239,11 +281,17 @@ const readMcpRequest = async (
       APP_ONLY_TOOLS.some((name) => name === message.params?.name)
   );
 
+  const stated = statedSupport(first);
+
   const info: McpRequestInfo = {
     appToolCall,
     methods,
-    support: supportOf(first, unreadable),
+    support: stated ?? sessionSupport(request) ?? unreadable,
   };
+
+  if (stated && first?.method === INITIALIZE_METHOD) {
+    info.sessionId = issueSessionId(stated);
+  }
 
   if (read?.params?.uri) {
     info.resource = resourceIdentifier(read.params.uri);
@@ -275,6 +323,27 @@ const recordMcpRequest = (
   }
 
   log.set({ mcp });
+};
+
+// The MCP handler runs without sessions, so it never names one. A successful
+// `initialize` is answered with the id that carries what the client stated;
+// the handler's own CORS headers already expose the header to a browser.
+const withSessionId = (
+  response: Response,
+  sessionId: string | undefined
+): Response => {
+  if (!(sessionId && response.ok) || response.headers.has(SESSION_HEADER)) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set(SESSION_HEADER, sessionId);
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 };
 
 const createServer = (
@@ -931,6 +1000,7 @@ export const createWorker = <E extends GatewayEnv>(
       };
 
       const deps: ToolDeps = {
+        approvalRequired: approvalRequired(env.APPROVAL_REQUIRED),
         caller,
         executeDescriptions: connectors
           .filter((connector) => connector.configured(env))
@@ -972,7 +1042,10 @@ export const createWorker = <E extends GatewayEnv>(
         // SAFETY: Evlog's Workers context is the same runtime object supplied by
         // Cloudflare; its public type intentionally declares only waitUntil().
         const executionContext = ctx as ExecutionContext;
-        response = await handler(request, env, executionContext);
+        response = withSessionId(
+          await handler(request, env, executionContext),
+          info.sessionId
+        );
       }
 
       const current = log.getContext().mcp;
