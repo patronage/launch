@@ -86,8 +86,11 @@ export interface WordPressAdapterOptions {
 }
 
 /**
- * Default rich-text renderer. It trusts the HTML, which only authenticated
- * editors can write; sanitize here if that ever changes.
+ * Default rich-text renderer. It trusts the HTML: the fields plugin filters
+ * rich-text fields with wp_kses_post() when they load
+ * (wordpress-shared/patronage-fields/field-values.php) and WordPress filters
+ * post content when it is saved. Sanitize here if HTML ever arrives from
+ * anywhere else.
  */
 export const renderHtml = (html: string): ReactNode => (
   // oxlint-disable-next-line react/no-danger -- WordPress rich text is HTML by design; see docs/spikes.
