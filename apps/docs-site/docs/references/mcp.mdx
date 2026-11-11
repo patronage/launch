@@ -1,6 +1,6 @@
 ---
 title: MCP server
-description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that can only change content after a person approves.
+description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that changes content as the signed-in person, with an approval step for sites that need one.
 ---
 
 The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. They're published to npm under `@patronage`, with `@patronage/access`, so another site installs them rather than copying the code. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
@@ -9,7 +9,7 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 
 - **One install.** One Agent Plugin for Claude, Codex or Cursor that carries only the MCP server's URL.
 - **Sign-in through Cloudflare Access.** The same Access application that guards the CMS. Reads run as the signed-in person.
-- **Approved writes only.** Every change to CMS content pauses with a before-and-after for a person to approve, and runs as the approver. Changes to code will go through a pull request.
+- **Writes as the signed-in person.** A change to CMS content is applied when the person asks for it, with their own CMS permissions. A site that needs it can [require approval](#requiring-approval): every change then pauses with a before-and-after for a person to approve, and runs as the approver. Changes to code will go through a pull request.
 - **Tools added over time.** New tools ship in the same server, so nobody reinstalls anything.
 
 ## How it fits together
@@ -22,15 +22,41 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 | `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 
-The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run after its approval. A write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
+The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, and `get_run` reports on a run. On a site that requires approval, a write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
 
-## How an approved write runs
+## How a write runs
+
+By default `execute` applies a write as soon as the model's code calls `apply`, and returns the script's result with a receipt for each write, in `receipts`. A site that [requires approval](#requiring-approval) holds the write for a person first. Either way the write takes the path described here; without approval, the person who asked is the approver and nobody is shown the preview.
 
 An approved write runs inside the Durable Object, as the approver. An approval resumes the script from the top, replaying earlier calls from the run's log, so only the approved write runs live: it must match the arguments the approver previewed exactly, and any read later in the script is refused rather than run with the approver's access. Both approval surfaces show it operation by operation: the browser page streams a line as each operation finishes, and the card polls for the same progress. Operations in one batch run two at a time (`APPLY_CONCURRENCY`), and every receipt still lists them in order. That is safe because a batch never touches one post or one redirect source twice.
 
 The sandbox gives the script 60 seconds when it runs and 5 minutes when an approval resumes it to perform the write. Neither is a Cloudflare limit: a Durable Object has no wall-clock limit while its caller is connected, and its CPU limit counts only CPU, which a write spends almost none of while it waits on the CMS. The page streams its answer partly so that the request stays connected for as long as the write takes. A deployment can change either number by overriding `executionTimeoutMs` or `approvalTimeoutMs` on its `BaseGatewayRuntime` subclass.
 
 A run reports its write apart from its script. If the script times out or throws after the write landed, the result is the write's receipt with a note that the script stopped afterwards, not a failure. If a write stops before it returns a receipt, the receipt is rebuilt from the operations that reported back, its status is `partial`, and the rest are marked `unconfirmed`, meaning they may or may not have landed. `get_run` gives the same summary in `write`.
+
+## Which clients get the approval card
+
+On a site that requires approval, the card is offered only to a client that says it supports MCP Apps. A client can say so in two places: on each request, in the client-capabilities envelope of protocol revision 2026-07-28, or once, in the `initialize` handshake of the earlier revisions. The gateway keeps no session, so it answers `initialize` with an `Mcp-Session-Id` that carries what the client said, and reads that id on the requests that follow.
+
+A client that says nothing gets the approval link and no card. The card's one-time token travels in tool-result `_meta`, and only a client that supports MCP Apps has promised to keep `_meta` away from the model.
+
+## Requiring approval
+
+A site that wants a person to see every change first builds its gateway with `APPROVAL_REQUIRED=true`. Every write then pauses with a before-and-after, and a person approves it on the card inside the client or on the browser page at `/mcp/approvals/:id`. The setting covers the whole deployment: there is no switch per person or per tool. The reasoning is in [ADR 0018](https://github.com/patronage/launch/blob/main/docs/adr/0018-approval-is-opt-in.md).
+
+Only unset, empty and `false` mean "not required". Any other value holds writes, so a typo doesn't drop the approval a site asked for. A deployment that requires approval also needs `APPROVAL_CSRF_SECRET`.
+
+Without it, which is the default:
+
+- `execute` returns the script's result and a receipt for each write. No result is `paused`, and none names an approval link.
+- The server lists no approval card and no card tools. `execute` is annotated as a tool that writes, so a client may ask the person to confirm each call.
+- The write runs as the signed-in person, so the CMS's own permissions decide what it may change. The gateway builds the same preview it would have shown, and rejects a write it cannot preview.
+- One run may make at most 10 writes.
+- Nobody sees the before-and-after first. A prompt injection in content the model reads can change the CMS, and drafts and revisions are the safety net. Require approval on a site where that is not enough.
+
+Upgrading from `@patronage/mcp-core` 0.2.0, where every write was held: set `APPROVAL_REQUIRED=true` before the upgrade to keep it that way.
+
+## Installing it on a site
 
 A site's gateway is a small Worker of its own that installs the packages from npm and lists the connectors it needs.
 
@@ -86,6 +112,7 @@ Fields worth filtering on:
 - `mcp.method` is the JSON-RPC method (`initialize`, `tools/list`, `resources/read`, `tools/call`), `mcp.methods` lists a batch, and `mcp.resource` is the resource a `resources/read` asked for.
 - `mcp.outcome` is `challenged` or `denied` when Access turned the request away, and `error` only for a signed-in call that failed. A path outside `/mcp` gets a 404 and no `mcp` fields at all.
 - `run.approval` records how a paused run was offered: `clientApps` (`advertised`, `unknown` or `absent`) and `card` (`armed`, `not_armed` or `not_offered`). Every paused result also names the approval link.
+- `approval.outcome` is `not_required` for a write on a deployment that doesn't require approval, and `approved` or `denied` where it does. There, `approval.source` says where the decision was made: `mcp_app` (the card) or `approval_page`.
 - `upstream` holds every CMS request, each tagged with its `connector` (`wp`, `payload`).
 
 In `@patronage/mcp-core` 0.2.0, `upstream` replaces the `wordpress` field, `approval.upstreamActor` replaces `approval.wordpressActor`, and the audit target type is `cms` rather than `wordpress`. Saved queries on the old names need updating.

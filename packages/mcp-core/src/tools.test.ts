@@ -5,6 +5,8 @@ import { createLogger } from "evlog";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { preflightDigest } from "./apply";
+import type { BatchReceipt } from "./apply";
 import {
   APPROVAL_APP_META_KEY,
   APPROVAL_APP_URI,
@@ -17,7 +19,7 @@ import type {
   UpstreamRequestLog,
 } from "./logging";
 import type { ExecuteResult, RunReport, SiteDescription } from "./run";
-import { registerTools } from "./tools";
+import { MAX_WRITES_PER_RUN, registerTools } from "./tools";
 import type { ClientAppSupport, RuntimeStub, ToolDeps } from "./tools";
 import { UpstreamRequestError } from "./upstream";
 
@@ -118,6 +120,8 @@ interface GetRunCall {
 
 interface StubCalls {
   approve: GetRunCall[];
+  // The preview each approval named, in order.
+  approvedDigests: (string | undefined)[];
   describeSite: CallerContext[];
   execute: ExecuteCall[];
   getRun: GetRunCall[];
@@ -154,6 +158,7 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
 
   const calls: StubCalls = {
     approve: [],
+    approvedDigests: [],
     describeSite: [],
     execute: [],
     getRun: [],
@@ -162,8 +167,9 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
   };
 
   const stub: RuntimeStub = {
-    approve: (executionId, context) => {
+    approve: (executionId, context, previewDigest) => {
       calls.approve.push({ caller: context, executionId });
+      calls.approvedDigests.push(previewDigest);
       calls.order.push("approve");
 
       return outcome(
@@ -246,11 +252,15 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
 const toolServer = (
   stub: RuntimeStub,
   log: McpRequestLogger,
-  support: ClientAppSupport = "advertised"
+  support: ClientAppSupport = "advertised",
+  // Most of this file is about Approval, so the helper asks for it; the
+  // deployment default is the other way round.
+  approvalRequired = true
 ): McpServer => {
   const server = new McpServer({ name: "test", version: "0.0.0" });
 
   const deps: ToolDeps = {
+    approvalRequired,
     caller,
     executeDescriptions: [FAKE_EXECUTE_DESCRIPTION],
     origin: "https://wordpress.example",
@@ -1199,5 +1209,296 @@ describe("WordPress requests on the wide event", () => {
       execute: wordpress,
       get_run: wordpress,
     });
+  });
+});
+
+// A deployment that has not set `APPROVAL_REQUIRED`, which is the default: the
+// write `execute` staged is applied in the same call, by the person who asked
+// for it.
+const directServer = (stub: RuntimeStub, log = requestLogger()): McpServer =>
+  toolServer(stub, log, "advertised", false);
+
+describe("execute on a deployment that does not require Approval", () => {
+  const receipt: BatchReceipt = {
+    approverOpaque: caller.subjectOpaque,
+    executionId: "exec_1",
+    operations: [
+      {
+        changed_paths: ["title"],
+        kind: "update_post",
+        normalized_paths: [],
+        operation_index: 0,
+        status: "changed",
+        target: "pages/42",
+      },
+    ],
+    requesterOpaque: caller.subjectOpaque,
+    status: "succeeded",
+  };
+
+  const finished: RunReport = {
+    approvedReceipt: receipt,
+    calls: [{ connector: "wp", method: "apply", seq: 1, state: "applied" }],
+    executionId: "exec_1",
+    scriptResult: { saved: true },
+    status: "complete",
+  };
+
+  const WRITE = { code: "async () => wp.apply({})" };
+
+  it("applies the staged write as the caller and returns the script's result", async () => {
+    const { calls, stub } = stubRuntime({
+      approve: () => Promise.resolve(finished),
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(calls.order).toStrictEqual(["execute", "getRun", "approve"]);
+    expect([calls.getRun[0], calls.approve[0]]).toStrictEqual([
+      { caller, executionId: "exec_1" },
+      { caller, executionId: "exec_1" },
+    ]);
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toStrictEqual({
+      calls: finished.calls,
+      executionId: "exec_1",
+      receipts: [receipt],
+      result: { saved: true },
+      status: "complete",
+    });
+    expect(summaryText(result)).toContain("1 of 1 operations confirmed");
+  });
+
+  it("approves exactly the preview it just built", async () => {
+    const { calls, stub } = stubRuntime({
+      approve: () => Promise.resolve(finished),
+    });
+
+    await callTool(directServer(stub), "execute", WRITE);
+
+    expect(calls.approvedDigests).toStrictEqual([
+      await preflightDigest(pausedRun.preflight),
+    ]);
+  });
+
+  it("offers no card, no approval link and no app-only tools", async () => {
+    const { nonces, stub } = stubRuntime({
+      approve: () => Promise.resolve(finished),
+    });
+
+    const server = directServer(stub);
+
+    const { listing, resources } = await withClient(server, async (client) => ({
+      listing: await client.listTools(),
+      resources: await client.listResources(),
+    }));
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(listing.tools.map((tool) => tool.name).toSorted()).toStrictEqual([
+      "describe_site",
+      "execute",
+      "get_run",
+    ]);
+    expect(resources.resources).toStrictEqual([]);
+    expect(nonces.size).toBe(0);
+    expect(result._meta?.[APPROVAL_APP_META_KEY]).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain("/mcp/approvals/");
+  });
+
+  it("tells the model and the host that execute now writes", async () => {
+    const { stub } = stubRuntime();
+
+    const listing = await withClient(directServer(stub), (client) =>
+      client.listTools()
+    );
+
+    const execute = listing.tools.find((tool) => tool.name === "execute");
+
+    expect(execute?.annotations).toStrictEqual({
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+      readOnlyHint: false,
+    });
+    expect(execute?.description).toContain("with no approval step");
+    expect(execute?.description).not.toContain("pauses for human approval");
+    expect(execute?.description).toContain(FAKE_EXECUTE_DESCRIPTION);
+  });
+
+  it("records the write as needing no Approval, by the caller", async () => {
+    const log = requestLogger();
+
+    const { stub } = stubRuntime({
+      approve: () => Promise.resolve(finished),
+    });
+
+    await callTool(directServer(stub, log), "execute", WRITE);
+
+    expect(log.getContext()).toMatchObject({
+      approval: {
+        actor: caller.subjectOpaque,
+        executionId: "exec_1",
+        outcome: "not_required",
+      },
+      run: { executionId: "exec_1", status: "complete" },
+      write: { outcome: "success", target: "pages/42" },
+    });
+    expect(log.getContext().approval).not.toHaveProperty("decision");
+    expect(log.getContext().run).not.toHaveProperty("approval");
+  });
+
+  it("leaves a run that only reads alone", async () => {
+    const { calls, stub } = stubRuntime({
+      execute: () =>
+        Promise.resolve({
+          calls: [],
+          result: { title: "Hi" },
+          status: "complete",
+        }),
+    });
+
+    const result = await callTool(directServer(stub), "execute", {
+      code: "async () => wp.get({ path: '/wp-json/' })",
+    });
+
+    expect(calls.order).toStrictEqual(["execute"]);
+    expect(result.structuredContent).toStrictEqual({
+      calls: [],
+      result: { title: "Hi" },
+      status: "complete",
+    });
+  });
+
+  it("rejects a write it cannot preview rather than leave it paused", async () => {
+    const { calls, stub } = stubRuntime({
+      getRun: () =>
+        Promise.resolve({
+          calls: [],
+          executionId: "exec_1",
+          preflightError: {
+            code: "post_not_found",
+            message: "pages/42 does not exist",
+          },
+          status: "paused",
+        }),
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(calls.order).toStrictEqual(["execute", "getRun", "reject"]);
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      error: "The pending write was not applied: pages/42 does not exist",
+      executionId: "exec_1",
+      status: "error",
+    });
+  });
+
+  it("applies each write of a script that writes twice", async () => {
+    let approvals = 0;
+
+    const { calls, stub } = stubRuntime({
+      approve: () => {
+        approvals += 1;
+
+        return Promise.resolve(
+          approvals === 1
+            ? { ...finished, scriptResult: undefined, status: "paused" }
+            : finished
+        );
+      },
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(calls.order).toStrictEqual([
+      "execute",
+      "getRun",
+      "approve",
+      "getRun",
+      "approve",
+    ]);
+    expect(result.structuredContent).toMatchObject({
+      receipts: [receipt, receipt],
+      status: "complete",
+    });
+  });
+
+  it("stops a script that never stops writing", async () => {
+    const { calls, stub } = stubRuntime({
+      approve: () => Promise.resolve({ ...finished, status: "paused" }),
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(calls.approve).toHaveLength(MAX_WRITES_PER_RUN);
+    expect(calls.reject).toHaveLength(1);
+    expect(result.structuredContent).toMatchObject({
+      error: `The pending write was not applied: one run may make at most ${MAX_WRITES_PER_RUN} writes`,
+      status: "error",
+    });
+    expect(
+      z
+        .object({ receipts: z.array(z.unknown()) })
+        .parse(result.structuredContent).receipts
+    ).toHaveLength(MAX_WRITES_PER_RUN);
+  });
+
+  it("names the receipt of a write whose script failed afterwards", async () => {
+    const { stub } = stubRuntime({
+      approve: () =>
+        Promise.resolve({
+          approvedReceipt: receipt,
+          calls: [],
+          error: "Execution timed out",
+          executionId: "exec_1",
+          status: "error",
+        }),
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(result.structuredContent).toMatchObject({
+      error: "Execution timed out",
+      receipts: [receipt],
+      status: "error",
+    });
+    expect(summaryText(result)).toBe(
+      "Run failed: Execution timed out\nResult: succeeded (1 of 1 operations confirmed)"
+    );
+  });
+
+  it("points at get_run for a write that outlasted the call", async () => {
+    const { stub } = stubRuntime({
+      approve: () =>
+        Promise.resolve({
+          calls: [],
+          executionId: "exec_1",
+          status: "running",
+        }),
+    });
+
+    const result = await callTool(directServer(stub), "execute", WRITE);
+
+    expect(result.structuredContent).toMatchObject({
+      error:
+        "The write is still being applied. Call get_run with this executionId to follow it.",
+      executionId: "exec_1",
+      status: "error",
+    });
+  });
+
+  it("holds the write on a deployment that requires Approval", async () => {
+    const { calls, stub } = stubRuntime();
+
+    const result = await callTool(
+      toolServer(stub, requestLogger()),
+      "execute",
+      WRITE
+    );
+
+    expect(calls.approve).toHaveLength(0);
+    expect(result.structuredContent).toMatchObject({ status: "paused" });
   });
 });

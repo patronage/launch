@@ -1,6 +1,6 @@
 # MCP gateway
 
-The Worker a site's team installs as its one MCP server ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md)). People sign in through Cloudflare Access, read the CMS as themselves, and change content only after a person approves the change.
+The Worker a site's team installs as its one MCP server ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md)). People sign in through Cloudflare Access, and read and change the CMS as themselves. A site that needs it holds every change for a person to approve ([ADR 0018](../../docs/adr/0018-approval-is-opt-in.md)).
 
 It serves `/mcp` on its custom domain only, with no `workers.dev` or preview URLs.
 
@@ -18,24 +18,30 @@ This app is only the deployment. The gateway lives in packages, so another site 
 
 | Tool | What it does |
 | --- | --- |
-| `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are staged and returned as a plan for approval. |
+| `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are applied and returned as receipts, or, on a site that requires approval, staged and returned as a plan to approve. |
 | `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. On a site with Payload it also lists the collections the editor can read, which keep drafts, and which fields take Markdown. |
 | `get_run` | Reports a run's status after an approval. |
 
-The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
+The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. On a site that requires approval, nothing is written until someone approves.
 
 On a site with Payload, the `payload` connector sits beside it:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
-- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so it stays a draft until someone publishes it. An operation can instead set `publish: true`. The approval card then shows `_status` changing to `published`, the write is saved as published, and Payload's own access control decides whether that editor may publish. An update with `publish: true` and no fields publishes the current draft. Collections without drafts are refused, and so are `_status` in `fields`, `id` and the timestamps.
+- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). Each one is then saved through Payload's REST API with `?draft=true`, so it stays a draft until someone publishes it. An operation can instead set `publish: true`. The approval card then shows `_status` changing to `published`, the write is saved as published, and Payload's own access control decides whether that editor may publish. An update with `publish: true` and no fields publishes the current draft. Collections without drafts are refused, and so are `_status` in `fields`, `id` and the timestamps.
 - Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
 
 ## Approvals
+
+By default there are none: a write is applied as soon as the model's code calls `apply`, as the signed-in person, and `execute` returns a receipt for each write. One run may make at most 10 writes.
+
+Build with `APPROVAL_REQUIRED=true` and this deployment holds every write for a person. The rest of this section is about such a deployment. Any value other than unset, empty or `false` asks for approval.
 
 Every staged write pauses with a before-and-after. The person approves it in one of two places:
 
 - an MCP Apps card inside the client, for clients that advertise MCP Apps support;
 - the browser page at `/mcp/approvals/:id`, which works everywhere.
+
+The card is offered to a client that advertises MCP Apps support, either on each request or once in `initialize`; the gateway carries the `initialize` answer on the `Mcp-Session-Id` it hands back. Any other client gets the approval link alone.
 
 The approval runs as the approver, through the same Access sign-in. `APPROVAL_CSRF_SECRET` signs the approval tokens; without it every approval fails closed. The card's script is bundled at build time from `@modelcontextprotocol/ext-apps` (`pnpm generate` in `packages/mcp-core`), so no vendor code is committed.
 
@@ -62,7 +68,7 @@ pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 
 The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are versioned with Changesets and published to npm from `main` with `pnpm release`. A change to a package needs a changeset (`pnpm changeset`); the steps are in the docs site's MCP reference, under Releasing the npm packages.
 
-Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
+Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 

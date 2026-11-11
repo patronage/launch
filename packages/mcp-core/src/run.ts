@@ -194,6 +194,10 @@ export type ExecuteResult =
   | {
       calls: RunCall[];
       executionId?: string;
+      // The writes this run made. Absent on a deployment that holds writes
+      // for Approval: there a run that waited for a person reports its write
+      // through `get_run`.
+      receipts?: BatchReceipt[];
       result: unknown;
       status: "complete";
     }
@@ -208,7 +212,14 @@ export type ExecuteResult =
       status: "paused";
       summary: string;
     }
-  | { calls: RunCall[]; error: string; executionId?: string; status: "error" };
+  | {
+      calls: RunCall[];
+      error: string;
+      executionId?: string;
+      // As on a complete run: what was written before the run failed.
+      receipts?: BatchReceipt[];
+      status: "error";
+    };
 
 // One entry of the codemode durable tool log. The runtime reports the same
 // entry shape as a run's `calls` and as an execution's `log`, so both read
@@ -333,6 +344,12 @@ export interface RunView {
   // The receipt was rebuilt from progress because the write stopped before
   // it returned one: some operations may be `unconfirmed`.
   receiptInterrupted?: true;
+  // What the script returned, set by `approve` alone once the run it resumed
+  // has finished. Like `approvedReceipt` it is never on a report anybody reads
+  // back: it can hold CMS content, and `get_run` answers anyone who names the
+  // run, so only the caller whose `approve` finished the run is handed it:
+  // an approver, or the caller of a run that needed no Approval.
+  scriptResult?: unknown;
   // Set by a decision that named a preview other than the one stored now: a
   // form from an earlier pause, or a preview rebuilt since it was shown.
   // Nothing was decided.
@@ -576,6 +593,17 @@ export const receiptForSeq = (
 
   return isBatchReceipt(result) ? result : undefined;
 };
+
+// What a finished script returned, for the one caller it is handed to: the
+// person whose approval ran the script to its end (see `RunView.scriptResult`).
+// A run that has not completed returned nothing yet, whatever an earlier pass
+// left on the record.
+export const finishedScriptResult = (
+  record: ExecutionRecord | undefined
+): { scriptResult?: unknown } =>
+  record?.status === "completed" && record.result !== undefined
+    ? { scriptResult: record.result }
+    : {};
 
 // `intent` is read from this Worker's own storage rather than from the
 // codemode record, so the Durable Object passes it in: a run that recorded

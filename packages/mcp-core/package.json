@@ -1,7 +1,7 @@
 {
   "name": "@patronage/mcp-core",
   "version": "0.2.0",
-  "description": "An MCP gateway Worker for Cloudflare: Access sign-in, code mode over CMS connectors, and a human approval step before every write.",
+  "description": "An MCP gateway Worker for Cloudflare: Access sign-in, code mode over CMS connectors, and an optional human approval step before every write.",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -235,6 +235,8 @@ const runtimeNamespace = fakeBinding<DurableObjectNamespace>({
 const env = testGatewayEnv({
   APPROVAL_CARD_FOR_UNKNOWN_CLIENTS: "false",
   APPROVAL_CSRF_SECRET: "csrf-secret",
+  // Most of this file is about Approval; the deployment default is off.
+  APPROVAL_REQUIRED: "true",
   GATEWAY_RUNTIME: runtimeNamespace,
   MCP_ALLOWED_HOSTNAMES: "launch-mcp.example.com",
 });
@@ -415,7 +417,7 @@ interface JsonRpcMessage {
   method: string;
   params?: {
     arguments?: Record<string, string>;
-    capabilities?: Record<string, never>;
+    capabilities?: ClientCapabilitiesPayload;
     clientInfo?: { name: string; version: string };
     name?: string;
     protocolVersion?: string;
@@ -423,20 +425,29 @@ interface JsonRpcMessage {
   };
 }
 
-const sendRpc = async (message: JsonRpcMessage | JsonRpcMessage[]) => {
+const sendRpc = async (
+  message: JsonRpcMessage | JsonRpcMessage[],
+  sessionId?: string
+) => {
   const events: unknown[] = [];
   const { publicKey, token } = await accessIdentity();
   const worker = collectingWorker(publicKey, events);
 
+  const headers = new Headers({
+    Accept: "application/json, text/event-stream",
+    "Cf-Access-Jwt-Assertion": token,
+    "Content-Type": "application/json",
+    Host: "localhost:8787",
+  });
+
+  if (sessionId) {
+    headers.set("Mcp-Session-Id", sessionId);
+  }
+
   const response = await worker.fetch(
     new Request("http://localhost:8787/mcp", {
       body: JSON.stringify(message),
-      headers: new Headers({
-        Accept: "application/json, text/event-stream",
-        "Cf-Access-Jwt-Assertion": token,
-        "Content-Type": "application/json",
-        Host: "localhost:8787",
-      }),
+      headers,
       method: "POST",
     }),
     env,
@@ -444,6 +455,36 @@ const sendRpc = async (message: JsonRpcMessage | JsonRpcMessage[]) => {
   );
 
   return { body: await response.text(), events, response };
+};
+
+const UI_EXTENSION: ClientCapabilitiesPayload = {
+  extensions: { "io.modelcontextprotocol/ui": {} },
+};
+
+// A 2025-era client: it states what it renders once, in `initialize`, and
+// echoes the session id it was answered with on every request after that.
+const initializeSession = async (
+  capabilities: ClientCapabilitiesPayload
+): Promise<string> => {
+  const { response } = await sendRpc({
+    id: 1,
+    jsonrpc: "2.0",
+    method: "initialize",
+    params: {
+      capabilities,
+      clientInfo: { name: "handshake-client", version: "1.0.0" },
+      protocolVersion: "2025-06-18",
+    },
+  });
+
+  return response.headers.get("mcp-session-id") ?? "";
+};
+
+const LIST_TOOLS: JsonRpcMessage = {
+  id: 2,
+  jsonrpc: "2.0",
+  method: "tools/list",
+  params: {},
 };
 
 const resetRuntime = (): void => {
@@ -817,6 +858,112 @@ describe("Worker fetch", () => {
     });
 
     expect(body).not.toContain("preview_write");
+  });
+
+  // A deployment holds writes for Approval only when it asks to. A value that
+  // is neither unset nor "false" was an attempt to ask, so it reads as asking:
+  // a typo must not leave a site's writes unheld.
+  it.each([
+    [undefined, false],
+    ["", false],
+    ["false", false],
+    ["true", true],
+    ["TRUE", true],
+    ["1", true],
+  ])("reads APPROVAL_REQUIRED=%s as required: %s", async (configured, on) => {
+    const { publicKey, token } = await accessIdentity();
+    const { APPROVAL_REQUIRED: _, ...unset } = env;
+
+    const response = await collectingWorker(publicKey, []).fetch(
+      listToolsRequest(token, UI_EXTENSION),
+      configured === undefined
+        ? unset
+        : { ...unset, APPROVAL_REQUIRED: configured },
+      executionContext()
+    );
+
+    const body = await response.text();
+
+    expect(body.includes("pauses for human approval")).toBe(on);
+    expect(body.includes("with no approval step")).toBe(!on);
+    expect(body.includes("decide_write")).toBe(on);
+  });
+
+  // A 2025-era client states its capabilities in `initialize` and nowhere
+  // else. This Worker keeps no memory between requests, so the answer rides
+  // on the session id the client echoes back.
+  it("offers the card on later requests to a client that advertised it at initialize", async () => {
+    const sessionId = await initializeSession(UI_EXTENSION);
+    const { body, events } = await sendRpc(LIST_TOOLS, sessionId);
+
+    expect(sessionId).not.toBe("");
+    expect(body).toContain("decide_write");
+    expect(body).toContain("ui://patronage/cms-approval-v4.html");
+    expect(JSON.stringify(events[0])).not.toContain(sessionId);
+  });
+
+  it("serves the card itself to a client that advertised it at initialize", async () => {
+    const sessionId = await initializeSession(UI_EXTENSION);
+
+    const { body } = await sendRpc(
+      {
+        id: 3,
+        jsonrpc: "2.0",
+        method: "resources/read",
+        params: { uri: "ui://patronage/cms-approval-v4.html" },
+      },
+      sessionId
+    );
+
+    expect(body).toContain("CMS write approval");
+  });
+
+  it("keeps the card from a client that initialized without the extension", async () => {
+    const sessionId = await initializeSession({});
+    const { body } = await sendRpc(LIST_TOOLS, sessionId);
+
+    expect(sessionId).not.toBe("");
+    expect(body).toContain("execute");
+    expect(body).not.toContain("decide_write");
+  });
+
+  it.each([
+    "advertised",
+    "advertised.not-a-uuid",
+    "unknown.x",
+    "x".repeat(300),
+  ])(
+    "reads a session id this Worker did not issue (%s) as stating nothing",
+    async (sessionId) => {
+      const { body, response } = await sendRpc(LIST_TOOLS, sessionId);
+
+      expect(response.status).toBe(200);
+      expect(body).toContain("execute");
+      expect(body).not.toContain("decide_write");
+    }
+  );
+
+  it("issues no session id to a request that is not an initialize", async () => {
+    const { response } = await sendRpc(LIST_TOOLS);
+
+    expect(response.headers.get("mcp-session-id")).toBeNull();
+  });
+
+  // The per-request envelope is the newer statement and the one made on this
+  // very request, so it decides against whatever the session id says.
+  it("lets the per-request envelope decide over the session id", async () => {
+    const sessionId = await initializeSession(UI_EXTENSION);
+    const { publicKey, token } = await accessIdentity();
+    const request = listToolsRequest(token, {});
+    request.headers.set("Mcp-Session-Id", sessionId);
+
+    const response = await collectingWorker(publicKey, []).fetch(
+      request,
+      env,
+      executionContext()
+    );
+
+    await expect(response.text()).resolves.not.toContain("decide_write");
   });
 });
 

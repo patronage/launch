@@ -1,6 +1,6 @@
 # @patronage/mcp-core
 
-An MCP gateway for Cloudflare Workers. People sign in through Cloudflare Access, the model reads the CMS as that person through code mode, and every write pauses until a person approves a before-and-after ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md)).
+An MCP gateway for Cloudflare Workers. People sign in through Cloudflare Access, and the model reads and changes the CMS as that person through code mode. A deployment that needs it holds every write until a person approves a before-and-after ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md), [ADR 0018](../../docs/adr/0018-approval-is-opt-in.md)).
 
 Core names no CMS. Each backend is a connector, such as [`@patronage/mcp-wordpress`](../mcp-wordpress) or [`@patronage/mcp-payload`](../mcp-payload), and a deployment lists the ones it has.
 
@@ -22,7 +22,7 @@ export class GatewayRuntime extends BaseGatewayRuntime<Env> {
 export default createWorker<Env>({ connectors });
 ```
 
-The Worker needs the bindings in `GatewayEnv` (`src/env.ts`): `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` for the Access application in front of it, `GATEWAY_RUNTIME` bound to the `GatewayRuntime` class above, a `LOADER` Worker Loader (Dynamic Workers), and `APPROVAL_CSRF_SECRET`. Each connector adds its own. [`apps/mcp`](../../apps/mcp) is the reference deployment.
+The Worker needs the bindings in `GatewayEnv` (`src/env.ts`): `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` for the Access application in front of it, `GATEWAY_RUNTIME` bound to the `GatewayRuntime` class above, a `LOADER` Worker Loader (Dynamic Workers). Each connector adds its own. By default a write is applied as soon as the model's code calls `apply`. `APPROVAL_REQUIRED` set to `"true"` makes the deployment hold every write for a person to approve, and then it needs `APPROVAL_CSRF_SECRET` too. [`apps/mcp`](../../apps/mcp) is the reference deployment.
 
 The Durable Object's class name belongs to the deployment. A gateway that already runs with another class name (such as `WordPressRuntime`, from the template this came from) should keep that name for its subclass, because Cloudflare keys a Durable Object namespace's stored runs and pending approvals to the class. Renaming it needs an explicit rename migration.
 

@@ -27,7 +27,7 @@ export const WP_CONNECTOR_INSTRUCTIONS = [
   "WordPress site reached as the signed-in Cloudflare Access user.",
   "Reads: wp.graphql({query, variables?}) runs WPGraphQL (introspection allowed);",
   "wp.get({path, query?}) GETs any /wp-json/ path and throws on a non-2xx response.",
-  "Writes: wp.apply({intent, operations}) is the only write path and pauses for human approval.",
+  "Writes: wp.apply({intent, operations}) is the only write path.",
   `Send 1-${MAX_OPERATIONS} update_post or upsert_redirect operations per call and set expected_modified_gmt when you read the post first.`,
   "Do every read before wp.apply: once the write is approved, reads later in the script are refused, and the returned receipt reports the result.",
 ].join(" ");
@@ -117,7 +117,7 @@ const queryString = (query: RestQuery | undefined): string => {
 export const createWordPressTools = (deps: ConnectorDeps<WordPressEnv>) =>
   ({
     apply: {
-      description: `Apply 1-${MAX_OPERATIONS} update_post or upsert_redirect operations to WordPress. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
+      description: `Apply 1-${MAX_OPERATIONS} update_post or upsert_redirect operations to WordPress. Give the work a concise, one-sentence intent that says what the change is for. Returns one receipt per operation.`,
       execute: async (args, ctx?) => {
         // Validation runs before anything else so a malformed batch — a batch
         // addressing one post twice included — fails as a typed error rather

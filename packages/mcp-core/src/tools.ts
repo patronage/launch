@@ -2,6 +2,8 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import { preflightDigest } from "./apply";
+import type { BatchReceipt } from "./apply";
 import {
   APPROVAL_APP_META_KEY,
   APPROVAL_APP_URI,
@@ -26,6 +28,7 @@ import { CallerScopeError } from "./caller";
 import type { CallerContext } from "./caller";
 import {
   recordApprovalDecision,
+  recordApprovalNotRequired,
   recordApprovalSurface,
   recordRun,
   recordUpstreamRequests,
@@ -102,6 +105,9 @@ export const APP_ONLY_TOOLS = [
 ] as const;
 
 export interface ToolDeps {
+  // `APPROVAL_REQUIRED`: the deployment holds every write for Approval.
+  // Otherwise `execute` applies a write itself; see `applyStagedWrites`.
+  approvalRequired: boolean;
   caller: CallerContext;
   // The origin the caller reached this Worker on, so the paused result can
   // name an absolute approval URL the human can open.
@@ -196,6 +202,8 @@ const executeOutputSchema = z.object({
   error: z.string().optional(),
   executionId: z.string().optional(),
   pending: z.array(pendingSchema).optional(),
+  // Absent on a deployment that holds writes for Approval.
+  receipts: z.array(z.json()).optional(),
   result: z.json().optional(),
   status: z.enum(["complete", "error", "paused"]),
   summary: z.string().optional(),
@@ -221,8 +229,20 @@ const executeInputSchema = z.object({
     ),
 });
 
+const EXECUTE_RUNS =
+  "Run one async JavaScript arrow function in a sandbox with the connector globals described below; return the value the user should receive.";
+
+// The connectors' own paragraphs say how to write and nothing about Approval:
+// whether a write is held is the deployment's setting, so the sentence that
+// says so is chosen here.
 const EXECUTE_DESCRIPTION = [
-  "Run one async JavaScript arrow function in a sandbox with the connector globals described below; return the value the user should receive.",
+  EXECUTE_RUNS,
+  "Each connector's apply is its only write call. It changes the CMS as soon as it is called, as the signed-in person, with no approval step, so call apply only for a change the person asked for. The result lists a receipt for each write.",
+].join(" ");
+
+// What the model is told on a deployment with `APPROVAL_REQUIRED`.
+const APPROVAL_EXECUTE_DESCRIPTION = [
+  EXECUTE_RUNS,
   "Each connector's apply is its only write call and pauses for human approval in the inline app.",
 ].join(" ");
 
@@ -258,11 +278,14 @@ const textResult = <T>(payload: T, summary: string, isError: boolean) => {
 
 // A client that renders only the text block still has to see what it is being
 // asked to approve, so a paused run spells out the operations below its summary.
+// A run that applied its own writes names each one's result.
 const executeText = (result: ExecuteResult): string => {
   const summary = executeSummaryText(result);
 
   if (result.status !== "paused") {
-    return summary;
+    return [summary, ...(result.receipts ?? []).map(receiptHeadline)].join(
+      "\n"
+    );
   }
 
   const sentences = result.pending.flatMap((action) => action.sentences);
@@ -552,6 +575,143 @@ const pendingCardState = async (
   }
 };
 
+// How many writes one run may make where nobody is asked. On a deployment with
+// `APPROVAL_REQUIRED`, a person answering each pause is what bounds a script;
+// without it nothing would, so a script that keeps calling `apply` is stopped.
+export const MAX_WRITES_PER_RUN = 10;
+
+const STILL_APPLYING_ERROR =
+  "The write is still being applied. Call get_run with this executionId to follow it.";
+
+const UNKNOWN_RUN_ERROR = "The run is no longer on record.";
+
+const RUN_FAILED_ERROR = "The run ended without applying its change.";
+
+const TOO_MANY_WRITES_ERROR = `one run may make at most ${MAX_WRITES_PER_RUN} writes`;
+
+const withReceipts = <T extends object>(
+  result: T,
+  receipts: BatchReceipt[]
+): T & { receipts?: BatchReceipt[] } =>
+  receipts.length > 0 ? { ...result, receipts } : result;
+
+// How a run that is no longer paused reads as an `execute` result. The writes
+// are told apart from the script, as everywhere else: a script that failed
+// after its write still lists the receipt.
+const endedResult = (
+  report: RunReport,
+  receipts: BatchReceipt[]
+): ExecuteResult => {
+  const { calls, executionId } = report;
+
+  if (report.status === "complete") {
+    return withReceipts(
+      {
+        calls,
+        executionId,
+        result: report.scriptResult ?? null,
+        status: "complete" as const,
+      },
+      receipts
+    );
+  }
+
+  let error = report.error ?? RUN_FAILED_ERROR;
+
+  if (report.status === "running") {
+    error = STILL_APPLYING_ERROR;
+  } else if (report.status === "unknown") {
+    error = UNKNOWN_RUN_ERROR;
+  }
+
+  return withReceipts(
+    { calls, error, executionId, status: "error" as const },
+    receipts
+  );
+};
+
+// The write one pass of `applyStagedWrites` made: the receipt the apply returned, or,
+// for a write that was cut off, the one rebuilt from its progress.
+const writtenBy = (answered: RunReport): BatchReceipt[] => {
+  const receipt =
+    answered.approvedReceipt ??
+    (answered.receiptInterrupted ? answered.receipt : undefined);
+
+  return receipt ? [receipt] : [];
+};
+
+// How a write lands on a deployment that does not hold writes for Approval,
+// which is every deployment that has not set `APPROVAL_REQUIRED`. The runtime
+// stages every `apply` the same way, by pausing the run; here the pause is
+// answered at once, as the person who asked for the write, with no card and no
+// page. It takes the steps an Approval does, in the same order — build and
+// store the preview, refuse a write that cannot be previewed, apply exactly
+// the preview just built — so the write is validated, bound and recorded as an
+// approved one is. Only the person looking at it is missing. A script that
+// calls `apply` again pauses again, and is answered again, up to
+// `MAX_WRITES_PER_RUN`.
+const applyStagedWrites = async (
+  deps: ToolDeps,
+  log: McpRequestLogger,
+  executionId: string,
+  receipts: BatchReceipt[] = [],
+  remaining = MAX_WRITES_PER_RUN
+): Promise<ExecuteResult> => {
+  const preview = await deps.stub.getRun(executionId, deps.caller);
+  recordUpstreamRequests(log, preview.upstream);
+  const report = preview.value;
+
+  if (report.status !== "paused") {
+    return endedResult(report, receipts);
+  }
+
+  const { problem } = approvalContent(report, executionId);
+
+  // Nothing is left paused for a person who will never be asked: a write that
+  // cannot be previewed, or one write too many, ends the run.
+  if (problem || remaining === 0) {
+    const rejected = await deps.stub.reject(executionId, deps.caller);
+    recordUpstreamRequests(log, rejected.upstream);
+
+    return withReceipts(
+      {
+        calls: rejected.value.calls,
+        error: `The pending write was not applied: ${problem?.message ?? TOO_MANY_WRITES_ERROR}`,
+        executionId,
+        status: "error" as const,
+      },
+      receipts
+    );
+  }
+
+  recordApprovalNotRequired(log, {
+    actorOpaque: deps.caller.subjectOpaque,
+    executionId,
+  });
+
+  const outcome = await deps.stub.approve(
+    executionId,
+    deps.caller,
+    await preflightDigest(report.preflight)
+  );
+
+  recordUpstreamRequests(log, outcome.upstream);
+  const answered = outcome.value;
+
+  if (answered.approvedReceipt) {
+    recordWriteReceipt(log, answered.approvedReceipt);
+  }
+
+  const written = [...receipts, ...writtenBy(answered)];
+
+  // Still paused: the script's next `apply`, or a preview somebody rebuilt
+  // between the two calls above, which decided nothing. Either is answered
+  // from a fresh preview.
+  return answered.status === "paused"
+    ? applyStagedWrites(deps, log, executionId, written, remaining - 1)
+    : endedResult(answered, written);
+};
+
 interface ApprovalDecisionAnswer {
   state: ApprovalAppState;
   view: ApprovalCardView;
@@ -823,18 +983,26 @@ export const registerTools = (
   // than the model-visible `get_run` already does.
   appToolCall = false
 ): void => {
-  const apps = support !== "absent";
+  const { approvalRequired } = deps;
+  // Only a deployment that holds writes for Approval has a card to offer:
+  // anywhere else no run stays paused for one to answer.
+  const apps = support !== "absent" && approvalRequired;
 
   const executeConfig = {
     annotations: {
-      destructiveHint: false,
+      // execute is the tool that changes the CMS, and says so. Unless the
+      // deployment holds writes for Approval: there execute may read a CMS or
+      // stage a proposal, every apply pauses, and only the app-only decision
+      // tool can perform the mutation.
+      destructiveHint: !approvalRequired,
       idempotentHint: false,
       openWorldHint: true,
-      // execute may read a CMS or stage a proposal, but every apply always
-      // pauses. Only the app-only decision tool can perform the mutation.
-      readOnlyHint: true,
+      readOnlyHint: approvalRequired,
     },
-    description: [EXECUTE_DESCRIPTION, ...deps.executeDescriptions].join(" "),
+    description: [
+      approvalRequired ? APPROVAL_EXECUTE_DESCRIPTION : EXECUTE_DESCRIPTION,
+      ...deps.executeDescriptions,
+    ].join(" "),
     inputSchema: executeInputSchema,
     outputSchema: executeOutputSchema,
   };
@@ -852,7 +1020,9 @@ export const registerTools = (
 
         recordUpstreamRequests(log, outcome.upstream);
 
-        return outcome.value;
+        return !approvalRequired && outcome.value.status === "paused"
+          ? await applyStagedWrites(deps, log, outcome.value.executionId)
+          : outcome.value;
       },
       (message) => ({ calls: [], error: message, status: "error" })
     );

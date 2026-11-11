@@ -13,7 +13,7 @@ import type {
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { ConnectorToolMap, ToolCallContext } from "./connector";
-import { toExecuteResult, toRunView } from "./run";
+import { finishedScriptResult, toExecuteResult, toRunView } from "./run";
 import type {
   ExecuteResult,
   ExecutionRecord,
@@ -233,6 +233,32 @@ describe("a recorded execution", () => {
       );
 
       expect(view.pending !== undefined).toBe(offered);
+    }
+  );
+
+  // `get_run` answers anyone who names the run, and a script's return value
+  // can hold CMS content, so no view carries it.
+  it("keeps what the script returned out of the view", () => {
+    const view = toRunView("exec_1", {
+      ...execution("completed"),
+      result: { title: "Launch" },
+    });
+
+    expect(JSON.stringify(view)).not.toContain("Launch");
+  });
+
+  it.each(Object.keys(runStatuses))(
+    "hands the approver a %s run's result only once it completed",
+    (status) => {
+      const record = {
+        // SAFETY: The keys of `runStatuses` are `ExecutionStatus` values by its type.
+        ...execution(status as ExecutionStatus),
+        result: { title: "Launch" },
+      };
+
+      expect(finishedScriptResult(record)).toStrictEqual(
+        status === "completed" ? { scriptResult: { title: "Launch" } } : {}
+      );
     }
   );
 

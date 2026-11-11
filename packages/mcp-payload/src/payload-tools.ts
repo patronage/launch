@@ -46,7 +46,7 @@ export const PAYLOAD_READ_TOOLS = new Set([
 export const PAYLOAD_CONNECTOR_INSTRUCTIONS = [
   "Payload CMS, read through Payload's own MCP tools as the signed-in editor.",
   'Reads: payload.tools() lists the read tools and their input schemas; payload.call({tool, arguments}) runs one, e.g. payload.call({tool: "findDocuments", arguments: {slug: "posts", where: {slug: {equals: "hello"}}, draft: true}}). Results are {isError, text, structured?}; the documents are JSON inside text.',
-  `Writes: payload.apply({intent, operations}) pauses for human approval and saves each change as a draft. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at?} or {kind: "create_draft", collection, fields?, markdown?, publish?}. Add publish: true only when the person asked to publish; the approval shows it, and an update with publish: true and no fields publishes the current draft. fields holds top-level field values as Payload stores them; markdown holds rich text fields as Markdown, which Payload converts with the field's editor features. payload.call({tool: "getEditingInfo", arguments: {}}) lists which collections keep drafts and which fields are rich text. Before an update, read with draft: true and copy updatedAt to expected_updated_at.`,
+  `Writes: payload.apply({intent, operations}) saves each change as a draft. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at?} or {kind: "create_draft", collection, fields?, markdown?, publish?}. Add publish: true only when the person asked to publish; an approval, where the site asks for one, shows it, and an update with publish: true and no fields publishes the current draft. fields holds top-level field values as Payload stores them; markdown holds rich text fields as Markdown, which Payload converts with the field's editor features. payload.call({tool: "getEditingInfo", arguments: {}}) lists which collections keep drafts and which fields are rich text. Before an update, read with draft: true and copy updatedAt to expected_updated_at.`,
   "Do every read before payload.apply: once the write is approved, reads later in the script are refused, and the returned receipt reports the result.",
 ].join(" ");
 
@@ -76,7 +76,7 @@ export const createPayloadTools = (
 ): ConnectorToolMap =>
   ({
     apply: {
-      description: `Save 1-${MAX_OPERATIONS} update_draft or create_draft operations as Payload drafts, or published where an operation sets publish: true. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
+      description: `Save 1-${MAX_OPERATIONS} update_draft or create_draft operations as Payload drafts, or published where an operation sets publish: true. Give the work a concise, one-sentence intent that says what the change is for. Returns one receipt per operation.`,
       execute: async (args, ctx) => {
         const input = parseDraftApplyInput(args);
         const caller = deps.scope.require();
