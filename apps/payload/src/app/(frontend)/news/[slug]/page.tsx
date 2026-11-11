@@ -11,9 +11,11 @@ import { cache } from "react";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
-import { getFrontendPayload } from "@/lib/payload";
-import { formatDate, NEWS_PATH } from "@/lib/posts";
+import { followRedirect } from "@/lib/follow-redirect";
+import { getFrontendPayload, getSiteSettings } from "@/lib/payload";
+import { formatDate, NEWS_PATH, postPath } from "@/lib/posts";
 import { toImage } from "@/lib/sections";
+import { documentMetadata, siteOrigin } from "@/lib/seo";
 import type { Author, Category } from "@/payload-types";
 
 export const dynamic = "force-dynamic";
@@ -57,15 +59,32 @@ const populated = <T extends object>(values: (number | T)[] | null = []) =>
 export const generateMetadata = async ({ params }: Props) => {
   const { post } = await findPost(params);
 
-  return post
-    ? { description: post.excerpt ?? undefined, title: post.title }
-    : {};
+  if (!post) {
+    return {};
+  }
+
+  const { siteName } = await getSiteSettings();
+
+  return documentMetadata({
+    description: post.excerpt,
+    fallbackImage: toImage(post.hero),
+    image: toImage(post.meta?.image),
+    meta: post.meta,
+    origin: await siteOrigin(),
+    path: postPath(post) ?? NEWS_PATH,
+    siteName,
+    title: post.title,
+    type: "article",
+  });
 };
 
 const PostPage = async ({ params }: Props) => {
   const { draft, post } = await findPost(params);
 
   if (!post) {
+    const { slug } = await params;
+
+    await followRedirect(`${NEWS_PATH}/${slug}`);
     notFound();
   }
 

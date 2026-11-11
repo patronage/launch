@@ -12,13 +12,24 @@ import {
 } from "@launch/ui";
 import Link from "next/link";
 
-import { getFrontendPayload } from "@/lib/payload";
-import { formatDate, postPath } from "@/lib/posts";
+import { getFrontendPayload, getSiteSettings } from "@/lib/payload";
+import { formatDate, NEWS_PATH, postPath } from "@/lib/posts";
 import { toImage } from "@/lib/sections";
+import { documentMetadata, siteOrigin } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "News" };
+export const generateMetadata = async () => {
+  const { siteName } = await getSiteSettings();
+
+  return documentMetadata({
+    origin: await siteOrigin(),
+    path: NEWS_PATH,
+    siteName,
+    title: "News",
+    type: "website",
+  });
+};
 
 /** Published posts, featured first, then newest first. */
 const NewsPage = async () => {

@@ -33,8 +33,21 @@ No performance difference has been measured yet. Local runs say nothing about ne
 - **News**: posts with authors and categories, listed at `/news`.
 - **Forms** from Payload's form-builder plugin. A form section posts to the app, which keeps only the form's own fields, checks the required ones and saves the submission with the visitor's access. Email delivery is not wired up yet.
 - **Preview**: pages and posts autosave drafts, and editors see them through the preview button and Live Preview, which re-renders on each autosave.
+- **SEO and redirects**: the seed library has an editor-written title and description, the tool share is hidden from search engines, and two old addresses redirect.
 
 On `localhost` only, the login page offers a one-click sign-in as the first user. It is hidden through a tunnel and on a deployed Worker.
+
+## Search and redirects
+
+Editors control how a page or post appears to search engines, and where old addresses go.
+
+- **SEO group.** Pages and posts have a title, description and social image from Payload's SEO plugin, plus **Hide from search engines**. An SEO title is used exactly as written. Without one, the document's title goes through the `Title | Site` template. An empty description falls back to a post's excerpt or the site tagline, and an empty image to the hero.
+- **Canonical URLs** use the hostname of the request. A deployed Worker answers on one public hostname, so there is no site URL to configure.
+- **`/sitemap.xml`** lists `/news` and every published page and post that isn't hidden, in one file.
+- **`/robots.txt`** points to the sitemap and keeps crawlers out of `/admin/`, `/api/`, `/forms/` and `/next/`. On a `workers.dev` hostname it disallows everything, so Previews stay out of search results.
+- **Redirects** are a collection in the admin, with a 308 (permanent) or 307 (temporary) status. The front end checks them only when nothing is published at a path, so a published page always wins and normal page views cost no extra read. A `from` path matches with or without a trailing slash, at any depth. Query strings aren't matched or carried over, and regular expressions aren't supported. A redirect to an unpublished document is ignored.
+
+Metadata renders in `<head>` for every visitor. Next and vinext normally stream it into `<body>` except for a list of known bots, so `next.config.ts` sets `htmlLimitedBots` to match everyone. Crawlers that read only HTML then see it too.
 
 ## Deployed
 
