@@ -24,7 +24,7 @@ Each app's `pnpm run builds:configure` creates this configuration through the Wo
 
 1. Once for the repo, install the Cloudflare GitHub app on it from the dashboard. This is the only dashboard step.
 2. Deploy once from your machine, so the Worker exists: `pnpm run deploy`.
-3. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids. One build token serves every Worker in the account, so reuse the existing one. It belongs to whoever created it, and builds stop deploying if that person loses access. Creating one takes an API token's secret, so if the account has none, let the dashboard's Connect to Git flow create it.
+3. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids. The build token is a user API token: it sits under its creator's **My Profile > API Tokens**, because Workers Builds [supports only user tokens for now](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token). Its registration is account-wide, so reuse the existing one instead of creating another; the dashboard's **Create new token** adds one more to whoever clicks it. Builds stop deploying if the creator loses access or deletes it. If the account has none, let the dashboard's Connect to Git flow create it.
 4. Run `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
 5. Push a branch and check that its Preview comes up, then merge and check production.
 
