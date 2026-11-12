@@ -6,11 +6,15 @@ import { env } from "cloudflare:workers";
 import { JWTAuthentication } from "payload";
 import type { AuthStrategy, CollectionConfig } from "payload";
 
+import { accessSessionExp, parseAccessStrategy } from "../lib/access-session";
 import { guardFirstUser } from "../lib/first-user-guard";
 import { shouldDeferToPayload } from "../lib/payload-credential";
 import type { User } from "../payload-types";
 
 type AccessStrategy = ReturnType<typeof accessAuthStrategy<User>>;
+
+// Whether Payload's own credential signs a request in, kept per request.
+const payloadSessionChecks = new WeakMap<Headers, Promise<boolean>>();
 
 // @patronage/access types the Local API loosely, so each strategy is wrapped
 // to pin the lookup to the users collection, and to step aside for a request
@@ -19,10 +23,23 @@ const asPayloadStrategy = (strategy: AccessStrategy): AuthStrategy => ({
   authenticate: async (args) => {
     const { headers, payload } = args;
 
-    const sessionIsValid = async () => {
-      const session = await JWTAuthentication(args);
+    // Both Access strategies see the same request, so check it once.
+    const sessionIsValid = (): Promise<boolean> => {
+      const cached = payloadSessionChecks.get(headers);
 
-      return Boolean(session.user);
+      if (cached) {
+        return cached;
+      }
+
+      const checked = (async () => {
+        const session = await JWTAuthentication(args);
+
+        return Boolean(session.user);
+      })();
+
+      payloadSessionChecks.set(headers, checked);
+
+      return checked;
     };
 
     if (
@@ -118,6 +135,21 @@ export const Users: CollectionConfig = {
         audience: env.ACCESS_AUD,
         teamDomain: env.ACCESS_TEAM_DOMAIN,
       })),
+    ],
+    // Report the Access session's expiry, not a leftover payload-token's
+    // (see lib/access-session.ts).
+    me: [
+      ({ args, user }) => {
+        const strategy = parseAccessStrategy(user?._strategy);
+
+        if (!strategy) {
+          return;
+        }
+
+        const exp = accessSessionExp(args.req.headers, strategy);
+
+        return exp === undefined ? undefined : { exp, user };
+      },
     ],
   },
   slug: "users",
