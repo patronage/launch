@@ -639,3 +639,172 @@ describe("applyOperations concurrency", () => {
     expect(receipt.operations).toHaveLength(2);
   });
 });
+
+const mediaOperation: WriteOperation = {
+  fields: { alt_text: "Supplied text" },
+  id: 7,
+  kind: "update_post",
+  rest_base: "media",
+};
+
+const mediaRecord = (altText: JsonValue = "Previous text") => ({
+  alt_text: altText,
+  id: 7,
+  modified_gmt: "2026-09-01T10:00:00",
+  slug: "forest",
+});
+
+const previewFor = (
+  after: string,
+  before = "Previous text"
+): ApplyPreflight => ({
+  intent: "Add alt text",
+  operations: [
+    {
+      editUrl: "https://wordpress.example/wp-admin/post.php?post=7&action=edit",
+      fields: [{ after, before, changed: before !== after, path: "alt_text" }],
+      modifiedGmt: "2026-09-01T10:00:00",
+      operationIndex: 0,
+      sentence: "Update alt_text on media 7",
+      slug: "forest",
+      target: "media/7",
+    },
+  ],
+});
+
+// Serves `first` until the write, then `saved`, and counts the writes.
+const stubMedia = (first: string, saved: string) => {
+  const state = { body: "", posts: 0 };
+
+  vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      state.posts += 1;
+      state.body = String(init.body);
+
+      return Response.json(mediaRecord(saved));
+    }
+
+    return Response.json(mediaRecord(state.posts === 0 ? first : saved));
+  });
+
+  return state;
+};
+
+const applyMedia = (mediaWrite: WriteOperation, preflight: ApplyPreflight) =>
+  applyOperations({
+    approverOpaque: "approver00000000",
+    client,
+    executionId: "exec_1",
+    operations: [mediaWrite],
+    preflight,
+    requesterOpaque: "requester0000000",
+    telemetry: createUpstreamTelemetry(),
+  });
+
+const previewMedia = (altText: JsonValue) => {
+  vi.stubGlobal("fetch", () => Response.json(mediaRecord(altText)));
+
+  return preflightOperations(
+    client,
+    "Add alt text",
+    [mediaOperation],
+    createUpstreamTelemetry()
+  );
+};
+
+describe("media alt text", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("previews the whole before and after values", async () => {
+    const before = "x".repeat(400);
+    const { operations } = await previewMedia(before);
+
+    expect(operations[0]?.fields).toStrictEqual([
+      { after: "Supplied text", before, changed: true, path: "alt_text" },
+    ]);
+  });
+
+  it("refuses a preview of alt text longer than the limit", async () => {
+    await expect(previewMedia("x".repeat(401))).rejects.toMatchObject({
+      code: "unpreviewable_alt_text",
+    });
+  });
+
+  it("refuses a preview of alt text that is not a string", async () => {
+    await expect(previewMedia(null)).rejects.toMatchObject({
+      code: "unpreviewable_alt_text",
+    });
+  });
+
+  it("writes alt_text and reports it changed", async () => {
+    const state = stubMedia("Previous text", "Supplied text");
+
+    const receipt = await applyMedia(
+      mediaOperation,
+      previewFor("Supplied text")
+    );
+
+    expect(JSON.parse(state.body)).toStrictEqual({ alt_text: "Supplied text" });
+    expect(receipt.operations[0]).toMatchObject({
+      changed_paths: ["alt_text"],
+      status: "changed",
+    });
+  });
+
+  it("can clear alt text with an empty string", async () => {
+    stubMedia("Previous text", "");
+
+    const receipt = await applyMedia(
+      { ...mediaOperation, fields: { alt_text: "" } },
+      previewFor("")
+    );
+
+    expect(receipt.operations[0]?.status).toBe("changed");
+  });
+
+  it("reports a conflict when alt text moved but modified_gmt did not", async () => {
+    const state = stubMedia("Concurrent edit", "Supplied text");
+
+    const receipt = await applyMedia(
+      mediaOperation,
+      previewFor("Supplied text")
+    );
+
+    expect(state.posts).toBe(0);
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "alt_text_changed_since_preflight" },
+      status: "conflict",
+    });
+  });
+
+  it("fails readback when WordPress rewrites the saved text", async () => {
+    stubMedia("Previous text", "Rewritten text");
+
+    const receipt = await applyMedia(
+      mediaOperation,
+      previewFor("Supplied text")
+    );
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "readback_mismatch" },
+      normalized_paths: [],
+      status: "failed",
+    });
+  });
+
+  it("fails readback when a no-op write is rewritten", async () => {
+    stubMedia("Previous text", "Rewritten text");
+
+    const receipt = await applyMedia(
+      { ...mediaOperation, fields: { alt_text: "Previous text" } },
+      previewFor("Previous text")
+    );
+
+    expect(receipt.operations[0]).toMatchObject({
+      error: { code: "readback_mismatch" },
+      status: "failed",
+    });
+  });
+});
