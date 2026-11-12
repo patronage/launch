@@ -30,7 +30,7 @@ Preview deploys use Worker Previews (`cf previews deploy`). Each branch gets its
 1. One time for the repo: install the Cloudflare GitHub app on `patronage/launch` from the dashboard (Workers & Pages, Create, connect GitHub). This is the only dashboard step.
 2. Deploy once from a machine, so the Worker and its KV namespace exist: `pnpm run deploy`.
 3. Set the runtime secrets that `cloudflare.config.ts` declares with `pnpm run secrets`, values from the environment. Never add them as build variables.
-4. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids (`gh api repos/patronage/launch --jq '.owner.id, .id'`).
+4. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids (`gh api repos/patronage/launch --jq '.owner.id, .id'`). The build token is a user API token in its creator's profile (Workers Builds does not take account-owned tokens yet), so reuse the registered one rather than creating another.
 5. `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`. It runs every call through `cf`, so `cf auth login` is enough; no API token.
 6. Push a branch and check that its Preview URL comes up, then merge and check production.
 7. Put Previews behind Cloudflare Access. Preview URLs are public by default; Access can cover one Worker's Previews or a hostname pattern. Scripting that belongs with the Access spike; until then, add the Access application by hand and note it in the issue.
