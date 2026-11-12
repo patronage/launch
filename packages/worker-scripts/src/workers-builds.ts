@@ -105,27 +105,45 @@ const scriptsSchema = z.array(
   z.object({ id: z.string(), script_name: z.string() }).loose()
 );
 
+const SEARCH_PAGE_SIZE = 100;
+
 // The Builds API names a Worker by its tag, which `cf workers scripts search`
-// returns as `id`. A name search also matches partial names, so pick the
-// exact one.
+// returns as `id`. A name search also matches partial names, a page at a time,
+// so read pages until the exact name turns up or the results run out.
 const lookupScriptTag = (ctx: ScriptContext, workerName: string) => {
-  const scripts = runJson(
-    ctx,
-    "Looking up the Worker",
-    "pnpm",
-    ["exec", "cf", "workers", "scripts", "search", "--name", workerName],
-    scriptsSchema
-  );
-
-  const script = scripts.find((item) => item.script_name === workerName);
-
-  if (!script) {
-    throw new ScriptError(
-      `Worker ${workerName} not found. Run pnpm run deploy first.`
+  for (let page = 1; ; page += 1) {
+    const scripts = runJson(
+      ctx,
+      "Looking up the Worker",
+      "pnpm",
+      [
+        "exec",
+        "cf",
+        "workers",
+        "scripts",
+        "search",
+        "--name",
+        workerName,
+        "--page",
+        String(page),
+        "--per-page",
+        String(SEARCH_PAGE_SIZE),
+      ],
+      scriptsSchema
     );
-  }
 
-  return script.id;
+    const script = scripts.find((item) => item.script_name === workerName);
+
+    if (script) {
+      return script.id;
+    }
+
+    if (scripts.length < SEARCH_PAGE_SIZE) {
+      throw new ScriptError(
+        `Worker ${workerName} not found. Run pnpm run deploy first.`
+      );
+    }
+  }
 };
 
 export interface BuildsBodyInput {

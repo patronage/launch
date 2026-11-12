@@ -26,8 +26,8 @@ const scripts = [
 interface CfOutputs {
   /** What `cf workers get` prints. */
   get?: { previews_base_config: { env: Record<string, { type: string }> } };
-  /** What `cf workers scripts search` prints. */
-  search?: { id: string; script_name: string }[];
+  /** What `cf workers scripts search` prints, page by page. */
+  search?: { id: string; script_name: string }[][];
 }
 
 /** Answers each cf read with its JSON output; any other command succeeds. */
@@ -38,8 +38,11 @@ const cf =
       return { status: 0 };
     }
 
-    const key = call.args.includes("search") ? "search" : "get";
-    const output = outputs[key];
+    const page = Number(call.args[call.args.indexOf("--page") + 1]);
+
+    const output = call.args.includes("search")
+      ? outputs.search?.[page - 1]
+      : outputs.get;
 
     return output === undefined
       ? { status: 1 }
@@ -84,7 +87,7 @@ describe(configureWorkersBuilds, () => {
     const ctx = testContext({
       env: { ...required, UNRELATED: "x", WORKER_DOMAIN: "example.com" },
       root,
-      status: cf({ search: scripts }),
+      status: cf({ search: [scripts] }),
     });
 
     await configureWorkersBuilds(ctx, {
@@ -143,17 +146,14 @@ describe(configureWorkersBuilds, () => {
     await expect(
       configureWorkersBuilds(ctx, { buildVariables: [], previews: false })
     ).rejects.toThrow("Looking up the Worker failed (exit 1).");
-    expect(ctx.spawnCalls.map((call) => call.args.at(-1))).toStrictEqual([
-      "build",
-      "site",
-    ]);
+    expect(ctx.spawnCalls).toHaveLength(2);
   });
 
   it("uses the cf login, not an API token", async () => {
     const ctx = testContext({
       env: required,
       root: fakeRepo(worker),
-      status: cf({ search: scripts }),
+      status: cf({ search: [scripts] }),
     });
 
     await configureWorkersBuilds(ctx, { buildVariables: [], previews: false });
@@ -167,14 +167,35 @@ describe(configureWorkersBuilds, () => {
       "search",
       "--name",
       "site",
+      "--page",
+      "1",
+      "--per-page",
+      "100",
     ]);
+  });
+
+  it("reads later pages until it finds the exact name", async () => {
+    const partial = Array.from({ length: 100 }, (_, index) => ({
+      id: `tag-${index}`,
+      script_name: `site-${index}`,
+    }));
+
+    const ctx = testContext({
+      env: required,
+      root: fakeRepo(worker),
+      status: cf({ search: [partial, scripts] }),
+    });
+
+    await configureWorkersBuilds(ctx, { buildVariables: [], previews: false });
+
+    expect(createBody(ctx).script_tag).toBe("site-tag");
   });
 
   it("asks for a first deploy when the Worker does not exist", async () => {
     const ctx = testContext({
       env: required,
       root: fakeRepo(worker),
-      status: cf({ search: [{ id: "other-tag", script_name: "site-old" }] }),
+      status: cf({ search: [[{ id: "other-tag", script_name: "site-old" }]] }),
     });
 
     await expect(
@@ -206,7 +227,7 @@ describe(configureWorkersBuilds, () => {
         get: {
           previews_base_config: { env: { API_KEY: { type: "secret_text" } } },
         },
-        search: scripts,
+        search: [scripts],
       }),
     });
 
