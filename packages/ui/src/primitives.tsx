@@ -51,14 +51,25 @@ export const LinkList = ({
   );
 };
 
+/** `sizes` for an image in a card grid: three columns, then two, then one. */
+export const CARD_IMAGE_SIZES =
+  "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
+
+/**
+ * An image. When the adapter gave a `srcset`, `sizes` tells the browser how
+ * wide the image is drawn, so it fetches the narrowest candidate that fills
+ * it; the default is the full viewport width.
+ */
 export const Img = ({
   className,
   image,
   loading = "lazy",
+  sizes = "100vw",
 }: {
   className?: string;
   image: Image;
   loading?: "lazy" | "eager";
+  sizes?: string | undefined;
 }) => (
   <img
     alt={image.alt}
@@ -66,7 +77,9 @@ export const Img = ({
     decoding="async"
     height={image.height}
     loading={loading}
+    sizes={image.srcset ? sizes : undefined}
     src={image.src}
+    srcSet={image.srcset}
     width={image.width}
   />
 );
@@ -74,12 +87,15 @@ export const Img = ({
 export const Figure = ({
   className,
   media,
+  sizes,
 }: {
   className?: string;
   media: Media;
+  /** The image's drawn width, as for {@link Img}. */
+  sizes?: string;
 }) => (
   <figure className={cn("m-0", className)}>
-    <Img className="w-full rounded-xl" image={media.image} />
+    <Img className="w-full rounded-xl" image={media.image} sizes={sizes} />
     {media.caption ? (
       <figcaption className="text-section-muted mt-3 text-sm">
         {media.caption}

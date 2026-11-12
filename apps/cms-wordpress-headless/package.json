@@ -13,6 +13,6 @@
     "schema": "bin/schema.sh",
     "deploy": "bash _build/deploy.sh",
     "pull": "bash _build/pull.sh",
-    "test": "php -l _build/wp-config-environment.php"
+    "test": "bin/lint-php.sh && php tests/persisted-queries.test.php"
   }
 }

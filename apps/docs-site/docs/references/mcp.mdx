@@ -60,9 +60,17 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 
 - **Keep an existing Durable Object class name.** A gateway that already runs with another class name, such as `WordPressRuntime`, names its subclass that and points `GATEWAY_RUNTIME` at it. Cloudflare keys stored runs and pending approvals to the class.
 - **Payload** needs `@payloadcms/plugin-mcp` with read tools only, plus the `getEditingInfo`, `markdownToRichText` and `richTextToMarkdown` tools from `apps/payload/src/mcp-tools.ts`. `payload.apply` reads `getEditingInfo` before every write and refuses without it. The users collection adds `accessGatewayAuthStrategy` from `@patronage/access/payload`, so Payload trusts the forwarded sign-in.
-- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`. To let `wp.apply` change a plugin's post meta, such as Yoast's `_yoast_wpseo_metadesc`, register the key with `register_post_meta` and `show_in_rest`, with an `auth_callback` that checks `edit_post`. Redirect operations need the Redirection plugin, and the approver needs its capability (`manage_options` unless the site filters `redirection_role`).
-- **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The `access:provision` command runs only inside the Launch repo.
+- **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`. To let `wp.apply` change a plugin's post meta, such as Yoast's `_yoast_wpseo_metadesc`, register the key with `register_post_meta` and `show_in_rest`, with an `auth_callback` that checks `edit_post`. Redirect operations need the Redirection plugin, and the approver needs its capability (`manage_options` unless the site filters `redirection_role`). `wp.apply` can also set an image's alt text, with `fields.alt_text` on `rest_base: "media"`, up to 400 characters.
+- **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The gateway's application covers its whole hostname, not just `/mcp*`, so scanner probes are stopped at the edge and never reach the Worker or its logs. Give the gateway a hostname of its own, and put other services, such as a docs site, on theirs. The `access:provision` command runs only inside the Launch repo.
 - **Logging**: `@patronage/logging` is not published, so a site that wants its provisioning scripts copies `packages/logging`.
+
+## Releasing the npm packages
+
+`@patronage/access`, `@patronage/mcp-core`, `@patronage/mcp-payload` and `@patronage/mcp-wordpress` are versioned with [Changesets](https://github.com/changesets/changesets). Each package's `CHANGELOG.md` says what changed in each version and ships in the npm package.
+
+1. A pull request that changes a published package's `src/` or `package.json` adds a changeset: run `pnpm changeset`, pick the packages and the bump, and write the changelog line. While the packages are 0.x, a change that can break a site is a minor bump and anything else is a patch. `pnpm verify` runs `pnpm release:check`, which fails when such a change has no changeset.
+2. To cut a release, run `pnpm changeset version` on a branch. It bumps the versions, writes the changelogs and removes the changesets. Open a pull request with the result; `release:check` lets that branch through without a changeset of its own.
+3. Once that merges, run `pnpm release` from an up-to-date `main`. It runs `pnpm verify`, then publishes every package whose version isn't on npm yet, building each one's `dist/` first and replacing `workspace:*` and `catalog:` with real versions, and tags each release as `<package>@<version>`. Push the tags with `git push --follow-tags`.
 
 ## Signing in with something other than Access
 
@@ -71,5 +79,15 @@ Launch ships Access only. [Signing in with WorkOS](/references/mcp-workos) lists
 ## Usage reporting
 
 Each request writes one wide event to Workers Logs: who called, which tool, the outcome, and any write receipts. Workers Logs keep events for seven days, which is enough to debug a problem.
+
+Fields worth filtering on:
+
+- `service` is the Worker's name (`WORKER_NAME`), the same as Workers Logs' `$metadata.service`.
+- `mcp.method` is the JSON-RPC method (`initialize`, `tools/list`, `resources/read`, `tools/call`), `mcp.methods` lists a batch, and `mcp.resource` is the resource a `resources/read` asked for.
+- `mcp.outcome` is `challenged` or `denied` when Access turned the request away, and `error` only for a signed-in call that failed. A path outside `/mcp` gets a 404 and no `mcp` fields at all.
+- `run.approval` records how a paused run was offered: `clientApps` (`advertised`, `unknown` or `absent`) and `card` (`armed`, `not_armed` or `not_offered`). Every paused result also names the approval link.
+- `upstream` holds every CMS request, each tagged with its `connector` (`wp`, `payload`).
+
+In `@patronage/mcp-core` 0.2.0, `upstream` replaces the `wordpress` field, `approval.upstreamActor` replaces `approval.wordpressActor`, and the audit target type is `cms` rather than `wordpress`. Saved queries on the old names need updating.
 
 To keep events longer, build the gateway with `WORKER_LOGPUSH=true`, and the site's log bucket will receive them through Logpush (see [Logging](/references/logging)). A weekly usage report and a read-only connector for querying the logs are not built yet.

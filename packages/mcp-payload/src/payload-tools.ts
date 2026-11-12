@@ -100,6 +100,9 @@ export const createPayloadTools = (
           approverOpaque: caller.subjectOpaque,
           client: callerClient(deps.env, caller),
           executionId,
+          onProgress: async (receipt) => {
+            await deps.store.recordProgress?.(executionId, receipt);
+          },
           operations: input.operations,
           preflight,
           requesterOpaque:

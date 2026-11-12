@@ -7,12 +7,15 @@ import {
 } from "@launch/ui";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
-import { getFrontendPayload } from "@/lib/payload";
-import { formatDate, NEWS_PATH } from "@/lib/posts";
+import { followRedirect } from "@/lib/follow-redirect";
+import { getFrontendPayload, getSiteSettings } from "@/lib/payload";
+import { formatDate, NEWS_PATH, postPath } from "@/lib/posts";
 import { toImage } from "@/lib/sections";
+import { documentMetadata, siteOrigin } from "@/lib/seo";
 import type { Author, Category } from "@/payload-types";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +24,11 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-/** Reads a post by slug: the latest draft in preview, else the published one. */
-const findPost = async (params: Props["params"]) => {
-  const { slug } = await params;
+/**
+ * Reads a post by slug: the latest draft in preview, else the published one.
+ * Cached per request by slug, so generateMetadata and the page share a read.
+ */
+const findPostBySlug = cache(async (slug: string) => {
   const { draft, payload, user } = await getFrontendPayload();
 
   const {
@@ -39,6 +44,12 @@ const findPost = async (params: Props["params"]) => {
   });
 
   return { draft, post };
+});
+
+const findPost = async (params: Props["params"]) => {
+  const { slug } = await params;
+
+  return findPostBySlug(slug);
 };
 
 /** At depth 1 relationships are documents; ids mean the reader lacks access. */
@@ -48,15 +59,32 @@ const populated = <T extends object>(values: (number | T)[] | null = []) =>
 export const generateMetadata = async ({ params }: Props) => {
   const { post } = await findPost(params);
 
-  return post
-    ? { description: post.excerpt ?? undefined, title: post.title }
-    : {};
+  if (!post) {
+    return {};
+  }
+
+  const { siteName } = await getSiteSettings();
+
+  return documentMetadata({
+    description: post.excerpt,
+    fallbackImage: toImage(post.hero),
+    image: toImage(post.meta?.image),
+    meta: post.meta,
+    origin: await siteOrigin(),
+    path: postPath(post) ?? NEWS_PATH,
+    siteName,
+    title: post.title,
+    type: "article",
+  });
 };
 
 const PostPage = async ({ params }: Props) => {
   const { draft, post } = await findPost(params);
 
   if (!post) {
+    const { slug } = await params;
+
+    await followRedirect(`${NEWS_PATH}/${slug}`);
     notFound();
   }
 
@@ -94,7 +122,13 @@ const PostPage = async ({ params }: Props) => {
                 .join(" · ")}
             </Typography>
           </header>
-          {hero ? <Figure media={{ image: hero }} /> : null}
+          {hero ? (
+            // The narrow container is at most max-w-2xl (42rem) wide.
+            <Figure
+              media={{ image: hero }}
+              sizes="(min-width: 42rem) 42rem, 100vw"
+            />
+          ) : null}
           {post.content ? (
             <RichTextFrame>
               <PayloadRichText data={post.content} />

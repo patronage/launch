@@ -199,6 +199,273 @@ const payloadApplyForm: Drive = async ({ origin, dir, repoRoot }) => {
   }
 };
 
+/** A redirect as Payload's REST API takes it. */
+interface RedirectInput {
+  from: string;
+  to:
+    | { type: "custom"; url: string }
+    | {
+        reference: { relationTo: "posts"; value: number | undefined };
+        type: "reference";
+      };
+  type: "307" | "308";
+}
+
+const custom = (url: string) => ({ type: "custom", url }) as const;
+
+/**
+ * Payload: what search engines and visitors get from the SEO fields and
+ * redirects, then an editor adding a redirect in the admin. Needs the seed and
+ * a local admin (`drive payload apply-form`). It deletes the redirects it adds.
+ */
+const payloadSeo: Drive = async ({ origin, dir, repoRoot }) => {
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  const expectThat = (action: string, observed: string, passed: boolean) => {
+    log.step(action, `${passed ? "" : "FAILED: "}${observed}`);
+
+    if (!passed) {
+      failures.push(action);
+    }
+  };
+
+  /** One anonymous request that doesn't follow redirects. */
+  const visit = async (pathname: string) => {
+    const response = await fetch(`${origin}${pathname}`, {
+      redirect: "manual",
+    });
+
+    return {
+      body: await response.text(),
+      location: response.headers.get("location") ?? "",
+      status: response.status,
+    };
+  };
+
+  const expectRedirect = async (
+    from: string,
+    status: number,
+    location: string
+  ) => {
+    const result = await visit(from);
+
+    expectThat(
+      `Request ${from}`,
+      `${result.status} to ${result.location}`,
+      result.status === status && result.location === location
+    );
+  };
+
+  const expectStatus = async (
+    action: string,
+    pathname: string,
+    status: number
+  ) => {
+    const result = await visit(pathname);
+
+    expectThat(
+      action,
+      `${pathname} -> ${result.status}`,
+      result.status === status
+    );
+  };
+
+  try {
+    const context = await browser.newContext({
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+
+    await expectRedirect("/seeds", 308, "/programs/seed-library");
+    await expectRedirect("/2024/05/tool-library", 308, "/programs/tool-share");
+    await expectStatus("Request an unknown path", "/no-such-page", 404);
+
+    await page.goto(`${origin}/programs/seed-library`, {
+      waitUntil: "networkidle",
+    });
+
+    const title = await page.title();
+    const titles = await page.locator("head title").count();
+
+    const canonical = await page
+      .locator('link[rel="canonical"]')
+      .getAttribute("href");
+
+    const image = await page
+      .locator('meta[property="og:image"]')
+      .getAttribute("content");
+
+    expectThat(
+      "Read the seed library's head",
+      `${titles} title: "${title}", canonical ${canonical}, image ${image}`,
+      titles === 1 &&
+        title === "Free seed library for neighbors" &&
+        canonical === `${origin}/programs/seed-library` &&
+        Boolean(image?.startsWith(`${origin}/media/`))
+    );
+    await log.shot(page, "seed-library");
+
+    const socialImage = await fetch(image ?? "");
+
+    expectThat(
+      "Fetch the social image anonymously",
+      `${socialImage.status} ${socialImage.headers.get("content-type")}`,
+      socialImage.ok
+    );
+
+    const hidden = await visit("/programs/tool-share");
+
+    expectThat(
+      "Read a hidden page's head",
+      "robots meta present",
+      /<meta name="robots" content="[^"]*noindex/u.test(hidden.body)
+    );
+
+    const sitemap = await visit("/sitemap.xml");
+
+    writeFileSync(path.join(dir, "sitemap.xml"), sitemap.body);
+    expectThat(
+      "Read /sitemap.xml",
+      `${sitemap.status}, saved as sitemap.xml`,
+      sitemap.status === 200 &&
+        sitemap.body.includes(`${origin}/programs/seed-library<`) &&
+        sitemap.body.includes(`${origin}/news/how-to-save-seed<`) &&
+        !sitemap.body.includes("tool-share") &&
+        !sitemap.body.includes("hiring-youth-coordinator")
+    );
+
+    const robots = await visit("/robots.txt");
+
+    expectThat(
+      "Read /robots.txt",
+      robots.body.replaceAll("\n", " | "),
+      robots.body.includes("Disallow: /admin/") &&
+        robots.body.includes(`Sitemap: ${origin}/sitemap.xml`)
+    );
+
+    await page.goto(`${origin}/admin`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /^Continue as /u }).click();
+    await page.waitForLoadState("networkidle");
+    log.step("Click Continue as …", "signed in as the first local admin");
+
+    const created: number[] = [];
+
+    /** Adds a redirect over REST as the signed-in editor. */
+    const addRedirect = async (data: RedirectInput) => {
+      const response = await page.request.post(`${origin}/api/redirects`, {
+        data,
+      });
+
+      const body: { doc?: { id: number } } = await response.json();
+
+      if (body.doc) {
+        created.push(body.doc.id);
+      }
+
+      return response.status();
+    };
+
+    try {
+      await page.goto(`${origin}/admin/collections/redirects/create`, {
+        waitUntil: "networkidle",
+      });
+      await page.fill("#field-from", "not-a-path");
+      await page.getByText("Custom URL", { exact: true }).first().click();
+      await page.fill("#field-to__url", "https://example.test/moved");
+      await page.click("#action-save");
+      await page.getByText("starts with one /").first().waitFor();
+      log.step("Save a redirect without a leading /", "the form refuses it");
+      await log.shot(page, "redirect-invalid");
+
+      await page.fill("#field-from", "/verify-moved");
+      await page.click("#action-save");
+      await page.waitForURL(/\/redirects\/\d+/u);
+      created.push(Number(page.url().split("/").at(-1)));
+      log.step("Save it with /verify-moved", `created at ${page.url()}`);
+      await log.shot(page, "redirect-saved");
+      await expectRedirect("/verify-moved", 308, "https://example.test/moved");
+
+      await addRedirect({
+        from: "/verify-temporary",
+        to: custom("/news"),
+        type: "307",
+      });
+      await expectRedirect("/verify-temporary", 307, "/news");
+
+      await addRedirect({
+        from: "/guide",
+        to: custom("/apply"),
+        type: "308",
+      });
+      await expectStatus("A published page beats a redirect", "/guide", 200);
+
+      await addRedirect({
+        from: "/verify-self",
+        to: custom("/verify-self/"),
+        type: "308",
+      });
+      await expectStatus("A self-redirect is ignored", "/verify-self", 404);
+
+      await addRedirect({
+        from: "/news/verify-old-post",
+        to: custom("/news"),
+        type: "308",
+      });
+      await expectRedirect("/news/verify-old-post", 308, "/news");
+
+      const drafts = await page.request.get(
+        `${origin}/api/posts?draft=true&depth=0&where[slug][equals]=hiring-youth-coordinator`
+      );
+
+      const { docs }: { docs: { id: number }[] } = await drafts.json();
+
+      await addRedirect({
+        from: "/verify-draft",
+        to: {
+          reference: { relationTo: "posts", value: docs[0]?.id },
+          type: "reference",
+        },
+        type: "308",
+      });
+      await expectStatus(
+        "A redirect to a draft is ignored",
+        "/verify-draft",
+        404
+      );
+
+      await page.goto(`${origin}/admin/collections/pages`, {
+        waitUntil: "networkidle",
+      });
+      await page.getByRole("link", { name: "Seed library" }).first().click();
+      await page.locator("#field-meta__title").waitFor();
+      await page.locator("#field-meta__title").scrollIntoViewIfNeeded();
+      expectThat(
+        "Open the page's SEO group",
+        `title field holds "${await page.inputValue("#field-meta__title")}"`,
+        (await page.inputValue("#field-meta__title")) ===
+          "Free seed library for neighbors"
+      );
+      await log.shot(page, "admin-seo-fields");
+    } finally {
+      for (const id of created) {
+        await page.request.delete(`${origin}/api/redirects/${id}`);
+      }
+
+      log.step("Delete the redirects this drive added", `${created.length}`);
+    }
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`seo failed: ${failures.join("; ")}`);
+  }
+};
+
 /** Both front ends: the seeded pages a visitor reaches from the home page. */
 const pagesSmoke =
   (paths: string[]): Drive =>
@@ -254,6 +521,7 @@ export const DRIVES = new Map<string, Map<string, Drive>>([
         "pages",
         pagesSmoke(["/", "/programs", "/programs/seed-library", "/news"]),
       ],
+      ["seo", payloadSeo],
     ]),
   ],
   [

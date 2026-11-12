@@ -18,7 +18,7 @@ description: WordPress rendering its own public site with a Timber theme, from t
 | Views | One Twig file per section and per hero variant, plus page, post and the `/news/` list. Each names the UI component it mirrors. |
 | Rich text | The shared shortcodes (buttons, images, pullquotes, embeds) render through the theme's own Twig. |
 | Forms | A form section draws its Formidable form and posts back to the page, so it works without JavaScript. Submissions are checked by the same shared code the headless install uses. |
-| Escaping | Twig escapes everything. Rich text, which WordPress has already filtered, prints through a `rich` filter. |
+| Escaping | Twig escapes everything. Rich text, which the shared fields plugin filters with `wp_kses_post()` when it loads, prints through a `rich` filter. |
 
 ## Locking it down
 

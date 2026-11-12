@@ -187,8 +187,16 @@ export interface PendingSummary {
   seq: number;
 }
 
+// A finished run names its execution id where the runtime gave one, so its
+// wide event and `get_run` can find it; a call that failed before the runtime
+// started a run has none.
 export type ExecuteResult =
-  | { calls: RunCall[]; result: unknown; status: "complete" }
+  | {
+      calls: RunCall[];
+      executionId?: string;
+      result: unknown;
+      status: "complete";
+    }
   | {
       // Where a human can answer this run in a browser. It is the fallback for
       // every client that does not render the inline approval card, and it
@@ -200,7 +208,7 @@ export type ExecuteResult =
       status: "paused";
       summary: string;
     }
-  | { calls: RunCall[]; error: string; status: "error" };
+  | { calls: RunCall[]; error: string; executionId?: string; status: "error" };
 
 // One entry of the codemode durable tool log. The runtime reports the same
 // entry shape as a run's `calls` and as an execution's `log`, so both read
@@ -236,6 +244,9 @@ export interface ExecutionRecord {
   log?: ToolLogRecord[];
   result?: unknown;
   status: string;
+  // When the runtime last touched the run, in epoch milliseconds. Every tool
+  // call and every result recorded moves it on.
+  updatedAt?: number;
 }
 
 // The write a paused run is waiting on, named by the connector that asked
@@ -340,14 +351,14 @@ export interface RunView {
 export type RunReport = Omit<RunView, "pending">;
 
 // What every Durable Object RPC answers with. The value is what the caller
-// asked for; `wordpress` is the bounded record of the CMS requests that
+// asked for; `upstream` is the bounded record of the CMS requests that
 // RPC made on the way to it. They are separate because the record belongs on
 // the wide event and never in the model-facing result — `SiteDescription` in
 // particular is cached for ten minutes, and a cached body must not carry one
 // caller's request log to the next.
 export interface RuntimeOutcome<TValue> {
   value: TValue;
-  wordpress?: UpstreamRequestLog;
+  upstream?: UpstreamRequestLog;
 }
 
 // The log hands a recorded result back as opaque JSON. A zod parse would
@@ -452,16 +463,20 @@ export const toExecuteResult = (
     };
   }
 
+  const ended = outcome.executionId ? { executionId: outcome.executionId } : {};
+
   if (outcome.status === "error") {
     return {
       calls: toCalls(outcome.calls ?? []),
       error: outcome.error ?? "The run failed",
+      ...ended,
       status: "error",
     };
   }
 
   return {
     calls: toCalls(outcome.calls ?? []),
+    ...ended,
     result: outcome.result ?? null,
     status: "complete",
   };
@@ -604,6 +619,12 @@ const applyWrite = (
     return;
   }
 
+  // Progress written for an earlier `apply` in the same script describes a
+  // write that already returned its receipt; it is not this one's.
+  if (progress.seq !== undefined && progress.seq !== latest.seq) {
+    return;
+  }
+
   // `applying` is the runtime's own word that the write is still in flight,
   // which outlasts the run's status when the sandbox gave up on the script.
   if (view.status === "running" || applying) {
@@ -626,12 +647,31 @@ const applyWrite = (
   view.write = receiptSummary(rebuilt);
 };
 
+export const STALLED_RUN_ERROR =
+  "The run stopped before it finished: the gateway restarted while it was running. Check the CMS before trying again.";
+
+// Whether a run the log still calls `running` can no longer be running. The
+// runtime touches a run on every tool call and every recorded result, an
+// `execute` pass gives up after a minute, and an approval's pass after its
+// timeout plus the settle grace. So a run nothing in this Durable Object is
+// applying, untouched for longer than that, was being run by an instance that
+// is gone: the codemode runtime itself would only expire it a day later.
+export const isStalledRun = (
+  record: ExecutionRecord | undefined,
+  options: { active: boolean; maxRunMs: number; now: number }
+): boolean =>
+  record?.status === "running" &&
+  !options.active &&
+  record.updatedAt !== undefined &&
+  options.now - record.updatedAt > options.maxRunMs;
+
 export const toRunView = (
   executionId: string,
   record?: ExecutionRecord,
   intent?: string,
   progress?: ApplyProgress,
-  applying = false
+  applying = false,
+  stalled = false
 ): RunView => {
   if (!record) {
     return { calls: [], executionId, status: "unknown" };
@@ -639,14 +679,19 @@ export const toRunView = (
 
   const entries = record.log ?? [];
 
+  // A stalled run is reported as the error it is, and the progress its write
+  // reported is rebuilt into an interrupted receipt below, rather than reading
+  // as still running until the runtime expires it.
   const view: RunView = {
     calls: toCalls(entries),
     executionId,
-    status: runStatus(record.status),
+    status: stalled ? "error" : runStatus(record.status),
   };
 
   if (record.error) {
     view.error = record.error;
+  } else if (stalled) {
+    view.error = STALLED_RUN_ERROR;
   }
 
   if (intent) {

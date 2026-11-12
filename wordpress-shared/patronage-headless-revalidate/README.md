@@ -14,7 +14,7 @@ define( 'PATRONAGE_REVALIDATE_ACCESS_SECRET', '…' );
 
 ## What it sends
 
-Changes are queued during the request and sent once, at shutdown, as `PUT {paths, tags}` to `/api/revalidate/` with an `X-Headless-Secret-Key` header. A post's own path, its old path after a rename or unpublish, and its descendants' paths are queued, with the tag `wordpress`.
+Changes are queued during the request and sent once, at shutdown, as `PUT {paths, tags}` to `/api/revalidate/` with an `X-Headless-Secret-Key` header. A post's own path, its old path after a rename or unpublish, and its descendants' paths are queued, with the tag `wordpress`. A send that fails (the front-end is down, or answers with an error) keeps its paths and tags: the next send carries them, and a WP-Cron retry tries again after a minute, backing off to an hour.
 
 A theme adds its own with `patronage_headless_revalidate_queue_paths()` and `patronage_headless_revalidate_queue_tags()`, and sends early with `patronage_headless_revalidate_flush()`. Filters: `patronage_headless_revalidate_endpoint` (the route path) and `patronage_headless_revalidate_post_tags` (a post's tags). The headless theme's `inc/cache-tags.php` uses them to send every key WPGraphQL Smart Cache purges.
 
@@ -23,3 +23,7 @@ A theme adds its own with `patronage_headless_revalidate_queue_paths()` and `pat
 ## Install
 
 See [Installing with Composer](../README.md#installing-with-composer). Inside this repo, the headless install commits a one-line `wp-content/mu-plugins/patronage-headless-revalidate.php` that loads this folder: Docker bind-mounts it, and `bin/build.sh` copies it in for deploys.
+
+## Tests
+
+`pnpm --filter @patronage/wordpress-headless-revalidate test` runs `tests/revalidate.test.php`, plain PHP that loads the plugin against an in-memory WordPress: path mapping, the queue, the request it sends and how it reads the answer, and which post changes send which paths. `verify` above is the end-to-end check against a real front-end.

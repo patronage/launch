@@ -13,6 +13,8 @@ Every front-end, the MCP server and this site are each their own Cloudflare Work
 4. **`pnpm run deploy`** uploads that output with `cf deploy --prebuilt`, which creates the Worker on its first run and provisions any binding resources, such as a KV namespace, that do not exist yet. `pnpm run deploy --preview` runs `cf previews deploy --prebuilt` instead, which names a Worker Preview after the Git branch.
 5. **Workers Builds** runs those commands on every push. There are no GitHub Actions. See [Workers Builds](/deploy/workers-builds).
 
+The steps are shared in `packages/worker-scripts`. Each app's `scripts/deploy.mjs`, `scripts/secrets.mjs` and `scripts/workers-builds.mjs` only says what differs, such as its build variables or whether it has Previews. A Worker without Previews, such as the MCP gateway, refuses `--preview` rather than deploying production.
+
 ```bash
 pnpm --filter web-wordpress run deploy             # production
 pnpm --filter web-wordpress run deploy --preview   # a Preview named after the branch

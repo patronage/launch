@@ -60,6 +60,17 @@ export interface WordPressAdapterOptions {
   /** Rewrites image URLs, e.g. to an image CDN. Defaults to the WordPress URL. */
   imageUrl?: (src: string) => string;
   /**
+   * A `srcset` for an image, given its URL after `imageUrl` and its original
+   * width, e.g. @launch/images' `imageSrcset`. Without it, images have none.
+   */
+  imageSrcset?: (src: string, width?: number) => string | undefined;
+  /**
+   * Rewrites a link to an uploaded file, e.g. a PDF, to where visitors can
+   * reach it, such as @launch/images' media route. A URL it returns
+   * unchanged is made site-relative like any other CMS link.
+   */
+  mediaUrl?: (url: string) => string;
+  /**
    * Renders WordPress HTML. Defaults to `renderHtml`. Rich text holding
    * rich-text blocks is parsed into React instead when `renderRichTextBlock`
    * is set, since a block can sit inside a paragraph.
@@ -75,8 +86,11 @@ export interface WordPressAdapterOptions {
 }
 
 /**
- * Default rich-text renderer. It trusts the HTML, which only authenticated
- * editors can write; sanitize here if that ever changes.
+ * Default rich-text renderer. It trusts the HTML: the fields plugin filters
+ * rich-text fields with wp_kses_post() when they load
+ * (wordpress-shared/patronage-fields/field-values.php) and WordPress filters
+ * post content when it is saved. Sanitize here if HTML ever arrives from
+ * anywhere else.
  */
 export const renderHtml = (html: string): ReactNode => (
   // oxlint-disable-next-line react/no-danger -- WordPress rich text is HTML by design; see docs/spikes.
@@ -138,11 +152,28 @@ const sectionOptions = (
 export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
   const origin = options.cmsOrigin.replace(/\/+$/u, "");
   const imageUrl = options.imageUrl ?? ((src: string) => src);
+
+  /** An image's URL and the srcset for it, from its original URL and width. */
+  const imageSource = (original: string, width?: number) => {
+    const src = imageUrl(original);
+
+    return { src, srcset: options.imageSrcset?.(src, width) };
+  };
+
   const renderRichText = options.renderRichText ?? renderHtml;
   const formAction = options.formAction ?? "/forms/submit";
 
-  /** Makes CMS-origin URLs site-relative and drops WordPress's trailing slash. */
+  /**
+   * Points links to uploaded files at `mediaUrl`, and makes other CMS-origin
+   * URLs site-relative without WordPress's trailing slash.
+   */
   const localizeUrl = (url: string): string => {
+    const media = options.mediaUrl?.(url);
+
+    if (media !== undefined && media !== url) {
+      return media;
+    }
+
     if (url !== origin && !url.startsWith(`${origin}/`)) {
       return url;
     }
@@ -173,7 +204,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
         return {
           media: compact({
             caption,
-            image: compact({ ...img, src: imageUrl(img.src) }),
+            image: compact({ ...img, ...imageSource(img.src, img.width) }),
           }),
           type: "image",
         };
@@ -245,7 +276,7 @@ export const createWordPressAdapter = (options: WordPressAdapterOptions) => {
     return compact({
       alt: node.altText ?? "",
       height: node.mediaDetails?.height ?? undefined,
-      src: imageUrl(node.sourceUrl),
+      ...imageSource(node.sourceUrl, node.mediaDetails?.width ?? undefined),
       width: node.mediaDetails?.width ?? undefined,
     });
   };

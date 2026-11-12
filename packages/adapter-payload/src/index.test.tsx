@@ -298,6 +298,30 @@ describe("heroes", () => {
     expect(withHero({ title: "Kept" })).toBeUndefined();
   });
 
+  it("adds a srcset from the rewritten URL and original width", () => {
+    const responsive = createPayloadAdapter({
+      imageSrcset: (src, width) => `${src}?w=480 480w (of ${width})`,
+      imageUrl: (src) => `/media${src}`,
+    });
+
+    expect(
+      responsive.richTextBlock({
+        blockType: "image",
+        image: { alt: "Beds", id: 1, url: "/a.jpg", width: 900 },
+      })
+    ).toStrictEqual({
+      media: {
+        image: {
+          alt: "Beds",
+          src: "/media/a.jpg",
+          srcset: "/media/a.jpg?w=480 480w (of 900)",
+          width: 900,
+        },
+      },
+      type: "image",
+    });
+  });
+
   it("maps the hero, defaulting the title to the page's", () => {
     expect(
       withHero({

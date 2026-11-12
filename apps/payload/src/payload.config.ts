@@ -18,7 +18,9 @@ import { database } from "./db";
 import { formOverrides } from "./forms";
 import { SiteSettings } from "./globals/site-settings";
 import { mcp } from "./mcp";
+import { redirects } from "./redirects";
 import { richTextBlocks } from "./rich-text/blocks";
+import { seo } from "./seo";
 
 // import.meta.dirname is undefined in workerd, so derive it from the URL.
 // oxlint-disable-next-line unicorn/prefer-import-meta-properties
@@ -64,6 +66,8 @@ export default buildConfig({
       generateLabel: (_, doc) => String(doc.title),
       generateURL: (docs) => docs.map((doc) => `/${String(doc.slug)}`).join(""),
     }),
+    redirects(),
+    seo(),
   ],
   secret: env.PAYLOAD_SECRET || "",
   storage: [

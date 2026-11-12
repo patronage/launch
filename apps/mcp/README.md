@@ -41,9 +41,9 @@ The approval runs as the approver, through the same Access sign-in. `APPROVAL_CS
 
 ## Signing in
 
-The Access application in front of this Worker must cover `/mcp*`, so the approval page is protected too. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
+The Access application in front of this Worker must cover the whole MCP hostname, not just `/mcp*`. The approval page under `/mcp/approvals/` is then protected too, and scanner probes for paths like `/.env` are stopped at the edge, so they never invoke the Worker or reach its logs. Give the gateway a hostname of its own (other services, such as a docs site, go on their own hostnames). As a backstop, the Worker answers any path outside `/mcp*` with a plain 404 before it checks Access, and logs it without MCP fields. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
 
-Calls to WordPress and Payload forward that JWT. WordPress's `patronage-access` mu-plugin (`wordpress-shared/patronage-access`) maps it to a WordPress user, and checks the gateway proof signed with `WORDPRESS_ACCESS_PROOF_SECRET`. When WordPress is itself behind Access, `WORDPRESS_ACCESS_CLIENT_ID` and `WORDPRESS_ACCESS_CLIENT_SECRET` hold the service token that gets requests through.
+Calls to WordPress and Payload forward that JWT. WordPress's `patronage-access` mu-plugin (`wordpress-shared/patronage-access`) maps it to a WordPress user, and checks the gateway proof signed with `WORDPRESS_ACCESS_PROOF_SECRET`. When WordPress is itself behind Access, `WORDPRESS_ACCESS_CLIENT_ID` and `WORDPRESS_ACCESS_CLIENT_SECRET` hold the service token that gets requests through. `WORDPRESS_API_URL` turns the `wp` connector on; with it unset, the connector and its three secrets are left out, so a Payload-only site doesn't list a WordPress connector. Local development sets it in `.dev.vars` (for example `http://localhost:8080`).
 
 Payload is reached one of two ways. With `PAYLOAD_WORKER` set at build time, a Service binding calls the Payload Worker directly. With `PAYLOAD_API_URL` instead, requests go through Payload's Access application with the service token in `PAYLOAD_ACCESS_CLIENT_ID` and `PAYLOAD_ACCESS_CLIENT_SECRET`. Either way Payload checks the proof signed with `PAYLOAD_ACCESS_PROOF_SECRET`, which must match `ACCESS_GATEWAY_PROOF_SECRET` on the Payload Worker. `PAYLOAD_ADMIN_URL` gives the approval page its "open in Payload admin" link. With neither set, the `payload` connector is left out.
 
@@ -60,7 +60,7 @@ pnpm typecheck
 pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 ```
 
-The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are published to npm from `main` with `pnpm -r publish --access public`, which builds each one's `dist/` first and swaps `workspace:*` for the released versions.
+The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are versioned with Changesets and published to npm from `main` with `pnpm release`. A change to a package needs a changeset (`pnpm changeset`); the steps are in the docs site's MCP reference, under Releasing the npm packages.
 
 Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 

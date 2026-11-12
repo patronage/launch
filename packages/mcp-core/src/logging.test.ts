@@ -1,6 +1,7 @@
 import { createLogger } from "evlog";
 import { describe, expect, it, vi } from "vitest";
 
+import manifest from "../package.json";
 import {
   boundedPath,
   opaqueSubject,
@@ -10,16 +11,13 @@ import {
   recordRun,
   recordUpstreamRequests,
   recordWriteReceipt,
+  SERVICE_VERSION,
   withMcpRequestLog,
 } from "./logging";
 import type { McpRequestLogger, McpWideEvent } from "./logging";
+import { testGatewayEnv } from "./test-env";
 
-const env: Env = {
-  ACCESS_AUD: "replace-me",
-  ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-  DEPLOYMENT_ENVIRONMENT: "test",
-  WORDPRESS_API_URL: "https://wordpress.example",
-};
+const env = testGatewayEnv();
 
 const requestLogger = (): McpRequestLogger => {
   const log = createLogger<McpWideEvent>();
@@ -81,8 +79,10 @@ describe(withMcpRequestLog, () => {
         status: 200,
         stream: { outcome: "not_streamed" },
       },
-      mcp: { transport: "streamable-http" },
     });
+    // The wrapper leaves `mcp` to the gateway, which sets it only for a
+    // request that reaches `/mcp`.
+    expect(events[0]).not.toHaveProperty("mcp");
   });
 
   it("emits the final event when a response stream completes", async () => {
@@ -240,7 +240,7 @@ describe(withMcpRequestLog, () => {
         action: "post.update",
         actor: { id: "0123456789abcdef", type: "user" },
         outcome: "success",
-        target: { id: "/wp-json/wp/v2/posts/7", type: "wordpress" },
+        target: { id: "/wp-json/wp/v2/posts/7", type: "cms" },
       },
       plugin: {
         download: {
@@ -339,21 +339,39 @@ describe("code-mode wide-event fields", () => {
     });
   });
 
-  it("records a completed run without an execution id", () => {
+  it("records a completed run with its execution id", () => {
     const log = requestLogger();
     recordRun(log, {
       calls: [
         { connector: "wp", method: "graphql", seq: 1, state: "applied" },
         { connector: "wp", method: "get", seq: 2, state: "applied" },
       ],
+      executionId: "exec_1",
       result: null,
       status: "complete",
     });
     expect(log.getContext().run).toStrictEqual({
-      executionId: "",
+      executionId: "exec_1",
       status: "complete",
       toolCalls: 2,
     });
+  });
+
+  it("leaves the execution id out when the run never started", () => {
+    const log = requestLogger();
+    recordRun(log, {
+      calls: [],
+      error: "Runtime unavailable",
+      status: "error",
+    });
+    expect(log.getContext().run).toStrictEqual({
+      status: "error",
+      toolCalls: 0,
+    });
+  });
+
+  it("reports this package's version as the service version", () => {
+    expect(SERVICE_VERSION).toBe(manifest.version);
   });
 
   it("records the approval decision with an opaque approver", () => {
@@ -426,7 +444,7 @@ describe("code-mode wide-event fields", () => {
         decision: "approve",
         executionId: "exec_1",
         targets: ["pages/42", "pages/9"],
-        wordpressActor: { id: 42, slug: "editor" },
+        upstreamActor: { id: 42, slug: "editor" },
       },
       audit: {
         actor: {
@@ -438,7 +456,7 @@ describe("code-mode wide-event fields", () => {
         target: {
           id: "pages/42",
           targets: ["pages/42", "pages/9"],
-          type: "wordpress",
+          type: "cms",
         },
       },
     });

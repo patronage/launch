@@ -52,7 +52,7 @@ On an account that other sites share, pass each of the site's Workers with `--sc
 
 Logpush files are gzipped NDJSON with every field the dataset has. A job the account's plan does not allow is reported and skipped, and the script exits non-zero so you notice.
 
-The script needs R2 credentials for Logpush and the sink. Pass a pair as `LOGS_R2_ACCESS_KEY_ID` and `LOGS_R2_SECRET_ACCESS_KEY`, or leave them unset and the script creates a token that can write only to that bucket and prints its pair once. With `--wordpress` it also creates a send-only Pipelines token (or reuses `LOGS_PIPELINES_SEND_TOKEN`) and prints the two constants for `wp-config`; see [`wordpress-shared/patronage-logging`](../../wordpress-shared/patronage-logging/README.md).
+The script needs R2 credentials for Logpush and the sink. Pass a pair as `LOGS_R2_ACCESS_KEY_ID` and `LOGS_R2_SECRET_ACCESS_KEY`, or leave them unset and, when a job or sink has to be created, the script creates one token that can write only to that bucket and prints its pair once. A run that finds everything in place creates no token. With `--wordpress` it also creates a send-only Pipelines token (or reuses `LOGS_PIPELINES_SEND_TOKEN`) and prints the two constants for `wp-config`; see [`wordpress-shared/patronage-logging`](../../wordpress-shared/patronage-logging/README.md).
 
 The API token needs Account Settings Read, Logs Edit (and zone Logs Edit for `--zone`), Workers R2 Storage Edit, Pipelines Edit for `--wordpress`, and API Tokens Edit unless you pass the credentials in.
 

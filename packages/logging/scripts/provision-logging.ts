@@ -25,8 +25,9 @@
 // its build environment (cloudflare.config.ts reads it).
 //
 // R2 credentials: set LOGS_R2_ACCESS_KEY_ID and LOGS_R2_SECRET_ACCESS_KEY to
-// reuse a pair, or leave them unset and the script creates a bucket-scoped
-// token and prints the pair once so you can store it.
+// reuse a pair, or leave them unset and, when a job or sink has to be created,
+// the script creates one bucket-scoped token and prints the pair once so you
+// can store it. A run that finds everything in place creates no token.
 //
 // The API token needs: Account Settings Read, Logs Edit (account, and zone for
 // --zone), Workers R2 Storage Edit,
@@ -43,7 +44,11 @@ import {
   ensureLogpushJob,
   ensureWordPressStream,
 } from "../src/cloudflare.ts";
-import type { LogpushJobSpec, S3Credentials } from "../src/cloudflare.ts";
+import type {
+  LogpushJobSpec,
+  S3Credentials,
+  S3CredentialsSource,
+} from "../src/cloudflare.ts";
 
 const { values } = parseArgs({
   options: {
@@ -91,31 +96,42 @@ const attempt = async (label: string, step: () => Promise<string>) => {
 
 console.log(`R2 bucket ${bucket}: ${await ensureBucket(client, bucket)}`);
 
-let credentials: S3Credentials;
+// A bucket write token is minted only when a job or sink is actually created,
+// and at most once a run: a run that finds everything in place leaves the
+// account's tokens alone. It is printed as soon as it exists, because its
+// secret is never shown again.
+let minted: Promise<S3Credentials> | undefined;
 
-if (
-  process.env.LOGS_R2_ACCESS_KEY_ID &&
-  process.env.LOGS_R2_SECRET_ACCESS_KEY
-) {
-  credentials = {
-    accessKeyId: process.env.LOGS_R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.LOGS_R2_SECRET_ACCESS_KEY,
-  };
-} else {
-  credentials = await createBucketWriteCredentials(
+const mintCredentials = async (): Promise<S3Credentials> => {
+  const pair = await createBucketWriteCredentials(
     client,
     `${name} logs writer`,
     bucket
   );
+
   console.log(
     [
       "Created a bucket write token. Store this pair and pass it next time as",
       "LOGS_R2_ACCESS_KEY_ID and LOGS_R2_SECRET_ACCESS_KEY:",
-      `  LOGS_R2_ACCESS_KEY_ID=${credentials.accessKeyId}`,
-      `  LOGS_R2_SECRET_ACCESS_KEY=${credentials.secretAccessKey}`,
+      `  LOGS_R2_ACCESS_KEY_ID=${pair.accessKeyId}`,
+      `  LOGS_R2_SECRET_ACCESS_KEY=${pair.secretAccessKey}`,
     ].join("\n")
   );
-}
+
+  return pair;
+};
+
+const credentials: S3CredentialsSource =
+  process.env.LOGS_R2_ACCESS_KEY_ID && process.env.LOGS_R2_SECRET_ACCESS_KEY
+    ? {
+        accessKeyId: process.env.LOGS_R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.LOGS_R2_SECRET_ACCESS_KEY,
+      }
+    : () => {
+        minted ??= mintCredentials();
+
+        return minted;
+      };
 
 const accountDatasets = values["no-account-logs"]
   ? ["workers_trace_events"]

@@ -113,5 +113,26 @@ describe("service tokens", () => {
       expect(isAccessRejection(appRedirect)).toBeFalsy();
       expect(isAccessRejection(new Response("{}"))).toBeFalsy();
     });
+
+    it("leaves the origin's own JSON 401 and 403 to the caller", () => {
+      const wordpressRefusal = Response.json(
+        { code: "rest_forbidden", message: "Sorry, you are not allowed." },
+        { status: 403 }
+      );
+
+      const graphqlRefusal = new Response("{}", {
+        headers: { "Content-Type": "application/graphql-response+json" },
+        status: 401,
+      });
+
+      const accessPage = new Response("<html>Forbidden</html>", {
+        headers: { "Content-Type": "text/html; charset=UTF-8" },
+        status: 403,
+      });
+
+      expect(isAccessRejection(wordpressRefusal)).toBeFalsy();
+      expect(isAccessRejection(graphqlRefusal)).toBeFalsy();
+      expect(isAccessRejection(accessPage)).toBeTruthy();
+    });
   });
 });

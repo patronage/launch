@@ -117,6 +117,34 @@ describe("WordPress adapter", () => {
     );
   });
 
+  it("adds a srcset from the rewritten URL and original width", () => {
+    const responsive = createWordPressAdapter({
+      cmsOrigin: "https://cms.example.com",
+      imageSrcset: (src, width) => `${src}?w=480 480w (of ${width})`,
+      imageUrl: (src) => src.replace("https://cms.example.com", ""),
+    }).toPage(wordpressHomeFixture);
+
+    const block = responsive?.sections[4]?.block;
+    expect(block?.type === "media" && block.media.image.srcset).toBe(
+      "/wp-content/uploads/2026/10/harvest.jpg?w=480 480w (of 2400)"
+    );
+    expect(
+      media?.block.type === "media" && "srcset" in media.block.media.image
+    ).toBeFalsy();
+  });
+
+  it("points links to uploaded files at mediaUrl", () => {
+    const { localizeUrl } = createWordPressAdapter({
+      cmsOrigin: "https://cms.example.com",
+      mediaUrl: (url) => url.replace(/^.*\/uploads\/(?=.*\.pdf$)/u, "/media/"),
+    });
+
+    expect(
+      localizeUrl("https://cms.example.com/wp-content/uploads/2026/guide.pdf")
+    ).toBe("/media/2026/guide.pdf");
+    expect(localizeUrl("https://cms.example.com/guide/")).toBe("/guide");
+  });
+
   it("returns undefined for a missing page", () => {
     expect(adapter.toPage({ data: { page: null } })).toBeUndefined();
   });

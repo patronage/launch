@@ -8,6 +8,5 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", ".cloudflare/types/index.d.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src/**/*.ts", ".cloudflare/types/index.d.ts"]
 }

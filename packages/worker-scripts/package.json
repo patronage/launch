@@ -1,0 +1,29 @@
+{
+  "name": "@launch/worker-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The deploy, secrets and Workers Builds scripts every Launch Worker shares. Each app's scripts/*.mjs passes only what differs.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./deploy": "./src/deploy.ts",
+    "./script": "./src/script.ts",
+    "./secrets": "./src/secrets.ts",
+    "./worker-config": "./src/worker-config.ts",
+    "./workers-builds": "./src/workers-builds.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

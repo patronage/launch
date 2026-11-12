@@ -39,7 +39,7 @@ The theme draws the same pages as the vinext and Payload front-ends, from the sa
 | CSS | `assets/main.css` imports Tailwind and `@launch/ui/theme.css` (the tokens mapped into Tailwind's theme) and scans only this theme. `build:css` writes `dist/main.css`, which is gitignored and built again by deploys. |
 | Rich-text blocks | The shared shortcodes (`[launch_button]`, `[launch_image]`, `[launch_pullquote]`, `[launch_embed]`, see the [headless README](../cms-wordpress-headless/README.md#rich-text-blocks)) hand their block to `inc/rich-text.php`, which draws it with `views/rich-text/block.twig`. Embeds frame only YouTube (no-cookie) and Vimeo, load X's widget for an X post, and link anything else, as `@launch/ui` does. |
 | Forms | A form section draws its Formidable form with the theme's own fields (`views/sections/form.twig`) and posts back to the page, so it works without JavaScript. `inc/forms.php` checks the values with the same shared code the headless REST route uses, saves the Formidable entry and redirects to `?form-sent=<id>`, which shows the form's success message; a rejected submission shows the problem and keeps the visitor's values. A hidden honeypot field turns away simple bots. |
-| Escaping | Twig autoescapes everything. Rich text, which WordPress has already filtered, prints through the `rich` filter. |
+| Escaping | Twig autoescapes everything. Rich text, which the shared fields plugin filters with `wp_kses_post()` when it loads, prints through the `rich` filter. |
 
 ## Gotchas
 

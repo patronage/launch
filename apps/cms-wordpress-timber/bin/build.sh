@@ -58,5 +58,5 @@ git show HEAD:./../../wordpress-shared/patronage-logging/patronage-logging.php >
 rm -rf wp-content/mu-plugins/patronage-fields
 mkdir -p wp-content/mu-plugins/patronage-fields
 git -C "$(git rev-parse --show-toplevel)" archive HEAD:wordpress-shared/patronage-fields \
-  patronage-fields.php field-helpers.php post-types.php rich-text-blocks.php forms.php fields |
+  patronage-fields.php field-helpers.php post-types.php rich-text-blocks.php forms.php field-values.php fields |
   tar -x -C wp-content/mu-plugins/patronage-fields

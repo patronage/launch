@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { wordpressConnector } from "./wp-gateway";
 
-describe(wordpressConnector, () => {
+describe("the WordPress connector", () => {
   it("gives a fresh model the complete WordPress call contract", () => {
     const requiredGuidance = [
       "wp.graphql({ query, variables? })",
