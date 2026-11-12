@@ -3,29 +3,52 @@ import {
   accessGatewayAuthStrategy,
 } from "@patronage/access/payload";
 import { env } from "cloudflare:workers";
-import { parseCookies } from "payload";
+import { JWTAuthentication } from "payload";
 import type { AuthStrategy, CollectionConfig } from "payload";
 
+import { accessSessionExp, parseAccessStrategy } from "../lib/access-session";
 import { guardFirstUser } from "../lib/first-user-guard";
+import { shouldDeferToPayload } from "../lib/payload-credential";
 import type { User } from "../payload-types";
-
-// A request that already carries Payload's own credential (the admin's
-// session cookie or an Authorization header) is left to Payload's strategies.
-// Payload 4.0.0-beta.6 runs those first anyway; this keeps it that way if the
-// order changes, because a user signed in through Access has no session id
-// and Payload would refuse to refresh the admin's session.
-const hasPayloadCredential = (headers: Headers, cookiePrefix: string) =>
-  headers.has("authorization") ||
-  parseCookies(headers).has(`${cookiePrefix}-token`);
 
 type AccessStrategy = ReturnType<typeof accessAuthStrategy<User>>;
 
+// Whether Payload's own credential signs a request in, kept per request.
+const payloadSessionChecks = new WeakMap<Headers, Promise<boolean>>();
+
 // @patronage/access types the Local API loosely, so each strategy is wrapped
 // to pin the lookup to the users collection, and to step aside for a request
-// that already carries Payload's own credential.
+// that Payload's own credential already signs in (see lib/payload-credential.ts).
 const asPayloadStrategy = (strategy: AccessStrategy): AuthStrategy => ({
-  authenticate: async ({ headers, payload }) => {
-    if (hasPayloadCredential(headers, payload.config.cookiePrefix)) {
+  authenticate: async (args) => {
+    const { headers, payload } = args;
+
+    // Both Access strategies see the same request, so check it once.
+    const sessionIsValid = (): Promise<boolean> => {
+      const cached = payloadSessionChecks.get(headers);
+
+      if (cached) {
+        return cached;
+      }
+
+      const checked = (async () => {
+        const session = await JWTAuthentication(args);
+
+        return Boolean(session.user);
+      })();
+
+      payloadSessionChecks.set(headers, checked);
+
+      return checked;
+    };
+
+    if (
+      await shouldDeferToPayload(
+        headers,
+        payload.config.cookiePrefix,
+        sessionIsValid
+      )
+    ) {
       return { user: null };
     }
 
@@ -112,6 +135,21 @@ export const Users: CollectionConfig = {
         audience: env.ACCESS_AUD,
         teamDomain: env.ACCESS_TEAM_DOMAIN,
       })),
+    ],
+    // Report the Access session's expiry, not a leftover payload-token's
+    // (see lib/access-session.ts).
+    me: [
+      ({ args, user }) => {
+        const strategy = parseAccessStrategy(user?._strategy);
+
+        if (!strategy) {
+          return;
+        }
+
+        const exp = accessSessionExp(args.req.headers, strategy);
+
+        return exp === undefined ? undefined : { exp, user };
+      },
     ],
   },
   slug: "users",
