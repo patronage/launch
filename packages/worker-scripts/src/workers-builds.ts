@@ -4,7 +4,8 @@
  *
  *   pnpm run builds:configure [--dry-run]
  *
- * Needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, plus:
+ * Every call goes through the cf CLI, so your own `cf auth login` is enough:
+ * no API token. Needs CLOUDFLARE_ACCOUNT_ID, plus:
  *   BUILD_TOKEN_UUID      from `cf builds tokens list`
  *   GITHUB_OWNER_ID       numeric id of the GitHub org that owns the repo
  *   GITHUB_REPO_ID        numeric id of the repo
@@ -16,22 +17,25 @@
  * every other branch gets a Worker Preview named after the branch. A build
  * only starts when a file under the app, packages/ or the workspace lockfile
  * changes.
+ *
+ * The build variables are copied onto the Builds trigger when it is created.
+ * When an app later reads a new variable at build time, add it to the trigger
+ * with `cf builds triggers environment-variables upsert <trigger-uuid>` (find
+ * the trigger with `cf builds triggers list --external-script-id <tag>`), or
+ * every Builds deploy sets it blank.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod";
 
-import { cloudflareApi } from "./cloudflare-api.ts";
-import type { Credentials } from "./cloudflare-api.ts";
-import { run, ScriptError } from "./script.ts";
+import { run, runJson, ScriptError } from "./script.ts";
 import type { ScriptContext } from "./script.ts";
 import { readBuiltWorkerConfig, summarize } from "./worker-config.ts";
 import type { WorkerSummary } from "./worker-config.ts";
 
 export const REQUIRED_ENV = [
   "CLOUDFLARE_ACCOUNT_ID",
-  "CLOUDFLARE_API_TOKEN",
   "BUILD_TOKEN_UUID",
   "GITHUB_OWNER_ID",
   "GITHUB_REPO_ID",
@@ -75,18 +79,12 @@ const previewsBaseSchema = z.object({
     .nullish(),
 });
 
-const checkPreviewBaseSecrets = async (
-  ctx: ScriptContext,
-  creds: Credentials,
-  worker: WorkerSummary
-) => {
-  const result = await cloudflareApi(
+const checkPreviewBaseSecrets = (ctx: ScriptContext, worker: WorkerSummary) => {
+  const result = runJson(
     ctx,
-    creds,
-    {
-      action: "Reading the Worker's Previews Base",
-      path: `/workers/workers/${encodeURIComponent(worker.name)}`,
-    },
+    "Reading the Worker's Previews Base",
+    "pnpm",
+    ["exec", "cf", "workers", "get", worker.name],
     previewsBaseSchema
   );
 
@@ -104,22 +102,22 @@ const checkPreviewBaseSecrets = async (
 };
 
 const scriptsSchema = z.array(
-  z.object({ id: z.string(), tag: z.string() }).loose()
+  z.object({ id: z.string(), script_name: z.string() }).loose()
 );
 
-const lookupScriptTag = async (
-  ctx: ScriptContext,
-  creds: Credentials,
-  workerName: string
-) => {
-  const scripts = await cloudflareApi(
+// The Builds API names a Worker by its tag, which `cf workers scripts search`
+// returns as `id`. A name search also matches partial names, so pick the
+// exact one.
+const lookupScriptTag = (ctx: ScriptContext, workerName: string) => {
+  const scripts = runJson(
     ctx,
-    creds,
-    { action: "Listing Workers", path: "/workers/scripts" },
+    "Looking up the Worker",
+    "pnpm",
+    ["exec", "cf", "workers", "scripts", "search", "--name", workerName],
     scriptsSchema
   );
 
-  const script = scripts.find((item) => item.id === workerName);
+  const script = scripts.find((item) => item.script_name === workerName);
 
   if (!script) {
     throw new ScriptError(
@@ -127,7 +125,7 @@ const lookupScriptTag = async (
     );
   }
 
-  return script.tag;
+  return script.id;
 };
 
 export interface BuildsBodyInput {
@@ -254,11 +252,6 @@ export const configureWorkersBuilds = async (
     throw new ScriptError(`Set ${missing.join(", ")}.`);
   }
 
-  const creds: Credentials = {
-    accountId: ctx.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-    apiToken: ctx.env.CLOUDFLARE_API_TOKEN ?? "",
-  };
-
   const repoRoot = path.resolve(ctx.root, "../..");
 
   const { name: appName } = readPackage(
@@ -276,7 +269,7 @@ export const configureWorkersBuilds = async (
   const worker = await (options.resolveWorker ?? viteWorker)(ctx);
 
   if (!dryRun && options.previews && options.previewsNeedBaseSecrets) {
-    await checkPreviewBaseSecrets(ctx, creds, worker);
+    checkPreviewBaseSecrets(ctx, worker);
   }
 
   const body = buildsBody({
@@ -286,9 +279,7 @@ export const configureWorkersBuilds = async (
     nodeVersion: readFileSync(path.join(repoRoot, ".nvmrc"), "utf-8").trim(),
     options,
     pnpmVersion,
-    scriptTag: dryRun
-      ? "<script-tag>"
-      : await lookupScriptTag(ctx, creds, worker.name),
+    scriptTag: dryRun ? "<script-tag>" : lookupScriptTag(ctx, worker.name),
   });
 
   run(ctx, "pnpm", [

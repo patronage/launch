@@ -20,17 +20,31 @@ The Payload app builds production only by default. A Payload Preview never binds
 
 ## Connect an app
 
-Each app's `pnpm run builds:configure` creates this configuration through the Workers Builds API. It reads the Worker name from `cloudflare.config.ts` and the Node and pnpm versions from the repo, so the only inputs are ids.
+Each app's `pnpm run builds:configure` creates this configuration through the Workers Builds API. Every call goes through `cf`, so your own `cf auth login` is enough; it needs no API token. It reads the Worker name from `cloudflare.config.ts` and the Node and pnpm versions from the repo, so the only inputs are ids.
 
 1. Once for the repo, install the Cloudflare GitHub app on it from the dashboard. This is the only dashboard step.
 2. Deploy once from your machine, so the Worker exists: `pnpm run deploy`.
-3. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids.
+3. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids. One build token serves every Worker in the account, so reuse the existing one. It belongs to whoever created it, and builds stop deploying if that person loses access. Creating one takes an API token's secret, so if the account has none, let the dashboard's Connect to Git flow create it.
 4. Run `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
 5. Push a branch and check that its Preview comes up, then merge and check production.
 
 To keep a Worker's request logs, set `WORKER_LOGPUSH=true` before running `builds:configure`, so builds pass it on. See [Logging](/references/logging).
 
 The same goes for the other settings an app reads at build time: `WORKER_NAME`, `WORKER_DOMAIN`, and the `ACCESS_*` values (Payload's `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` turn on its Access sign-in and let the deployed admin create its first user). Set them before running `builds:configure`, or later builds fall back to the defaults.
+
+### Build variables live on the trigger
+
+`builds:configure` copies the build variables onto the Worker's Builds trigger once, when it creates it. Changing your shell or `cloudflare.config.ts` afterwards does not reach the trigger. When an app starts reading a new variable at build time, add it to the trigger, or every Builds deploy sets it blank:
+
+```bash
+cf workers scripts search --name <worker>          # its "id" is the script tag
+cf builds triggers list --external-script-id <tag> # the production trigger's trigger_uuid
+cf builds triggers environment-variables list --trigger-uuid <uuid>
+cf builds triggers environment-variables upsert <uuid> --body '{"NAME":{"value":"…","is_secret":false}}'
+cf builds create <uuid> --branch main               # rebuild so the Worker picks it up
+```
+
+The Builds commands take the script tag, not the Worker name. A Builds deploy shows up as `cf_cli` in the Worker's deployment list, the same as a deploy from a laptop, so check `cf builds list --external-script-id <tag>` to see which deploys came from Builds.
 
 Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
 

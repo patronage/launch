@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { run, ScriptError } from "./script.ts";
+import { run, runJson, ScriptError } from "./script.ts";
 import { testContext } from "./test-context.ts";
 import { readBuiltWorkerConfig, secretNames } from "./worker-config.ts";
 
@@ -30,6 +31,46 @@ describe(run, () => {
 
     expect(() => run(ctx, "pnpm", ["run", "build"])).toThrow(
       "Could not run pnpm: spawn pnpm ENOENT"
+    );
+  });
+});
+
+describe(runJson, () => {
+  const schema = z.array(z.object({ id: z.string() }));
+
+  it("captures the command's output and parses it", () => {
+    const ctx = testContext({
+      status: () => ({ status: 0, stdout: '[{"id":"a"}]' }),
+    });
+
+    expect(
+      runJson(ctx, "Listing", "pnpm", ["exec", "cf"], schema)
+    ).toStrictEqual([{ id: "a" }]);
+    expect(ctx.spawnCalls[0]?.capture).toBeTruthy();
+  });
+
+  it("names the step when the command fails", () => {
+    const ctx = testContext({ status: () => ({ status: 2 }) });
+
+    expect(() => runJson(ctx, "Listing", "pnpm", [], schema)).toThrow(
+      new ScriptError("Listing failed (exit 2).", 2)
+    );
+  });
+
+  it("rejects output that is not JSON or not the expected shape", () => {
+    const notJson = testContext({
+      status: () => ({ status: 0, stdout: "Signed out" }),
+    });
+
+    const singleWorker = testContext({
+      status: () => ({ status: 0, stdout: '{"id":"a"}' }),
+    });
+
+    expect(() => runJson(notJson, "Listing", "pnpm", [], schema)).toThrow(
+      "Listing did not return JSON."
+    );
+    expect(() => runJson(singleWorker, "Listing", "pnpm", [], schema)).toThrow(
+      "Listing returned an unexpected result."
     );
   });
 });
