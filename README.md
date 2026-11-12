@@ -35,7 +35,7 @@ pnpm install
 pnpm verify
 ```
 
-To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md). Agent rules are in [AGENTS.md](AGENTS.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+Contributor and agent rules are in [AGENTS.md](AGENTS.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 For an isolated DeepSec candidate scan, run `pnpm security:scan`. Model-backed review is unavailable. See the [security review workflow](.deepsec/README.md) for coverage limits and private handling of findings.
 
