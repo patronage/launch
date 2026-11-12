@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { fakeRepo, jsonResponse, testContext } from "./test-context.ts";
+import type { SpawnResult } from "./script.ts";
+import { fakeRepo, testContext } from "./test-context.ts";
+import type { SpawnCall } from "./test-context.ts";
 import { configureWorkersBuilds } from "./workers-builds.ts";
 
 const worker = {
@@ -11,19 +13,41 @@ const worker = {
 const required = {
   BUILD_TOKEN_UUID: "build-token",
   CLOUDFLARE_ACCOUNT_ID: "account",
-  CLOUDFLARE_API_TOKEN: "api-token",
   GITHUB_OWNER_ID: "1",
   GITHUB_REPO_ID: "2",
 };
 
-const scripts = () =>
-  jsonResponse({
-    result: [
-      { id: "other", tag: "other-tag" },
-      { id: "site", tag: "site-tag" },
-    ],
-    success: true,
-  });
+// `cf workers scripts search --name site` also returns partial matches.
+const scripts = [
+  { id: "other-tag", script_name: "site-old" },
+  { id: "site-tag", script_name: "site" },
+];
+
+interface CfOutputs {
+  /** What `cf workers get` prints. */
+  get?: { previews_base_config: { env: Record<string, { type: string }> } };
+  /** What `cf workers scripts search` prints, page by page. */
+  search?: { id: string; script_name: string }[][];
+}
+
+/** Answers each cf read with its JSON output; any other command succeeds. */
+const cf =
+  (outputs: CfOutputs) =>
+  (call: SpawnCall): SpawnResult => {
+    if (!call.capture) {
+      return { status: 0 };
+    }
+
+    const page = Number(call.args[call.args.indexOf("--page") + 1]);
+
+    const output = call.args.includes("search")
+      ? outputs.search?.[page - 1]
+      : outputs.get;
+
+    return output === undefined
+      ? { status: 1 }
+      : { status: 0, stdout: JSON.stringify(output) };
+  };
 
 /** The body passed to `cf builds workers create`. */
 const createBody = (ctx: ReturnType<typeof testContext>) => {
@@ -41,9 +65,7 @@ describe(configureWorkersBuilds, () => {
 
     await expect(
       configureWorkersBuilds(ctx, { buildVariables: [], previews: false })
-    ).rejects.toThrow(
-      "Set CLOUDFLARE_API_TOKEN, BUILD_TOKEN_UUID, GITHUB_OWNER_ID, GITHUB_REPO_ID."
-    );
+    ).rejects.toThrow("Set BUILD_TOKEN_UUID, GITHUB_OWNER_ID, GITHUB_REPO_ID.");
     expect(ctx.spawnCalls).toHaveLength(0);
   });
 
@@ -64,8 +86,8 @@ describe(configureWorkersBuilds, () => {
 
     const ctx = testContext({
       env: { ...required, UNRELATED: "x", WORKER_DOMAIN: "example.com" },
-      responses: [scripts],
       root,
+      status: cf({ search: [scripts] }),
     });
 
     await configureWorkersBuilds(ctx, {
@@ -114,28 +136,66 @@ describe(configureWorkersBuilds, () => {
     ).not.toContain("UNRELATED");
   });
 
-  it("stops when the Worker list cannot be read", async () => {
+  it("stops when the Worker cannot be looked up", async () => {
     const ctx = testContext({
       env: required,
-      responses: [
-        () => jsonResponse({ errors: [{ code: 10_000 }], success: false }, 403),
-      ],
       root: fakeRepo(worker),
+      status: cf({}),
     });
 
     await expect(
       configureWorkersBuilds(ctx, { buildVariables: [], previews: false })
-    ).rejects.toThrow(
-      "Listing Workers failed (HTTP 403, Cloudflare error 10000)."
-    );
-    expect(ctx.spawnCalls).toHaveLength(1);
+    ).rejects.toThrow("Looking up the Worker failed (exit 1).");
+    expect(ctx.spawnCalls).toHaveLength(2);
+  });
+
+  it("uses the cf login, not an API token", async () => {
+    const ctx = testContext({
+      env: required,
+      root: fakeRepo(worker),
+      status: cf({ search: [scripts] }),
+    });
+
+    await configureWorkersBuilds(ctx, { buildVariables: [], previews: false });
+
+    expect(ctx.fetchCalls).toHaveLength(0);
+    expect(ctx.spawnCalls.find((call) => call.capture)?.args).toStrictEqual([
+      "exec",
+      "cf",
+      "workers",
+      "scripts",
+      "search",
+      "--name",
+      "site",
+      "--page",
+      "1",
+      "--per-page",
+      "100",
+    ]);
+  });
+
+  it("reads later pages until it finds the exact name", async () => {
+    const partial = Array.from({ length: 100 }, (_, index) => ({
+      id: `tag-${index}`,
+      script_name: `site-${index}`,
+    }));
+
+    const ctx = testContext({
+      env: required,
+      root: fakeRepo(worker),
+      status: cf({ search: [partial, scripts] }),
+    });
+
+    await configureWorkersBuilds(ctx, { buildVariables: [], previews: false });
+
+    expect(createBody(ctx).script_tag).toBe("site-tag");
   });
 
   it("asks for a first deploy when the Worker does not exist", async () => {
     const ctx = testContext({
       env: required,
-      responses: [() => jsonResponse({ result: [], success: true })],
       root: fakeRepo(worker),
+      status: cf({ search: [[{ id: "other-tag", script_name: "site-old" }]] }),
     });
 
     await expect(
@@ -146,14 +206,8 @@ describe(configureWorkersBuilds, () => {
   it("refuses Previews until the Previews Base has every secret", async () => {
     const ctx = testContext({
       env: required,
-      responses: [
-        () =>
-          jsonResponse({
-            result: { previews_base_config: { env: {} } },
-            success: true,
-          }),
-      ],
       root: fakeRepo(worker),
+      status: cf({ get: { previews_base_config: { env: {} } } }),
     });
 
     await expect(
@@ -168,19 +222,13 @@ describe(configureWorkersBuilds, () => {
   it("turns Previews on once the Previews Base has the secrets", async () => {
     const ctx = testContext({
       env: required,
-      responses: [
-        () =>
-          jsonResponse({
-            result: {
-              previews_base_config: {
-                env: { API_KEY: { type: "secret_text" } },
-              },
-            },
-            success: true,
-          }),
-        scripts,
-      ],
       root: fakeRepo(worker),
+      status: cf({
+        get: {
+          previews_base_config: { env: { API_KEY: { type: "secret_text" } } },
+        },
+        search: [scripts],
+      }),
     });
 
     await configureWorkersBuilds(ctx, {
@@ -192,7 +240,7 @@ describe(configureWorkersBuilds, () => {
     expect(createBody(ctx).previews_enabled).toBeTruthy();
   });
 
-  it("makes no API calls on a dry run", async () => {
+  it("makes no Cloudflare reads on a dry run", async () => {
     const ctx = testContext({
       argv: ["--dry-run"],
       env: required,

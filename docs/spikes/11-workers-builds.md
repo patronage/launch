@@ -31,7 +31,7 @@ Preview deploys use Worker Previews (`cf previews deploy`). Each branch gets its
 2. Deploy once from a machine, so the Worker and its KV namespace exist: `pnpm run deploy`.
 3. Set the runtime secrets that `cloudflare.config.ts` declares with `pnpm run secrets`, values from the environment. Never add them as build variables.
 4. Find the build token with `cf builds tokens list`, and the GitHub owner and repo ids (`gh api repos/patronage/launch --jq '.owner.id, .id'`).
-5. `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`.
+5. `BUILD_TOKEN_UUID=… GITHUB_OWNER_ID=… GITHUB_REPO_ID=… pnpm run builds:configure`. It runs every call through `cf`, so `cf auth login` is enough; no API token.
 6. Push a branch and check that its Preview URL comes up, then merge and check production.
 7. Put Previews behind Cloudflare Access. Preview URLs are public by default; Access can cover one Worker's Previews or a hostname pattern. Scripting that belongs with the Access spike; until then, add the Access application by hand and note it in the issue.
 
@@ -56,6 +56,9 @@ All three Workers (`launch-vinext-wordpress`, `launch-payload`, `launch-docs`) d
 - Workers Builds gives the deploy command working Cloudflare credentials: `cf deploy` runs with no account id or token set as build variables.
 - `cf deploy` without `--secrets-file` keeps the secrets already on the Worker. Production builds deploy with no secret values in the build environment.
 - Previews use their own KV namespace: `apps/web-wordpress` binds the production namespace by id only when the build is not a Preview.
+
+- Build variables are copied onto the Builds trigger when `builds:configure` creates it. Payload's trigger predated its `ACCESS_*` settings, so every Builds deploy blanked them and turned its Access sign-in off until they were added with `cf builds triggers environment-variables upsert`. The steps are in the docs site's Workers Builds page.
+- The Builds commands take the script tag, not the Worker name, and a Builds deploy shows up as `cf_cli` in the deployment list, like a laptop deploy.
 
 Still open:
 

@@ -5,6 +5,8 @@
  */
 import { spawnSync } from "node:child_process";
 
+import type { z } from "zod";
+
 /** A failure the script reports in one line before exiting with `exitCode`. */
 export class ScriptError extends Error {
   readonly exitCode: number;
@@ -17,6 +19,11 @@ export class ScriptError extends Error {
 }
 
 export interface SpawnOptions {
+  /**
+   * Capture stdout and return it instead of printing it. Errors still go to
+   * the terminal.
+   */
+  capture?: boolean;
   cwd: string;
   /** Added to the script's own environment. */
   env?: Record<string, string>;
@@ -30,6 +37,8 @@ export interface SpawnOptions {
 export interface SpawnResult {
   error?: Error | undefined;
   status: number | null;
+  /** The command's output, when it was run with `capture`. */
+  stdout?: string;
 }
 
 export type Spawn = (
@@ -50,7 +59,22 @@ export interface ScriptContext {
   warn: (line: string) => void;
 }
 
-const spawnCommand: Spawn = (command, args, { cwd, env, input }) => {
+const spawnCommand: Spawn = (command, args, { capture, cwd, env, input }) => {
+  if (capture) {
+    const result = spawnSync(command, args, {
+      cwd,
+      encoding: "utf-8",
+      env: { ...process.env, ...env },
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+
+    return {
+      error: result.error,
+      status: result.status,
+      stdout: result.stdout,
+    };
+  }
+
   const result = spawnSync(command, args, {
     cwd,
     env: { ...process.env, ...env },
@@ -103,6 +127,43 @@ export const run = (
       result.status ?? 1
     );
   }
+};
+
+/**
+ * Run a command that prints JSON, such as a `cf` read, and return its output
+ * parsed with `schema`. `what` names the step for the error message.
+ */
+export const runJson = <T>(
+  ctx: ScriptContext,
+  what: string,
+  command: string,
+  args: readonly string[],
+  schema: z.ZodType<T>
+): T => {
+  const result = ctx.spawn(command, args, { capture: true, cwd: ctx.root });
+
+  if (result.error || result.status !== 0) {
+    throw new ScriptError(
+      `${what} failed (exit ${result.status ?? "unknown"}).`,
+      result.status || 1
+    );
+  }
+
+  let output: unknown;
+
+  try {
+    output = JSON.parse(result.stdout ?? "");
+  } catch {
+    throw new ScriptError(`${what} did not return JSON.`);
+  }
+
+  const parsed = schema.safeParse(output);
+
+  if (!parsed.success) {
+    throw new ScriptError(`${what} returned an unexpected result.`);
+  }
+
+  return parsed.data;
 };
 
 /**
