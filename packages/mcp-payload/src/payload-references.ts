@@ -39,7 +39,8 @@ export interface Reference {
 export interface References {
   // The first few documents found.
   named: Reference[];
-  // How many were found, named or not.
+  // How many documents were found, named or not. A floor, never a guess: a
+  // document that points here through two fields is counted once.
   total: number;
 }
 
@@ -163,27 +164,42 @@ export const findReferences = async (
   target: ReferenceTarget
 ): Promise<References> => {
   const answers = await Promise.all(
-    candidatesFor(info, target).map((candidate) =>
-      ask(context, candidate, target)
-    )
+    candidatesFor(info, target).map(async (candidate) => ({
+      answer: await ask(context, candidate, target),
+      slug: candidate.collection.slug,
+    }))
   );
 
-  const seen = new Set<string>();
+  // One query per field says how many documents hold the target in that
+  // field, and gives the first few. Two fields of one collection may be
+  // answering with the same documents, so a collection counts for the most
+  // any one of its fields found, or for the different documents seen if
+  // that is more.
+  const found = new Map<string, { ids: Set<string>; most: number }>();
   const named: Reference[] = [];
-  let total = 0;
 
-  for (const answer of answers) {
-    total += answer.total;
+  for (const { answer, slug } of answers) {
+    const collection = found.get(slug) ?? { ids: new Set<string>(), most: 0 };
+
+    collection.most = Math.max(collection.most, answer.total);
 
     for (const reference of answer.named) {
-      const key = `${reference.collection}/${reference.id}`;
+      const id = String(reference.id);
 
-      if (!seen.has(key) && named.length < MAX_NAMED_REFERENCES) {
+      if (!collection.ids.has(id) && named.length < MAX_NAMED_REFERENCES) {
         named.push(reference);
       }
 
-      seen.add(key);
+      collection.ids.add(id);
     }
+
+    found.set(slug, collection);
+  }
+
+  let total = 0;
+
+  for (const collection of found.values()) {
+    total += Math.max(collection.ids.size, collection.most);
   }
 
   return { named, total };

@@ -497,13 +497,30 @@ const missed = async (
     };
   }
 
-  return operation.publish && !(await isPublic(context, operation))
+  // The approval said where the document's public page would be once it
+  // was restored. A hook, or access to `_status`, can leave it elsewhere.
+  const published = await isPublic(context, operation);
+
+  if (operation.publish) {
+    return published
+      ? undefined
+      : {
+          code: "not_published",
+          message: `Payload restored ${target} as a draft but did not publish it`,
+        };
+  }
+
+  return published
     ? {
-        code: "not_published",
-        message: `Payload restored ${target} as a draft but did not publish it`,
+        code: "still_published",
+        message: `Payload restored ${target}, but as published and not as a draft: its public page is being served`,
       }
     : undefined;
 };
+
+// What a restore reports when the document left the trash but not as it
+// was asked to.
+const LEFT_TRASH = new Set(["not_published", "still_published"]);
 
 export const applyTrashOperation = async (
   context: TrashContext,
@@ -569,14 +586,14 @@ export const applyTrashOperation = async (
 
     const error = await missed(context, operation, after);
 
-    // A restore that came back as a draft where it was to publish has
-    // still left the trash.
+    // A restore that came back with the other status has still left the
+    // trash.
     if (error) {
       return {
         ...facts,
         ...outcome(
           "failed",
-          error.code === "not_published" ? [TRASH_FIELD] : [],
+          LEFT_TRASH.has(error.code) ? [TRASH_FIELD] : [],
           error
         ),
       };

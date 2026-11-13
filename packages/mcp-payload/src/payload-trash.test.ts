@@ -63,6 +63,23 @@ const REDIRECTS = collection("redirects", {
   trash: false,
 });
 
+// Redirects that can hold a post in two fields, as a document does that
+// links to one page as its destination and as its fallback.
+const REDIRECTS_TWICE = collection("redirects", {
+  drafts: false,
+  preview: false,
+  relationFields: [
+    {
+      hasMany: false,
+      path: "to.reference",
+      polymorphic: true,
+      relationTo: ["pages", "posts"],
+    },
+    { hasMany: false, path: "fallback", relationTo: ["posts"] },
+  ],
+  titleField: "from",
+});
+
 interface FakeOptions {
   // Collections beside posts and redirects.
   collections?: JsonObject[];
@@ -72,11 +89,15 @@ interface FakeOptions {
   ignoresWrite?: boolean;
   // A hook that keeps a restored document a draft.
   keepsDraft?: boolean;
+  // A hook that keeps a restored document published.
+  keepsPublished?: boolean;
   locked?: boolean;
   // The post as the public sees it.
   publicStatus?: string;
   // How many redirects point at the post.
   redirects?: number;
+  // The redirects hold the post in a second field as well.
+  twoFields?: boolean;
   // The post starts in the trash.
   trashed?: boolean;
 }
@@ -97,7 +118,11 @@ const fakePayload = (options: FakeOptions = {}) => {
   let stamp = READ_AT;
 
   const info = {
-    collections: [POSTS, REDIRECTS, ...(options.collections ?? [])],
+    collections: [
+      POSTS,
+      options.twoFields ? REDIRECTS_TWICE : REDIRECTS,
+      ...(options.collections ?? []),
+    ],
   };
 
   const tool = (rpc: { params: { name: string } }) =>
@@ -110,6 +135,12 @@ const fakePayload = (options: FakeOptions = {}) => {
             url: "/next/preview?path=%2Fnews%2Fhello",
           },
         };
+
+  // What a hook makes of the status a restore asks for, if it has a say.
+  const kept = [
+    options.keepsDraft ? "draft" : undefined,
+    options.keepsPublished ? "published" : undefined,
+  ].find((status) => status !== undefined);
 
   const save = (body: JsonObject): void => {
     stamp = SAVED_AT;
@@ -127,7 +158,7 @@ const fakePayload = (options: FakeOptions = {}) => {
     }
 
     deletedAt = null;
-    publicStatus = options.keepsDraft ? "draft" : String(body._status);
+    publicStatus = kept ?? String(body._status);
   };
 
   const post = (url: URL): Response => {
@@ -325,6 +356,33 @@ describe("trash preview", () => {
       // A list of collections, stored as { relationTo, value }.
       "/api/redirects?depth=0&draft=true&limit=5&select[from]=true&where[and][0][to.reference.value][equals]=3&where[and][1][to.reference.relationTo][equals]=posts",
     ]);
+  });
+
+  it("counts a document that points at it through two fields once", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakePayload({ redirects: 1, twoFields: true }).handler
+    );
+
+    const preview = await preflight([trash()]);
+
+    expect(preview.operations[0]?.fields[1]).toMatchObject({
+      before: "redirects 1 “/old-1”",
+      label: "Linked from at least",
+    });
+  });
+
+  it("counts no more documents than one field found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakePayload({ redirects: 7, twoFields: true }).handler
+    );
+
+    const preview = await preflight([trash()]);
+
+    expect(preview.operations[0]?.fields[1]?.before).toMatch(
+      /redirects 5 “\/old-5” and 2 more$/u
+    );
   });
 
   it("leaves the links row out when nothing points at it", async () => {
@@ -623,6 +681,21 @@ describe("restore from trash", () => {
     expect(receipt).toMatchObject({
       changed_paths: ["deletedAt"],
       error: { code: "not_published" },
+      status: "failed",
+    });
+  });
+
+  it("says when a restore as a draft came back published", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakePayload({ keepsPublished: true, trashed: true }).handler
+    );
+
+    const [receipt] = await apply([restore()]);
+
+    expect(receipt).toMatchObject({
+      changed_paths: ["deletedAt"],
+      error: { code: "still_published" },
       status: "failed",
     });
   });
