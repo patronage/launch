@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 define( 'ABSPATH', __DIR__ );
 define( 'HOUR_IN_SECONDS', 3600 );
+define( 'YEAR_IN_SECONDS', 31536000 );
 define( 'PATRONAGE_ACCESS_TEAM_DOMAIN', 'https://team.cloudflareaccess.com' );
 define( 'PATRONAGE_ACCESS_AUD', 'cms-application-aud' );
 define( 'PATRONAGE_ACCESS_BROWSER_LOGIN', true );
@@ -83,6 +84,7 @@ function get_user_by( string $field, string $value ): WP_User|false {
 	return match ( $value ) {
 		'editor@example.com' => new WP_User( 7, 'editor', array( 'edit_posts' ) ),
 		'reader@example.com' => new WP_User( 8, 'reader', array( 'read' ) ),
+		"o'neil&co@example.com" => new WP_User( 9, 'oneil', array( 'edit_posts' ) ),
 		default              => false,
 	};
 }
@@ -108,6 +110,12 @@ function admin_url(): string {
 }
 function wp_validate_redirect( string $location, string $fallback ): string {
 	return str_starts_with( $location, 'https://cms.example.com/' ) ? $location : $fallback;
+}
+function esc_url( string $url ): string {
+	return htmlspecialchars( $url, ENT_QUOTES );
+}
+function esc_html( string $text ): string {
+	return htmlspecialchars( $text, ENT_QUOTES );
 }
 function wp_safe_redirect( string $location ): never {
 	throw new Redirected( $location );
@@ -152,13 +160,19 @@ function token( OpenSSLAsymmetricKey $private, array $overrides = array() ): str
  *
  * @param array<string,string> $query
  */
-function attempt( ?string $jwt, array $query = array( 'patronage_access_login' => '1' ), string $method = 'GET', bool $guard = true ): ?string {
+function attempt( ?string $jwt, array $query = array( 'patronage_access_login' => '1' ), string $method = 'GET', bool $guard = true, bool $opted_out = false, array $headers = array() ): ?string {
 	global $test_events;
 	$test_events                = array();
 	$_GET                       = $query;
 	$_COOKIE                    = $guard ? array( 'patronage_access_login_tried' => '1' ) : array();
+	if ( $opted_out ) {
+		$_COOKIE['patronage_access_off'] = '1';
+	}
 	$_SERVER['REQUEST_METHOD']  = $method;
-	unset( $_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] );
+	unset( $_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'], $_SERVER['HTTP_SEC_FETCH_SITE'], $_SERVER['HTTP_ORIGIN'], $_SERVER['HTTP_REFERER'] );
+	foreach ( $headers as $key => $value ) {
+		$_SERVER[ $key ] = $value;
+	}
 	if ( null !== $jwt ) {
 		$_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] = $jwt;
 	}
@@ -201,7 +215,61 @@ check( null === attempt( token( $private ), array( 'patronage_access_login' => '
 check( null === attempt( token( $private ), array( 'patronage_access_login' => '1' ), 'POST' ), 'form post untouched' );
 check( array() === $test_events, 'nothing signed in on fall-through' );
 
+// The hour after logout: the opt-out cookie keeps the form up.
+check( null === attempt( token( $private ), array(), 'GET', false, true ), 'opted out: no probe' );
+check( null === attempt( token( $private ), array( 'patronage_access_login' => '1' ), 'GET', true, true ), 'opted out: no sign-in' );
+check( array() === $test_events, 'nothing signed in while opted out' );
+
+// "Sign in with Access" posts back to wp-login.php and restarts the flow.
+$resume = array( 'action' => 'patronage_access_sign_in', 'redirect_to' => 'https://cms.example.com/wp-admin/edit.php' );
+$resumed = 'https://cms.example.com/wp-login.php?redirect_to=https%3A%2F%2Fcms.example.com%2Fwp-admin%2Fedit.php&patronage_access_login=1';
+check( $resumed === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_SEC_FETCH_SITE' => 'same-origin' ) ), 'same-origin button post restarts browser login' );
+check( array() === $test_events, 'the button post itself signs nobody in' );
+check( $resumed === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_ORIGIN' => 'https://cms.example.com' ) ), 'Origin fallback accepted' );
+check( $resumed === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_REFERER' => 'https://cms.example.com/wp-login.php?loggedout=true' ) ), 'Referer fallback accepted' );
+check( null === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_SEC_FETCH_SITE' => 'cross-site', 'HTTP_ORIGIN' => 'https://cms.example.com' ) ), 'cross-site post refused even with a matching Origin' );
+check( null === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_ORIGIN' => 'https://evil.example.net' ) ), 'foreign Origin refused' );
+check( null === attempt( token( $private ), $resume, 'POST', false, true, array( 'HTTP_ORIGIN' => 'null', 'HTTP_REFERER' => 'https://cms.example.com.evil.example.net/' ) ), 'lookalike Referer refused' );
+check( null === attempt( token( $private ), $resume, 'POST', false, true ), 'post with no origin headers refused' );
+check( null === attempt( token( $private ), $resume, 'GET', false, true, array( 'HTTP_SEC_FETCH_SITE' => 'same-origin' ) ), 'GET of the button action does nothing' );
+check( null === attempt( null, $resume, 'POST', false, true, array( 'HTTP_SEC_FETCH_SITE' => 'same-origin' ) ), 'button post without an assertion does nothing' );
+
+check( Patronage_Access_JWT_Verifier::is_same_origin_post( array( 'HTTP_ORIGIN' => 'https://CMS.example.com:443' ), 'https://cms.example.com' ), 'origin compare ignores case and default port' );
+check( ! Patronage_Access_JWT_Verifier::is_same_origin_post( array( 'HTTP_ORIGIN' => 'http://cms.example.com' ), 'https://cms.example.com' ), 'origin compare checks scheme' );
+check( ! Patronage_Access_JWT_Verifier::is_same_origin_post( array( 'HTTP_ORIGIN' => 'https://cms.example.com:8443' ), 'https://cms.example.com' ), 'origin compare checks port' );
+
+/**
+ * Render the login screen's message area for a request.
+ *
+ * @param array<string,string> $query
+ */
+function button( ?string $jwt, array $query = array( 'loggedout' => 'true' ), array $post = array() ): string {
+	$_GET     = $query;
+	$_REQUEST = array_merge( $query, $post );
+	unset( $_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] );
+	if ( null !== $jwt ) {
+		$_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] = $jwt;
+	}
+	return (string) Patronage_Access_REST_Auth::sign_in_button( '<p class="message">You are now logged out.</p>' );
+}
+
+$shown = button( token( $private ), array( 'loggedout' => 'true', 'redirect_to' => 'https://cms.example.com/wp-admin/?a=1&b="x"' ) );
+check( str_starts_with( $shown, '<p class="message">You are now logged out.</p><form method="post" action="https://cms.example.com/wp-login.php?redirect_to=https%3A%2F%2Fcms.example.com%2Fwp-admin%2F%3Fa%3D1%26b%3D%22x%22&amp;action=patronage_access_sign_in"' ), 'button posts to the sign-in action and keeps redirect_to' );
+check( str_contains( $shown, '>Sign in with Access as editor@example.com</button>' ), 'button names the verified email' );
+check( str_contains( button( token( $private ), array() ), 'Sign in with Access as editor@example.com' ), 'button on the plain form too' );
+check( str_contains( button( token( $private, array( 'email' => "o'neil&co@example.com" ) ) ), '>Sign in with Access as o&#039;neil&amp;co@example.com</button>' ), 'email is escaped' );
+check( ! str_contains( button( token( $private, array( 'email' => 'stranger@example.com' ) ) ), '<form' ), 'email without a matching user gets no button' );
+check( '<p class="message">You are now logged out.</p>' === button( null ), 'no assertion, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( 'forged.assertion.value' ), 'forged assertion, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private, array( 'email' => 'reader@example.com' ) ) ), 'user without edit_posts, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private, array( 'aud' => 'another-application' ) ) ), 'other application, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array( 'action' => 'lostpassword' ) ), 'other actions, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array( 'interim-login' => '1' ) ), 'session-expired modal, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array(), array( 'interim-login' => '1', 'log' => 'editor' ) ), 'failed password in the session-expired modal, no button' );
+check( str_contains( button( token( $private ), array(), array( 'redirect_to' => 'https://cms.example.com/wp-admin/post.php?post=1', 'log' => 'editor' ) ), 'redirect_to=https%3A%2F%2Fcms.example.com%2Fwp-admin%2Fpost.php%3Fpost%3D1&amp;action=patronage_access_sign_in' ), 'failed password post keeps redirect_to for the button' );
+
 $test_logged_in = true;
 check( null === attempt( token( $private ) ), 'signed-in user untouched' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private ) ), 'signed-in user, no button' );
 
 fwrite( STDOUT, "Browser login tests passed.\n" );
