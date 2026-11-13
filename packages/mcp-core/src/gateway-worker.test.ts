@@ -842,7 +842,7 @@ describe("Approval route", () => {
     expect(Object.fromEntries(response.headers)).toMatchObject({
       "cache-control": "no-store",
       "content-security-policy":
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+        "default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'self'",
       "content-type": "text/html; charset=utf-8",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",

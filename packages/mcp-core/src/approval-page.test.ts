@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { previewValue } from "./apply";
-import type { ApplyPreflight, BatchReceipt, OperationPreflight } from "./apply";
+import type {
+  ApplyPreflight,
+  BatchReceipt,
+  OperationPreflight,
+  SnapshotImage,
+} from "./apply";
 import {
   approvalCsrfToken,
   escapeHtml,
@@ -311,6 +316,136 @@ describe(renderApprovalPage, () => {
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("a".repeat(600));
+  });
+});
+
+const thumbnail: SnapshotImage = {
+  bytes: 48_213,
+  height: 600,
+  mimeType: "image/png",
+  sha256: "ab".repeat(32),
+  src: "data:image/webp;base64,AAAA",
+  width: 800,
+};
+
+const renderWith = (changes: Partial<OperationPreflight>): string =>
+  renderApprovalPage({
+    csrfToken: "abc123",
+    executionId: "exec_1",
+    preflight: { intent: "x", operations: [{ ...operation, ...changes }] },
+    previewDigest: "",
+  });
+
+describe("media, rows and warnings on the approval page", () => {
+  it("shows a thumbnail with the file's facts, drawn no larger than the cap", () => {
+    const html = renderWith({
+      fields: [
+        {
+          after: "garden.png",
+          afterImage: thumbnail,
+          before: "",
+          changed: true,
+          path: "file",
+        },
+      ],
+    });
+
+    expect(html).toContain(
+      '<img class="thumb" alt="" src="data:image/webp;base64,AAAA" width="320" height="240">'
+    );
+    expect(html).toContain(
+      "image/png · 800 × 600 · 47 KB · sha256 abababababab"
+    );
+  });
+
+  it.each([
+    "https://cdn.example/a.webp",
+    "data:image/svg+xml;base64,AAAA",
+    'data:image/webp;base64,AAAA" onerror="alert(1)',
+    ["java", "script:alert(1)"].join(""),
+  ])("renders the facts but no picture for %j", (src) => {
+    const html = renderWith({
+      fields: [
+        {
+          after: "garden.png",
+          afterImage: { ...thumbnail, src },
+          before: "old.png",
+          beforeImage: { ...thumbnail, mimeType: "<b>x</b>", src },
+          changed: true,
+          path: "file",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("onerror");
+    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(html).toContain("sha256 abababababab");
+  });
+
+  it("shows a row's label with its path under it", () => {
+    const html = renderWith({
+      fields: [
+        {
+          after: "(removed)",
+          before: "Plots <open>",
+          changed: true,
+          label: "Sections › Card grid (row 3) › Cards › row 2 › Title",
+          path: "layout[id=a1].cards[id=b2].title",
+        },
+      ],
+    });
+
+    expect(html).toContain(
+      'Sections › Card grid (row 3) › Cards › row 2 › Title<code class="path">layout[id=a1].cards[id=b2].title</code>'
+    );
+    expect(html).toContain("Plots &lt;open&gt;");
+  });
+
+  it("shows a bounded, escaped warning above the operation", () => {
+    const html = renderWith({
+      warning: `Goes <live> at once. ${"x".repeat(400)}`,
+    });
+
+    const text =
+      /<p class="warning"[^>]*>(?<text>.*?)<\/p>/u.exec(html)?.groups?.text ??
+      "";
+
+    expect(text).toContain("Goes &lt;live&gt; at once.");
+    expect(text.endsWith("…")).toBeTruthy();
+    expect(text.length).toBeLessThan(400);
+    expect(html.indexOf('class="warning"')).toBeLessThan(
+      html.indexOf("<table")
+    );
+  });
+
+  it("shows no warning when there is none", () => {
+    expect(approvalHtml).not.toContain('<p class="warning"');
+    expect(renderWith({ warning: "  " })).not.toContain('<p class="warning"');
+  });
+});
+
+describe("receipt details on the receipt page", () => {
+  it("adds a details column only when a receipt has any", () => {
+    const html = renderReceiptFragment({
+      ...receipt,
+      operations: receipt.operations.map((entry, index) =>
+        index === 0
+          ? {
+              ...entry,
+              details: { id: "7", url: "/media/<garden>.png" },
+              updated_at: "2026-11-13T04:00:00.000Z",
+              version_id: "41",
+            }
+          : entry
+      ),
+    });
+
+    expect(renderReceiptFragment(receipt)).not.toContain("Details");
+    expect(html).toContain('<th scope="col">Details</th>');
+    expect(html).toContain(
+      "id: 7<br>url: /media/&lt;garden&gt;.png<br>version: 41<br>updated: 2026-11-13T04:00:00.000Z"
+    );
   });
 });
 

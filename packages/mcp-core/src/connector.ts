@@ -1,6 +1,7 @@
 import type { ApplyPreflight, BatchReceipt, OperationReceipt } from "./apply";
 import type { CallerScope } from "./caller";
 import type { GatewayEnv } from "./env";
+import type { StagedBlob, StagedBlobFacts } from "./staged-blobs";
 import type { JsonValue, UpstreamTelemetry } from "./upstream";
 
 // The contract between the code-mode runtime and a connector's tools: what
@@ -43,6 +44,19 @@ export interface ConnectorToolDefinition {
 export type ConnectorToolMap = Record<string, ConnectorToolDefinition>;
 
 export interface RuntimeStore {
+  // The bytes and the facts of a file this run staged, by its SHA-256, or
+  // nothing when this run staged no such file. Optional, like the two beside
+  // it, so a store written before staged files existed keeps compiling; the
+  // gateway's own store has all three.
+  readBlob?: (
+    executionId: string,
+    sha256: string
+  ) => Promise<{ blob: StagedBlob; bytes: Uint8Array } | undefined>;
+  // The same facts without the bytes, for a preview.
+  readBlobMeta?: (
+    executionId: string,
+    sha256: string
+  ) => Promise<StagedBlob | undefined>;
   readPreflight: (executionId: string) => Promise<ApplyPreflight | undefined>;
   readRequester: (executionId: string) => Promise<string | undefined>;
   // Called by a connector's `apply` as each operation settles, so a run that
@@ -53,6 +67,14 @@ export interface RuntimeStore {
     executionId: string,
     receipt: OperationReceipt
   ) => Promise<void>;
+  // Keeps a file for a later `apply` in the same run, which names it by the
+  // hash returned here. Upload bytes go through this and never through
+  // `apply`'s arguments. Throws `StagedBlobError` over the size limits.
+  stageBlob?: (
+    executionId: string,
+    bytes: Uint8Array,
+    facts: StagedBlobFacts
+  ) => Promise<StagedBlob>;
   writePreflight: (
     executionId: string,
     preflight: ApplyPreflight

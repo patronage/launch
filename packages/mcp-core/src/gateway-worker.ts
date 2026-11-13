@@ -62,11 +62,13 @@ const APPROVAL_TOOL = "approval_page";
 
 // The approval page is served to a browser, not to an MCP client: it must not
 // be framed, cached, or allowed to load or run anything of its own, and its
-// referrer must never carry the execution id to another origin.
+// referrer must never carry the execution id to another origin. The one
+// exception is `img-src data:`, for the inline thumbnail of a media change:
+// a `data:` image carries no request and no script.
 const HTML_HEADERS = {
   "Cache-Control": "no-store",
   "Content-Security-Policy":
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'self'",
   "Content-Type": "text/html; charset=utf-8",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
