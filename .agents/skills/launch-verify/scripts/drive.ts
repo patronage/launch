@@ -534,7 +534,12 @@ interface StructuredContent {
   executionId?: string;
   /** `describe_site`: what the Payload connector says can be written. */
   payload?: {
-    collections?: { rowFields?: { path: string }[]; slug: string }[];
+    collections?: {
+      rowFields?: { path: string }[];
+      slug: string;
+      /** Upload collections only: whether Payload keeps versions of them. */
+      upload?: { versions?: boolean };
+    }[];
     globals?: { slug: string }[];
   };
   result?: PostSummary | null;
@@ -1127,6 +1132,20 @@ const refusedStageScript = (source: StageSource) =>
 const SVG_FILE =
   '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
 
+/** Whether `describe_site` says Payload keeps versions of media documents. */
+const mediaKeepsVersions = async (
+  origin: string,
+  token: string
+): Promise<boolean> => {
+  const described = await callTool(origin, token, "describe_site", {});
+
+  const media = (described.structuredContent.payload?.collections ?? []).find(
+    (collection) => collection.slug === "media"
+  );
+
+  return media?.upload?.versions === true;
+};
+
 /** What Payload's public API says about one media file. */
 interface MediaDocument {
   alt?: string;
@@ -1336,8 +1355,11 @@ const mcpPayloadUpload: Drive = async ({
       "get_run reports no uploaded file"
     );
 
+    // A collection that keeps no versions has none to name.
+    const versions = await mediaKeepsVersions(origin, token);
+
     expect(
-      uploaded.versioned,
+      uploaded.versioned || !versions,
       "the upload's receipt does not name the version Payload made"
     );
 
@@ -1358,7 +1380,7 @@ const mcpPayloadUpload: Drive = async ({
     );
     log.step(
       "get_run, then read the new file from Payload's public API",
-      `media/${uploaded.id} "${media.filename}", alt "${media.alt}"; names its version: ${uploaded.versioned}; served bytes match the approved file: ${served === sha256(first)} (run.json)`
+      `media/${uploaded.id} "${media.filename}", alt "${media.alt}"; media keeps versions: ${versions}; names its version: ${uploaded.versioned}; served bytes match the approved file: ${served === sha256(first)} (run.json)`
     );
 
     const second = await drawPicture(browser, `${marker} v2`, "#7a3e9d");

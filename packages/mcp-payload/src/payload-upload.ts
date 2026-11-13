@@ -384,11 +384,14 @@ export const stageUpload = async <T>(
       ...image,
     });
 
+    // The same bytes staged a second time are the file staged first, under
+    // the name it was given then. The answer describes that file, which is
+    // the one `upload_ref` will upload.
     const result: JsonObject = {
       bytes: blob.bytes,
-      filename,
-      mimeType,
-      source: sourced.source,
+      filename: blob.filename ?? filename,
+      mimeType: blob.mimeType,
+      source: blob.source,
       upload_ref: `sha256:${blob.sha256}`,
     };
 

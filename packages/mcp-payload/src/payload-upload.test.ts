@@ -109,16 +109,24 @@ const fakeStore = () => {
     readPreflight: () => Promise.resolve(undefined),
     readRequester: () => Promise.resolve("requester0000000"),
     stageBlob: async (executionId, bytes, facts) => {
+      const sha256 = await sha256Hex(bytes);
+      // As the gateway's store does: the same bytes are kept once.
+      const existing = files.get(sha256);
+
+      if (existing) {
+        return existing.blob;
+      }
+
       const blob: StagedBlob = {
         ...facts,
         bytes: bytes.byteLength,
         chunks: 1,
         executionId,
-        sha256: await sha256Hex(bytes),
+        sha256,
         stagedAt: 1,
       };
 
-      files.set(blob.sha256, { blob, bytes });
+      files.set(sha256, { blob, bytes });
 
       return blob;
     },
@@ -290,6 +298,18 @@ describe("payload.stageUpload", () => {
       upload_ref: `sha256:${await sha256Hex(bytes)}`,
     });
 
+    expect(files.size).toBe(1);
+  });
+
+  it("describes the file kept when the same bytes are staged again", async () => {
+    vi.stubGlobal("fetch", fakePayload().handler);
+
+    const { files, store } = fakeStore();
+    const first = await stage(store, fromBase64(png(), "harvest.png"));
+    const second = await stage(store, fromBase64(png(), "renamed.png"));
+
+    expect(second).toStrictEqual(first);
+    expect(second).toMatchObject({ filename: "harvest.png" });
     expect(files.size).toBe(1);
   });
 
