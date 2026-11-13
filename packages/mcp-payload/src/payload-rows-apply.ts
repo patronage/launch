@@ -33,6 +33,8 @@ import {
 import type { PayloadAdminUrl, PayloadSiteUrl } from "./payload-documents";
 import { readEditingInfo } from "./payload-editing";
 import type { CollectionEditing, EditingInfo } from "./payload-editing";
+import { publishLocalesQuery } from "./payload-locale";
+import type { LocaleScope } from "./payload-locale";
 import { rowsSentence, rowsTarget, STATUS_FIELD } from "./payload-operations";
 import type { PatchRowsOperation } from "./payload-operations";
 import { toMarkdown, toRichText } from "./payload-rich-text";
@@ -54,6 +56,8 @@ export interface RowsContext {
 export interface RowsPreflightContext extends RowsContext {
   adminUrl: PayloadAdminUrl;
   info: EditingInfo;
+  // The locale the changes are made in, where the collection has any.
+  locale?: LocaleScope | undefined;
 }
 
 const rowsCollection = (
@@ -75,6 +79,7 @@ const rowsCollection = (
 // A row path always goes through a row, so the document's own rich text
 // fields never come into it.
 const documentContext = (collection: CollectionEditing): RowContext => ({
+  localizedFields: collection.localizedFields,
   richTextFields: [],
   rowFields: collection.rowFields,
 });
@@ -137,7 +142,8 @@ export const preflightRows = async (
     record,
     documentContext(collection),
     operation.changes,
-    converters(context, operation.collection)
+    converters(context, operation.collection),
+    context.locale?.code
   );
 
   const previewUrl = await previewLink(context, collection, operation.id);
@@ -216,7 +222,7 @@ const writeRows = async (
 
   const write = await payloadRest(
     context.client,
-    documentPath(operation.collection, operation.id, !operation.publish),
+    `${documentPath(operation.collection, operation.id, !operation.publish)}${publishLocalesQuery(operation)}`,
     context.telemetry,
     {
       body: JSON.stringify(body),

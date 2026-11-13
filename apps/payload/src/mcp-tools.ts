@@ -380,6 +380,49 @@ export const getDocumentLock = defineCollectionTool({
 });
 
 const MAX_DEPTH = 3;
+const MAX_LOCALE_LENGTH = 35;
+
+interface LocaleInput {
+  fallbackLocale?: string | undefined;
+  locale?: string | undefined;
+}
+
+interface LocaleArguments {
+  fallbackLocale?: string;
+  locale?: string;
+}
+
+// The locale a read names, as Payload's Local API takes it. A code the site
+// does not have is refused: Payload would quietly read the default locale
+// instead, and the caller would take that for the one it asked for.
+const localeArguments = (req: PayloadRequest, input: LocaleInput) => {
+  const { localization } = req.payload.config;
+  const known = localization ? localization.localeCodes : [];
+
+  for (const code of [input.locale, input.fallbackLocale]) {
+    const named = code !== undefined && code !== "none" && code !== "all";
+
+    if (named && !known.includes(code)) {
+      throw new Error(
+        known.length > 0
+          ? `Unknown locale "${code}". This site has: ${known.join(", ")}.`
+          : "This site has no locales."
+      );
+    }
+  }
+
+  const named: LocaleArguments = {};
+
+  if (input.fallbackLocale !== undefined) {
+    named.fallbackLocale = input.fallbackLocale;
+  }
+
+  if (input.locale !== undefined) {
+    named.locale = input.locale;
+  }
+
+  return named;
+};
 
 // Payload's own `findGlobal` tool reads the published global only. Where a
 // global keeps drafts, an edit starts from its newest version, as the admin
@@ -395,18 +438,26 @@ export const findGlobalDraft = defineGlobalTool({
     title: "Find global draft",
   },
   description:
-    "Read a global as the admin opens it: its newest version, which is a draft where one is newer than what is published. A global without drafts reads as it is. Writes nothing.",
+    'Read a global as the admin opens it: its newest version, which is a draft where one is newer than what is published. A global without drafts reads as it is. On a site with locales, locale names the one to read (the default locale without it), and fallbackLocale: "none" leaves a field with no value in that locale empty instead of filling it from another. Writes nothing.',
   input: z.object({
     depth: z.number().int().min(0).max(MAX_DEPTH).default(0),
+    fallbackLocale: z.string().min(1).max(MAX_LOCALE_LENGTH).optional(),
+    locale: z.string().min(1).max(MAX_LOCALE_LENGTH).optional(),
   }),
 }).handler(async ({ input, req, slug }) => {
-  const doc = await req.payload.findGlobal({
+  const options = {
     depth: input.depth,
     draft: true,
     overrideAccess: false,
     req,
     slug,
-  });
+  } as const;
+
+  // Payload types a locale by the site's own codes, and this app's config
+  // has none unless the demo locales are on, so the codes are added untyped.
+  Object.assign(options, localeArguments(req, input));
+
+  const doc = await req.payload.findGlobal(options);
 
   return {
     ...textResult(JSON.stringify(doc)),
@@ -519,6 +570,7 @@ const collectionInfo = (
       canDelete: Boolean(permissions.delete),
       canUpdate: Boolean(permissions.update),
       localized: fields.localized,
+      localizedFields: fields.localizedFields,
       preview: Boolean(config.admin.preview),
       relationFields: fields.relationFields,
       richTextFields: richTextFields(req, slug).map((field) => field.name),
@@ -595,6 +647,7 @@ const globalInfo = async (
       canUpdate: Boolean(permissions.update),
       drafts: Boolean(config.versions && config.versions.drafts),
       localized: fields.localized,
+      localizedFields: fields.localizedFields,
       // True while another editor has the global open in the admin. Payload
       // makes this check itself before it saves a collection document, but
       // not before it saves a global, so the gateway asks here first.
@@ -635,7 +688,7 @@ export const getEditingInfo = (
       title: "Get editing info",
     },
     description:
-      "List the collections and globals this editor can read: whether each keeps drafts, which fields are rich text, which are arrays or blocks and what their rows hold, what an upload collection accepts, the site's locales, what the editor may create, update or delete, and whether another editor has a global open.",
+      "List the collections and globals this editor can read: whether each keeps drafts, which fields are rich text, which are arrays or blocks and what their rows hold, what an upload collection accepts, the site's locales and which fields are kept for each locale, what the editor may create, update or delete, and whether another editor has a global open.",
     input: z.object({}),
   }).handler(async ({ req }) => {
     const access = await getAccessResults({ req });

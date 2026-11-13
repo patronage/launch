@@ -49,7 +49,7 @@ export interface Surface {
   app: string;
   defaultPort: number;
   /** Commands run in the app directory before the server starts. */
-  prepare: (port: number) => string[][];
+  prepare: (port: number, options: LaunchOptions) => string[][];
   /** The long-running server command, run in the app directory. */
   start: (port: number) => string[];
   /** Read-only GETs that must answer 200 for Doctor to pass. */
@@ -111,10 +111,23 @@ export const SURFACES: Record<SurfaceName, Surface> = {
     // Migrations and the build both run every launch, so a stale build or an
     // unmigrated local D1 never gets verified by mistake. The seed is a
     // separate, explicit step (see SKILL.md).
-    prepare: () => [
-      ["pnpm", "payload", "migrate"],
-      ["pnpm", "build"],
-    ],
+    //
+    // With the demo's locales (`--locales`), the local database is one of
+    // its own, made anew each launch: its one migration is written from the
+    // config as it stands, so it can never be a step behind the collections,
+    // and the demo site is seeded into it.
+    prepare: (_port, options) =>
+      options.locales
+        ? [
+            ["pnpm", "payload", "migrate:create", "demo_locales"],
+            ["pnpm", "payload", "migrate"],
+            ["pnpm", "seed"],
+            ["pnpm", "build"],
+          ]
+        : [
+            ["pnpm", "payload", "migrate"],
+            ["pnpm", "build"],
+          ],
     requiredFiles: [".env", ".dev.vars"],
     start: (port) => [
       "pnpm",
@@ -171,6 +184,8 @@ export interface Receipt {
    * started for the MCP gateway. Absent on a plain launch.
    */
   accessIssuer?: string;
+  /** The demo's locales a Payload server was built with (`--locales`). */
+  locales?: string;
 }
 
 export const stateDir = (surface: SurfaceName): string =>
@@ -188,6 +203,14 @@ const receiptPath = (surface: SurfaceName): string =>
 /** Where the Access stand-in keeps the key a drive signs with. */
 export const accessKeyFile = (): string =>
   path.join(stateDir("access"), "key.json");
+
+/**
+ * The locales `--locales` gives the Payload demo, the default first, and
+ * where apps/payload keeps the local database and migration that go with
+ * them (its src/demo-locales.ts).
+ */
+export const DEMO_LOCALES = "en,es";
+const DEMO_LOCALES_DIR = ".demo-locales";
 
 /** The synthetic editor Doctor signs in as; no such person exists. */
 const DOCTOR_EMAIL = "doctor@example.test";
@@ -773,6 +796,11 @@ export const doctor = async (
 export interface LaunchOptions {
   /** The Access stand-in origin the server must trust (`launch mcp`). */
   accessIssuer?: string;
+  /**
+   * The demo's locales, first the default (`en,es`): Payload is built with
+   * PAYLOAD_DEMO_LOCALES and gets a fresh local database of its own.
+   */
+  locales?: string | undefined;
   /** The local Payload origin the gateway reaches. */
   payloadOrigin?: string;
 }
@@ -785,13 +813,22 @@ const launchEnv = (
   surface: SurfaceName,
   options: LaunchOptions
 ): NodeJS.ProcessEnv => {
+  // Never inherited from the shell: a launch has the demo's locales only
+  // when it asks for them.
+  const { PAYLOAD_DEMO_LOCALES: _inherited, ...shell } = process.env;
+
+  const base: NodeJS.ProcessEnv =
+    surface === "payload" && options.locales
+      ? { ...shell, PAYLOAD_DEMO_LOCALES: options.locales }
+      : shell;
+
   if (!options.accessIssuer) {
-    return process.env;
+    return base;
   }
 
   if (surface === "payload") {
     return {
-      ...process.env,
+      ...base,
       ACCESS_GATEWAY_AUD: STANDIN_AUDIENCE,
       ACCESS_TEAM_DOMAIN: options.accessIssuer,
     };
@@ -799,7 +836,7 @@ const launchEnv = (
 
   if (surface === "mcp") {
     return {
-      ...process.env,
+      ...base,
       ACCESS_AUD: STANDIN_AUDIENCE,
       ACCESS_TEAM_DOMAIN: options.accessIssuer,
       DEPLOYMENT_ENVIRONMENT: "development",
@@ -810,7 +847,38 @@ const launchEnv = (
     };
   }
 
-  return process.env;
+  return base;
+};
+
+// A server this checkout already runs is reused only as it was launched:
+// same port, same Access stand-in, same locales.
+const assertReusable = (
+  surface: SurfaceName,
+  existing: Receipt,
+  port: number,
+  options: LaunchOptions
+): void => {
+  if (existing.port !== port) {
+    throw new Error(
+      `This checkout already runs ${surface} on port ${existing.port}; clean it up first.`
+    );
+  }
+
+  if (
+    options.accessIssuer &&
+    surface !== "access" &&
+    existing.accessIssuer !== options.accessIssuer
+  ) {
+    throw new Error(
+      `This checkout's ${surface} server was not started against the Access stand-in at ${options.accessIssuer}. Run cleanup ${surface}, then launch mcp again.`
+    );
+  }
+
+  if (surface === "payload" && existing.locales !== options.locales) {
+    throw new Error(
+      `This checkout's payload server runs ${existing.locales ? `with the demo's locales (${existing.locales})` : "without the demo's locales"}. Run cleanup payload, then launch again.`
+    );
+  }
 };
 
 export const launch = async (
@@ -823,21 +891,7 @@ export const launch = async (
   const existing = readReceipt(surface);
 
   if (existing && ownsProcess(existing)) {
-    if (existing.port !== port) {
-      throw new Error(
-        `This checkout already runs ${surface} on port ${existing.port}; clean it up first.`
-      );
-    }
-
-    if (
-      options.accessIssuer &&
-      surface !== "access" &&
-      existing.accessIssuer !== options.accessIssuer
-    ) {
-      throw new Error(
-        `This checkout's ${surface} server was not started against the Access stand-in at ${options.accessIssuer}. Run cleanup ${surface}, then launch mcp again.`
-      );
-    }
+    assertReusable(surface, existing, port, options);
 
     log(`Reusing the owned ${surface} server (pid ${existing.pid}).`);
 
@@ -880,7 +934,15 @@ export const launch = async (
 
   const env = launchEnv(surface, options);
 
-  for (const step of spec.prepare(port)) {
+  if (surface === "payload" && options.locales) {
+    // A fresh database every time; see the payload surface's prepare.
+    rmSync(path.join(appDir, DEMO_LOCALES_DIR), {
+      force: true,
+      recursive: true,
+    });
+  }
+
+  for (const step of spec.prepare(port, options)) {
     log(`$ ${step.join(" ")}`);
     runStep(step, appDir, logFile, env);
   }
@@ -915,6 +977,10 @@ export const launch = async (
 
   if (options.accessIssuer && surface !== "access") {
     receipt.accessIssuer = options.accessIssuer;
+  }
+
+  if (options.locales && surface === "payload") {
+    receipt.locales = options.locales;
   }
 
   writeFileSync(receiptPath(surface), `${JSON.stringify(receipt, null, 2)}\n`);
@@ -953,6 +1019,12 @@ const secretFilesHint = (surface: SurfaceName): string => {
   return `${SURFACES[surface].app}/${baseFile} (or ${modeFile}, which replaces it when it exists)`;
 };
 
+interface GatewayPorts {
+  access?: number | undefined;
+  locales?: string | undefined;
+  payload?: number | undefined;
+}
+
 /**
  * `launch mcp`: the Access stand-in, then Payload built to trust it, then the
  * gateway pointed at both. The proof secret the two apps share has to be in
@@ -961,7 +1033,7 @@ const secretFilesHint = (surface: SurfaceName): string => {
  */
 export const launchGateway = async (
   port: number,
-  ports: { access?: number; payload?: number } = {}
+  ports: GatewayPorts = {}
 ): Promise<void> => {
   const proof = readSecrets("payload").get("ACCESS_GATEWAY_PROOF_SECRET");
 
@@ -982,7 +1054,10 @@ export const launchGateway = async (
   const payloadPort = ports.payload ?? portFor("payload");
 
   await launch("access", accessPort);
-  await launch("payload", payloadPort, { accessIssuer });
+  await launch("payload", payloadPort, {
+    accessIssuer,
+    locales: ports.locales,
+  });
   await launch("mcp", port, {
     accessIssuer,
     payloadOrigin: origin(payloadPort),
@@ -1243,10 +1318,13 @@ Surfaces: payload (apps/payload, port 4173), web-wordpress (apps/web-wordpress, 
 
 Commands:
   launch <surface> [--port N]      Prepare and start a server this run owns, then run doctor
-                                   (mcp also takes --payload-port N and --access-port N)
+                                   (mcp also takes --payload-port N and --access-port N;
+                                   payload and mcp take --locales, which builds Payload with
+                                   English and Spanish on a fresh, seeded local database of
+                                   its own, for the payload-locales drive)
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
-  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft, payload-global, payload-restore, payload-rows, payload-trash, payload-unpublish, payload-upload)
+  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft, payload-global, payload-locales, payload-restore, payload-rows, payload-trash, payload-unpublish, payload-upload)
   cleanup <surface>                Stop only the process group in this surface's receipt
   status                           Show each surface's receipt
 
@@ -1295,12 +1373,19 @@ const COMMANDS = new Map<string, Command>([
     async (surface, rest) => {
       const port = parsePort(rest) ?? SURFACES[surface].defaultPort;
 
+      const locales = rest.includes("--locales") ? DEMO_LOCALES : undefined;
+
+      if (locales && surface !== "payload" && surface !== "mcp") {
+        throw new Error("--locales goes with launch payload or launch mcp");
+      }
+
       await (surface === "mcp"
         ? launchGateway(port, {
             access: parsePort(rest, "--access-port"),
+            locales,
             payload: parsePort(rest, "--payload-port"),
           })
-        : launch(surface, port));
+        : launch(surface, port, { locales }));
 
       return 0;
     },

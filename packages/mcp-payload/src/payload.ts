@@ -132,13 +132,55 @@ export const payloadErrorMessage = (result: UpstreamFetchResult): string => {
   return `Payload returned HTTP ${result.status}`;
 };
 
+// A client can be bound to one locale of a site that has several: see
+// payload-locale.ts for what that means for an operation.
+const localeClientSchema = z.object({ payloadLocale: z.string().min(1) });
+
+interface LocaleClient extends UpstreamClient {
+  payloadLocale: string;
+}
+
+/**
+ * The same client, with every REST request it makes naming `code` as its
+ * locale and no fallback: a field with no value in that locale reads as
+ * empty, never as another locale's text.
+ */
+export const inLocale = (
+  client: UpstreamClient,
+  code: string
+): LocaleClient => ({ ...client, payloadLocale: code });
+
+/** The locale a client was bound to with `inLocale`, if it was. */
+export const clientLocale = (client: UpstreamClient): string | undefined => {
+  const parsed = localeClientSchema.safeParse(client);
+
+  return parsed.success ? parsed.data.payloadLocale : undefined;
+};
+
+// The path a locale-bound client asks for. Payload's MCP endpoint is left
+// alone: its tools take a locale as an argument where they read one.
+const localized = (client: UpstreamClient, path: string): string => {
+  const locale = clientLocale(client);
+
+  if (locale === undefined || path.startsWith(MCP_PATH)) {
+    return path;
+  }
+
+  return `${path}${path.includes("?") ? "&" : "?"}locale=${encodeURIComponent(locale)}&fallback-locale=none`;
+};
+
 export const payloadRest = (
   client: UpstreamClient,
   path: string,
   telemetry: UpstreamTelemetry,
   init: RequestInit = {}
 ): Promise<UpstreamFetchResult> =>
-  upstreamFetch(client, payloadUrl(client, path), telemetry, init);
+  upstreamFetch(
+    client,
+    payloadUrl(client, localized(client, path)),
+    telemetry,
+    init
+  );
 
 // A file Payload serves, read as the editor: the `url` of an upload
 // document. Only its path is used, so wherever Payload says its public

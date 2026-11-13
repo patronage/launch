@@ -98,6 +98,7 @@ describe(describeDocumentFields, () => {
 
     expect(info.rowFields).toStrictEqual([
       {
+        localizedFields: [],
         path: "hero.links",
         richTextFields: ["note"],
         rowFields: [],
@@ -126,11 +127,18 @@ describe(describeDocumentFields, () => {
     expect(info.rowFields).toStrictEqual([
       {
         blocks: [
-          { richTextFields: ["body"], rowFields: [], slug: "text" },
           {
+            localizedFields: [],
+            richTextFields: ["body"],
+            rowFields: [],
+            slug: "text",
+          },
+          {
+            localizedFields: [],
             richTextFields: [],
             rowFields: [
               {
+                localizedFields: [],
                 path: "cards",
                 richTextFields: [],
                 rowFields: [],
@@ -156,7 +164,14 @@ describe(describeDocumentFields, () => {
 
     expect(info.rowFields).toStrictEqual([
       {
-        blocks: [{ richTextFields: ["quote"], rowFields: [], slug: "quote" }],
+        blocks: [
+          {
+            localizedFields: [],
+            richTextFields: ["quote"],
+            rowFields: [],
+            slug: "quote",
+          },
+        ],
         path: "layout",
         type: "blocks",
       },
@@ -179,6 +194,46 @@ describe(describeDocumentFields, () => {
 
     expect(top.localized).toBeTruthy();
     expect(nested.localized).toBeTruthy();
+  });
+
+  it("lists the localized fields of each level, by path from that level", () => {
+    const info = describeDocumentFields(
+      [
+        text("title", true),
+        text("slug"),
+        {
+          fields: [],
+          flattenedFields: [text("label", true), text("url")],
+          name: "cta",
+          type: "group",
+        },
+        {
+          blocks: [
+            block("text", [text("heading", true), text("anchor")]),
+            block("cards", [array("cards", [text("title", true)])]),
+          ],
+          name: "layout",
+          type: "blocks",
+        },
+        { ...array("links", [text("label")]), localized: true },
+      ],
+      noBlocks
+    );
+
+    // The document's own: a field in a group by its path, and a rows field
+    // that is localized whole.
+    expect(info.localizedFields).toStrictEqual(["title", "cta.label", "links"]);
+
+    const [layout, links] = info.rowFields;
+
+    expect(layout?.blocks?.map((entry) => entry.localizedFields)).toStrictEqual(
+      [["heading"], []]
+    );
+    expect(layout?.blocks?.[1]?.rowFields[0]?.localizedFields).toStrictEqual([
+      "title",
+    ]);
+    // The rows of a localized array name no localized field of their own.
+    expect(links?.localizedFields).toStrictEqual([]);
   });
 
   it("stops describing rows past the depth limit", () => {

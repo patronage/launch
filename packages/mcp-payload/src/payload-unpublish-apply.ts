@@ -1,5 +1,6 @@
 import { ApplyConflictError, receiptDetails } from "@patronage/mcp-core";
 import type {
+  FieldSnapshot,
   OperationPreflight,
   OperationReceipt,
   ReceiptError,
@@ -54,10 +55,26 @@ export interface UnpublishPreflightContext extends UnpublishContext {
   info: EditingInfo;
 }
 
-const statusSchema = z.object({ _status: z.string() });
+// One status, or one for each locale where the collection keeps them apart
+// and the read asked for every locale.
+const statusSchema = z.object({
+  _status: z.union([z.string(), z.record(z.string(), z.string())]),
+});
 
+// An operation that names a locale asks about that one, through a client
+// bound to it. One that names none is about the whole document, so it asks
+// for every locale's status; Payload ignores the parameter where a
+// collection keeps a single status.
 const publishedPath = (operation: UnpublishOperation): string =>
-  `/api/${encodeURIComponent(operation.collection)}/${encodeURIComponent(String(operation.id))}?depth=0&select[_status]=true`;
+  `/api/${encodeURIComponent(operation.collection)}/${encodeURIComponent(String(operation.id))}?depth=0&select[_status]=true${operation.locale === undefined ? "&locale=all" : ""}`;
+
+interface Published {
+  // Whether the public is served the document, in any locale asked about.
+  any: boolean;
+  // The locales it is published in, where the collection keeps a status
+  // for each and the operation named none.
+  locales?: string[];
+}
 
 // The status of the document itself, which is what the public sees. A read
 // that names the draft answers with the newest version, and that is a draft
@@ -65,7 +82,7 @@ const publishedPath = (operation: UnpublishOperation): string =>
 const publicStatus = async (
   context: UnpublishContext,
   operation: UnpublishOperation
-): Promise<string> => {
+): Promise<Published> => {
   const result = await payloadRest(
     context.client,
     publishedPath(operation),
@@ -81,7 +98,19 @@ const publicStatus = async (
     );
   }
 
-  return parsed.data._status;
+  const status = parsed.data._status;
+  const one = z.string().safeParse(status);
+
+  if (one.success) {
+    return { any: one.data === "published" };
+  }
+
+  const locales = Object.entries(status)
+    .filter(([, value]) => value === "published")
+    .map(([code]) => code)
+    .toSorted();
+
+  return { any: locales.length > 0, locales };
 };
 
 const unpublishable = (
@@ -101,6 +130,8 @@ const unpublishable = (
 };
 
 interface Current {
+  // Where the public is served it now.
+  published: Published;
   // The document's own slug, where it has one.
   slug: string;
   // The newest version's `updatedAt`: what a `draft: true` read reports.
@@ -127,16 +158,20 @@ const publishedDocument = async (
 
   const stamp = requireStamp(record, target);
 
-  if ((await publicStatus(context, operation)) !== "published") {
+  const published = await publicStatus(context, operation);
+
+  if (!published.any) {
     throw new ApplyConflictError(
       "already_draft",
-      `${target} is not published, so there is nothing to unpublish`
+      operation.locale === undefined
+        ? `${target} is not published, so there is nothing to unpublish`
+        : `${target} is not published in the ${operation.locale} locale, so there is nothing to unpublish there`
     );
   }
 
   const slug = slugSchema.safeParse(record.slug);
 
-  return { slug: slug.success ? slug.data : "", stamp };
+  return { published, slug: slug.success ? slug.data : "", stamp };
 };
 
 // As much of a path as a warning shows.
@@ -147,15 +182,49 @@ const PATH_LIMIT = 120;
 // which redirect a site's front end follows, and whether its destination
 // can be reached, are that front end's rules, and a wrong promise here is
 // worse than none.
-const unpublishWarning = (address: DocumentAddress): string => {
+const unpublishWarning = (
+  address: DocumentAddress,
+  locale: string | undefined
+): string => {
   const { path } = address;
 
-  const page =
-    path === undefined || path.length > PATH_LIMIT
-      ? "The public page"
-      : `The public page at ${path}`;
+  const where =
+    path === undefined || path.length > PATH_LIMIT ? "" : ` at ${path}`;
 
-  return `${page} goes away as soon as you approve. Links to it will 404 unless a redirect covers them.`;
+  const links = "Links to it will 404 unless a redirect covers them.";
+
+  return locale === undefined
+    ? `The public page${where} goes away as soon as you approve. ${links}`
+    : `Only the ${locale} locale is unpublished; the others stay as they are. The ${locale} version of the public page${where} goes away as soon as you approve. ${links}`;
+};
+
+// What the approver reads when the collection keeps a status for each
+// locale and the operation named none: the locales that go, by name.
+const everyLocale = (
+  operation: UnpublishOperation,
+  published: Published
+): Pick<OperationPreflight, "fields" | "sentence"> => {
+  const status: FieldSnapshot = {
+    after: "draft",
+    before: "published",
+    changed: true,
+    path: STATUS_FIELD,
+  };
+
+  if (published.locales === undefined) {
+    return { fields: [status], sentence: unpublishSentence(operation) };
+  }
+
+  return {
+    fields: [
+      {
+        ...status,
+        before: `published in ${published.locales.join(", ")}`,
+        label: `${STATUS_FIELD} · every locale`,
+      },
+    ],
+    sentence: `${unpublishSentence(operation)} in every locale`,
+  };
 };
 
 const documentAddress = (
@@ -179,7 +248,11 @@ export const preflightUnpublish = async (
 ): Promise<OperationPreflight> => {
   const collection = unpublishable(context.info, operation);
   const target = unpublishTarget(operation);
-  const { slug, stamp } = await publishedDocument(context, operation);
+
+  const { published, slug, stamp } = await publishedDocument(
+    context,
+    operation
+  );
 
   if (operation.expected_updated_at !== stamp) {
     throw new ApplyConflictError(
@@ -194,20 +267,12 @@ export const preflightUnpublish = async (
   const preview: OperationPreflight = {
     editUrl: context.adminUrl(operation.collection, operation.id),
     editor: "Payload admin",
-    fields: [
-      {
-        after: "draft",
-        before: "published",
-        changed: true,
-        path: STATUS_FIELD,
-      },
-    ],
+    ...everyLocale(operation, published),
     modifiedGmt: stamp,
     operationIndex: index,
-    sentence: unpublishSentence(operation),
     slug,
     target,
-    warning: unpublishWarning(address),
+    warning: unpublishWarning(address, operation.locale),
   };
 
   if (previewUrl) {
@@ -222,7 +287,9 @@ type LandedFacts = Pick<
   "details" | "updated_at" | "version_id"
 >;
 
-// The request the admin's Unpublish button sends.
+// The request the admin's Unpublish button sends. An operation that names a
+// locale leaves the flag out, and Payload then unpublishes the locale the
+// request is in.
 const sendUnpublish = async (
   context: UnpublishContext,
   operation: UnpublishOperation,
@@ -230,7 +297,7 @@ const sendUnpublish = async (
 ): Promise<string | undefined> => {
   const write = await payloadRest(
     context.client,
-    `/api/${encodeURIComponent(operation.collection)}/${encodeURIComponent(String(operation.id))}?depth=0&unpublishAllLocales=true`,
+    `/api/${encodeURIComponent(operation.collection)}/${encodeURIComponent(String(operation.id))}?depth=0${operation.locale === undefined ? "&unpublishAllLocales=true" : ""}`,
     context.telemetry,
     {
       body: JSON.stringify({ [STATUS_FIELD]: "draft" }),
@@ -355,7 +422,9 @@ export const applyUnpublish = async (
 
     // A hook or field access can keep the document published. Read from the
     // document itself, as the public is.
-    if ((await publicStatus(context, operation)) === "published") {
+    const still = await publicStatus(context, operation);
+
+    if (still.any) {
       return {
         ...landed,
         ...outcome("failed", [], {

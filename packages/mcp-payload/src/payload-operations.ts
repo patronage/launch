@@ -77,6 +77,48 @@ const fieldKeys = (operation: DraftChanges): string[] => {
   ].toSorted();
 };
 
+// One locale of a site that has several, by its code (`es`, `pt-BR`). The
+// site's own list decides which codes exist; this only keeps out what could
+// never be one. `all` is how Payload reads every locale at once, in another
+// shape, and is not a locale to write to.
+const NOT_A_LOCALE = new Set(["all", "none", "null", "false"]);
+
+const localeSchema = z
+  .string()
+  .regex(/^[A-Za-z][A-Za-z0-9_-]{0,34}$/u)
+  .refine((code) => !NOT_A_LOCALE.has(code.toLowerCase()), {
+    message: "locale takes the code of one locale",
+  });
+
+// What the kinds that write one locale share. `locale` names it; without
+// one the write is in the site's default locale. Where the target keeps a
+// status for each locale, `publish: true` publishes that locale only, and
+// `publish_all_locales` every one of them.
+const localeField = { locale: localeSchema.optional() };
+
+const publishLocaleFields = {
+  ...localeField,
+  publish_all_locales: z.literal(true).optional(),
+};
+
+interface PublishesLocales {
+  publish?: true | undefined;
+  publish_all_locales?: true | undefined;
+}
+
+const allLocalesRule = (
+  operation: PublishesLocales,
+  ctx: z.RefinementCtx
+): void => {
+  if (operation.publish_all_locales && !operation.publish) {
+    ctx.addIssue({
+      code: "custom",
+      message: "publish_all_locales goes with publish: true",
+      path: ["publish_all_locales"],
+    });
+  }
+};
+
 // Fields and Markdown together: `fields` holds stored values as Payload keeps
 // them, `markdown` holds rich text fields written as Markdown, which Payload
 // converts with that field's own editor features.
@@ -130,11 +172,18 @@ const updateDraftOperationSchema = z
     expected_updated_at: z.string().min(1).max(64).optional(),
     id: documentIdSchema,
     kind: z.literal("update_draft"),
+    ...publishLocaleFields,
   })
-  .superRefine(changeRules(true));
+  .superRefine(changeRules(true))
+  .superRefine(allLocalesRule);
 
 const createDraftOperationSchema = z
-  .strictObject({ ...draftChangeFields, kind: z.literal("create_draft") })
+  .strictObject({
+    ...draftChangeFields,
+    kind: z.literal("create_draft"),
+    // A new document holds one locale, so there is no other to publish.
+    ...localeField,
+  })
   .superRefine(changeRules(false));
 
 // A file staged earlier in the same run with `payload.stageUpload`, named by
@@ -157,6 +206,8 @@ const uploadFields = {
   fields: z.record(fieldNameSchema, z.json()).optional(),
   // Stored under this name instead of the one the file was staged with.
   filename: filenameSchema.optional(),
+  // The locale `fields` are written in. The file itself is one for all.
+  ...localeField,
   upload_ref: uploadRefSchema,
 };
 
@@ -330,8 +381,10 @@ const patchRowsOperationSchema = z
     id: documentIdSchema,
     kind: z.literal("patch_rows"),
     publish: z.literal(true).optional(),
+    ...publishLocaleFields,
   })
-  .superRefine(rowChangeRules);
+  .superRefine(rowChangeRules)
+  .superRefine(allLocalesRule);
 
 interface GlobalChanges {
   changes?: RowChange[] | undefined;
@@ -403,8 +456,10 @@ const updateGlobalOperationSchema = z
     // Publishes the change. A global without drafts takes no other kind of
     // change, so there the operation has to say it.
     publish: z.literal(true).optional(),
+    ...publishLocaleFields,
   })
-  .superRefine(globalRules);
+  .superRefine(globalRules)
+  .superRefine(allLocalesRule);
 
 // Takes a published document off the public site. Its content stays, as a
 // draft.
@@ -415,6 +470,9 @@ const unpublishOperationSchema = z.strictObject({
   expected_updated_at: z.string().min(1).max(64),
   id: documentIdSchema,
   kind: z.literal("unpublish"),
+  // Named, only that locale is taken off the site, where the collection
+  // keeps a status for each. Without one, every locale is.
+  ...localeField,
 });
 
 // As long as a version id may be: Payload's are numbers or short strings.
@@ -702,7 +760,11 @@ export const operationTarget = (operation: PayloadOperation): string => {
     : draftTarget(operation);
 };
 
-export const operationSentence = (operation: PayloadOperation): string => {
+/** A sentence that says which locale its operation is about. */
+export const inLocaleSentence = (sentence: string, locale: string): string =>
+  `${sentence}, in the ${locale} locale`;
+
+const kindSentence = (operation: PayloadOperation): string => {
   if (isUploadOperation(operation)) {
     return uploadSentence(operation);
   }
@@ -726,6 +788,16 @@ export const operationSentence = (operation: PayloadOperation): string => {
   return isRowsOperation(operation)
     ? rowsSentence(operation)
     : draftSentence(operation);
+};
+
+// From the operation alone, before Payload has been asked anything: a
+// locale is named only where the operation names one. The approval preview
+// also names the default locale, once the site says it has locales.
+export const operationSentence = (operation: PayloadOperation): string => {
+  const sentence = kindSentence(operation);
+  const locale = "locale" in operation ? operation.locale : undefined;
+
+  return locale === undefined ? sentence : inLocaleSentence(sentence, locale);
 };
 
 // An operation on a document that exists already. Each makes its own

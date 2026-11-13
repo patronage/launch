@@ -9,6 +9,10 @@ export default defineConfig({
   define: {
     // Lets the bundler drop the database adapter that src/db.ts does not use.
     "process.env.PAYLOAD_DB": JSON.stringify(process.env.PAYLOAD_DB ?? "d1"),
+    // The demo's locales, for local trials only (src/demo-locales.ts).
+    "process.env.PAYLOAD_DEMO_LOCALES": JSON.stringify(
+      process.env.PAYLOAD_DEMO_LOCALES ?? ""
+    ),
   },
   plugins: [
     {
@@ -62,6 +66,11 @@ export default defineConfig({
     tailwindcss(),
     vinext(),
     cloudflare({
+      // With the demo's locales on, the local D1 and media live apart from
+      // the ordinary ones, whose schema differs.
+      persistState: process.env.PAYLOAD_DEMO_LOCALES
+        ? { path: ".demo-locales/state" }
+        : true,
       viteEnvironment: {
         childEnvironments: ["ssr"],
         name: "rsc",

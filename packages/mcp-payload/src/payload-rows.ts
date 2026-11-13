@@ -8,6 +8,7 @@ import {
 import type { FieldSnapshot, JsonObject, JsonValue } from "@patronage/mcp-core";
 
 import type { RowsField } from "./payload-editing";
+import { isLocalizedPath, scopeLabel } from "./payload-locale";
 import type { RowChange } from "./payload-operations";
 import {
   humanize,
@@ -26,6 +27,9 @@ import type { RowPathPart } from "./payload-row-paths";
 
 /** What a document or one row holds, as Payload's `getEditingInfo` says. */
 export interface RowContext {
+  // The localized fields at this level, by path from it. Without the list
+  // nothing here is known to be localized.
+  localizedFields?: string[] | undefined;
   richTextFields: string[];
   rowFields: RowsField[];
 }
@@ -83,6 +87,9 @@ interface Located {
   // The document, or the row the path has reached.
   holder: JsonObject;
   labels: string[];
+  // Whether a rows field the path went through is localized: each locale
+  // then has rows of its own, and everything in them is that locale's.
+  localized: boolean;
   // The field names after the last row.
   names: string[];
   // Field names from the document down, with a block's slug after each
@@ -152,6 +159,7 @@ const kindOfRow = (
   if (field.type === "array") {
     return {
       context: {
+        localizedFields: field.localizedFields,
         richTextFields: field.richTextFields ?? [],
         rowFields: field.rowFields ?? [],
       },
@@ -170,12 +178,23 @@ const kindOfRow = (
 
   return {
     context: {
+      localizedFields: block.localizedFields,
       richTextFields: block.richTextFields,
       rowFields: block.rowFields,
     },
     slug,
   };
 };
+
+// Whether the field the path has reached holds one locale's value: it, a
+// field above it or a rows field on the way is localized. Otherwise every
+// locale shares it.
+const isPerLocale = (located: Located): boolean =>
+  located.localized ||
+  isLocalizedPath(
+    located.context.localizedFields ?? [],
+    located.names.join(".")
+  );
 
 const rowLabel = (kind: RowKind, index: number): string =>
   kind.slug === undefined
@@ -207,6 +226,7 @@ const stepInto = (located: Located, id: string, shown: string): Located => {
       ...located.names.map((name) => humanize(name)),
       rowLabel(kind, index),
     ],
+    localized: isPerLocale(located),
     names: [],
     schemaPath: [
       ...located.schemaPath,
@@ -228,6 +248,7 @@ const locate = (
     context,
     holder: document,
     labels: [],
+    localized: false,
     names: [],
     schemaPath: [],
   };
@@ -268,6 +289,8 @@ const fieldHolder = (located: Located, shown: string): JsonObject => {
 
 interface Change {
   check: RowCheck;
+  // Whether the change is to one locale's value, or to what all share.
+  perLocale: boolean;
   snapshot: FieldSnapshot;
 }
 
@@ -324,6 +347,7 @@ const setField = (
 
   return {
     check: { kind: "set", parts, previous, value: change.value },
+    perLocale: isPerLocale(located),
     snapshot: {
       after: previewValue(change.value),
       before: previewValue(previous),
@@ -371,6 +395,7 @@ const setMarkdown = async (
 
   return {
     check: changed ? { kind: "set", parts, previous, value } : { kind: "none" },
+    perLocale: isPerLocale(located),
     snapshot: {
       after: previewValue(change.markdown),
       before: previewValue(before),
@@ -430,6 +455,7 @@ const insertRow = (
 
   return {
     check: { fieldParts, kind: "insert", row },
+    perLocale: isPerLocale(located),
     snapshot: {
       after: rowPreview(row),
       before: NEW_ROW,
@@ -483,6 +509,7 @@ const removeRow = (
 
   return {
     check: { fieldParts, kind: "order" },
+    perLocale: isPerLocale(located),
     snapshot: {
       after: REMOVED_ROW,
       before: rowPreview(row.row),
@@ -512,6 +539,7 @@ const moveRow = (
 
   return {
     check: { fieldParts, kind: "order" },
+    perLocale: isPerLocale(located),
     snapshot: {
       after: `position ${index + 1} of ${total}`,
       before: `position ${row.index + 1} of ${total}`,
@@ -601,7 +629,10 @@ export const patchRows = async (
   document: JsonObject,
   context: RowContext,
   changes: RowChange[],
-  converters: RowConverters
+  converters: RowConverters,
+  // The locale the changes are made in, on a target that has localized
+  // fields. Each change is then labelled with who it is for.
+  locale?: string
 ): Promise<RowsPatch> => {
   const working: JsonObject = structuredClone(document);
 
@@ -613,7 +644,18 @@ export const patchRows = async (
 
   return {
     checks: made.map((change) => change.check),
-    snapshots: made.map((change) => change.snapshot),
+    snapshots: made.map((change) =>
+      locale === undefined
+        ? change.snapshot
+        : {
+            ...change.snapshot,
+            label: scopeLabel(
+              locale,
+              change.snapshot.label ?? change.snapshot.path,
+              change.perLocale
+            ),
+          }
+    ),
     touched: changedTopLevelFields(changes)
       .filter((field) => !deepEqual(document[field], working[field]))
       .toSorted(),

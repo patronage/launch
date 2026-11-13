@@ -1,11 +1,14 @@
 import type { CollectionConfig } from "payload";
 
+import { demoLocalized } from "../demo-locales";
+
 export const Media: CollectionConfig = {
   access: {
     read: () => true,
   },
   fields: [
     {
+      ...demoLocalized,
       name: "alt",
       required: true,
       type: "text",
