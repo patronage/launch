@@ -18,9 +18,11 @@
     "db:stop": "docker compose stop",
     "db:recreate": "docker compose down --volumes && docker compose up -d --wait",
     "db:pull": "launch-db-pull",
+    "d1:copy": "node scripts/d1-to-postgres.mjs",
+    "hyperdrive:configure": "node scripts/hyperdrive.mjs",
     "secrets": "node scripts/secrets.mjs",
     "builds:configure": "node scripts/workers-builds.mjs",
-    "test": "vitest run && node --test scripts/config-startup.test.mjs scripts/db-pull-tables.test.mjs"
+    "test": "vitest run && node --test scripts/config-startup.test.mjs scripts/db-pull-tables.test.mjs scripts/d1-to-postgres.test.mjs scripts/hyperdrive.test.mjs"
   },
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",

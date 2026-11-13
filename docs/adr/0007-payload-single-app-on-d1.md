@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-29.
+Accepted, 2026-10-29. The database choice is replaced by [ADR 0020](0020-payload-production-on-planetscale.md).
 
 ## Context
 

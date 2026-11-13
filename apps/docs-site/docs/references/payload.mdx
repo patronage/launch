@@ -1,27 +1,28 @@
 ---
 title: Payload
-description: Payload as one vinext app on Workers, with D1 as its database by default and Postgres through Hyperdrive kept as an option.
+description: Payload as one vinext app on Workers, moving production to Postgres on PlanetScale through Hyperdrive, with D1 the default for local work.
 ---
 
 The Payload reference is a single app: the Payload admin, plus front-end pages that read content through Payload's Local API in the same Worker. There is no separate API call between the front-end and the CMS. It runs Payload 4 (beta) under vinext on Cloudflare Workers, with media in R2.
 
-## Database: D1 by default
+## Database: Postgres on PlanetScale
 
-**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two still need comparing on real Workers. See [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
+**Decision (2026-11-13):** production Payload runs on the PlanetScale Postgres database `launch-payload` through Hyperdrive, because that is how most Launch sites will run. Until the move is done, the live demo still runs on D1, the 2026-10-29 choice. D1 stays the default for local work, since it needs no Docker. See [ADR 0020](https://github.com/patronage/launch/blob/main/docs/adr/0020-payload-production-on-planetscale.md), which replaces the database part of [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
 
 |  | D1 | Postgres through Hyperdrive |
 | --- | --- | --- |
-| Status | Default | Option, `PAYLOAD_DB=postgres` |
+| Status | Local default; production until the move | Production, `PAYLOAD_DB=postgres` |
 | Admin, uploads, drafts, REST and GraphQL | Pass | Pass |
 | Migrations on boot and the Payload CLI | Pass | Pass |
 | Extra work needed | None | A request-scoped connection pool (below) |
-| Measured on real Workers | Not yet | Not yet |
 
-Why D1 for now: both databases passed the same end-to-end browser test in local workerd, and D1 needs nothing extra. Postgres needs a connection pool that opens a connection per request, because workerd ties a socket to the request that opened it. Hyperdrive does the real pooling.
-
-No performance difference has been measured yet. Local runs say nothing about network latency, which is where the two will differ, so the comparison waits for a deploy.
+Both databases passed the same end-to-end browser test in local workerd, and their migrations build the same tables and columns. Postgres needs a connection pool that opens a connection per request, because workerd ties a socket to the request that opened it. Hyperdrive does the real pooling, through its managed PlanetScale integration, with query caching off so the admin always reads what it has just written.
 
 `PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
+
+### Moving from D1
+
+`pnpm run hyperdrive:configure` creates the Hyperdrive configuration (or finds it) and prints its id. `pnpm d1:copy --target <postgres-url>` copies the D1 database into a freshly migrated Postgres with the same ids, reading D1 only, in one transaction that commits only when every table's row count matches. Sessions, document locks and the key-value cache aren't copied, so editors sign in again. Then `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID` are added to the existing Workers Builds trigger (see [Workers Builds](/deploy/workers-builds)) and production is rebuilt. D1 is left as it was, so setting `PAYLOAD_DB` back to `d1` and rebuilding goes back. The app's README has the step-by-step switch.
 
 ## Pull content from PlanetScale
 
@@ -75,7 +76,7 @@ Metadata renders in `<head>` for every visitor. Next and vinext normally stream 
 
 ## Deployed
 
-The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default, because they would share production's bindings. The app's README covers the deploy, secrets and Workers Builds setup.
+The app runs as the Worker `launch-payload`, with its database (D1 until the move to PlanetScale) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default, because they would share production's bindings; there is no PlanetScale staging branch yet. The app's README covers the deploy, secrets and Workers Builds setup.
 
 ## What else the research found
 

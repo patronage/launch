@@ -27,3 +27,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0017](0017-wordpress-plugins-through-composer.md) | Patronage mu-plugins ship as `patronage/launch-*` from Launch's Composer repository: `pnpm wp:release` in the PR, `--publish` after merge |
 | [0018](0018-payload-connector-writes.md) | Payload connector writes through REST as the approver; staged uploads, row patches, globals, unpublish, version restore, trash, locales; no permanent delete |
 | [0019](0019-local-pulls-copy-content-only.md) | `pnpm db:pull` copies a PlanetScale Postgres branch's content tables only, through a temporary read-only role, into a local Postgres; users never leave PlanetScale |
+| [0020](0020-payload-production-on-planetscale.md) | Payload production on Postgres through Hyperdrive and PlanetScale, moved from D1 with `pnpm d1:copy`; replaces 0007's database choice |

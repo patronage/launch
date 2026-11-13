@@ -17,8 +17,11 @@ if (D1) {
   bindings.D1 = D1;
 }
 
+// PAYLOAD_LOCAL_STATE moves the local state elsewhere, for tests that need a
+// throwaway D1 (scripts/d1-to-postgres-e2e.test.mjs).
 const mf = new Miniflare({
-  resourcePersistencePath: ".cloudflare/state/v3",
+  resourcePersistencePath:
+    process.env.PAYLOAD_LOCAL_STATE ?? ".cloudflare/state/v3",
   workers: [
     {
       config: {
