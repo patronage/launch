@@ -483,6 +483,9 @@ test("refuses a target URL it cannot use", () => {
     "postgres://u:p@localhost/postgres": /cannot be 'postgres'/u,
     'postgres://u:p@localhost/a"b': /must be letters, digits/u,
     "postgres://localhost/db": /names no user/u,
+    // 54 characters: "__pull_new" would be cut back to the target's name.
+    [`postgres://u:p@localhost/${"a".repeat(54)}`]:
+      /longer than 53 characters/u,
     // node-postgres would connect to the host in the query string.
     "postgres://u:p@localhost:5436/db?host=prod.example&port=5432&user=prod&password=pw":
       /must not have a query string or a fragment/u,
@@ -1811,4 +1814,19 @@ test("a failing after-script fails the run, with the copy in place", () => {
     result.stdout,
     /The data is restored, but see the warnings above\./u
   );
+});
+
+test("a 53-character target name, the longest that leaves room for the scratch name, is accepted", () => {
+  const name = "b".repeat(53);
+
+  const { result } = runScript(
+    {},
+    {
+      args: ["--dry-run"],
+      env: { PULL_DB_TARGET_URL: `postgres://u:p@localhost:5436/${name}` },
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes(`"${name}__pull_new"`), result.stdout);
 });

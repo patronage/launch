@@ -32,7 +32,7 @@ Depend on `@launch/db-pull` (and `pg`, which `server-id.mjs` uses) as dev depend
 
 ## Requirements
 
-- Docker on this machine (a `unix://` socket).
+- Docker on this machine (a `unix://` socket), as Docker Desktop or OrbStack provide it on a Mac. Native Docker Engine on Linux is not supported: there `host.docker.internal` is the bridge address, which a database published on `127.0.0.1` does not listen on.
 - The `pscale` CLI, signed in as someone who may manage roles on the database.
 - Node, with `pnpm install` done.
 

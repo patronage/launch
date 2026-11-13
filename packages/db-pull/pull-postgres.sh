@@ -105,7 +105,12 @@
 #
 # Requirements:
 #
-#   - Docker, on this machine. pg_dump, pg_restore and psql run from the
+#   - Docker on this machine, as Docker Desktop or OrbStack on a Mac provide
+#     it: the client containers reach the target as host.docker.internal,
+#     which there forwards to the host's loopback. On native Docker Engine on
+#     Linux that name is the bridge address, which a database published on
+#     127.0.0.1 does not listen on, so the run stops at its first check.
+#     pg_dump, pg_restore and psql run from the
 #     postgres:PG_MAJOR image, so the Postgres version Homebrew installed does
 #     not matter. The script refuses a remote daemon (DOCKER_HOST or a context
 #     that is not a unix:// socket): the dump and both passwords pass through
@@ -448,6 +453,13 @@ read_target() {
   esac
   if [ "$TARGET_DB" = "postgres" ]; then
     die "the target database cannot be 'postgres': the script connects to it to replace the target."
+  fi
+  # Postgres cuts identifiers to 63 bytes. A longer target name would make the
+  # scratch and old names (the target plus "__pull_new" or "__pull_old", 10
+  # bytes) collapse into the target's own name, and the run would drop the
+  # target while it clears the scratch database.
+  if [ "${#TARGET_DB}" -gt 53 ]; then
+    die "the target database name '${TARGET_DB}' is longer than 53 characters, which leaves no room for the names of the scratch and old databases."
   fi
   case "$TARGET_PORT" in
     "" | *[!0-9]*) die "The target URL has an unexpected port." ;;
