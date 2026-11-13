@@ -49,6 +49,11 @@ import {
 } from "./payload-locale";
 import type { LocaleScope } from "./payload-locale";
 import {
+  confirmEveryLocale,
+  readLocaleStatuses,
+  withLocaleStatuses,
+} from "./payload-locale-status";
+import {
   draftChangedPaths,
   draftFields,
   draftMarkdown,
@@ -376,7 +381,15 @@ const preflightAs = async (
     index
   );
 
-  return inScope(preview, locale, operation);
+  // Read apart from the operation's own locale, with a client bound to none.
+  const statuses = await readLocaleStatuses(
+    context.client,
+    operation,
+    locale,
+    context.telemetry
+  );
+
+  return withLocaleStatuses(inScope(preview, locale, operation), statuses);
 };
 
 const preflightFrom = async (
@@ -786,25 +799,64 @@ const applyKind = (
     : applyOne(context, operation, snapshot);
 };
 
-// A named locale is checked against the site again before anything is
-// written in it: Payload writes the default locale for a code it does not
-// know, so an operation whose locale has gone is refused, not sent.
-const applyAs = async (
+// What an operation that works in a locale adds around its write. A named
+// locale is checked against the site again before anything is written in
+// it: Payload writes the default locale for a code it does not know, so an
+// operation whose locale has gone is refused, not sent. One that publishes
+// every locale is read back in all of them.
+const applyInLocale = async (
   context: ApplyContext,
   operation: PayloadOperation,
   snapshot: OperationPreflight
 ): Promise<OperationReceipt> => {
   const named = namedLocale(operation);
 
-  if (named === undefined) {
+  const scope = localeScope(
+    await readEditingInfo(context.client, context.telemetry),
+    operation
+  );
+
+  const statuses = () =>
+    readLocaleStatuses(context.client, operation, scope, context.telemetry);
+
+  const before = await statuses();
+
+  const written = await applyKind(
+    named === undefined
+      ? context
+      : { ...context, client: inLocale(context.client, named) },
+    operation,
+    snapshot
+  );
+
+  const receipt = confirmEveryLocale(
+    written,
+    before,
+    before && (await statuses())
+  );
+
+  // The locale leads, so the cap on a receipt's details never drops it.
+  const details = receiptDetails({ locale: named, ...receipt.details });
+
+  return details ? { ...receipt, details } : receipt;
+};
+
+const applyAs = async (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  const inLocaleOrAll =
+    namedLocale(operation) !== undefined ||
+    ("publish_all_locales" in operation &&
+      operation.publish_all_locales === true);
+
+  if (!inLocaleOrAll) {
     return await applyKind(context, operation, snapshot);
   }
 
   try {
-    localeScope(
-      await readEditingInfo(context.client, context.telemetry),
-      operation
-    );
+    return await applyInLocale(context, operation, snapshot);
   } catch (error) {
     const receiptError = toReceiptError(error);
 
@@ -818,17 +870,6 @@ const applyAs = async (
       target: snapshot.target,
     };
   }
-
-  const receipt = await applyKind(
-    { ...context, client: inLocale(context.client, named) },
-    operation,
-    snapshot
-  );
-
-  // The locale leads, so the cap on a receipt's details never drops it.
-  const details = receiptDetails({ locale: named, ...receipt.details });
-
-  return details ? { ...receipt, details } : receipt;
 };
 
 interface DraftApplyOptions {

@@ -12,6 +12,7 @@ import {
   applyDraftOperations,
   preflightDraftOperations,
 } from "./payload-apply";
+import { sharedDraftChanges } from "./payload-locale";
 import { operationSentence, parseDraftApplyInput } from "./payload-operations";
 import type { PayloadOperation } from "./payload-operations";
 
@@ -60,6 +61,13 @@ const SETTINGS: JsonObject = {
 
 const rpcSchema = z.object({ params: z.object({ name: z.string() }) });
 
+const toolCallSchema = z.object({
+  params: z.object({
+    arguments: z.record(z.string(), z.json()),
+    name: z.string(),
+  }),
+});
+
 // The fields a write to the stand-in can carry.
 const writeSchema = z.object({
   _status: z.string().optional(),
@@ -72,6 +80,10 @@ const writeSchema = z.object({
 type Write = z.infer<typeof writeSchema>;
 
 interface FakeOptions {
+  // A slug saved in a draft that is newer than what is published.
+  draftSlug?: string;
+  // A hook that keeps the es locale a draft whatever is sent.
+  keepsSpanishDraft?: boolean;
   // What `getEditingInfo` says about posts.
   posts?: JsonObject;
   // The status of the post's es locale.
@@ -106,7 +118,8 @@ const fakePayload = (options: FakeOptions = {}) => {
     options.localization === undefined ? LOCALES : options.localization;
 
   let siteName = "Neighborhood Growers";
-  let slug = "hello";
+  let liveSlug = "hello";
+  let draftSlug = options.draftSlug ?? liveSlug;
   let stamp = READ_AT;
 
   const info = () => ({
@@ -118,8 +131,12 @@ const fakePayload = (options: FakeOptions = {}) => {
     localization,
   });
 
-  const post = (locale: string): JsonObject => {
-    const doc: JsonObject = { id: 3, slug, updatedAt: stamp };
+  const post = (locale: string, draft: boolean): JsonObject => {
+    const doc: JsonObject = {
+      id: 3,
+      slug: draft ? draftSlug : liveSlug,
+      updatedAt: stamp,
+    };
 
     const title =
       locale === "all" ? Object.fromEntries(titles) : titles.get(locale);
@@ -158,11 +175,18 @@ const fakePayload = (options: FakeOptions = {}) => {
       titles.set(locale, write.title);
     }
 
-    slug = write.slug ?? slug;
+    draftSlug = write.slug ?? draftSlug;
 
+    // Payload holds the shared fields once for a draft, and puts them live
+    // whenever a locale's status is written.
     if (write._status !== undefined) {
+      liveSlug = draftSlug;
+
       for (const code of everywhere ? LOCALES.locales : [locale]) {
-        statuses.set(code, write._status);
+        statuses.set(
+          code,
+          options.keepsSpanishDraft && code === "es" ? "draft" : write._status
+        );
       }
     }
 
@@ -233,13 +257,15 @@ const fakePayload = (options: FakeOptions = {}) => {
       );
     }
 
+    const draft = url.searchParams.get("draft") === "true";
+
     if (body) {
       writePost(writeSchema.parse(body), url.searchParams);
 
-      return Response.json({ doc: post(locale) });
+      return Response.json({ doc: post(locale, draft) });
     }
 
-    return Response.json(post(locale));
+    return Response.json(post(locale, draft));
   };
 
   return {
@@ -248,6 +274,13 @@ const fakePayload = (options: FakeOptions = {}) => {
       localization = { defaultLocale: "en", locales: ["en"] };
     },
     handler,
+    // What each call of Payload's `getPreviewUrl` tool was sent.
+    previews: () =>
+      seen.flatMap((request) => {
+        const call = toolCallSchema.safeParse(request.body).data?.params;
+
+        return call?.name === "getPreviewUrl" ? [call.arguments] : [];
+      }),
     rest: () => seen.filter((request) => request.path !== "/api/mcp"),
     seen,
     statuses: () => Object.fromEntries(statuses),
@@ -346,6 +379,19 @@ describe("a write that names a locale", () => {
         .filter((request) => request.path === "/api/mcp")
         .some((request) => request.search.has("locale"))
     ).toBeFalsy();
+  });
+
+  it("asks for the preview link in that locale", async () => {
+    const fake = fakePayload();
+
+    vi.stubGlobal("fetch", fake.handler);
+    await preflight([update(TRANSLATION)]);
+    await preflight([update({ fields: { title: "Hi" } })]);
+
+    expect(fake.previews()).toStrictEqual([
+      { id: 3, locale: "es", slug: "posts" },
+      { id: 3, slug: "posts" },
+    ]);
   });
 
   it("writes that locale alone and names it in the receipt", async () => {
@@ -509,6 +555,61 @@ describe("publishing where each locale has a status", () => {
     expect(fake.writes()[0]?.search.get("publishAllLocales")).toBe("true");
   });
 
+  it("counts a locale that was a draft as a change, whatever the operation's own was", async () => {
+    const fake = fakePayload();
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    // English is published already; only Spanish is not.
+    const operation = update({ publish: true, publish_all_locales: true });
+    const preview = await preflight([operation]);
+    const [receipt] = await apply([operation]);
+
+    expect(preview.operations[0]?.fields).toMatchObject([
+      {
+        after: "published",
+        before: "en: published, es: draft",
+        changed: true,
+        label: "_status · every locale",
+      },
+    ]);
+    expect(receipt).toMatchObject({
+      changed_paths: ["_status"],
+      status: "changed",
+    });
+    expect(fake.statuses()).toStrictEqual({ en: "published", es: "published" });
+  });
+
+  it("reports no change when every locale was published already", async () => {
+    vi.stubGlobal("fetch", fakePayload({ spanish: "published" }).handler);
+
+    const operation = update({ publish: true, publish_all_locales: true });
+    const preview = await preflight([operation]);
+    const [receipt] = await apply([operation]);
+
+    expect(preview.operations[0]?.fields[0]).toMatchObject({
+      before: "en: published, es: published",
+      changed: false,
+    });
+    expect(receipt).toMatchObject({ changed_paths: [], status: "unchanged" });
+  });
+
+  it("fails when a locale is still a draft after the write", async () => {
+    vi.stubGlobal("fetch", fakePayload({ keepsSpanishDraft: true }).handler);
+
+    const [receipt] = await apply([
+      update({ publish: true, publish_all_locales: true }),
+    ]);
+
+    expect(receipt).toMatchObject({
+      error: {
+        code: "not_published",
+        message: "Payload saved posts/3 but did not publish it in es",
+      },
+      status: "failed",
+    });
+  });
+
   it("does not warn where the status is shared by every locale", async () => {
     vi.stubGlobal(
       "fetch",
@@ -580,6 +681,50 @@ describe("unpublishing where each locale has a status", () => {
     expect(receipt).toMatchObject({ status: "changed" });
     expect(fake.writes()[0]?.search.has("unpublishAllLocales")).toBeFalsy();
     expect(fake.statuses()).toStrictEqual({ en: "published", es: "draft" });
+  });
+
+  it("shows the shared fields a newer draft puts live for the other locales", async () => {
+    const fake = fakePayload({
+      draftSlug: "hello-again",
+      spanish: "published",
+    });
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    const operation = unpublish({ locale: "es" });
+    const preview = await preflight([operation]);
+    const [receipt] = await apply([operation]);
+
+    expect(preview.operations[0]?.fields).toMatchObject([
+      { label: "_status · es only", path: "_status" },
+      {
+        after: "hello-again",
+        before: "hello",
+        changed: true,
+        label: "slug · every locale",
+        path: "slug",
+      },
+    ]);
+    expect(preview.operations[0]?.warning).toBe(
+      "Only the es locale is unpublished. A newer draft changes fields every locale shares (slug), and they go live for the locales that stay published as soon as you approve. The es version of the public page at /news/hello goes away as soon as you approve. Links to it will 404 unless a redirect covers them."
+    );
+    expect(receipt).toMatchObject({
+      changed_paths: ["_status", "slug"],
+      status: "changed",
+    });
+  });
+
+  it("shows no shared fields when the whole document is unpublished", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakePayload({ draftSlug: "hello-again", spanish: "published" }).handler
+    );
+
+    const preview = await preflight([unpublish()]);
+
+    expect(
+      preview.operations[0]?.fields.map((field) => field.path)
+    ).toStrictEqual(["_status"]);
   });
 
   it("names the locales a whole-document unpublish takes down", async () => {
@@ -667,5 +812,98 @@ describe("a global in a locale", () => {
       status: "changed",
     });
     expect(fake.writes()[0]?.search.get("locale")).toBe("es");
+  });
+});
+
+// A page as `getEditingInfo` describes it: a title and SEO text for each
+// locale, sections every locale shares whose headings are for each, and
+// cards inside a section with a note for each.
+const PAGE = {
+  localizedFields: ["title", "meta.title", "_status"],
+  rowFields: [
+    {
+      blocks: [
+        {
+          localizedFields: ["heading"],
+          richTextFields: [],
+          rowFields: [
+            {
+              localizedFields: ["note"],
+              path: "cards",
+              type: "array" as const,
+            },
+          ],
+          slug: "cardGrid",
+        },
+      ],
+      path: "layout",
+      type: "blocks" as const,
+    },
+  ],
+};
+
+const pageWith = (rest: JsonObject = {}): JsonObject => ({
+  _status: "published",
+  id: 1,
+  layout: [
+    {
+      blockType: "cardGrid",
+      cards: [{ id: "c1", note: "Nota", title: "Seed library" }],
+      heading: "Programas",
+      id: "s1",
+    },
+  ],
+  meta: { image: 7, title: "Inicio" },
+  slug: "home",
+  title: "Inicio",
+  updatedAt: READ_AT,
+  ...rest,
+});
+
+describe(sharedDraftChanges, () => {
+  it("finds no change where only one locale's values differ", () => {
+    const draft = pageWith({
+      _status: "draft",
+      layout: [
+        {
+          blockType: "cardGrid",
+          cards: [{ id: "c1", note: "Otra nota", title: "Seed library" }],
+          heading: "Otros programas",
+          id: "s1",
+        },
+      ],
+      meta: { image: 7, title: "Otro inicio" },
+      title: "Otro inicio",
+      updatedAt: SAVED_AT,
+    });
+
+    expect(sharedDraftChanges(PAGE, pageWith(), draft)).toStrictEqual([]);
+  });
+
+  it("names the top-level fields whose shared values differ", () => {
+    const draft = pageWith({
+      layout: [
+        {
+          blockType: "cardGrid",
+          cards: [{ id: "c1", note: "Nota", title: "Seeds" }],
+          heading: "Programas",
+          id: "s1",
+        },
+      ],
+      meta: { image: 9, title: "Inicio" },
+      slug: "start",
+    });
+
+    expect(sharedDraftChanges(PAGE, pageWith(), draft)).toStrictEqual([
+      "layout",
+      "meta",
+      "slug",
+    ]);
+  });
+
+  it("counts a field only one side has", () => {
+    expect(
+      sharedDraftChanges(PAGE, pageWith(), pageWith({ featured: true }))
+    ).toStrictEqual(["featured"]);
   });
 });

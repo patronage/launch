@@ -6,7 +6,11 @@ import type {
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
-import { payloadMcpRequest, toPayloadToolResult } from "./payload";
+import {
+  clientLocale,
+  payloadMcpRequest,
+  toPayloadToolResult,
+} from "./payload";
 import type { PayloadToolResult } from "./payload";
 
 // The read-only tools apps/payload adds to Payload's MCP server
@@ -226,12 +230,22 @@ export const readDocumentAddress = async (
   telemetry: UpstreamTelemetry
 ): Promise<DocumentAddress> => {
   const address: DocumentAddress = {};
+  const args: JsonObject = { id, slug: collection };
+
+  // An operation in a locale asks for that locale's address: a slug, or
+  // the front end's routes, can differ from one locale to the next. A
+  // Payload whose tool takes no `locale` refuses, and reads as no address.
+  const locale = clientLocale(client);
+
+  if (locale !== undefined) {
+    args.locale = locale;
+  }
 
   try {
     const result = await callPayloadTool(
       client,
       PREVIEW_URL_TOOL,
-      { id, slug: collection },
+      args,
       telemetry
     );
 

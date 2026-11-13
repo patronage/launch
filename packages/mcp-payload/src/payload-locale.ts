@@ -1,7 +1,13 @@
-import { ApplyConflictError } from "@patronage/mcp-core";
-import type { FieldSnapshot, OperationPreflight } from "@patronage/mcp-core";
+import { ApplyConflictError, deepEqual } from "@patronage/mcp-core";
+import type {
+  FieldSnapshot,
+  JsonObject,
+  JsonValue,
+  OperationPreflight,
+} from "@patronage/mcp-core";
+import { z } from "zod";
 
-import type { EditingInfo } from "./payload-editing";
+import type { EditingInfo, RowsField } from "./payload-editing";
 import { inLocaleSentence, STATUS_FIELD } from "./payload-operations";
 import type { PayloadOperation } from "./payload-operations";
 
@@ -178,6 +184,108 @@ export const isLocalizedPath = (
   localizedFields.some(
     (field) => path === field || path.startsWith(`${field}.`)
   );
+
+// What `getEditingInfo` says a document, or one row of it, keeps for each
+// locale, and which of its fields hold rows.
+interface SharedContext {
+  localizedFields?: string[] | undefined;
+  rowFields?: RowsField[] | undefined;
+}
+
+const recordSchema = z.record(z.string(), z.json());
+const blockTypeSchema = z.object({ blockType: z.string() });
+
+// The fields a row of `field` holds: an array's own, or those of the row's
+// block type.
+const rowContext = (field: RowsField, row: JsonValue): SharedContext => {
+  if (field.type === "array") {
+    return field;
+  }
+
+  const type = blockTypeSchema.safeParse(row);
+
+  return (
+    (type.success &&
+      field.blocks?.find((block) => block.slug === type.data.blockType)) ||
+    {}
+  );
+};
+
+// A value with everything Payload keeps for each locale taken out of it,
+// rows included, so what is left is what every locale shares.
+const sharedPart = (
+  value: JsonValue | undefined,
+  path: string,
+  context: SharedContext
+): JsonValue => {
+  const rows = context.rowFields?.find((field) => field.path === path);
+
+  if (rows && Array.isArray(value)) {
+    return value.map((row) => sharedPart(row, "", rowContext(rows, row)));
+  }
+
+  const record = Array.isArray(value)
+    ? undefined
+    : recordSchema.safeParse(value).data;
+
+  if (!record) {
+    return value ?? null;
+  }
+
+  return Object.fromEntries(
+    Object.entries(record)
+      .map(([key, child]): [string, JsonValue | undefined] => [
+        path ? `${path}.${key}` : key,
+        child,
+      ])
+      .filter(
+        ([childPath]) =>
+          !isLocalizedPath(context.localizedFields ?? [], childPath)
+      )
+      .map(([childPath, child]) => [
+        childPath,
+        sharedPart(child, childPath, context),
+      ])
+  );
+};
+
+// Fields Payload keeps itself, which say nothing about content.
+const SYSTEM_FIELDS = new Set([
+  "createdAt",
+  "deletedAt",
+  "id",
+  STATUS_FIELD,
+  "updatedAt",
+]);
+
+/**
+ * The top-level fields in which a document's newest draft differs from what
+ * is published, counting only what every locale shares. Payload holds those
+ * once for a draft, and puts them live for every published locale whenever
+ * one locale's status is written: a publish, and an unpublish too.
+ *
+ * Both records are read in the same locale, so a localized field differs
+ * only in that locale's own value, which is left out.
+ */
+export const sharedDraftChanges = (
+  target: SharedContext,
+  published: JsonObject,
+  draft: JsonObject
+): string[] =>
+  Object.keys({ ...published, ...draft })
+    .filter(
+      (key) =>
+        !SYSTEM_FIELDS.has(key) &&
+        !isLocalizedPath(target.localizedFields ?? [], key)
+    )
+    .filter(
+      (key) =>
+        !deepEqual(
+          sharedPart(published[key], key, target),
+          sharedPart(draft[key], key, target)
+        )
+    )
+    .toSorted();
 
 /** Whether the target keeps `_status` for each locale. */
 export const hasStatusPerLocale = (scope: LocaleScope): boolean =>

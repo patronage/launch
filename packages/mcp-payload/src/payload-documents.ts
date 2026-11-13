@@ -101,6 +101,21 @@ export const readDocument = (
     `${collection}/${id} was not found`
   );
 
+// The document itself, which is what the public is served: its published
+// version wherever a newer draft has been saved.
+export const readPublished = (
+  client: UpstreamClient,
+  collection: string,
+  id: number | string,
+  telemetry: UpstreamTelemetry
+): Promise<JsonObject> =>
+  readRecord(
+    client,
+    documentPath(collection, id, false),
+    telemetry,
+    `${collection}/${id} was not found`
+  );
+
 // The same read, reaching a document in the trash too. Payload leaves a
 // trashed document out of every read that does not ask for it by name.
 export const readTrashable = (

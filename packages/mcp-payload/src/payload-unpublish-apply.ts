@@ -1,6 +1,11 @@
-import { ApplyConflictError, receiptDetails } from "@patronage/mcp-core";
+import {
+  ApplyConflictError,
+  previewValue,
+  receiptDetails,
+} from "@patronage/mcp-core";
 import type {
   FieldSnapshot,
+  JsonObject,
   OperationPreflight,
   OperationReceipt,
   ReceiptError,
@@ -17,6 +22,7 @@ import {
   LOCKED_STATUS,
   lockedError,
   readDocument,
+  readPublished,
   requireStamp,
   toReceiptError,
   updatedAt,
@@ -30,6 +36,7 @@ import type {
   DocumentAddress,
   EditingInfo,
 } from "./payload-editing";
+import { sharedDraftChanges } from "./payload-locale";
 import {
   STATUS_FIELD,
   unpublishSentence,
@@ -132,6 +139,8 @@ const unpublishable = (
 interface Current {
   // Where the public is served it now.
   published: Published;
+  // Shared fields a newer draft changes, which this write puts live.
+  shared: FieldSnapshot[];
   // The document's own slug, where it has one.
   slug: string;
   // The newest version's `updatedAt`: what a `draft: true` read reports.
@@ -140,9 +149,40 @@ interface Current {
 
 const slugSchema = z.string();
 
+// Unpublishing one locale writes that locale's status, and Payload puts the
+// newest draft's shared fields live with it, for the locales that stay
+// published. Those fields, as the approver has to see them: what the public
+// reads now, and what the draft holds. Unpublishing the whole document
+// leaves nothing published for a draft to reach.
+const sharedChanges = async (
+  context: UnpublishContext,
+  collection: CollectionEditing,
+  operation: UnpublishOperation,
+  draft: JsonObject
+): Promise<FieldSnapshot[]> => {
+  if (operation.locale === undefined) {
+    return [];
+  }
+
+  const live = await readPublished(
+    context.client,
+    operation.collection,
+    operation.id,
+    context.telemetry
+  );
+
+  return sharedDraftChanges(collection, live, draft).map((path) => ({
+    after: previewValue(draft[path]),
+    before: previewValue(live[path]),
+    changed: true,
+    path,
+  }));
+};
+
 // The document as it stands, refused unless it is published now.
 const publishedDocument = async (
   context: UnpublishContext,
+  collection: CollectionEditing,
   operation: UnpublishOperation
 ): Promise<Current> => {
   const target = unpublishTarget(operation);
@@ -171,11 +211,19 @@ const publishedDocument = async (
 
   const slug = slugSchema.safeParse(record.slug);
 
-  return { published, slug: slug.success ? slug.data : "", stamp };
+  return {
+    published,
+    shared: await sharedChanges(context, collection, operation, record),
+    slug: slug.success ? slug.data : "",
+    stamp,
+  };
 };
 
 // As much of a path as a warning shows.
 const PATH_LIMIT = 120;
+
+// How many field names a warning lists.
+const NAMED_FIELDS = 5;
 
 // What the approver is told above the change: where the page is, and what
 // happens to links to it. Whether a redirect would catch them is not said:
@@ -184,7 +232,8 @@ const PATH_LIMIT = 120;
 // worse than none.
 const unpublishWarning = (
   address: DocumentAddress,
-  locale: string | undefined
+  locale: string | undefined,
+  shared: string[]
 ): string => {
   const { path } = address;
 
@@ -193,9 +242,18 @@ const unpublishWarning = (
 
   const links = "Links to it will 404 unless a redirect covers them.";
 
-  return locale === undefined
-    ? `The public page${where} goes away as soon as you approve. ${links}`
-    : `Only the ${locale} locale is unpublished; the others stay as they are. The ${locale} version of the public page${where} goes away as soon as you approve. ${links}`;
+  if (locale === undefined) {
+    return `The public page${where} goes away as soon as you approve. ${links}`;
+  }
+
+  const more = shared.length - NAMED_FIELDS;
+
+  const others =
+    shared.length === 0
+      ? `Only the ${locale} locale is unpublished; the others stay as they are.`
+      : `Only the ${locale} locale is unpublished. A newer draft changes fields every locale shares (${shared.slice(0, NAMED_FIELDS).join(", ")}${more > 0 ? ` and ${more} more` : ""}), and they go live for the locales that stay published as soon as you approve.`;
+
+  return `${others} The ${locale} version of the public page${where} goes away as soon as you approve. ${links}`;
 };
 
 // What the approver reads when the collection keeps a status for each
@@ -249,8 +307,9 @@ export const preflightUnpublish = async (
   const collection = unpublishable(context.info, operation);
   const target = unpublishTarget(operation);
 
-  const { published, slug, stamp } = await publishedDocument(
+  const { published, shared, slug, stamp } = await publishedDocument(
     context,
+    collection,
     operation
   );
 
@@ -264,15 +323,22 @@ export const preflightUnpublish = async (
   const address = await documentAddress(context, collection, operation);
   const previewUrl = address.url ? context.siteUrl(address.url) : "";
 
+  const status = everyLocale(operation, published);
+
   const preview: OperationPreflight = {
     editUrl: context.adminUrl(operation.collection, operation.id),
     editor: "Payload admin",
-    ...everyLocale(operation, published),
+    ...status,
+    fields: [...status.fields, ...shared],
     modifiedGmt: stamp,
     operationIndex: index,
     slug,
     target,
-    warning: unpublishWarning(address, operation.locale),
+    warning: unpublishWarning(
+      address,
+      operation.locale,
+      shared.map((field) => field.path)
+    ),
   };
 
   if (previewUrl) {
@@ -408,7 +474,11 @@ export const applyUnpublish = async (
       operation
     );
 
-    const { stamp } = await publishedDocument(context, operation);
+    const { shared, stamp } = await publishedDocument(
+      context,
+      collection,
+      operation
+    );
 
     if (stamp !== snapshot.modifiedGmt) {
       throw new ApplyConflictError(
@@ -434,7 +504,13 @@ export const applyUnpublish = async (
       };
     }
 
-    return { ...landed, ...outcome("changed", [STATUS_FIELD]) };
+    return {
+      ...landed,
+      ...outcome("changed", [
+        STATUS_FIELD,
+        ...shared.map((field) => field.path),
+      ]),
+    };
   } catch (error) {
     return failure(toReceiptError(error));
   }

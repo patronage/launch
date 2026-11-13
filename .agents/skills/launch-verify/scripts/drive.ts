@@ -3871,8 +3871,12 @@ const previewWholeUnpublish = async (
 };
 
 /**
- * Takes the Spanish locale down again. The English one stays where it was,
- * so the post ends the run as it began for the public.
+ * Takes the Spanish locale down again, with a newer draft that changes the
+ * shared slug in the way. Payload puts a draft's shared fields live for the
+ * locales that stay published whenever one locale's status is written, so
+ * the approval has to show the slug and warn about it; afterwards the
+ * English post is still up, at the draft's slug. The last write publishes
+ * the first slug again, so the post ends the run as it began for the public.
  */
 const unpublishSpanish = async (
   run: LocalesRun,
@@ -3880,11 +3884,24 @@ const unpublishSpanish = async (
   expected: string
 ): Promise<void> => {
   const { post } = run;
+  const slug = `${post.slug}-${run.marker}`;
+
+  const drafted = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: expected,
+      fields: { slug, title: run.spanish },
+      id: post.id,
+      kind: "update_draft",
+      locale: "es",
+    },
+    shot: "es-shared-draft",
+  });
 
   const unpublished = await approvePost(run, page, {
     operation: {
       collection: "posts",
-      expected_updated_at: expected,
+      expected_updated_at: drafted.updatedAt,
       id: post.id,
       kind: "unpublish",
       locale: "es",
@@ -3892,29 +3909,65 @@ const unpublishSpanish = async (
     shot: "es-unpublish",
   });
 
-  const warned = unpublished.preview.includes(
-    "Only the es locale is unpublished; the others stay as they are"
+  const warned = [
+    "Only the es locale is unpublished",
+    "A newer draft changes fields every locale shares (slug)",
+    "slug · every locale",
+  ].every((text) => unpublished.preview.includes(text));
+
+  const reported = unpublished.receipt.includes(
+    '"changed_paths":["_status","slug"]'
   );
 
   const publicSpanish = await publicPostIn(run.payload, post.id, "es");
   const publicEnglish = await publicPost(run.payload, post.id);
-  const front = await pageStatus(run.payload, `/news/${post.slug}`);
+  const moved = await pageStatus(run.payload, `/news/${slug}`);
 
   run.expect(
     warned,
-    "the approval page does not say only the es locale is unpublished"
+    "the approval page does not say only es is unpublished and that the draft's slug goes live for the others"
+  );
+  run.expect(
+    reported,
+    `get_run does not list _status and slug as changed: ${unpublished.receipt.slice(0, 300)}`
   );
   run.expect(
     publicSpanish.status === 404,
     `the public still reads the post in es: ${publicSpanish.status}`
   );
   run.expect(
-    publicEnglish.title === run.live && front === 200,
-    `the public reads "${publicEnglish.title}" in en; /news/${post.slug} answers ${front}`
+    publicEnglish.title === run.live && moved === 200,
+    `the public reads "${publicEnglish.title}" in en; /news/${slug} answers ${moved}`
   );
   run.log.step(
-    "execute: payload.apply unpublish with locale es; approve it",
-    `approval says only es goes: ${warned}; the public reads ${publicSpanish.status} in es and still "${publicEnglish.title}" in en; /news/${post.slug} answers ${front}`
+    "Save another slug as a draft in es, then execute: payload.apply unpublish with locale es; approve it",
+    `approval says only es goes and that the draft's slug goes live for the others: ${warned}; receipt lists _status and slug: ${reported}; the public reads ${publicSpanish.status} in es and still "${publicEnglish.title}" in en, now at /news/${slug} (${moved})`
+  );
+
+  // Put back: the first slug, published in the default locale.
+  await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: unpublished.updatedAt,
+      fields: { slug: post.slug, title: run.live ?? post.title },
+      id: post.id,
+      kind: "update_draft",
+      publish: true,
+    },
+    shot: "put-back",
+  });
+
+  const restored = await publicPost(run.payload, post.id);
+  const front = await pageStatus(run.payload, `/news/${post.slug}`);
+  const spanish = await publicPostIn(run.payload, post.id, "es");
+
+  run.expect(
+    restored.title === run.live && front === 200 && spanish.status === 404,
+    `after putting the slug back the public reads "${restored.title}" in en, /news/${post.slug} answers ${front} and es answers ${spanish.status}`
+  );
+  run.log.step(
+    "Publish the first slug again in en, built on the unpublish receipt's updated_at",
+    `the public reads "${restored.title}" in en; /news/${post.slug} answers ${front}; es answers ${spanish.status}`
   );
 };
 
