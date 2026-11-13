@@ -45,6 +45,16 @@ import type {
   RuntimeOutcome,
   SiteDescription,
 } from "./run";
+import {
+  deleteRunBlobs,
+  MAX_BLOB_BYTES,
+  MAX_RUN_BLOB_BYTES,
+  pruneBlobs,
+  readBlob,
+  readBlobMeta,
+  stageBlob,
+} from "./staged-blobs";
+import type { BlobStorage } from "./staged-blobs";
 import { ToolMapConnector } from "./tool-map-connector";
 import { createUpstreamTelemetry } from "./upstream";
 import type { UpstreamTelemetry } from "./upstream";
@@ -141,6 +151,11 @@ export abstract class BaseGatewayRuntime<
   protected readonly approvalTimeoutMs: number = APPROVAL_TIMEOUT_MS;
   protected readonly applySettleGraceMs: number = APPLY_SETTLE_GRACE_MS;
 
+  // The size of one staged file and of all one run may stage. A deployment
+  // may lower them; `stageBlob` never goes above the package's own limits.
+  protected readonly maxBlobBytes: number = MAX_BLOB_BYTES;
+  protected readonly maxRunBlobBytes: number = MAX_RUN_BLOB_BYTES;
+
   // Every connector this deployment knows; those whose `configured` says no
   // are left out of each call.
   protected abstract readonly connectors: readonly GatewayConnector<E>[];
@@ -169,16 +184,42 @@ export abstract class BaseGatewayRuntime<
     return connector.parseApply(args);
   };
 
+  #blobStorage: BlobStorage | undefined;
+
+  // Durable Object storage as the staged-file store sees it. It is one object
+  // for this instance's life, because the store queues stagings per storage.
+  #blobs(): BlobStorage {
+    const { storage } = this.ctx;
+
+    this.#blobStorage ??= {
+      delete: (keys) => storage.delete(keys),
+      get: (key) => storage.get(key),
+      list: (options) => storage.list(options),
+      put: (key, value) => storage.put(key, value),
+    };
+
+    return this.#blobStorage;
+  }
+
   #store(): RuntimeStore {
     const { storage } = this.ctx;
 
     return {
+      readBlob: (executionId, sha256) =>
+        readBlob(this.#blobs(), executionId, sha256),
+      readBlobMeta: (executionId, sha256) =>
+        readBlobMeta(this.#blobs(), executionId, sha256),
       readPreflight: (executionId) =>
         storage.get<ApplyPreflight>(preflightKey(executionId)),
       readRequester: (executionId) =>
         storage.get<string>(requesterKey(executionId)),
       recordProgress: (executionId, receipt) =>
         this.#recordProgress(executionId, receipt),
+      stageBlob: (executionId, bytes, facts) =>
+        stageBlob(this.#blobs(), executionId, bytes, facts, {
+          maxBlobBytes: this.maxBlobBytes,
+          maxRunBlobBytes: this.maxRunBlobBytes,
+        }),
       writePreflight: (executionId, preflight) =>
         storage.put(preflightKey(executionId), preflight),
     };
@@ -307,8 +348,10 @@ export abstract class BaseGatewayRuntime<
   // that can still be made. Once the run is terminal there is no decision
   // left, nothing reads them again, and the codemode log keeps the audit
   // trail — so they are deleted here rather than left behind by every run.
+  // The files the run staged go with them: nothing can apply them any more.
   async #forget(executionId: string): Promise<void> {
     await this.ctx.storage.delete(runStorageKeys(executionId));
+    await deleteRunBlobs(this.#blobs(), executionId);
   }
 
   // Rebuilt per call rather than cached: the handle is a thin accessor for the
@@ -419,6 +462,10 @@ export abstract class BaseGatewayRuntime<
       if (intent) {
         await this.ctx.storage.put(intentKey(result.executionId), intent);
       }
+    } else if (result.executionId) {
+      // A run that ended without pausing has no `apply` left to name a file
+      // it staged, so those files end with it.
+      await deleteRunBlobs(this.#blobs(), result.executionId);
     }
 
     return toRuntimeOutcome(result, telemetry);
@@ -735,7 +782,10 @@ export abstract class BaseGatewayRuntime<
       }
 
       const preflight = await this.#scope.run(caller, () =>
-        connector.preflight(this.env, caller, pending.args, telemetry)
+        connector.preflight(this.env, caller, pending.args, telemetry, {
+          executionId,
+          store: this.#store(),
+        })
       );
 
       await this.#store().writePreflight(executionId, preflight);
@@ -836,6 +886,18 @@ export abstract class BaseGatewayRuntime<
 
     await Promise.all(expired.map((id) => this.#forget(id)));
     await this.#pruneProgress();
+    // A file whose run never reached an ending this object saw (it restarted
+    // mid-run) is dropped on the same clock as an unanswered approval. A run
+    // still waiting on an approval has a requester on record until it is
+    // forgotten, and keeps its files: it may have paused again since it
+    // staged them.
+    await pruneBlobs(
+      this.#blobs(),
+      Date.now() - PAUSED_MAX_AGE_MS,
+      async (executionId) =>
+        (await this.ctx.storage.get<string>(requesterKey(executionId))) !==
+        undefined
+    );
     await this.ctx.storage.setAlarm(Date.now() + PAUSED_MAX_AGE_MS);
   }
 }

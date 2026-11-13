@@ -11,12 +11,13 @@ import { APPROVAL_STYLE, escapeHtml } from "./approval-page";
 // The suffix is bumped whenever the embedded app shell changes incompatibly;
 // the older URIs keep serving the current shell so a host pinned to one of
 // them still gets a card that works against today's tools.
-export const APPROVAL_APP_URI = "ui://patronage/cms-approval-v4.html";
+export const APPROVAL_APP_URI = "ui://patronage/cms-approval-v5.html";
 
 export const LEGACY_APPROVAL_APP_URIS = [
   "ui://patronage/wordpress-approval.html",
   "ui://patronage/wordpress-approval-v2.html",
   "ui://patronage/wordpress-approval-v3.html",
+  "ui://patronage/cms-approval-v4.html",
 ];
 
 export const APPROVAL_APP_META_KEY = "com.patronage/approval";
@@ -55,7 +56,10 @@ export interface ApprovalCardView {
 }
 
 // The card loads nothing and connects nowhere: every byte it shows arrives
-// over the host bridge. The allowlists are declared empty on purpose, and
+// over the host bridge, a media change's thumbnail included, which is an
+// inline `data:` image inside the fragment (MCP Apps hosts allow `data:`
+// images with no resource domain declared). The allowlists are declared
+// empty on purpose, and
 // twice — once on the listing a host reviews at connection time and once on
 // the contents it reads — so a host that sees only one still sees the same
 // empty allowlist.
@@ -78,7 +82,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 p.reason,p.link{font-size:.8rem;opacity:.75;overflow-wrap:anywhere}`;
 
 // One self-contained document: no external stylesheet, no font, no script
-// source, no image. The card's browser client is the official MCP Apps `App`
+// source, no image file. The card's browser client is the official MCP Apps `App`
 // client, written in `approval-card/client.ts` and bundled into
 // `APPROVAL_CARD_SCRIPT` at build time, so nothing is fetched at render time
 // and the allowlists above stay empty. `pnpm generate` rebuilds that bundle

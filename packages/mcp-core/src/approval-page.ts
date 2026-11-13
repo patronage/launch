@@ -1,3 +1,4 @@
+import { isThumbnailSrc, THUMBNAIL_MAX_PIXELS, WARNING_LIMIT } from "./apply";
 import type {
   ApplyPreflight,
   ApplyProgress,
@@ -5,6 +6,7 @@ import type {
   FieldSnapshot,
   OperationPreflight,
   OperationReceipt,
+  SnapshotImage,
 } from "./apply";
 import { approvalPath } from "./run";
 import type { RunProblem, RunReport } from "./run";
@@ -13,7 +15,8 @@ import type { RunProblem, RunReport } from "./run";
 // stays package-free: no `cloudflare:workers` binding and no codemode import,
 // and every value it prints is escaped here rather than by the caller. The
 // page carries no script — its Content-Security-Policy allows none — so the
-// inline stylesheet below is the whole of its presentation.
+// inline stylesheet below is the whole of its presentation. The only image it
+// shows is a thumbnail the gateway made, inline as a `data:` URL.
 export const APPROVAL_STYLE = `body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:2rem;background:#f6f7f9;color:#12161f}
 main{max-width:56rem;margin:0 auto;background:#fff;padding:2rem;border-radius:8px;border:1px solid #d8dce4}
 h1{font-size:1.4rem;margin:0 0 .25rem}
@@ -28,6 +31,10 @@ td.before{color:#6b7280}
 tr.unchanged td{opacity:.55}
 .notice{background:#f1f5fd;border:1px solid #b4c6e6;padding:.75rem 1rem;border-radius:6px}
 .problem{background:#fdf1f1;border:1px solid #e6b4b4;padding:.75rem 1rem;border-radius:6px}
+.warning{background:#fff8e6;border:1px solid #e6cf8a;padding:.6rem 1rem;border-radius:6px;margin:.5rem 0}
+th .path{display:block;color:#6b7280;font-weight:400}
+img.thumb{display:block;max-width:10rem;max-height:10rem;width:auto;height:auto;border:1px solid #e6e9ef;border-radius:4px;margin:0 0 .35rem;background:#f6f7f9}
+p.file{color:#6b7280;font-size:.8rem;margin:0 0 .35rem}
 form{margin-top:1.5rem}
 button{font:inherit;padding:.6rem 1.2rem;border-radius:6px;border:1px solid #12161f;cursor:pointer}
 button.approve{background:#12161f;color:#fff}
@@ -276,13 +283,75 @@ const renderTarget = (operation: OperationPreflight): string => {
     : `<span>${target}</span>`;
 };
 
+const fileSize = (bytes: number): string => {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+  }
+
+  return bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} bytes`;
+};
+
+const wholeNumber = (value: number): number =>
+  Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+
+// A file beside a value: its facts always, its picture only when it is the
+// one kind of image these surfaces show. The facts are the file's own; the
+// drawn size is derived from them and capped, so a snapshot can never ask
+// for a large box.
+const renderImage = (image: SnapshotImage | undefined): string => {
+  if (!image) {
+    return "";
+  }
+
+  const width = wholeNumber(image.width);
+  const height = wholeNumber(image.height);
+  const scale = Math.min(1, THUMBNAIL_MAX_PIXELS / Math.max(width, height, 1));
+
+  const picture = isThumbnailSrc(image.src)
+    ? `<img class="thumb" alt="" src="${escapeHtml(image.src)}" width="${Math.round(width * scale)}" height="${Math.round(height * scale)}">`
+    : "";
+
+  const facts = [
+    image.mimeType,
+    width && height ? `${width} × ${height}` : "",
+    fileSize(wholeNumber(image.bytes)),
+    image.sha256 ? `sha256 ${image.sha256.slice(0, 12)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return `${picture}<p class="file">${escapeHtml(facts)}</p>`;
+};
+
+// A row path reads better as its label; the path stays under it, so what the
+// write names is still on the page.
+const renderPath = (field: FieldSnapshot): string =>
+  field.label
+    ? `${escapeHtml(field.label)}<code class="path">${escapeHtml(field.path)}</code>`
+    : `<code>${escapeHtml(field.path)}</code>`;
+
 // Both values arrive already bounded by `previewValue`, so a row prints what
 // it was handed and never re-reads the post.
 const renderField = (field: FieldSnapshot): string =>
   `<tr class="${field.changed ? "changed" : "unchanged"}">
-<th scope="row"><code>${escapeHtml(field.path)}</code></th>
-<td class="before">${escapeHtml(field.before)}</td>
-<td>${escapeHtml(field.after)}</td></tr>`;
+<th scope="row">${renderPath(field)}</th>
+<td class="before">${renderImage(field.beforeImage)}${escapeHtml(field.before)}</td>
+<td>${renderImage(field.afterImage)}${escapeHtml(field.after)}</td></tr>`;
+
+const renderWarning = (operation: OperationPreflight): string => {
+  const warning = operation.warning?.trim() ?? "";
+
+  if (!warning) {
+    return "";
+  }
+
+  const shown =
+    warning.length > WARNING_LIMIT
+      ? `${warning.slice(0, WARNING_LIMIT)}…`
+      : warning;
+
+  return `<p class="warning" role="note"><strong>Heads up:</strong> ${escapeHtml(shown)}</p>`;
+};
 
 // A new document has no modified time yet, so its line names the target only.
 const renderModified = (operation: OperationPreflight): string =>
@@ -295,6 +364,7 @@ const renderOperation = (operation: OperationPreflight): string => {
 
   return `<section>
 <h2>${escapeHtml(operation.sentence)}</h2>
+${renderWarning(operation)}
 <p>${renderTarget(operation)}${renderModified(operation)}</p>
 <table><thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -381,9 +451,34 @@ export const renderProblemPage = (
 ): string =>
   renderPage("Nothing to approve", renderProblemFragment(executionId, problem));
 
-const renderReceiptRow = (operation: OperationReceipt): string => {
+// What a write made, beside whether it landed: the version it created, the
+// target's new modified time, and the connector's own details.
+const receiptFacts = (operation: OperationReceipt): [string, string][] => {
+  const facts: [string, string][] = Object.entries(operation.details ?? {});
+
+  if (operation.version_id) {
+    facts.push(["version", operation.version_id]);
+  }
+
+  if (operation.updated_at) {
+    facts.push(["updated", operation.updated_at]);
+  }
+
+  return facts;
+};
+
+const renderReceiptRow = (
+  operation: OperationReceipt,
+  withFacts: boolean
+): string => {
   const problem = operation.error
     ? `${operation.error.code}: ${operation.error.message}`
+    : "";
+
+  const facts = withFacts
+    ? `<td>${receiptFacts(operation)
+        .map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(value)}`)
+        .join("<br>")}</td>`
     : "";
 
   return `<tr>
@@ -391,7 +486,7 @@ const renderReceiptRow = (operation: OperationReceipt): string => {
 <td>${escapeHtml(operation.status)}</td>
 <td>${escapeHtml(operation.changed_paths.join(", "))}</td>
 <td>${escapeHtml(operation.normalized_paths.join(", "))}</td>
-<td>${escapeHtml(problem)}</td></tr>`;
+<td>${escapeHtml(problem)}</td>${facts}</tr>`;
 };
 
 // The receipt names both subjects because the requester asked for the write
@@ -430,7 +525,17 @@ export const renderReceiptFragment = (
   receipt: BatchReceipt,
   notice?: string
 ): string => {
-  const rows = receipt.operations.map(renderReceiptRow).join("");
+  // The details column appears only on a receipt that has any, so a receipt
+  // from a connector that reports none reads as it always did.
+  const withFacts = receipt.operations.some(
+    (operation) => receiptFacts(operation).length > 0
+  );
+
+  const rows = receipt.operations
+    .map((operation) => renderReceiptRow(operation, withFacts))
+    .join("");
+
+  const factsHeading = withFacts ? '<th scope="col">Details</th>' : "";
   const shown = notice ? `<p class="notice">${escapeHtml(notice)}</p>` : "";
 
   return `<h1>${escapeHtml(receiptHeadline(receipt))}</h1>
@@ -438,7 +543,7 @@ ${shown}
 <p class="run">Run <code>${escapeHtml(receipt.executionId)}</code> &middot; requested by <code>${escapeHtml(receipt.requesterOpaque)}</code> &middot; approved by <code>${escapeHtml(receipt.approverOpaque)}</code></p>
 <table><thead><tr><th scope="col">Target</th><th scope="col">Status</th>
 <th scope="col">Changed</th><th scope="col">Stored by the CMS</th>
-<th scope="col">Problem</th></tr></thead>
+<th scope="col">Problem</th>${factsHeading}</tr></thead>
 <tbody>${rows}</tbody></table>`;
 };
 

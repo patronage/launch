@@ -32,6 +32,15 @@ An approved write gets 5 minutes in the sandbox and an ordinary run gets 60 seco
 
 A connector implements `GatewayConnector` (`src/gateway-connector.ts`): its sandbox name, a paragraph for the `execute` tool description, its tools, and for writes `parseApply` (validate and summarise) and `preflight` (the before-and-after the approver sees). `src/upstream.ts` has the shared fetch client, which forwards the caller's Access JWT with a gateway proof and records each request on the wide event.
 
+What a preview and a receipt can carry, all optional (`src/apply.ts`):
+
+- **A thumbnail** beside a value: `beforeImage` and `afterImage` on a `FieldSnapshot`, with the file's type, size, dimensions and hash. Both surfaces draw the picture only when `src` is a WebP `data:` URL of at most 24 KB (`isThumbnailSrc`); anything else shows the facts alone. Neither surface ever loads an image from a URL.
+- **A label** for a row path, so `layout[id=…].cards[id=…].title` reads as "Sections › Card grid (row 3) › Cards › row 2 › Title". `NEW_ROW` and `REMOVED_ROW` fill the side of a snapshot where the row does not exist.
+- **A warning** on an operation that changes what the public sees as soon as it is approved.
+- **Receipt facts**: `version_id`, `updated_at`, and up to eight bounded `details` (build them with `receiptDetails`), such as a new document's id or a file's URL. Never a field value.
+
+A file a write needs is staged, never passed to `apply`: tool arguments go into the durable log, where one value holds at most 2 MB. A read-phase tool calls `store.stageBlob(executionId, bytes, facts)` and returns the SHA-256 it gets back; `apply` names that hash and reads the bytes with `store.readBlob`, and `preflight` reads the facts with `store.readBlobMeta` from its `context`. Only the run that staged a file can read it. One file may be 10 MB and one run 25 MB (`maxBlobBytes` and `maxRunBlobBytes` on `BaseGatewayRuntime` lower them), and a run's files are deleted when it ends, is rejected or expires.
+
 ## Commands
 
 ```sh
