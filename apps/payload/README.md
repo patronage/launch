@@ -66,13 +66,13 @@ It reads through a temporary read-only PlanetScale role, which it deletes once t
 The switch, from this app, with editing paused from step 3 to step 6:
 
 1. `pnpm run hyperdrive:configure` creates the Hyperdrive configuration `launch-payload` with the managed PlanetScale integration (organization, database and branch from `db-pull.env`), turns caching off and prints its id. `--dry-run` only reads.
-2. Create a short-lived PlanetScale role that can run migrations, and put its connection URL in `TARGET` (it stays in the shell, never in a file): `pscale role create launch-payload main d1-copy --inherited-roles postgres --ttl 1h --format json --org sysadmin-patronage`.
-3. `PAYLOAD_DB=postgres POSTGRES_URL="$TARGET" pnpm payload migrate`, then `pnpm d1:copy --target "$TARGET" --dry-run` and `pnpm d1:copy --target "$TARGET"`.
-4. Add `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID=<id>` to the Workers Builds trigger (`pnpm run builds:configure` with both exported) and rebuild production.
+2. Create a short-lived PlanetScale admin role, and put its connection URL in `TARGET` (it stays in the shell, never in a file): `pscale role create launch-payload main d1-copy --inherited-roles postgres --ttl 1h --format json --org sysadmin-patronage`. Set the TTL: without one the role never expires.
+3. With `PGOPTIONS='-c role=postgres'` exported, so the tables belong to `postgres` and not to the role you delete afterwards: `PAYLOAD_DB=postgres POSTGRES_URL="$TARGET" pnpm payload migrate`, then `pnpm d1:copy --target "$TARGET" --dry-run` and `pnpm d1:copy --target "$TARGET"`.
+4. Add `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID=<id>` to the existing production Workers Builds trigger with `cf builds triggers environment-variables upsert <trigger-uuid>` and rebuild with `cf builds create <trigger-uuid> --branch main` (the docs site's Workers Builds page shows how to find the trigger). `pnpm run builds:configure` only sets variables when it creates a trigger.
 5. Check the public pages, sign in to the admin, then delete the role (`pscale role delete launch-payload main <role-id>`).
 6. Resume editing.
 
-To go back, remove the two variables from the trigger and rebuild: D1 still holds the content as of step 3. Delete the D1 database only once Postgres has run for a while.
+To go back, set `PAYLOAD_DB` to `d1` on the trigger (the same upsert) and rebuild: D1 still holds the content as of step 3. Delete the D1 database only once Postgres has run for a while.
 
 ## Deploy
 

@@ -22,7 +22,7 @@ Both databases passed the same end-to-end browser test in local workerd, and the
 
 ### Moving from D1
 
-`pnpm run hyperdrive:configure` creates the Hyperdrive configuration (or finds it) and prints its id. `pnpm d1:copy --target <postgres-url>` copies the D1 database into a freshly migrated Postgres with the same ids, reading D1 only, in one transaction that commits only when every table's row count matches. Sessions, document locks and the key-value cache aren't copied, so editors sign in again. Then the Workers Builds trigger builds with `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID`. D1 is left as it was, so building without those two variables goes back. The app's README has the step-by-step switch.
+`pnpm run hyperdrive:configure` creates the Hyperdrive configuration (or finds it) and prints its id. `pnpm d1:copy --target <postgres-url>` copies the D1 database into a freshly migrated Postgres with the same ids, reading D1 only, in one transaction that commits only when every table's row count matches. Sessions, document locks and the key-value cache aren't copied, so editors sign in again. Then `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID` are added to the existing Workers Builds trigger (see [Workers Builds](/deploy/workers-builds)) and production is rebuilt. D1 is left as it was, so setting `PAYLOAD_DB` back to `d1` and rebuilding goes back. The app's README has the step-by-step switch.
 
 ## Pull content from PlanetScale
 
