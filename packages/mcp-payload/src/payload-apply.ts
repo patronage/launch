@@ -2,7 +2,6 @@ import {
   ApplyConflictError,
   UpstreamRequestError,
   batchStatus,
-  deepEqual,
   previewValue,
   receiptDetails,
 } from "@patronage/mcp-core";
@@ -16,12 +15,26 @@ import type {
   OperationReceipt,
   ReceiptError,
   UpstreamClient,
-  UpstreamFetchResult,
   UpstreamTelemetry,
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
 import { payloadErrorMessage, payloadRest } from "./payload";
+import {
+  classifyReadback,
+  CONFLICT_CODES,
+  documentPath,
+  draftQuery,
+  LOCKED_STATUS,
+  lockedError,
+  missedPathsMessage,
+  readDocument,
+  toReceiptError,
+  updatedAt,
+  writtenStamp,
+  writtenVersionId,
+} from "./payload-documents";
+import type { PayloadAdminUrl, PayloadSiteUrl } from "./payload-documents";
 import {
   callPayloadTool,
   MARKDOWN_TO_RICH_TEXT_TOOL,
@@ -36,16 +49,19 @@ import {
   draftMarkdown,
   draftSentence,
   draftTarget,
+  isUploadOperation,
+  operationTarget,
   STATUS_FIELD,
 } from "./payload-operations";
 import type {
   DraftOperation,
+  PayloadOperation,
   UpdateDraftOperation,
 } from "./payload-operations";
-import { createTitleLookup, relationPreview } from "./payload-relations";
+import { createTitleLookup, fieldSnapshot } from "./payload-relations";
 import type { TitleLookup } from "./payload-relations";
-
-const MISSED_PATH_LIMIT = 5;
+import { applyUpload, preflightUpload } from "./payload-upload-apply";
+import type { UploadFiles } from "./payload-upload-apply";
 
 const recordSchema = z.record(z.string(), z.json());
 const stringSchema = z.string();
@@ -59,77 +75,11 @@ const markdownResultSchema = z.object({
 
 const richTextResultSchema = z.object({ value: recordSchema });
 
-export type PayloadAdminUrl = (
-  collection: string,
-  id: number | string
-) => string;
-
-// Turns a link Payload made to its own site into an absolute URL, or "" when
-// the gateway knows no public origin for it.
-export type PayloadSiteUrl = (link: string) => string;
-
-// Payload answers 423 when another editor has the document open: REST
-// writes never override a lock.
-const LOCKED_STATUS = 423;
-
-// As long as a receipt's `version_id` may be.
-const VERSION_ID_LIMIT = 64;
-
-// Every read names the draft, so it returns the newest version, draft or
-// published. A write names it too, saving a new draft version and leaving
-// the published one as it is, unless the operation publishes: then the write
-// goes without `draft=true` and sets `_status` to published.
-const draftQuery = (draft: boolean): string =>
-  draft ? "?draft=true&depth=0" : "?depth=0";
-
-const documentPath = (
-  collection: string,
-  id: number | string,
-  draft = true
-): string =>
-  `/api/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}${draftQuery(draft)}`;
-
 const operationPath = (operation: UpdateDraftOperation): string =>
   documentPath(operation.collection, operation.id, !operation.publish);
 
 const createPath = (operation: DraftOperation): string =>
   `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
-
-const updatedAt = (record: JsonObject): string | undefined => {
-  const value = stringSchema.safeParse(record.updatedAt);
-
-  return value.success ? value.data : undefined;
-};
-
-const failed = (
-  result: UpstreamFetchResult,
-  fallback: string
-): ApplyConflictError =>
-  new ApplyConflictError(
-    result.status === 404 ? "not_found" : "read_failed",
-    result.status === 404 ? fallback : payloadErrorMessage(result)
-  );
-
-const readDocument = async (
-  client: UpstreamClient,
-  collection: string,
-  id: number | string,
-  telemetry: UpstreamTelemetry
-): Promise<JsonObject> => {
-  const result = await payloadRest(
-    client,
-    documentPath(collection, id),
-    telemetry
-  );
-
-  const parsed = recordSchema.safeParse(result.json);
-
-  if (result.status < 200 || result.status >= 300 || !parsed.success) {
-    throw failed(result, `${collection}/${id} was not found`);
-  }
-
-  return parsed.data;
-};
 
 // Only a collection with drafts keeps the published version apart from the
 // one being written. Without drafts, `?draft=true` is ignored and the write
@@ -319,6 +269,8 @@ const resolveBody = async (
 interface PreflightContext {
   adminUrl: PayloadAdminUrl;
   client: UpstreamClient;
+  // Where a staged file is read from. Without it, an upload has no file.
+  files?: UploadFiles | undefined;
   info: EditingInfo;
   siteUrl: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
@@ -348,28 +300,15 @@ const snapshotField = async (
   const markdown = draftMarkdown(operation)[path];
 
   if (markdown === undefined) {
-    const before = record[path];
-    const after = draftFields(operation)[path];
-
-    const relation = collection.relationFields.find(
-      (field) => field.path === path
-    );
-
-    // A relationship or upload names its documents; the ids alone decide
-    // whether it changed.
-    const [shownBefore, shownAfter] = relation
-      ? await Promise.all([
-          relationPreview(context.titles, relation, before),
-          relationPreview(context.titles, relation, after),
-        ])
-      : [previewValue(before), previewValue(after)];
-
-    return {
-      after: shownAfter,
-      before: shownBefore,
-      changed: !deepEqual(before, after),
+    return await fieldSnapshot(
+      context.titles,
+      collection.relationFields,
       path,
-    };
+      {
+        after: draftFields(operation)[path],
+        before: record[path],
+      }
+    );
   }
 
   const before = await toMarkdown(
@@ -496,7 +435,7 @@ const preflightOne = async (
 
 const preflightFrom = async (
   context: PreflightContext,
-  operations: DraftOperation[],
+  operations: PayloadOperation[],
   index: number
 ): Promise<OperationPreflight[]> => {
   const operation = operations.at(index);
@@ -505,20 +444,29 @@ const preflightFrom = async (
     return [];
   }
 
-  const first = await preflightOne(context, operation, index);
+  const first = isUploadOperation(operation)
+    ? await preflightUpload(context, operation, index)
+    : await preflightOne(context, operation, index);
 
   return [first, ...(await preflightFrom(context, operations, index + 1))];
 };
 
 const noSiteUrl: PayloadSiteUrl = () => "";
 
+export interface DraftPreflightOptions {
+  // The run's staged files, for an upload's preview.
+  files?: UploadFiles | undefined;
+  // Makes the draft preview link a preview offers. Without it, none is.
+  siteUrl?: PayloadSiteUrl | undefined;
+}
+
 export const preflightDraftOperations = async (
   client: UpstreamClient,
   intent: string,
-  operations: DraftOperation[],
+  operations: PayloadOperation[],
   adminUrl: PayloadAdminUrl,
   telemetry: UpstreamTelemetry,
-  siteUrl: PayloadSiteUrl = noSiteUrl
+  options: DraftPreflightOptions = {}
 ): Promise<ApplyPreflight> => {
   const info = await readEditingInfo(client, telemetry);
 
@@ -528,8 +476,9 @@ export const preflightDraftOperations = async (
     {
       adminUrl,
       client,
+      files: options.files,
       info,
-      siteUrl,
+      siteUrl: options.siteUrl ?? noSiteUrl,
       telemetry,
       titles: createTitleLookup(client, info, telemetry),
     },
@@ -538,61 +487,6 @@ export const preflightDraftOperations = async (
   );
 
   return { intent, operations: results };
-};
-
-const toReceiptError = <E>(error: E): ReceiptError => {
-  if (error instanceof ApplyConflictError) {
-    return { code: error.code, message: error.message };
-  }
-
-  if (error instanceof UpstreamRequestError) {
-    return { code: "payload_request_failed", message: error.message };
-  }
-
-  return { code: "unexpected_error", message: "The operation failed" };
-};
-
-const missedPathsMessage = (missed: string[]): string => {
-  const listed = missed.slice(0, MISSED_PATH_LIMIT);
-  const extra = missed.length - listed.length;
-
-  return `Payload did not store ${listed.join(", ")}${extra > 0 ? ` and ${extra} more` : ""}`;
-};
-
-// The same reading as `wp.apply`'s readback: a stored value equal to the one
-// asked for is a change, one still equal to the value before is a miss, and
-// anything else is Payload rewriting what it stored (a hook, a sanitiser, or
-// Lexical filling in node defaults).
-const classifyReadback = (
-  body: JsonObject,
-  before: JsonObject,
-  after: JsonObject
-) => {
-  const changed: string[] = [];
-  const missed: string[] = [];
-  const normalized: string[] = [];
-
-  for (const path of Object.keys(body).toSorted()) {
-    const requested = body[path];
-    const previous = before[path];
-
-    if (deepEqual(previous, requested)) {
-      continue;
-    }
-
-    const stored = after[path];
-
-    if (deepEqual(stored, requested)) {
-      changed.push(path);
-    } else if (deepEqual(stored, previous)) {
-      missed.push(path);
-    } else {
-      changed.push(path);
-      normalized.push(path);
-    }
-  }
-
-  return { changed, missed, normalized };
 };
 
 // Markdown is compared as Markdown: Lexical from a fresh conversion seldom
@@ -686,10 +580,7 @@ const writeUpdate = async (
   });
 
   if (write.status === LOCKED_STATUS) {
-    throw new ApplyConflictError(
-      "locked",
-      `${snapshot.target} is open in the Payload admin for another editor; try again once they have finished`
-    );
+    throw lockedError(snapshot.target);
   }
 
   if (write.status < 200 || write.status >= 300) {
@@ -751,56 +642,9 @@ const writeCreate = async (
   }
 };
 
-const versionsSchema = z.object({
-  docs: z.array(z.object({ id: documentIdSchema, updatedAt: z.string() })),
-});
-
-const writtenSchema = z.object({ doc: recordSchema });
-
-// When Payload says the write itself saved the document: the `updatedAt` of
-// the document in the write's own response, which is also the time on the
-// version that write made.
-const writtenStamp = (write: UpstreamFetchResult): string | undefined => {
-  const parsed = writtenSchema.safeParse(write.json);
-
-  return parsed.success ? updatedAt(parsed.data.doc) : undefined;
-};
-
-// The version this write made: the one saved at the time the write's own
-// response reported. Another editor's save or an autosave can land a moment
-// later, so "the newest version" could be theirs; a receipt names a version
-// only when it is this write's. A receipt without one is still a true
-// receipt, so a failed lookup is no failure.
-const writtenVersionId = async (
-  client: UpstreamClient,
-  collection: string,
-  written: Pick<WriteResult, "id" | "stamp">,
-  telemetry: UpstreamTelemetry
-): Promise<string | undefined> => {
-  if (written.stamp === undefined) {
-    return undefined;
-  }
-
-  try {
-    const result = await payloadRest(
-      client,
-      `/api/${encodeURIComponent(collection)}/versions?where[parent][equals]=${encodeURIComponent(String(written.id))}&where[updatedAt][equals]=${encodeURIComponent(written.stamp)}&limit=1&depth=0&select[updatedAt]=true`,
-      telemetry
-    );
-
-    const parsed = versionsSchema.safeParse(result.json);
-    const [version] = parsed.success ? parsed.data.docs : [];
-
-    return result.status === 200 && version?.updatedAt === written.stamp
-      ? String(version.id).slice(0, VERSION_ID_LIMIT)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 interface ApplyContext {
   client: UpstreamClient;
+  files?: UploadFiles | undefined;
   siteUrl: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
 }
@@ -854,9 +698,6 @@ const landedFacts = async (
 
   return facts;
 };
-
-// Nothing was written in either case, and trying again later can work.
-const CONFLICT_CODES = new Set(["locked", "modified_since_preflight"]);
 
 const applyOne = async (
   context: ApplyContext,
@@ -967,15 +808,27 @@ const applyOne = async (
   }
 };
 
+const applyAs = (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> =>
+  isUploadOperation(operation)
+    ? applyUpload(context, operation, snapshot)
+    : applyOne(context, operation, snapshot);
+
 interface DraftApplyOptions {
   approverOpaque: string;
   client: UpstreamClient;
   executionId: string;
+  // Where this run's staged files are read from, and what measures them.
+  // Without it, an upload reports that its file was never staged.
+  files?: Omit<UploadFiles, "executionId"> | undefined;
   // Hears each receipt as its operation settles, so a run that stops part
   // way still has a record of what landed (a created draft above all). A
   // failure to record progress never fails the write it describes.
   onProgress?: (receipt: OperationReceipt) => Promise<void>;
-  operations: DraftOperation[];
+  operations: PayloadOperation[];
   preflight: ApplyPreflight;
   requesterOpaque: string;
   // Makes the draft preview link a receipt offers. Without it, none is.
@@ -995,16 +848,18 @@ const applyFrom = async (
 
   const snapshot = options.preflight.operations.at(index);
 
+  const context: ApplyContext = {
+    client: options.client,
+    files: options.files && {
+      ...options.files,
+      executionId: options.executionId,
+    },
+    siteUrl: options.siteUrl ?? noSiteUrl,
+    telemetry: options.telemetry,
+  };
+
   const receipt: OperationReceipt = snapshot
-    ? await applyOne(
-        {
-          client: options.client,
-          siteUrl: options.siteUrl ?? noSiteUrl,
-          telemetry: options.telemetry,
-        },
-        operation,
-        snapshot
-      )
+    ? await applyAs(context, operation, snapshot)
     : {
         changed_paths: [],
         error: {
@@ -1015,7 +870,7 @@ const applyFrom = async (
         normalized_paths: [],
         operation_index: index,
         status: "failed",
-        target: draftTarget(operation),
+        target: operationTarget(operation),
       };
 
   try {

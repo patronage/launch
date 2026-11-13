@@ -1,5 +1,6 @@
-import { previewValue } from "@patronage/mcp-core";
+import { deepEqual, previewValue } from "@patronage/mcp-core";
 import type {
+  FieldSnapshot,
   JsonValue,
   UpstreamClient,
   UpstreamTelemetry,
@@ -172,4 +173,32 @@ export const relationPreview = async (
   );
 
   return previewValue(names.join(", "));
+};
+
+/**
+ * One plain field as the approver sees it: a relationship or upload names
+ * its documents, anything else shows its stored value, and the stored values
+ * alone decide whether it changed.
+ */
+export const fieldSnapshot = async (
+  titles: TitleLookup,
+  relationFields: (RelationField & { hasMany: boolean })[],
+  path: string,
+  values: { after: JsonValue | undefined; before: JsonValue | undefined }
+): Promise<FieldSnapshot> => {
+  const relation = relationFields.find((field) => field.path === path);
+
+  const [before, after] = relation
+    ? await Promise.all([
+        relationPreview(titles, relation, values.before),
+        relationPreview(titles, relation, values.after),
+      ])
+    : [previewValue(values.before), previewValue(values.after)];
+
+  return {
+    after,
+    before,
+    changed: !deepEqual(values.before, values.after),
+    path,
+  };
 };

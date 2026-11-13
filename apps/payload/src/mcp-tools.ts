@@ -280,10 +280,13 @@ const draftSettings = (
 interface AllowedHost {
   hostname: string;
   pathname?: string;
+  port?: string;
   protocol?: string;
+  search?: string;
 }
 
-// The parts of an allow-list entry the gateway matches a URL against.
+// An allow-list entry as Payload matches a URL against it, without the keys
+// it leaves unset.
 const allowedHost = (entry: AllowedHost): AllowedHost => {
   const host: AllowedHost = { hostname: entry.hostname };
 
@@ -291,8 +294,16 @@ const allowedHost = (entry: AllowedHost): AllowedHost => {
     host.pathname = entry.pathname;
   }
 
+  if (entry.port !== undefined) {
+    host.port = entry.port;
+  }
+
   if (entry.protocol !== undefined) {
     host.protocol = entry.protocol;
+  }
+
+  if (entry.search !== undefined) {
+    host.search = entry.search;
   }
 
   return host;

@@ -183,11 +183,16 @@ export interface UpstreamFetchResult {
   totalPages?: number;
 }
 
+interface BodyLimit {
+  label: string;
+  maxBytes: number;
+}
+
 const readBodyChunks = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   chunks: Uint8Array[],
   totalBytes: number,
-  label: string
+  limit: BodyLimit
 ): Promise<number> => {
   const { done, value } = await reader.read();
 
@@ -197,37 +202,46 @@ const readBodyChunks = async (
 
   const nextTotal = totalBytes + value.byteLength;
 
-  if (nextTotal > MAX_BODY_BYTES) {
+  if (nextTotal > limit.maxBytes) {
     await reader.cancel();
-    throw new UpstreamRequestError(`${label} response exceeded the size limit`);
+    throw new UpstreamRequestError(
+      `${limit.label} response exceeded the size limit`
+    );
   }
 
   chunks.push(value);
 
-  return readBodyChunks(reader, chunks, nextTotal, label);
+  return readBodyChunks(reader, chunks, nextTotal, limit);
 };
 
-const readBoundedJson = async (
+/**
+ * A response's body, read no further than `maxBytes`. A body that declares
+ * or turns out to hold more is refused, never cut short.
+ */
+export const readBoundedBody = async (
   response: Response,
-  label: string
-): Promise<JsonValue> => {
+  limit: BodyLimit
+): Promise<Uint8Array> => {
   const contentLength = response.headers.get("Content-Length");
 
   if (
     contentLength &&
     Number.isFinite(Number(contentLength)) &&
-    Number(contentLength) > MAX_BODY_BYTES
+    Number(contentLength) > limit.maxBytes
   ) {
-    throw new UpstreamRequestError(`${label} response exceeded the size limit`);
+    await response.body?.cancel();
+    throw new UpstreamRequestError(
+      `${limit.label} response exceeded the size limit`
+    );
   }
 
   if (!response.body) {
-    return null;
+    return new Uint8Array();
   }
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
-  const totalBytes = await readBodyChunks(reader, chunks, 0, label);
+  const totalBytes = await readBodyChunks(reader, chunks, 0, limit);
 
   const body = new Uint8Array(totalBytes);
   let offset = 0;
@@ -236,6 +250,18 @@ const readBoundedJson = async (
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
+
+  return body;
+};
+
+const readBoundedJson = async (
+  response: Response,
+  label: string
+): Promise<JsonValue> => {
+  const body = await readBoundedBody(response, {
+    label,
+    maxBytes: MAX_BODY_BYTES,
+  });
 
   if (body.byteLength === 0) {
     return null;
@@ -337,6 +363,94 @@ const recordUpstreamRequest = (
   telemetry.log?.set({ upstream });
 };
 
+// The request every upstream call makes: the editor's Access JWT, the
+// gateway proof, the service token when there is one, and no redirects.
+const sendUpstream = async (
+  client: UpstreamClient,
+  url: URL,
+  init: RequestInit
+): Promise<Response> => {
+  const gatewayProof = client.auth.proofSecret
+    ? await computeGatewayProof(client.auth.proofSecret, client.auth.token)
+    : undefined;
+
+  const headers = upstreamAuthHeaders(client.auth, init.headers, gatewayProof);
+  const requestInit: RequestInit = { ...init, headers, redirect: "manual" };
+
+  return await (client.fetcher
+    ? client.fetcher.fetch(url, requestInit)
+    : fetch(url, requestInit));
+};
+
+export interface UpstreamBytesResult {
+  // Present only for a 200 whose body fit the limit.
+  bytes?: Uint8Array;
+  // As the CMS declared it. Never trusted: sniff the bytes.
+  contentType: string;
+  path: string;
+  status: number;
+}
+
+/**
+ * Reads a file from the CMS as the editor, such as a media file to show
+ * beside the one replacing it. The same request as `upstreamFetch`, with the
+ * body kept as bytes and bounded by `maxBytes`. A body over the limit reads
+ * as a response without bytes, not as a failure.
+ */
+export const upstreamFetchBytes = async (
+  client: UpstreamClient,
+  url: URL,
+  telemetry: UpstreamTelemetry,
+  maxBytes: number
+): Promise<UpstreamBytesResult> => {
+  const startedAt = Date.now();
+  const label = client.label ?? "Upstream";
+  const path = boundedPath(url);
+  let status = 0;
+
+  const record = (outcome: "error" | "ok"): void => {
+    recordUpstreamRequest(telemetry, url, client, {
+      durationMs: Date.now() - startedAt,
+      method: "GET",
+      outcome,
+      path,
+      status,
+    });
+  };
+
+  try {
+    const response = await sendUpstream(client, url, {
+      headers: { Accept: "*/*" },
+    });
+
+    ({ status } = response);
+
+    const result: UpstreamBytesResult = {
+      contentType: response.headers.get("Content-Type") ?? "",
+      path,
+      status,
+    };
+
+    if (status === 200) {
+      try {
+        result.bytes = await readBoundedBody(response, { label, maxBytes });
+      } catch {
+        // Too large to show: the caller goes without the bytes.
+      }
+    } else {
+      await response.body?.cancel();
+    }
+
+    record(response.ok ? "ok" : "error");
+
+    return result;
+  } catch {
+    record("error");
+
+    throw new UpstreamRequestError(`${label} request failed`);
+  }
+};
+
 export const upstreamFetch = async (
   client: UpstreamClient,
   url: URL,
@@ -348,21 +462,10 @@ export const upstreamFetch = async (
   const method = (init.method ?? "GET").toUpperCase();
   const loggedPath = boundedPath(url);
 
-  const gatewayProof = client.auth.proofSecret
-    ? await computeGatewayProof(client.auth.proofSecret, client.auth.token)
-    : undefined;
-
-  const headers = upstreamAuthHeaders(client.auth, init.headers, gatewayProof);
-
   let status = 0;
 
   try {
-    const requestInit: RequestInit = { ...init, headers, redirect: "manual" };
-
-    const response = await (client.fetcher
-      ? client.fetcher.fetch(url, requestInit)
-      : fetch(url, requestInit));
-
+    const response = await sendUpstream(client, url, init);
     const { status: responseStatus } = response;
     status = responseStatus;
     const json = await readBoundedJson(response, label);

@@ -42,6 +42,8 @@ What a preview and a receipt can carry, all optional (`src/apply.ts`):
 
 A file a write needs is staged, never passed to `apply`: tool arguments go into the durable log, where one value holds at most 2 MB. A read-phase tool calls `store.stageBlob(executionId, bytes, facts)` and returns the SHA-256 it gets back; `apply` names that hash and reads the bytes with `store.readBlob`, and `preflight` reads the facts with `store.readBlobMeta` from its `context`. Only the run that staged a file can read it. One file may be 10 MB and one run 25 MB (`maxBlobBytes` and `maxRunBlobBytes` on `BaseGatewayRuntime` lower them), and a run's files are deleted when it ends, is rejected or expires.
 
+For a connector that takes files, `sniffFileType` reads a file's type from its first bytes (PNG, JPEG, GIF, WebP, AVIF, PDF, and SVG so that it can be refused by name), `extensionsFor` and `typeAllowed` check a name and a list of accepted types against it, and `describeImage` measures a picture and makes the thumbnail both surfaces will draw, with the Cloudflare Images binding (`IMAGES` on `GatewayEnv`, optional). `upstreamFetchBytes` reads a file from the CMS as the editor, bounded, for the "before" side of a replacement, and `readBoundedBody` bounds any other response.
+
 ## Commands
 
 ```sh

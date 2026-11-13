@@ -13,6 +13,9 @@ export interface GatewayEnv {
   DEPLOYMENT_ENVIRONMENT?: string;
   // Bound to the deployment's `BaseGatewayRuntime` subclass.
   GATEWAY_RUNTIME: DurableObjectNamespace;
+  // Cloudflare Images, for the thumbnail an approval shows beside a file.
+  // Without it a file is previewed by its type, size and hash alone.
+  IMAGES?: ImagesBinding;
   // Runs model-written code in a Dynamic Worker.
   LOADER: WorkerLoader;
   // Hostnames the MCP endpoint answers on, comma separated.

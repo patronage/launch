@@ -11,6 +11,9 @@ Locally the three parts run on one machine: the gateway on `vite dev`, the Paylo
 - `approve`: `payload.apply` pauses, the approval page shows the change before and after, and Approve writes it.
 - `stale`: a request built on an old `updatedAt` gets an approval page with the reason and no Approve button.
 - `draft-only`: the approved change is the newest draft; the published document is unchanged.
+- `upload`: `payload.stageUpload` keeps a picture in the gateway, the approval page shows its thumbnail, and Approve saves it through Payload's upload route to local R2.
+- `replace`: the approval page shows the old file beside the new one with a warning, and Approve replaces it.
+- `refused-file`: an SVG, and a URL the collection does not allow, are refused when staged, before any approval.
 
 ## How to get to it (user POV)
 
@@ -22,6 +25,7 @@ Locally the three parts run on one machine: the gateway on `vite dev`, the Paylo
 Preconditions: the one-time setup in SKILL.md (the shared proof secret in both apps' `.dev.vars`), Payload seeded, and `launch mcp` ending with `Doctor: PASS`.
 
 - **Draft write, end to end**: `drive mcp payload-draft`. It signs in as the first local admin, lists the tools, reads the newest draft of the first published post, sends a retitle with a stale `expected_updated_at` and checks its approval page offers no Approve, sends the real one, approves it in a browser, reads the receipt with `get_run`, and reads the post back twice: the newest draft holds the new title and the public API still returns the old one. Evidence: `transcript.md`, the three approval-page screenshots, `run.json` (the receipt) and the gateway's `server-log.txt` with each request's wide event.
+- **Upload and replace a file**: `drive mcp payload-upload`. It stages an SVG declared as a PNG and a URL the media collection does not allow, and checks both are refused. It then draws a small PNG of its own, stages it as base64, approves the `upload_media` in a browser, and checks that Payload's public API serves the same bytes that were approved. Last it stages a second picture, approves a `replace_media_file` for the same document, and checks the new bytes are served and the alt text is kept. Evidence: `transcript.md`, four approval-page screenshots (look for the thumbnails: one on the upload, two on the replacement), `run.json` and `server-log.txt`.
 - **Another operation by hand**: sign a JWT the way the drive does (`signIn` in `scripts/drive.ts`) and send `tools/call` for `execute` to `http://localhost:8787/mcp` with it in `Cf-Access-Jwt-Assertion`. Open the approval link in a browser that sends the same header.
 
 ## Gotchas
@@ -29,4 +33,6 @@ Preconditions: the one-time setup in SKILL.md (the shared proof secret in both a
 - `launch mcp` rebuilds Payload with the stand-in as its Access team domain. A Payload server started by a plain `launch payload` doesn't trust the stand-in, so launch refuses to reuse it: run `cleanup payload` first.
 - A restarted stand-in has a new key. Servers that cached the old one fetch the new one on the next request, at most every 30 seconds.
 - The drive leaves its draft in place. Every run edits the same post (the first published one by title) and replaces the last run's marker in the draft's title.
+- `payload-upload` adds one media document per run and leaves it in place.
+- Thumbnails come from the Images binding, which local workerd provides. A page with no thumbnail means the binding is missing from `apps/mcp/cloudflare.config.ts` or the file is not a picture.
 - The inline approval card that MCP hosts render is not covered here: it needs a real host. The approval page it mirrors is.

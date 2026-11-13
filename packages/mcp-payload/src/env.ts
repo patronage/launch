@@ -1,5 +1,9 @@
 // The bindings the Payload connector reads.
 export interface PayloadEnv {
+  // The Cloudflare Images binding, which measures an uploaded picture and
+  // makes the thumbnail an approval shows. Without it, an approval shows a
+  // file's type, size and hash and no picture.
+  IMAGES?: ImagesBinding;
   // A Service binding to the Payload Worker. Set, it is used instead of
   // PAYLOAD_API_URL.
   PAYLOAD?: Fetcher;

@@ -6,15 +6,16 @@ import {
 import type { JsonValue } from "@patronage/mcp-core";
 import { z } from "zod";
 
-// What `payload.apply` can change: top-level fields of one document, saved as
-// a new draft of it or as a new draft document. A change is published only
+// What `payload.apply` can change. The draft kinds change top-level fields of
+// one document, saved as a new draft of it or as a new draft document; the
+// upload kinds (further down) add a file or replace one. A change is published only
 // when its operation says `publish: true`, which the approval preview shows
 // as its own `_status` row. The fields Payload manages itself are refused in
 // `fields`: the id, the timestamps, and every `_`-prefixed key, so `_status`
 // changes only through `publish`.
 const RESERVED_FIELDS = new Set(["createdAt", "deletedAt", "id", "updatedAt"]);
 
-const slugSchema = z
+export const slugSchema = z
   .string()
   .trim()
   .min(1)
@@ -129,14 +130,86 @@ const createDraftOperationSchema = z
   .strictObject({ ...draftChangeFields, kind: z.literal("create_draft") })
   .superRefine(changeRules(false));
 
-const draftOperationSchema = z.discriminatedUnion("kind", [
+// A file staged earlier in the same run with `payload.stageUpload`, named by
+// the hash of its bytes. The bytes never travel in an operation.
+const UPLOAD_REF = /^sha256:[0-9a-f]{64}$/u;
+const uploadRefSchema = z.string().regex(UPLOAD_REF);
+
+// A file name as Payload will be asked to store it: one path segment, no
+// control characters, with an extension.
+export const filenameSchema = z
+  .string()
+  .min(3)
+  .max(120)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._ -]*\.[A-Za-z0-9]{2,5}$/u);
+
+const uploadFields = {
+  collection: slugSchema,
+  // The document's other fields, such as a media file's alt text. Payload
+  // enforces the ones it requires.
+  fields: z.record(fieldNameSchema, z.json()).optional(),
+  // Stored under this name instead of the one the file was staged with.
+  filename: filenameSchema.optional(),
+  upload_ref: uploadRefSchema,
+};
+
+const uploadMediaOperationSchema = z.strictObject({
+  ...uploadFields,
+  kind: z.literal("upload_media"),
+});
+
+const replaceMediaFileOperationSchema = z.strictObject({
+  ...uploadFields,
+  // Required: a file replacement shows at once wherever the file is used, so
+  // it is never made against a document the model did not just read.
+  expected_updated_at: z.string().min(1).max(64),
+  id: documentIdSchema,
+  kind: z.literal("replace_media_file"),
+});
+
+const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
+  uploadMediaOperationSchema,
+  replaceMediaFileOperationSchema,
 ]);
 
-export type DraftOperation = z.infer<typeof draftOperationSchema>;
+export type DraftOperation =
+  | z.infer<typeof createDraftOperationSchema>
+  | z.infer<typeof updateDraftOperationSchema>;
 
 export type UpdateDraftOperation = z.infer<typeof updateDraftOperationSchema>;
+
+export type UploadOperation =
+  | z.infer<typeof replaceMediaFileOperationSchema>
+  | z.infer<typeof uploadMediaOperationSchema>;
+
+export type PayloadOperation = z.infer<typeof operationSchema>;
+
+export const isUploadOperation = (
+  operation: PayloadOperation
+): operation is UploadOperation =>
+  operation.kind === "upload_media" || operation.kind === "replace_media_file";
+
+// The SHA-256 an `upload_ref` names.
+export const uploadSha256 = (operation: UploadOperation): string =>
+  operation.upload_ref.slice("sha256:".length);
+
+// A new file has no id until Payload saves it.
+export const uploadTarget = (operation: UploadOperation): string =>
+  operation.kind === "upload_media"
+    ? `${operation.collection}/new`
+    : `${operation.collection}/${operation.id}`;
+
+// The name is added where the staged file is known; this is the sentence
+// from the operation alone.
+export const uploadSentence = (operation: UploadOperation): string => {
+  const named = operation.filename ? ` as ${operation.filename}` : "";
+
+  return operation.kind === "upload_media"
+    ? `Upload a file to ${operation.collection}${named}`
+    : `Replace the file of ${operation.collection} ${operation.id}${named}`;
+};
 
 // A new document has no id until Payload saves it, so its target names the
 // collection alone.
@@ -176,10 +249,25 @@ export const draftSentence = (operation: DraftOperation): string => {
     : `Create a new ${operation.collection} draft with ${fields}`;
 };
 
+export const operationTarget = (operation: PayloadOperation): string =>
+  isUploadOperation(operation)
+    ? uploadTarget(operation)
+    : draftTarget(operation);
+
+export const operationSentence = (operation: PayloadOperation): string =>
+  isUploadOperation(operation)
+    ? uploadSentence(operation)
+    : draftSentence(operation);
+
+// An operation on a document that exists already. Each makes its own
+// document otherwise, so those never collide.
+const namesExistingTarget = (operation: PayloadOperation): boolean =>
+  operation.kind === "update_draft" || operation.kind === "replace_media_file";
+
 const draftApplyInputSchema = z
   .object({
     intent: z.string().trim().min(1).max(500),
-    operations: z.array(draftOperationSchema).min(1).max(MAX_OPERATIONS),
+    operations: z.array(operationSchema).min(1).max(MAX_OPERATIONS),
   })
   // One update per document, for the same reason as `wp.apply`: the first
   // write moves `updatedAt`, so a second one would always report a conflict.
@@ -188,11 +276,11 @@ const draftApplyInputSchema = z
     const seen = new Set<string>();
 
     for (const [index, operation] of input.operations.entries()) {
-      if (operation.kind === "create_draft") {
+      if (!namesExistingTarget(operation)) {
         continue;
       }
 
-      const target = draftTarget(operation);
+      const target = operationTarget(operation);
 
       if (seen.has(target)) {
         ctx.addIssue({
@@ -209,7 +297,7 @@ const draftApplyInputSchema = z
 
 export interface DraftApplyInput {
   intent: string;
-  operations: DraftOperation[];
+  operations: PayloadOperation[];
 }
 
 // The `payload.apply` I/O boundary, as `parseApplyInput` is for `wp.apply`.
