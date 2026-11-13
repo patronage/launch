@@ -266,7 +266,9 @@ export const isLocalUrl = (value: string): boolean => {
 export const unsafeEnvironment = (
   surface: SurfaceName,
   files: Map<string, string>[],
-  inherited: NodeJS.ProcessEnv
+  inherited: NodeJS.ProcessEnv,
+  /** The secrets in the one file the surface's local Worker reads. */
+  secrets = new Map<string, string>()
 ): string[] => {
   const problems: string[] = [];
 
@@ -328,8 +330,10 @@ export const unsafeEnvironment = (
       "APPROVAL_CSRF_SECRET",
       "PAYLOAD_ACCESS_PROOF_SECRET",
     ]) {
-      if (!files.some((file) => file.get(name))) {
-        problems.push(`${name} is missing from apps/mcp/.dev.vars`);
+      if (!secrets.get(name)) {
+        problems.push(
+          `${name} is missing from the gateway's secrets: apps/mcp/.dev.vars, or .dev.vars.development when that file exists`
+        );
       }
     }
   }
@@ -354,6 +358,29 @@ const readEnvFiles = (surface: SurfaceName): Map<string, string>[] => {
     .map((file) => path.join(appDir, file))
     .filter((file) => existsSync(file))
     .map((file) => parseEnvFile(readFileSync(file, "utf-8")));
+};
+
+/**
+ * The names of a surface's secret files, the one a local Worker reads first.
+ * The Cloudflare Vite plugin reads `.dev.vars.<mode>` when it exists and
+ * `.dev.vars` only when it doesn't; it never merges the two.
+ */
+export const secretFileNames = (surface: SurfaceName): string[] =>
+  SURFACES[surface].envFiles
+    .filter((file) => file.startsWith(".dev.vars"))
+    .toSorted((a, b) => b.length - a.length);
+
+/** The secrets a surface's local Worker gets: those of its one active file. */
+const readSecrets = (surface: SurfaceName): Map<string, string> => {
+  const appDir = path.join(REPO_ROOT, SURFACES[surface].app);
+
+  const active = secretFileNames(surface)
+    .map((file) => path.join(appDir, file))
+    .find((file) => existsSync(file));
+
+  return active
+    ? parseEnvFile(readFileSync(active, "utf-8"))
+    : new Map<string, string>();
 };
 
 /** The local WordPress origin web-wordpress reads, once the env is safe. */
@@ -661,7 +688,8 @@ export const doctor = async (
   const problems = unsafeEnvironment(
     surface,
     readEnvFiles(surface),
-    process.env
+    process.env,
+    readSecrets(surface)
   );
 
   check(
@@ -831,7 +859,8 @@ export const launch = async (
   const problems = unsafeEnvironment(
     surface,
     readEnvFiles(surface),
-    process.env
+    process.env,
+    readSecrets(surface)
   );
 
   if (problems.length > 0) {
@@ -917,11 +946,12 @@ const portFor = (surface: SurfaceName): number => {
     : SURFACES[surface].defaultPort;
 };
 
-/** A secret as an app's env files give it: the last file that sets it wins. */
-const secretIn = (surface: SurfaceName, name: string): string =>
-  readEnvFiles(surface)
-    .map((file) => file.get(name) ?? "")
-    .findLast(Boolean) ?? "";
+/** Where an app's local Worker reads its secrets, for an error message. */
+const secretFilesHint = (surface: SurfaceName): string => {
+  const [modeFile = "", baseFile = ""] = secretFileNames(surface);
+
+  return `${SURFACES[surface].app}/${baseFile} (or ${modeFile}, which replaces it when it exists)`;
+};
 
 /**
  * `launch mcp`: the Access stand-in, then Payload built to trust it, then the
@@ -929,24 +959,27 @@ const secretIn = (surface: SurfaceName, name: string): string =>
  * their own `.dev.vars`, because that is the only place a local Worker reads
  * a secret from.
  */
-export const launchGateway = async (port: number): Promise<void> => {
-  const proof = secretIn("payload", "ACCESS_GATEWAY_PROOF_SECRET");
+export const launchGateway = async (
+  port: number,
+  ports: { access?: number; payload?: number } = {}
+): Promise<void> => {
+  const proof = readSecrets("payload").get("ACCESS_GATEWAY_PROOF_SECRET");
 
   if (!proof) {
     throw new Error(
-      "ACCESS_GATEWAY_PROOF_SECRET is missing from apps/payload/.dev.vars; see the MCP gateway section of SKILL.md."
+      `ACCESS_GATEWAY_PROOF_SECRET is missing from ${secretFilesHint("payload")}; see the MCP gateway section of SKILL.md.`
     );
   }
 
-  if (secretIn("mcp", "PAYLOAD_ACCESS_PROOF_SECRET") !== proof) {
+  if (readSecrets("mcp").get("PAYLOAD_ACCESS_PROOF_SECRET") !== proof) {
     throw new Error(
-      "PAYLOAD_ACCESS_PROOF_SECRET in apps/mcp/.dev.vars must equal ACCESS_GATEWAY_PROOF_SECRET in apps/payload/.dev.vars; see the MCP gateway section of SKILL.md."
+      `PAYLOAD_ACCESS_PROOF_SECRET in ${secretFilesHint("mcp")} must equal ACCESS_GATEWAY_PROOF_SECRET in ${secretFilesHint("payload")}; see the MCP gateway section of SKILL.md.`
     );
   }
 
-  const accessPort = portFor("access");
+  const accessPort = ports.access ?? portFor("access");
   const accessIssuer = standinIssuer(accessPort);
-  const payloadPort = portFor("payload");
+  const payloadPort = ports.payload ?? portFor("payload");
 
   await launch("access", accessPort);
   await launch("payload", payloadPort, { accessIssuer });
@@ -1210,6 +1243,7 @@ Surfaces: payload (apps/payload, port 4173), web-wordpress (apps/web-wordpress, 
 
 Commands:
   launch <surface> [--port N]      Prepare and start a server this run owns, then run doctor
+                                   (mcp also takes --payload-port N and --access-port N)
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
   drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft)
@@ -1237,8 +1271,8 @@ const status = (): number => {
   return 0;
 };
 
-const parsePort = (rest: string[]): number | undefined => {
-  const index = rest.indexOf("--port");
+const parsePort = (rest: string[], flag = "--port"): number | undefined => {
+  const index = rest.indexOf(flag);
 
   if (index === -1) {
     return undefined;
@@ -1247,7 +1281,7 @@ const parsePort = (rest: string[]): number | undefined => {
   const port = Number(rest[index + 1]);
 
   if (!(Number.isInteger(port) && port > 0 && port < 65_536)) {
-    throw new Error("--port takes a port number");
+    throw new Error(`${flag} takes a port number`);
   }
 
   return port;
@@ -1261,7 +1295,12 @@ const COMMANDS = new Map<string, Command>([
     async (surface, rest) => {
       const port = parsePort(rest) ?? SURFACES[surface].defaultPort;
 
-      await (surface === "mcp" ? launchGateway(port) : launch(surface, port));
+      await (surface === "mcp"
+        ? launchGateway(port, {
+            access: parsePort(rest, "--access-port"),
+            payload: parsePort(rest, "--payload-port"),
+          })
+        : launch(surface, port));
 
       return 0;
     },

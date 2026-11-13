@@ -47,13 +47,15 @@ echo "ACCESS_GATEWAY_PROOF_SECRET=$PROOF" >> apps/payload/.dev.vars
 printf 'APPROVAL_CSRF_SECRET=%s\nPAYLOAD_ACCESS_PROOF_SECRET=%s\n' "$(openssl rand -hex 32)" "$PROOF" > apps/mcp/.dev.vars
 ```
 
+A local Worker reads `.dev.vars.development` (the gateway) or `.dev.vars.production` (Payload) instead of `.dev.vars` when that file exists, and never merges the two. If a checkout has one, the secrets go there.
+
 Then start the surface:
 
 ```bash
 node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: launch web-wordpress, launch mcp, --port N
 ```
 
-`launch mcp` starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`.
+`launch mcp` starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`. If another checkout holds Payload's or the stand-in's port, pass `--payload-port N` or `--access-port N`.
 
 Launch fails when Doctor fails, and it refuses in these cases:
 

@@ -33,6 +33,7 @@ import {
   parseReceipt,
   portInUse,
   probe,
+  secretFileNames,
   unsafeEnvironment,
 } from "./verify.ts";
 import type { Receipt } from "./verify.ts";
@@ -125,18 +126,29 @@ describe("gateway environment safety", () => {
     ["PAYLOAD_ACCESS_PROOF_SECRET", "b"],
   ]);
 
-  it("needs both secrets in the gateway's own .dev.vars", () => {
-    assert.deepEqual(unsafeEnvironment("mcp", [secrets], {}), []);
+  it("needs both secrets in the gateway's active secret file", () => {
+    assert.deepEqual(unsafeEnvironment("mcp", [secrets], {}, secrets), []);
     assert.equal(unsafeEnvironment("mcp", [], {}).length, 2);
-    // A secret in the shell doesn't count: a local Worker with a .dev.vars
-    // file reads secrets from that file only.
+    // A secret in the shell or in a file the Worker doesn't read doesn't
+    // count: a local Worker reads secrets from its one active file only.
     assert.equal(
-      unsafeEnvironment("mcp", [], {
+      unsafeEnvironment("mcp", [secrets], {
         APPROVAL_CSRF_SECRET: "a",
         PAYLOAD_ACCESS_PROOF_SECRET: "b",
       }).length,
       2
     );
+  });
+
+  it("reads the mode's secret file before .dev.vars", () => {
+    assert.deepEqual(secretFileNames("mcp"), [
+      ".dev.vars.development",
+      ".dev.vars",
+    ]);
+    assert.deepEqual(secretFileNames("payload"), [
+      ".dev.vars.production",
+      ".dev.vars",
+    ]);
   });
 
   it("refuses a hosted Payload, WordPress or Access team", () => {
@@ -147,9 +159,12 @@ describe("gateway environment safety", () => {
       "WORDPRESS_API_URL",
     ]) {
       assert.equal(
-        unsafeEnvironment("mcp", [secrets], {
-          [name]: "https://cms.example.org",
-        }).length,
+        unsafeEnvironment(
+          "mcp",
+          [secrets],
+          { [name]: "https://cms.example.org" },
+          secrets
+        ).length,
         1,
         name
       );
@@ -157,7 +172,8 @@ describe("gateway environment safety", () => {
         unsafeEnvironment(
           "mcp",
           [secrets, new Map([[name, "https://cms.example.org"]])],
-          {}
+          {},
+          secrets
         ).length,
         1,
         name
@@ -174,7 +190,7 @@ describe("gateway environment safety", () => {
       "WORDPRESS_ACCESS_CLIENT_SECRET",
     ]) {
       assert.equal(
-        unsafeEnvironment("mcp", [secrets], { [name]: "x" }).length,
+        unsafeEnvironment("mcp", [secrets], { [name]: "x" }, secrets).length,
         1,
         name
       );
