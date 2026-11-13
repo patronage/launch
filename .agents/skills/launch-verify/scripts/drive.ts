@@ -6,7 +6,7 @@
 // Each drive is one user's path, step by step, so awaiting inside loops is
 // the point here, not an accident.
 /* oxlint-disable no-await-in-loop */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -1072,8 +1072,395 @@ const mcpPayloadDraft: Drive = async ({
   }
 };
 
+/** A picture no earlier run made: a small card with the run's marker on it. */
+const drawPicture = async (
+  browser: Browser,
+  marker: string,
+  color: string
+): Promise<Buffer> => {
+  const page = await browser.newPage({ viewport: { height: 240, width: 360 } });
+
+  await page.setContent(
+    `<body style="margin:0;display:grid;place-items:center;height:100vh;background:${color};color:#fff;font:600 22px system-ui">${marker}</body>`
+  );
+
+  const picture = await page.screenshot({ type: "png" });
+
+  await page.close();
+
+  return picture;
+};
+
+const sha256 = (bytes: Uint8Array): string =>
+  createHash("sha256").update(bytes).digest("hex");
+
+/** Where `payload.stageUpload` is told to take a file from. */
+type StageSource =
+  | { base64: string; filename: string; mimeType: string }
+  | { url: string };
+
+/** The script an agent sends to stage one picture and ask for it to be saved. */
+const uploadScript = (options: {
+  filename: string;
+  marker: string;
+  operation: object;
+  picture: Buffer;
+}) => `async () => {
+  const file = await payload.stageUpload({
+    collection: "media",
+    source: {
+      base64: ${JSON.stringify(options.picture.toString("base64"))},
+      filename: ${JSON.stringify(options.filename)},
+      mimeType: "image/png",
+    },
+  });
+  return payload.apply({
+    intent: "Add a picture for launch-verify run ${options.marker}",
+    operations: [{ ...${JSON.stringify(options.operation)}, upload_ref: file.upload_ref }],
+  });
+}`;
+
+/** The script an agent sends to stage a file that is refused before any approval. */
+const refusedStageScript = (source: StageSource) =>
+  `async () => payload.stageUpload({ collection: "media", source: ${JSON.stringify(source)} })`;
+
+const SVG_FILE =
+  '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+
+/** What Payload's public API says about one media file. */
+interface MediaDocument {
+  alt?: string;
+  filename?: string;
+  updatedAt?: string;
+  url?: string;
+}
+
+const readMedia = async (
+  payloadOrigin: string,
+  id: string
+): Promise<MediaDocument> => {
+  const response = await fetch(`${payloadOrigin}/api/media/${id}?depth=0`);
+
+  return response.ok ? await response.json() : {};
+};
+
+/** The SHA-256 of the file Payload serves at a media document's URL. */
+const servedSha256 = async (
+  payloadOrigin: string,
+  url: string | undefined
+): Promise<string> => {
+  if (!url) {
+    return "no url";
+  }
+
+  const response = await fetch(
+    new URL(new URL(url, payloadOrigin).pathname, payloadOrigin)
+  );
+
+  return response.ok
+    ? sha256(new Uint8Array(await response.arrayBuffer()))
+    : `HTTP ${response.status}`;
+};
+
+/** How many thumbnails an approval page draws, and its visible text. */
+const approvalPreview = async (page: Page) => ({
+  text: await mainText(page),
+  thumbnails: await page
+    .locator('img.thumb[src^="data:image/webp;base64,"]')
+    .count(),
+});
+
+/** What a run's receipt, as JSON text, says about an approved upload. */
+const uploadFacts = (receipt: string) => ({
+  id: /"details":\{[^}]*"id":"(?<id>\d+)"/u.exec(receipt)?.groups?.id ?? "",
+  succeeded:
+    receipt.includes('"status":"succeeded"') &&
+    receipt.includes('"changed_paths":["file"'),
+  versioned:
+    receipt.includes('"updated_at":"') && receipt.includes('"version_id":"'),
+});
+
+/**
+ * MCP gateway: an editor's agent stages a picture, a file the gateway does
+ * not take is refused before anyone is asked, the editor approves the upload
+ * with its thumbnail in front of them, Payload stores and serves the same
+ * bytes, and then the file is replaced the same way.
+ */
+const mcpPayloadUpload: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  const expect = (pass: boolean, what: string) => {
+    if (!pass) {
+      failures.push(what);
+    }
+  };
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const svg = await execute(
+      origin,
+      token,
+      refusedStageScript({
+        base64: Buffer.from(SVG_FILE).toString("base64"),
+        filename: "logo.png",
+        mimeType: "image/png",
+      })
+    );
+
+    const byUrl = await execute(
+      origin,
+      token,
+      refusedStageScript({ url: "https://example.com/picture.png" })
+    );
+
+    expect(
+      svg.text.includes("SVG files are not accepted"),
+      `an SVG named as a PNG was not refused: ${svg.text.slice(0, 200)}`
+    );
+    expect(
+      byUrl.structuredContent.status === "error",
+      `a URL the collection does not allow was not refused: ${byUrl.text.slice(0, 200)}`
+    );
+    log.step(
+      "execute: payload.stageUpload with an SVG declared as a PNG, then with a URL the collection does not allow",
+      `${svg.text.slice(0, 120)} | ${byUrl.text.slice(0, 140)}`
+    );
+
+    const first = await drawPicture(browser, marker, "#2f6f4f");
+    const filename = `${marker}.png`;
+
+    const paused = await execute(
+      origin,
+      token,
+      uploadScript({
+        filename,
+        marker,
+        operation: {
+          collection: "media",
+          fields: { alt: `Launch verify picture ${marker}` },
+          kind: "upload_media",
+        },
+        picture: first,
+      })
+    );
+
+    const { approvalUrl = "", executionId = "" } = paused.structuredContent;
+
+    expect(
+      paused.structuredContent.status === "paused" &&
+        approvalUrl.startsWith(`${origin}/mcp/approvals/`),
+      `the upload did not pause for approval: ${paused.text.slice(0, 200)}`
+    );
+    log.step(
+      `execute: payload.stageUpload with a ${first.byteLength}-byte PNG, then payload.apply upload_media`,
+      `${paused.structuredContent.status}; ${paused.text.slice(0, 160)}`
+    );
+
+    if (failures.length > 0) {
+      throw new Error("the upload never reached approval");
+    }
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    await page.goto(approvalUrl, { waitUntil: "networkidle" });
+
+    const preview = await approvalPreview(page);
+
+    expect(
+      preview.text.includes(filename) && preview.text.includes("image/png"),
+      "the approval page does not name the file and its type"
+    );
+    expect(
+      preview.text.includes(sha256(first).slice(0, 12)),
+      "the approval page does not show the hash of the staged file"
+    );
+    expect(preview.thumbnails === 1, "the approval page shows no thumbnail");
+    log.step(
+      "Open the approval page",
+      `names ${filename}: ${preview.text.includes(filename)}; shows the file's hash: ${preview.text.includes(sha256(first).slice(0, 12))}; thumbnails drawn: ${preview.thumbnails}`
+    );
+    await log.shot(page, "upload-approval");
+
+    await page.getByRole("button", { name: "Approve" }).click();
+    await page.waitForLoadState("networkidle");
+
+    const outcome = await mainText(page);
+
+    log.step("Click Approve", outcome.slice(0, 200));
+    await log.shot(page, "upload-approved");
+
+    const run = await callTool(origin, token, "get_run", { executionId });
+    const uploaded = uploadFacts(JSON.stringify(run.structuredContent));
+
+    writeFileSync(
+      path.join(dir, "run.json"),
+      `${JSON.stringify(run.structuredContent, null, 2)}\n`
+    );
+
+    expect(
+      uploaded.succeeded && uploaded.id !== "",
+      "get_run reports no uploaded file"
+    );
+
+    expect(
+      uploaded.versioned,
+      "the upload's receipt does not name the version Payload made"
+    );
+
+    if (failures.length > 0) {
+      throw new Error("the upload did not land");
+    }
+
+    const media = await readMedia(payloadOrigin, uploaded.id);
+    const served = await servedSha256(payloadOrigin, media.url);
+
+    expect(
+      served === sha256(first),
+      `Payload does not serve the bytes that were approved (${served})`
+    );
+    expect(
+      media.alt === `Launch verify picture ${marker}`,
+      "the new media document does not hold its alt text"
+    );
+    log.step(
+      "get_run, then read the new file from Payload's public API",
+      `media/${uploaded.id} "${media.filename}", alt "${media.alt}"; names its version: ${uploaded.versioned}; served bytes match the approved file: ${served === sha256(first)} (run.json)`
+    );
+
+    const second = await drawPicture(browser, `${marker} v2`, "#7a3e9d");
+
+    const replacing = await execute(
+      origin,
+      token,
+      uploadScript({
+        filename: `${marker}-v2.png`,
+        marker,
+        operation: {
+          collection: "media",
+          expected_updated_at: media.updatedAt,
+          id: Number(uploaded.id),
+          kind: "replace_media_file",
+        },
+        picture: second,
+      })
+    );
+
+    const replaceUrl = replacing.structuredContent.approvalUrl ?? "";
+
+    expect(
+      replaceUrl.startsWith(`${origin}/mcp/approvals/`),
+      `the replacement did not pause for approval: ${replacing.text.slice(0, 200)}`
+    );
+
+    if (failures.length > 0) {
+      throw new Error("the replacement never reached approval");
+    }
+
+    await page.goto(replaceUrl, { waitUntil: "networkidle" });
+
+    const comparison = await approvalPreview(page);
+
+    expect(
+      comparison.thumbnails === 2,
+      `the replacement's approval page shows ${comparison.thumbnails} thumbnails, not the old file and the new one`
+    );
+    expect(
+      comparison.text.includes("Heads up") &&
+        comparison.text.includes("at once everywhere it is used"),
+      "the replacement's approval page does not warn that it shows at once"
+    );
+    expect(
+      comparison.text.includes(sha256(first).slice(0, 12)) &&
+        comparison.text.includes(sha256(second).slice(0, 12)),
+      "the replacement's approval page does not show both files' hashes"
+    );
+    log.step(
+      "execute: stage a second picture and payload.apply replace_media_file, then open its approval page",
+      `thumbnails drawn: ${comparison.thumbnails}; warns it shows at once: ${comparison.text.includes("Heads up")}; shows both hashes: ${comparison.text.includes(sha256(first).slice(0, 12)) && comparison.text.includes(sha256(second).slice(0, 12))}`
+    );
+    await log.shot(page, "replace-approval");
+
+    await page.getByRole("button", { name: "Approve" }).click();
+    await page.waitForLoadState("networkidle");
+
+    const replacedOutcome = await mainText(page);
+
+    log.step("Click Approve", replacedOutcome.slice(0, 200));
+    await log.shot(page, "replace-approved");
+
+    const replaced = await readMedia(payloadOrigin, uploaded.id);
+    const servedNow = await servedSha256(payloadOrigin, replaced.url);
+
+    expect(
+      servedNow === sha256(second),
+      `Payload does not serve the replacement (${servedNow})`
+    );
+    expect(
+      replaced.alt === media.alt,
+      "replacing the file changed the document's alt text"
+    );
+    log.step(
+      "Read the file again from Payload's public API",
+      `media/${uploaded.id} "${replaced.filename}"; served bytes match the replacement: ${servedNow === sha256(second)}; alt kept: ${replaced.alt === media.alt}`
+    );
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-upload failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
-  ["mcp", new Map([["payload-draft", mcpPayloadDraft]])],
+  [
+    "mcp",
+    new Map([
+      ["payload-draft", mcpPayloadDraft],
+      ["payload-upload", mcpPayloadUpload],
+    ]),
+  ],
   [
     "payload",
     new Map([

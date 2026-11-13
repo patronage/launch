@@ -19,6 +19,7 @@ import {
 } from "./payload";
 import { applyDraftOperations } from "./payload-apply";
 import { parseDraftApplyInput } from "./payload-operations";
+import { stageUpload } from "./payload-upload";
 
 // Payload's built-in tools that only read, and the read-only ones
 // apps/payload adds (editing info, the draft preview link and the two rich
@@ -50,6 +51,7 @@ export const PAYLOAD_CONNECTOR_INSTRUCTIONS = [
   "Payload CMS, read through Payload's own MCP tools as the signed-in editor.",
   'Reads: payload.tools() lists the read tools and their input schemas; payload.call({tool, arguments}) runs one, e.g. payload.call({tool: "findDocuments", arguments: {slug: "posts", where: {slug: {equals: "hello"}}, draft: true}}). Results are {isError, text, structured?}; the documents are JSON inside text.',
   `Writes: payload.apply({intent, operations}) pauses for human approval and saves each change as a draft. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at?} or {kind: "create_draft", collection, fields?, markdown?, publish?}. Add publish: true only when the person asked to publish; the approval shows it, and an update with publish: true and no fields publishes the current draft. fields holds top-level field values as Payload stores them; markdown holds rich text fields as Markdown, which Payload converts with the field's editor features. payload.call({tool: "getEditingInfo", arguments: {}}) lists which collections keep drafts and which fields are rich text. Before an update, read with draft: true and copy updatedAt to expected_updated_at.`,
+  'Files: first stage the file with payload.stageUpload({collection, source: {url}}) for a URL the collection allows (describe_site lists them under upload.urlAllowList; null means it takes none), or source: {base64, filename, mimeType} for a very small file: the whole script is at most 20,000 characters, which leaves room for about 14 KB of file, so anything larger has to come from a URL. It returns {upload_ref, filename, mimeType, bytes, width?, height?} and writes nothing. Then payload.apply an operation shaped {kind: "upload_media", collection, upload_ref, filename?, fields?} for a new file, or {kind: "replace_media_file", collection, id, upload_ref, expected_updated_at, filename?, fields?} to replace the file of an existing document, which changes it at once everywhere it is used. fields holds the other fields of the document, such as alt. The receipt gives the new id, filename and url under details. SVG files are refused.',
   "Do every read before payload.apply: once the write is approved, reads later in the script are refused, and the returned receipt reports the result.",
 ].join(" ");
 
@@ -79,7 +81,7 @@ export const createPayloadTools = (
 ): ConnectorToolMap =>
   ({
     apply: {
-      description: `Save 1-${MAX_OPERATIONS} update_draft or create_draft operations as Payload drafts, or published where an operation sets publish: true. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
+      description: `Save 1-${MAX_OPERATIONS} operations: update_draft or create_draft as Payload drafts (published where an operation sets publish: true), upload_media for a file staged with payload.stageUpload, or replace_media_file for a new file on an existing upload document. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
       execute: async (args, ctx) => {
         const input = parseDraftApplyInput(args);
         const caller = deps.scope.require();
@@ -103,6 +105,7 @@ export const createPayloadTools = (
           approverOpaque: caller.subjectOpaque,
           client: callerClient(deps.env, caller),
           executionId,
+          files: { images: deps.env.IMAGES, store: deps.store },
           onProgress: async (receipt) => {
             await deps.store.recordProgress?.(executionId, receipt);
           },
@@ -171,6 +174,39 @@ export const createPayloadTools = (
           tool: { type: "string" },
         },
         required: ["tool"],
+        type: "object",
+      },
+    },
+    stageUpload: {
+      description:
+        "Keep a file in the gateway for a later upload_media or replace_media_file operation in the same script. Takes {collection, source: {url}} for a URL on the collection's allow-list, or {collection, source: {base64, filename, mimeType}} for a very small file (a script holds about 14 KB of one). Writes nothing to Payload. Returns {upload_ref, filename, mimeType, bytes, width?, height?}.",
+      execute: async (args, ctx) => {
+        const caller = deps.scope.require();
+        const executionId = ctx?.executionId ?? caller.executionId;
+
+        if (executionId === undefined) {
+          throw new UpstreamRequestError(
+            "payload.stageUpload requires an execution id from the codemode runtime"
+          );
+        }
+
+        return await stageUpload(
+          {
+            client: callerClient(deps.env, caller),
+            executionId,
+            images: deps.env.IMAGES,
+            store: deps.store,
+            telemetry: deps.telemetry(),
+          },
+          args
+        );
+      },
+      inputSchema: {
+        properties: {
+          collection: { type: "string" },
+          source: { type: "object" },
+        },
+        required: ["collection", "source"],
         type: "object",
       },
     },

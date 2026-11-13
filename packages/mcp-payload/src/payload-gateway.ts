@@ -4,7 +4,7 @@ import type { PayloadEnv } from "./env";
 import { createPayloadClient, payloadConfigured } from "./payload";
 import { preflightDraftOperations } from "./payload-apply";
 import { readEditingInfo } from "./payload-editing";
-import { draftSentence, parseDraftApplyInput } from "./payload-operations";
+import { operationSentence, parseDraftApplyInput } from "./payload-operations";
 import {
   createPayloadTools,
   payloadAdminLink,
@@ -16,6 +16,7 @@ const PAYLOAD_EXECUTE_DESCRIPTION = [
   "The payload global reaches the Payload CMS.",
   'Payload reads: await payload.tools() lists the read tools; await payload.call({ tool: "findDocuments", arguments: { slug: "posts", where: { slug: { equals: "hello" } }, draft: true } }) returns { isError, text, structured? } with the documents as JSON in text.',
   'Payload writes: await payload.apply({ intent, operations }), with 1-20 operations shaped { kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at? } or { kind: "create_draft", collection, fields?, markdown?, publish? }; each is saved as a draft after human approval, and published only when it sets publish: true, which you add only when the person asked to publish. Put rich text fields in markdown as Markdown text; describe_site lists them under payload.collections[].richTextFields. Copy updatedAt from a draft: true read into expected_updated_at.',
+  'Payload files: const file = await payload.stageUpload({ collection: "media", source: { url } }) for a URL the collection allows, or source: { base64, filename, mimeType } for a very small file (the script is at most 20,000 characters, so about 14 KB of file), keeps the file in the gateway and returns { upload_ref, filename, mimeType, bytes }. Then payload.apply { kind: "upload_media", collection, upload_ref, fields? } for a new file, or { kind: "replace_media_file", collection, id, upload_ref, expected_updated_at, fields? } to replace an existing one, which shows at once wherever the file is used.',
 ].join(" ");
 
 // The Payload connector: Payload's own read tools over its MCP endpoint, and
@@ -47,10 +48,12 @@ export const payloadConnector: GatewayConnector<PayloadEnv> = {
 
     return {
       intent: input.intent,
-      sentences: input.operations.map((operation) => draftSentence(operation)),
+      sentences: input.operations.map((operation) =>
+        operationSentence(operation)
+      ),
     };
   },
-  preflight: (env, caller, args, telemetry) => {
+  preflight: (env, caller, args, telemetry, context) => {
     const input = parseDraftApplyInput(args);
 
     return preflightDraftOperations(
@@ -59,7 +62,11 @@ export const payloadConnector: GatewayConnector<PayloadEnv> = {
       input.operations,
       payloadAdminLink(env),
       telemetry,
-      payloadSiteLink(env)
+      {
+        // The run's staged files, which an upload's preview shows.
+        files: context && { ...context, images: env.IMAGES },
+        siteUrl: payloadSiteLink(env),
+      }
     );
   },
   tools: createPayloadTools,

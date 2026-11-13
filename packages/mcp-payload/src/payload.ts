@@ -2,12 +2,14 @@ import {
   UpstreamRequestError,
   assertSafeApiUrl,
   upstreamFetch,
+  upstreamFetchBytes,
 } from "@patronage/mcp-core";
 import type {
   AccessResult,
   JsonObject,
   JsonValue,
   UpstreamAuth,
+  UpstreamBytesResult,
   UpstreamClient,
   UpstreamFetchResult,
   UpstreamTelemetry,
@@ -137,6 +139,34 @@ export const payloadRest = (
   init: RequestInit = {}
 ): Promise<UpstreamFetchResult> =>
   upstreamFetch(client, payloadUrl(client, path), telemetry, init);
+
+// A file Payload serves, read as the editor: the `url` of an upload
+// document. Only its path is used, so wherever Payload says its public
+// origin is, the read goes to the Payload this gateway is bound to.
+export const payloadFile = async (
+  client: UpstreamClient,
+  link: string,
+  telemetry: UpstreamTelemetry,
+  maxBytes: number
+): Promise<UpstreamBytesResult> => {
+  const base = assertSafeApiUrl(client.apiUrl);
+  let path = "";
+
+  try {
+    const url = new URL(link, base);
+
+    path = `${url.pathname}${url.search}`;
+  } catch {
+    throw new UpstreamRequestError("Payload returned an unreadable file URL");
+  }
+
+  return await upstreamFetchBytes(
+    client,
+    payloadUrl(client, path),
+    telemetry,
+    maxBytes
+  );
+};
 
 export interface PayloadToolResult {
   isError: boolean;

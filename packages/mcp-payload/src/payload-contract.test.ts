@@ -285,12 +285,17 @@ const fakePayload = (options: FakeOptions = {}) => {
     }
 
     if (url.pathname.endsWith("/versions")) {
-      const stamp = url.searchParams.get("where[updatedAt][equals]");
+      const stamp = url.searchParams.get("where[version.updatedAt][equals]");
+
+      const found = options.ignoreVersionFilter
+        ? versions.slice(-1)
+        : versions.filter((version) => version.updatedAt === stamp);
 
       return Response.json({
-        docs: options.ignoreVersionFilter
-          ? versions.slice(-1)
-          : versions.filter((version) => version.updatedAt === stamp),
+        docs: found.map(({ id, updatedAt }) => ({
+          id,
+          version: { updatedAt },
+        })),
       });
     }
 
@@ -350,7 +355,7 @@ const preflight = (operations: DraftOperation[]): Promise<ApplyPreflight> =>
     operations,
     adminUrl,
     createUpstreamTelemetry(),
-    siteUrl
+    { siteUrl }
   );
 
 const apply = async (operations: DraftOperation[]) => {

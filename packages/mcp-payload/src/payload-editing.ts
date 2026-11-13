@@ -93,7 +93,9 @@ const uploadSchema = z.object({
       z.object({
         hostname: z.string(),
         pathname: z.string().optional(),
+        port: z.string().optional(),
         protocol: z.string().optional(),
+        search: z.string().optional(),
       })
     )
     .nullable(),
@@ -144,6 +146,8 @@ export const editingInfoSchema = z.object({
 });
 
 export type CollectionEditing = z.infer<typeof collectionEditingSchema>;
+
+export type UploadEditing = z.infer<typeof uploadSchema>;
 
 export type GlobalEditing = z.infer<typeof globalEditingSchema>;
 

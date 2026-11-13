@@ -15,11 +15,17 @@ export type {
   EditingInfo,
   GlobalEditing,
   RowsField,
+  UploadEditing,
 } from "./payload-editing";
 
 export { payloadConnector } from "./payload-gateway";
 
-export type { DraftApplyInput, DraftOperation } from "./payload-operations";
+export type {
+  DraftApplyInput,
+  DraftOperation,
+  PayloadOperation,
+  UploadOperation,
+} from "./payload-operations";
 
 export { parseDraftApplyInput } from "./payload-operations";
 

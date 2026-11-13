@@ -47,6 +47,9 @@ export default defineConfig({
         exportName: "GatewayRuntime",
         worker: name,
       }),
+      // Measures an uploaded picture and makes the small thumbnail an
+      // approval shows beside it. Only the Payload connector uploads files.
+      IMAGES: payloadOn && bindings.images(),
       LOADER: bindings.workerLoader(),
       MCP_ALLOWED_HOSTNAMES: bindings.text(domain ?? ""),
       // Payload, when this site has it: a Service binding to its Worker, or

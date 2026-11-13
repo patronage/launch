@@ -94,10 +94,22 @@ export type {
 export {
   MAX_BLOB_BYTES,
   MAX_RUN_BLOB_BYTES,
+  sha256Hex,
   StagedBlobError,
 } from "./staged-blobs";
 
 export type { StagedBlob, StagedBlobFacts } from "./staged-blobs";
+
+export {
+  extensionsFor,
+  sniffFileType,
+  SVG_TYPE,
+  typeAllowed,
+} from "./file-type";
+
+export { describeImage } from "./thumbnail";
+
+export type { ImageFacts, ThumbnailImages } from "./thumbnail";
 
 export {
   MAX_LOGGED_UPSTREAM_REQUESTS,
@@ -105,14 +117,17 @@ export {
   assertSafeApiUrl,
   createUpstreamTelemetry,
   numericHeader,
+  readBoundedBody,
   upstreamAuthHeaders,
   upstreamFetch,
+  upstreamFetchBytes,
 } from "./upstream";
 
 export type {
   JsonObject,
   JsonValue,
   UpstreamAuth,
+  UpstreamBytesResult,
   UpstreamClient,
   UpstreamFetchResult,
   UpstreamResponseInfo,
