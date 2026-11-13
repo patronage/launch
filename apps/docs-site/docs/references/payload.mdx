@@ -23,6 +23,28 @@ No performance difference has been measured yet. Local runs say nothing about ne
 
 `PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
 
+## Pull content from PlanetScale
+
+`pnpm db:pull` replaces the local Postgres with a copy of the content in the app's PlanetScale database, for working against real pages and posts. It needs Docker and the `pscale` CLI, signed in (`pscale auth login`) as someone who may manage roles on the database. From `apps/payload`:
+
+```bash
+pnpm db                        # start the local Postgres 17 (docker-compose.yml)
+pnpm db:pull                   # copy PlanetScale's main branch
+pnpm db:pull --branch staging  # or another branch
+pnpm db:pull --migrate         # then run this checkout's pending migrations on the copy
+pnpm db:pull --dry-run         # print the plan and contact nothing
+```
+
+Stop the preview server first, because the pull replaces the database it has open.
+
+- **Read-only.** The pull creates a temporary PlanetScale role that can only read and expires after 30 minutes, dumps through it, and deletes it as soon as the dump ends, even when the run fails or is interrupted.
+- **Content only.** `db-pull.tables` lists each table as `content`, whose rows are copied, or `excluded`. Users, sessions, admin preferences, form submissions and forms' notification emails are excluded and arrive empty, and so does any table the list doesn't name. The app's tests fail when a migration adds a table the list doesn't classify.
+- **Checked before the swap.** The copy is restored into a scratch database and checked, then swapped in. A failed run leaves the local database as it was and says where everything is.
+- **No users.** Open the admin on `localhost` and create the first user, which the local one-click sign-in then uses.
+- **Migrations.** The run compares the copy's migrations with this checkout and with `origin/main`, and fails when the copy has run one this checkout lacks.
+
+Media is not copied; it stays in R2. `pnpm db:recreate` deletes the local copy. The shared script is `packages/db-pull`, and its [README](https://github.com/patronage/launch/blob/main/packages/db-pull/README.md) covers the settings another app needs. See [ADR 0019](https://github.com/patronage/launch/blob/main/docs/adr/0019-local-pulls-copy-content-only.md).
+
 ## The demo
 
 `pnpm seed` builds the same invented site as the WordPress seed, so the two references can be compared page by page.

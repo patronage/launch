@@ -352,9 +352,6 @@ importers:
       payload:
         specifier: 4.0.0-beta.6
         version: 4.0.0-beta.6(graphql@16.15.0)(supports-color@10.2.2)(typescript@7.0.2)
-      pg:
-        specifier: 8.20.0
-        version: 8.20.0
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -374,6 +371,9 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.v.16
         version: 2.0.0-beta.v.16(@types/node@24.19.2)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.25.12)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261023.1)
+      '@launch/db-pull':
+        specifier: workspace:*
+        version: link:../../packages/db-pull
       '@launch/demo-content':
         specifier: workspace:*
         version: link:../../packages/demo-content
@@ -413,6 +413,9 @@ importers:
       miniflare:
         specifier: 5.20261023.2-beta
         version: 5.20261023.2-beta(@types/node@24.19.2)
+      pg:
+        specifier: 8.20.0
+        version: 8.20.0
       playwright:
         specifier: 1.65.0
         version: 1.65.0
@@ -615,6 +618,12 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.77.4)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/db-pull:
+    dependencies:
+      pg:
+        specifier: 8.20.0
+        version: 8.20.0
 
   packages/demo-content: {}
 

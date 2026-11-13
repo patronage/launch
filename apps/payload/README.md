@@ -43,13 +43,21 @@ After changing the seed or the blocks, `pnpm record-fixture` writes the seeded h
 
 ### Postgres
 
-Run Postgres locally (Hyperdrive's local proxy needs a password in the URL), then:
+`pnpm db` starts a local Postgres 17 from `docker-compose.yml` on port 5437 (Hyperdrive's local proxy needs a password in the URL, which the compose file sets). Then:
 
 ```bash
-export PAYLOAD_DB=postgres POSTGRES_URL=postgres://postgres:postgres@localhost:5432/launch_payload
+export PAYLOAD_DB=postgres POSTGRES_URL=postgres://postgres:postgres@localhost:5437/launch_payload
 pnpm payload migrate
 pnpm build && pnpm preview
 ```
+
+`pnpm db:stop` stops it, and `pnpm db:recreate` deletes its data and starts it empty.
+
+### Pull content from PlanetScale
+
+`pnpm db:pull` replaces the local Postgres with the content of the PlanetScale database in `db-pull.env` (`launch-payload`, branch `main`; `--branch <name>` picks another). It needs Docker and the `pscale` CLI signed in (`pscale auth login`). Stop the preview server first. `--dry-run` prints the plan and contacts nothing; `--migrate` runs this checkout's pending migrations on the copy afterwards.
+
+It reads through a temporary read-only PlanetScale role, which it deletes once the dump ends, and copies the rows of the `content` tables in `db-pull.tables` only. Users, sessions, admin preferences, form submissions and forms' notification emails stay in PlanetScale, so the copy has no users: open the admin on localhost and create the first one. `scripts/db-pull-after.mjs` then compares the copy's migrations with this checkout and `origin/main`, and prints `migrate:status`. A new collection, field or plugin table needs a line in `db-pull.tables`; `pnpm test` fails until it has one. Media stays in R2. The shared script and its settings are in [`packages/db-pull`](../../packages/db-pull/README.md).
 
 ## Deploy
 
