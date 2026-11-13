@@ -24,6 +24,7 @@ import { z } from "zod";
 import { DEFAULT_LOCK_SECONDS, heldByAnother } from "./lib/document-lock";
 import { describeDocumentFields, findFieldByPath } from "./lib/editing-info";
 import type { BlockLookup } from "./lib/editing-info";
+import { publicPathOf } from "./lib/preview";
 
 // Read-only tools for the MCP gateway (apps/mcp). Two convert rich text, so
 // an agent can write Markdown and the person approving it reads Markdown too.
@@ -262,7 +263,7 @@ export const getPreviewUrl = defineCollectionTool({
     title: "Get preview link",
   },
   description:
-    "The front end's draft preview link for one document, as the admin's Preview button opens it. `url` is null when the document has no address yet. Writes nothing.",
+    "The front end's draft preview link for one document, as the admin's Preview button opens it, and `path`, the public path the document is served at once published. Both are null when the document has no address yet. Writes nothing.",
   input: z.object({ id: documentId }),
 }).handler(async ({ input, req, slug }) => {
   const preview = req.payload.collections[slug]?.config.admin.preview;
@@ -294,7 +295,7 @@ export const getPreviewUrl = defineCollectionTool({
 
   return {
     ...textResult(url ?? ""),
-    structuredContent: { url },
+    structuredContent: { path: publicPathOf(url), url },
   };
 });
 

@@ -2073,8 +2073,8 @@ const globalScript = (options: {
   }],
 })`;
 
-/** What the global drive carries from one step to the next. */
-interface GlobalRun extends Session {
+/** What a gateway drive carries from one step to the next. */
+interface DriveRun extends Session {
   dir: string;
   expect: (pass: boolean, what: string) => void;
   log: ReturnType<typeof transcript>;
@@ -2108,8 +2108,8 @@ const openApproval = async (
  * A request Payload's state does not allow: its page says why and offers no
  * Approve button.
  */
-const refusedGlobal = async (
-  run: GlobalRun,
+const refusedRequest = async (
+  run: DriveRun,
   page: Page,
   request: { code: string; reason: string; shot: string; what: string }
 ): Promise<void> => {
@@ -2141,7 +2141,7 @@ const LOCK_REASON = "open in the Payload admin for another editor";
  * made for this step and removed after it.
  */
 const refusedWhileLocked = async (
-  run: GlobalRun,
+  run: DriveRun,
   page: Page,
   options: { admin: Page; code: string; payloadOrigin: string }
 ): Promise<void> => {
@@ -2179,7 +2179,7 @@ const refusedWhileLocked = async (
       `lock ${lockId} held by ${run.marker}@example.test`
     );
 
-    await refusedGlobal(run, page, {
+    await refusedRequest(run, page, {
       code: options.code,
       reason: LOCK_REASON,
       shot: "locked-refused",
@@ -2204,7 +2204,7 @@ const refusedWhileLocked = async (
  * the receipt says the global was last updated.
  */
 const approveGlobal = async (
-  run: GlobalRun,
+  run: DriveRun,
   page: Page,
   change: { expected: string; from: string; shot: string; to: string }
 ): Promise<string> => {
@@ -2292,7 +2292,7 @@ const mcpPayloadGlobal: Drive = async ({
     const email = await adminEmail(admin, payloadOrigin);
     const token = signIn(email);
 
-    const run: GlobalRun = {
+    const run: DriveRun = {
       dir,
       expect: (pass, what) => {
         if (!pass) {
@@ -2339,7 +2339,7 @@ const mcpPayloadGlobal: Drive = async ({
       }
     });
 
-    await refusedGlobal(run, page, {
+    await refusedRequest(run, page, {
       code: globalScript({
         expected: settings.updatedAt,
         marker,
@@ -2350,7 +2350,7 @@ const mcpPayloadGlobal: Drive = async ({
       shot: "no-publish-refused",
       what: "a change to a global without drafts that does not say publish: true",
     });
-    await refusedGlobal(run, page, {
+    await refusedRequest(run, page, {
       code: globalScript({
         expected: "2020-01-01T00:00:00.000Z",
         marker,
@@ -2430,6 +2430,368 @@ const mcpPayloadGlobal: Drive = async ({
   }
 };
 
+/** What READ_LIVE_POST returns: a post as its newest version stands. */
+interface LivePost {
+  id: number;
+  slug: string;
+  status: string;
+  title: string;
+  updatedAt: string;
+}
+
+// One post's newest version through the gateway. With `_status` published in
+// `where`, it is a post with no draft saved since it was published: the
+// public sees exactly what this read returns.
+const READ_LIVE_POST = (where: string) => `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "posts", draft: true, depth: 0, limit: 1, sort: "title", where: ${where} },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  return doc ? { id: doc.id, slug: doc.slug, status: doc._status, title: doc.title, updatedAt: doc.updatedAt } : null;
+}`;
+
+const readLivePost = async (
+  run: Session,
+  where: string
+): Promise<LivePost | null> => {
+  const read = await execute<LivePost>(
+    run.origin,
+    run.token,
+    READ_LIVE_POST(where)
+  );
+
+  return read.structuredContent.result ?? null;
+};
+
+/** One operation on a post, as this drive sends it. */
+interface PostOperation {
+  collection: "posts";
+  expected_updated_at: string;
+  fields?: { title: string };
+  id: number;
+  kind: "unpublish" | "update_draft";
+  publish?: true;
+}
+
+const postScript = (marker: string, operation: PostOperation) =>
+  `async () => payload.apply({
+  intent: "Take a post down and put it back for launch-verify run ${marker}",
+  operations: [${JSON.stringify(operation)}],
+})`;
+
+/** A post as an anonymous visitor's API read answers: its status code and title. */
+const publicPost = async (
+  payloadOrigin: string,
+  id: number
+): Promise<{ status: number; title?: string }> => {
+  const response = await fetch(`${payloadOrigin}/api/posts/${id}?depth=0`);
+  const post: { title?: string } = await response.json();
+
+  return post.title === undefined
+    ? { status: response.status }
+    : { status: response.status, title: post.title };
+};
+
+/** The status code the front end answers a path with. */
+const pageStatus = async (
+  payloadOrigin: string,
+  pagePath: string
+): Promise<number> => {
+  const response = await fetch(`${payloadOrigin}${pagePath}`, {
+    redirect: "manual",
+  });
+
+  return response.status;
+};
+
+/** What an approved write left behind. */
+interface Approved {
+  preview: string;
+  receipt: string;
+  /** The receipt's `updated_at`: what the next write is built on. */
+  updatedAt: string;
+}
+
+/** Sends one operation on a post, approves it and reads its receipt. */
+const approvePost = async (
+  run: DriveRun,
+  page: Page,
+  request: { operation: PostOperation; shot: string }
+): Promise<Approved> => {
+  const { executionId, preview } = await openApproval(
+    run,
+    page,
+    postScript(run.marker, request.operation)
+  );
+
+  await run.log.shot(page, `${request.shot}-approval`);
+
+  const outcome = await approve(page);
+  const record = await runRecord(run, executionId);
+  const receipt = JSON.stringify(record);
+
+  writeFileSync(
+    path.join(run.dir, `${request.shot}-run.json`),
+    `${JSON.stringify(record, null, 2)}\n`
+  );
+  run.expect(
+    receipt.includes('"status":"succeeded"'),
+    `${request.shot} did not succeed: ${outcome.slice(outcome.indexOf("Result:")).slice(0, 200)}`
+  );
+
+  return {
+    preview,
+    receipt,
+    updatedAt:
+      /"updated_at":"(?<stamp>[^"]+)"/u.exec(receipt)?.groups?.stamp ?? "",
+  };
+};
+
+/**
+ * Takes the post down and checks every place that shows it: the approval
+ * warned where the page is, the receipt reports the status, the public API
+ * and the front end no longer serve it, and the draft is as it was.
+ */
+const unpublishPost = async (
+  run: DriveRun,
+  page: Page,
+  post: {
+    draftTitle: string;
+    expected: string;
+    id: number;
+    payload: string;
+    pagePath: string;
+  }
+): Promise<Approved> => {
+  const unpublished = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: post.expected,
+      id: post.id,
+      kind: "unpublish",
+    },
+    shot: "unpublish",
+  });
+
+  const warned = [
+    `The public page at ${post.pagePath} goes away as soon as you approve`,
+    "No redirect from that path exists",
+  ].every((text) => unpublished.preview.includes(text));
+
+  const reported = ['"changed_paths":["_status"]', '"version_id":"'].every(
+    (text) => unpublished.receipt.includes(text)
+  );
+
+  run.expect(
+    warned,
+    "the approval page does not say where the page is and that links will 404"
+  );
+  run.expect(
+    reported,
+    `get_run does not report _status as changed with a version: ${unpublished.receipt.slice(0, 300)}`
+  );
+
+  const api = await publicPost(post.payload, post.id);
+  const front = await pageStatus(post.payload, post.pagePath);
+  const draft = await readLivePost(run, `{ id: { equals: ${post.id} } }`);
+
+  run.expect(
+    api.title === undefined,
+    `the public API still serves the post: ${api.status}`
+  );
+  run.expect(front === 404, `the front end still serves the page: ${front}`);
+  run.expect(
+    draft?.title === post.draftTitle && draft.status === "draft",
+    `the draft did not keep its content: "${draft?.title}" (${draft?.status})`
+  );
+  run.log.step(
+    "execute: payload.apply unpublish; approve it",
+    `warns where the page is and that links will 404: ${warned}; receipt lists _status with a version: ${reported} (unpublish-run.json); public API answers ${api.status}; ${post.pagePath} answers ${front}; draft is still "${draft?.title}" (${draft?.status})`
+  );
+
+  return unpublished;
+};
+
+/**
+ * MCP gateway: an editor's agent takes a published post off the site. The
+ * post first gets a newer draft, so the drive can see that unpublishing
+ * keeps it; the approval says where the public page is; once approved the
+ * public API and the front end stop serving the post; a second unpublish is
+ * refused; and publishing the post again puts everything back.
+ */
+const mcpPayloadUnpublish: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+
+    const run: DriveRun = {
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      log,
+      marker,
+      origin,
+      token,
+    };
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const post = await readLivePost(
+      run,
+      '{ _status: { equals: "published" } }'
+    );
+
+    if (!post) {
+      throw new Error(
+        "No published post without a newer draft: seed Payload first."
+      );
+    }
+
+    const pagePath = `/news/${post.slug}`;
+    const draftTitle = `${post.title} (${marker})`;
+    const before = await pageStatus(payloadOrigin, pagePath);
+
+    run.expect(before === 200, `${pagePath} answers ${before} before the run`);
+    log.step(
+      "execute: read a published post with no newer draft",
+      `posts/${post.id} "${post.title}", updated ${post.updatedAt}; ${pagePath} answers ${before}`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    // A draft saved after the post was published, so there is something for
+    // unpublishing to keep.
+    const drafted = await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: post.updatedAt,
+        fields: { title: draftTitle },
+        id: post.id,
+        kind: "update_draft",
+      },
+      shot: "draft",
+    });
+
+    const stillPublic = await publicPost(payloadOrigin, post.id);
+
+    log.step(
+      "execute: payload.apply update_draft retitling the post as a draft; approve it",
+      `draft title "${draftTitle}"; the public still sees "${stillPublic.title}"`
+    );
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: post.updatedAt,
+        id: post.id,
+        kind: "unpublish",
+      }),
+      reason: "stale_expected_updated_at",
+      shot: "stale-refused",
+      what: "an unpublish built on a read from before the draft",
+    });
+
+    const unpublished = await unpublishPost(run, page, {
+      draftTitle,
+      expected: drafted.updatedAt,
+      id: post.id,
+      pagePath,
+      payload: payloadOrigin,
+    });
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: unpublished.updatedAt,
+        id: post.id,
+        kind: "unpublish",
+      }),
+      reason: "already_draft",
+      shot: "already-draft-refused",
+      what: "a second unpublish of the same post",
+    });
+
+    // Put back: the title as it was, published.
+    await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: unpublished.updatedAt,
+        fields: { title: post.title },
+        id: post.id,
+        kind: "update_draft",
+        publish: true,
+      },
+      shot: "republish",
+    });
+
+    const restored = await publicPost(payloadOrigin, post.id);
+    const after = await pageStatus(payloadOrigin, pagePath);
+
+    run.expect(
+      restored.title === post.title,
+      `the post was not put back: ${restored.status} "${restored.title}"`
+    );
+    run.expect(
+      after === 200,
+      `${pagePath} answers ${after} after republishing`
+    );
+    log.step(
+      "Publish the post again with its first title, built on the unpublish receipt's updated_at",
+      `public API title "${restored.title}"; ${pagePath} answers ${after}`
+    );
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-unpublish failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
@@ -2437,6 +2799,7 @@ export const DRIVES = new Map<string, Map<string, Drive>>([
       ["payload-draft", mcpPayloadDraft],
       ["payload-global", mcpPayloadGlobal],
       ["payload-rows", mcpPayloadRows],
+      ["payload-unpublish", mcpPayloadUnpublish],
       ["payload-upload", mcpPayloadUpload],
     ]),
   ],

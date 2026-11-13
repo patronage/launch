@@ -406,6 +406,17 @@ const updateGlobalOperationSchema = z
   })
   .superRefine(globalRules);
 
+// Takes a published document off the public site. Its content stays, as a
+// draft.
+const unpublishOperationSchema = z.strictObject({
+  collection: slugSchema,
+  // Required: the public page goes away at once, so it is never taken down
+  // on the strength of a state the model did not just read.
+  expected_updated_at: z.string().min(1).max(64),
+  id: documentIdSchema,
+  kind: z.literal("unpublish"),
+});
+
 const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
@@ -413,6 +424,7 @@ const operationSchema = z.discriminatedUnion("kind", [
   replaceMediaFileOperationSchema,
   patchRowsOperationSchema,
   updateGlobalOperationSchema,
+  unpublishOperationSchema,
 ]);
 
 export type DraftOperation =
@@ -428,6 +440,8 @@ export type UploadOperation =
 export type PatchRowsOperation = z.infer<typeof patchRowsOperationSchema>;
 
 export type UpdateGlobalOperation = z.infer<typeof updateGlobalOperationSchema>;
+
+export type UnpublishOperation = z.infer<typeof unpublishOperationSchema>;
 
 export type PayloadOperation = z.infer<typeof operationSchema>;
 
@@ -449,6 +463,16 @@ export const rowsSentence = (operation: PatchRowsOperation): string => {
     ? `Save ${what} to ${document} and publish it`
     : `Save ${what} as a draft of ${document}`;
 };
+
+export const isUnpublishOperation = (
+  operation: PayloadOperation
+): operation is UnpublishOperation => operation.kind === "unpublish";
+
+export const unpublishTarget = (operation: UnpublishOperation): string =>
+  `${operation.collection}/${operation.id}`;
+
+export const unpublishSentence = (operation: UnpublishOperation): string =>
+  `Unpublish ${operation.collection} ${operation.id}`;
 
 export const isGlobalOperation = (
   operation: PayloadOperation
@@ -553,6 +577,10 @@ export const operationTarget = (operation: PayloadOperation): string => {
     return globalTarget(operation);
   }
 
+  if (isUnpublishOperation(operation)) {
+    return unpublishTarget(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsTarget(operation)
     : draftTarget(operation);
@@ -567,6 +595,10 @@ export const operationSentence = (operation: PayloadOperation): string => {
     return globalSentence(operation);
   }
 
+  if (isUnpublishOperation(operation)) {
+    return unpublishSentence(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsSentence(operation)
     : draftSentence(operation);
@@ -578,7 +610,8 @@ const namesExistingTarget = (operation: PayloadOperation): boolean =>
   operation.kind === "update_draft" ||
   operation.kind === "replace_media_file" ||
   operation.kind === "patch_rows" ||
-  operation.kind === "update_global";
+  operation.kind === "update_global" ||
+  operation.kind === "unpublish";
 
 const draftApplyInputSchema = z
   .object({
