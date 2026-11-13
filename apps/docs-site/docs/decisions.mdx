@@ -31,6 +31,7 @@ Every choice the rest of the repo must follow is an architecture decision record
 
 ## Open
 
+- How far the MCP gateway's Payload connector writes beyond drafts: media uploads, single rows of blocks and arrays, globals, unpublishing, scheduling, version restores, the trash and locales, with no permanent delete. Proposed in [ADR 0018](https://github.com/patronage/launch/blob/main/docs/adr/0018-payload-connector-writes.md).
 - D1 against Postgres through Hyperdrive, measured on deployed Workers.
 - KV against Workers Cache for page caching, measured on a real zone.
 - Getting `vite dev` working for the Payload app.
