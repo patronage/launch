@@ -27,6 +27,7 @@ export type {
   PayloadOperation,
   RestoreOperation,
   RowChange,
+  TrashOperation,
   UnpublishOperation,
   UpdateGlobalOperation,
   UploadOperation,

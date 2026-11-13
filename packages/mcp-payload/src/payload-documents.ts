@@ -101,6 +101,21 @@ export const readDocument = (
     `${collection}/${id} was not found`
   );
 
+// The same read, reaching a document in the trash too. Payload leaves a
+// trashed document out of every read that does not ask for it by name.
+export const readTrashable = (
+  client: UpstreamClient,
+  collection: string,
+  id: number | string,
+  telemetry: UpstreamTelemetry
+): Promise<JsonObject> =>
+  readRecord(
+    client,
+    `${documentPath(collection, id)}&trash=true`,
+    telemetry,
+    `${collection}/${id} was not found`
+  );
+
 // A global is one document, named by its slug alone.
 export const globalPath = (slug: string, draft = true): string =>
   `/api/globals/${encodeURIComponent(slug)}${draftQuery(draft)}`;
@@ -162,6 +177,9 @@ export interface WrittenDocument {
   id: number | string;
   // The document's `updatedAt` in the write's own response.
   stamp?: string | undefined;
+  // Whether the write left the document in the trash: Payload lists such a
+  // version only when asked for trashed ones.
+  trashed?: boolean;
 }
 
 // The version this write made: the one saved at the time the write's own
@@ -205,7 +223,7 @@ export const writtenVersionId = (
 ): Promise<string | undefined> =>
   versionSavedAt(
     client,
-    `/api/${encodeURIComponent(collection)}/versions?select[version][updatedAt]=true&where[parent][equals]=${encodeURIComponent(String(written.id))}&`,
+    `/api/${encodeURIComponent(collection)}/versions?select[version][updatedAt]=true&where[parent][equals]=${encodeURIComponent(String(written.id))}&${written.trashed ? "trash=true&" : ""}`,
     written.stamp,
     telemetry
   );

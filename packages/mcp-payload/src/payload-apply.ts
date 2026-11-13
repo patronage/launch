@@ -50,6 +50,7 @@ import {
   isGlobalOperation,
   isRestoreOperation,
   isRowsOperation,
+  isTrashOperation,
   isUnpublishOperation,
   isUploadOperation,
   operationTarget,
@@ -65,6 +66,10 @@ import type { TitleLookup } from "./payload-relations";
 import { applyRestore, preflightRestore } from "./payload-restore-apply";
 import { toMarkdown, toRichText } from "./payload-rich-text";
 import { applyRows, preflightRows } from "./payload-rows-apply";
+import {
+  applyTrashOperation,
+  preflightTrashOperation,
+} from "./payload-trash-apply";
 import { applyUnpublish, preflightUnpublish } from "./payload-unpublish-apply";
 import { applyUpload, preflightUpload } from "./payload-upload-apply";
 import type { UploadFiles } from "./payload-upload-apply";
@@ -323,6 +328,10 @@ const preflightAs = (
 
   if (isRestoreOperation(operation)) {
     return preflightRestore(context, operation, index);
+  }
+
+  if (isTrashOperation(operation)) {
+    return preflightTrashOperation(context, operation, index);
   }
 
   return isRowsOperation(operation)
@@ -726,6 +735,10 @@ const applyAs = (
 
   if (isRestoreOperation(operation)) {
     return applyRestore(context, operation, snapshot);
+  }
+
+  if (isTrashOperation(operation)) {
+    return applyTrashOperation(context, operation, snapshot);
   }
 
   return isRowsOperation(operation)

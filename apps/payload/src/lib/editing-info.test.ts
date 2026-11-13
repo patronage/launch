@@ -60,9 +60,24 @@ describe(describeDocumentFields, () => {
 
     expect(info.richTextFields).toStrictEqual(["content", "banner.body"]);
     expect(info.relationFields).toStrictEqual([
-      { hasMany: false, path: "hero", relationTo: ["media"] },
-      { hasMany: true, path: "related", relationTo: ["pages", "posts"] },
-      { hasMany: false, path: "banner.image", relationTo: ["media"] },
+      {
+        hasMany: false,
+        path: "hero",
+        polymorphic: false,
+        relationTo: ["media"],
+      },
+      {
+        hasMany: true,
+        path: "related",
+        polymorphic: true,
+        relationTo: ["pages", "posts"],
+      },
+      {
+        hasMany: false,
+        path: "banner.image",
+        polymorphic: false,
+        relationTo: ["media"],
+      },
     ]);
     expect(info.rowFields).toStrictEqual([]);
     expect(info.localized).toBeFalsy();

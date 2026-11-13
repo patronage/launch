@@ -2553,7 +2553,12 @@ interface PostOperation {
   expected_updated_at: string;
   fields?: { slug?: string; title: string };
   id: number;
-  kind: "restore_version" | "unpublish" | "update_draft";
+  kind:
+    | "restore_from_trash"
+    | "restore_version"
+    | "trash"
+    | "unpublish"
+    | "update_draft";
   publish?: true;
   version_id?: number | string;
 }
@@ -3245,6 +3250,400 @@ const mcpPayloadRestore: Drive = async ({
   }
 };
 
+// One post's newest version through the gateway, read from the trash: where
+// Payload keeps a document it leaves out of every other read.
+const READ_TRASHED_POST = (id: number) => `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "posts", trash: true, draft: true, depth: 0, limit: 1, where: { and: [{ id: { equals: ${id} } }, { deletedAt: { exists: true } }] } },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  return doc ? { id: doc.id, slug: doc.slug, status: doc._status, title: doc.title, updatedAt: doc.updatedAt } : null;
+}`;
+
+// A page a redirect points at, with the redirect's id: something the
+// approval of a trash has to name.
+const READ_LINKED_PAGE = `async () => {
+  const parse = (found) => {
+    const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+    return [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  };
+  const redirect = parse(await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "redirects", depth: 0, limit: 1, sort: "id", where: { "to.reference.relationTo": { equals: "pages" } } },
+  }));
+  const pageId = redirect && redirect.to && redirect.to.reference && redirect.to.reference.value;
+  if (!pageId) return null;
+  const page = parse(await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "pages", draft: true, depth: 0, limit: 1, where: { id: { equals: pageId } } },
+  }));
+  return page ? { pageId: page.id, redirectId: redirect.id, updatedAt: page.updatedAt } : null;
+}`;
+
+interface LinkedPage {
+  pageId: number;
+  redirectId: number;
+  updatedAt: string;
+}
+
+/**
+ * The approval of a trash names what still points at the document. Asked
+ * of a page a seeded redirect leads to, and rejected, so the page stays.
+ */
+const namesLinks = async (run: DriveRun, page: Page): Promise<void> => {
+  const read = await execute<LinkedPage>(
+    run.origin,
+    run.token,
+    READ_LINKED_PAGE
+  );
+
+  const linked = read.structuredContent.result;
+
+  if (!linked) {
+    throw new Error("No redirect that leads to a page: seed Payload first.");
+  }
+
+  const { preview } = await openApproval(
+    run,
+    page,
+    `async () => payload.apply({
+  intent: "Show what points at a page for launch-verify run ${run.marker}",
+  operations: [${JSON.stringify({
+    collection: "pages",
+    expected_updated_at: linked.updatedAt,
+    id: linked.pageId,
+    kind: "trash",
+  })}],
+})`
+  );
+
+  const named =
+    preview.includes("Linked from at least") &&
+    preview.includes(`redirects ${linked.redirectId}`);
+
+  run.expect(
+    named,
+    `the approval of trashing pages/${linked.pageId} does not name redirects/${linked.redirectId}`
+  );
+  await run.log.shot(page, "links-approval");
+  await page.getByRole("button", { name: "Reject" }).click();
+  await page.waitForLoadState("networkidle");
+  run.log.step(
+    `Open the approval of trashing pages/${linked.pageId}, which redirects/${linked.redirectId} leads to; reject it`,
+    `names the redirect under "Linked from at least": ${named}`
+  );
+};
+
+/** Where a post is, everywhere that shows it. */
+const whereabouts = async (
+  run: DriveRun,
+  post: { id: number; pagePath: string; payload: string }
+) => {
+  const api = await publicPost(post.payload, post.id);
+  const front = await pageStatus(post.payload, post.pagePath);
+  const listed = await readLivePost(run, `{ id: { equals: ${post.id} } }`);
+
+  const trashed = await execute<LivePost>(
+    run.origin,
+    run.token,
+    READ_TRASHED_POST(post.id)
+  );
+
+  return {
+    api,
+    front,
+    inTrash: trashed.structuredContent.result ?? null,
+    listed,
+  };
+};
+
+interface TrashedPost {
+  expected: string;
+  id: number;
+  pagePath: string;
+  payload: string;
+  /** Whether the public sees the post as it goes to the trash. */
+  published: boolean;
+  shot: string;
+  title: string;
+}
+
+/**
+ * Moves the post to the trash and checks every place that shows it: the
+ * approval warned where the page is, the receipt reports `deletedAt`, the
+ * public API, the front end and an ordinary read no longer have it, and a
+ * read of the trash does.
+ */
+const trashPost = async (
+  run: DriveRun,
+  page: Page,
+  post: TrashedPost
+): Promise<Approved> => {
+  const trashed = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: post.expected,
+      id: post.id,
+      kind: "trash",
+    },
+    shot: post.shot,
+  });
+
+  // Only a published post has a page to lose.
+  const warned =
+    trashed.preview.includes(
+      "It moves to the trash, where it can be restored as a draft"
+    ) &&
+    trashed.preview.includes(
+      `The public page at ${post.pagePath} goes away as soon as you approve`
+    ) === post.published;
+
+  const reported = ['"changed_paths":["deletedAt"]', '"version_id":"'].every(
+    (text) => trashed.receipt.includes(text)
+  );
+
+  run.expect(
+    warned,
+    "the approval page does not say what happens to the page and that the post can be restored"
+  );
+  run.expect(
+    reported,
+    `get_run does not report deletedAt as changed with a version: ${trashed.receipt.slice(0, 300)}`
+  );
+
+  const now = await whereabouts(run, post);
+
+  run.expect(
+    now.api.title === undefined,
+    `the public API still serves the post: ${now.api.status}`
+  );
+  run.expect(
+    now.front === 404,
+    `the front end still serves the page: ${now.front}`
+  );
+  run.expect(now.listed === null, "an ordinary read still finds the post");
+  run.expect(
+    now.inTrash?.title === post.title,
+    `a read of the trash does not find the post: "${now.inTrash?.title}"`
+  );
+  run.log.step(
+    "execute: payload.apply trash; approve it",
+    `says what happens to the page and that the post can be restored: ${warned}; receipt lists deletedAt with a version: ${reported} (${post.shot}-run.json); public API answers ${now.api.status}; ${post.pagePath} answers ${now.front}; an ordinary read finds it: ${now.listed !== null}; a read of the trash finds "${now.inTrash?.title}"`
+  );
+
+  return trashed;
+};
+
+/**
+ * MCP gateway: an editor's agent moves a published post to the trash and
+ * takes it back out. The approval of a trash names what still points at the
+ * document; once approved the public API, the front end and ordinary reads
+ * no longer have the post; it comes back as a draft, with its page still
+ * away; and trashed once more, it comes back published, as it began.
+ */
+const mcpPayloadTrash: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+
+    const run: DriveRun = {
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      log,
+      marker,
+      origin,
+      token,
+    };
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const post = await readLivePost(
+      run,
+      '{ _status: { equals: "published" } }'
+    );
+
+    if (!post) {
+      throw new Error(
+        "No published post without a newer draft: seed Payload first."
+      );
+    }
+
+    const pagePath = `/news/${post.slug}`;
+    const before = await pageStatus(payloadOrigin, pagePath);
+    const place = { id: post.id, pagePath, payload: payloadOrigin };
+
+    run.expect(before === 200, `${pagePath} answers ${before} before the run`);
+    log.step(
+      "execute: read a published post with no newer draft",
+      `posts/${post.id} "${post.title}", updated ${post.updatedAt}; ${pagePath} answers ${before}`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    await namesLinks(run, page);
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: "2026-01-01T00:00:00.000Z",
+        id: post.id,
+        kind: "trash",
+      }),
+      reason: "stale_expected_updated_at",
+      shot: "stale-refused",
+      what: "a trash built on an old read",
+    });
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: post.updatedAt,
+        id: post.id,
+        kind: "restore_from_trash",
+      }),
+      reason: "not_in_trash",
+      shot: "not-in-trash-refused",
+      what: "a restore of a post that is not in the trash",
+    });
+
+    const trashed = await trashPost(run, page, {
+      ...place,
+      expected: post.updatedAt,
+      published: true,
+      shot: "trash",
+      title: post.title,
+    });
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: trashed.updatedAt,
+        id: post.id,
+        kind: "trash",
+      }),
+      reason: "already_in_trash",
+      shot: "already-in-trash-refused",
+      what: "a second trash of the same post",
+    });
+
+    const asDraft = await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: trashed.updatedAt,
+        id: post.id,
+        kind: "restore_from_trash",
+      },
+      shot: "restore-draft",
+    });
+
+    const draft = await whereabouts(run, place);
+    const saidDraft = asDraft.preview.includes("It comes back as a draft");
+
+    run.expect(saidDraft, "the approval does not say it comes back as a draft");
+    run.expect(
+      draft.listed?.title === post.title && draft.listed.status === "draft",
+      `the post did not come back as a draft: "${draft.listed?.title}" (${draft.listed?.status})`
+    );
+    run.expect(
+      draft.front === 404 && draft.inTrash === null,
+      `after a restore as a draft ${pagePath} answers ${draft.front}; still in the trash: ${draft.inTrash !== null}`
+    );
+    log.step(
+      "execute: payload.apply restore_from_trash; approve it",
+      `says it comes back as a draft: ${saidDraft}; an ordinary read finds "${draft.listed?.title}" (${draft.listed?.status}); ${pagePath} answers ${draft.front}; still in the trash: ${draft.inTrash !== null}`
+    );
+
+    const again = await trashPost(run, page, {
+      ...place,
+      expected: asDraft.updatedAt,
+      published: false,
+      shot: "trash-again",
+      title: post.title,
+    });
+
+    const published = await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: again.updatedAt,
+        id: post.id,
+        kind: "restore_from_trash",
+        publish: true,
+      },
+      shot: "restore-publish",
+    });
+
+    const after = await whereabouts(run, place);
+
+    const reported = published.receipt.includes(
+      '"changed_paths":["_status","deletedAt"]'
+    );
+
+    run.expect(
+      reported,
+      `get_run does not report _status and deletedAt: ${published.receipt.slice(0, 300)}`
+    );
+    run.expect(
+      after.api.title === post.title && after.front === 200,
+      `the post was not put back: public API ${after.api.status} "${after.api.title}", ${pagePath} answers ${after.front}`
+    );
+    log.step(
+      "execute: payload.apply restore_from_trash with publish: true; approve it",
+      `receipt lists _status and deletedAt: ${reported} (restore-publish-run.json); public API title "${after.api.title}"; ${pagePath} answers ${after.front}`
+    );
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-trash failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
@@ -3253,6 +3652,7 @@ export const DRIVES = new Map<string, Map<string, Drive>>([
       ["payload-global", mcpPayloadGlobal],
       ["payload-restore", mcpPayloadRestore],
       ["payload-rows", mcpPayloadRows],
+      ["payload-trash", mcpPayloadTrash],
       ["payload-unpublish", mcpPayloadUnpublish],
       ["payload-upload", mcpPayloadUpload],
     ]),
