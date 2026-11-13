@@ -2559,6 +2559,8 @@ interface PostOperation {
     | "trash"
     | "unpublish"
     | "update_draft";
+  /** The locale the operation works in, on a Payload that has locales. */
+  locale?: string;
   publish?: true;
   version_id?: number | string;
 }
@@ -3644,12 +3646,657 @@ const mcpPayloadTrash: Drive = async ({
   }
 };
 
+/** What the local Payload says about its locales. */
+interface SiteLocales {
+  locales: string[];
+  /** The posts fields Payload keeps for each locale. */
+  posts: string[];
+}
+
+const READ_LOCALES = `async () => {
+  const info = await payload.call({ tool: "getEditingInfo", arguments: {} });
+  const site = info.structured || JSON.parse(info.text);
+  const posts = site.collections.find((entry) => entry.slug === "posts");
+  return {
+    locales: site.localization ? site.localization.locales : [],
+    posts: (posts && posts.localizedFields) || [],
+  };
+}`;
+
+// One post's newest version in one locale, with nothing borrowed from the
+// default locale: a field with no value in that locale reads as empty.
+const READ_POST_IN = (id: number, locale: string) => `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "posts", draft: true, depth: 0, limit: 1, locale: "${locale}", fallbackLocale: "none", where: { id: { equals: ${id} } } },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  return doc ? { id: doc.id, slug: doc.slug, status: doc._status, title: doc.title ?? "", updatedAt: doc.updatedAt } : null;
+}`;
+
+const readPostIn = async (
+  run: Session,
+  id: number,
+  locale: string
+): Promise<LivePost | null> => {
+  const read = await execute<LivePost>(
+    run.origin,
+    run.token,
+    READ_POST_IN(id, locale)
+  );
+
+  return read.structuredContent.result ?? null;
+};
+
+/** A post in one locale, as an anonymous visitor's API read answers. */
+const publicPostIn = async (
+  payloadOrigin: string,
+  id: number,
+  locale: string
+): Promise<{ status: number; title?: string }> => {
+  const response = await fetch(
+    `${payloadOrigin}/api/posts/${id}?depth=0&locale=${locale}&fallback-locale=none`
+  );
+
+  const post: { title?: string } = await response.json();
+
+  return post.title === undefined
+    ? { status: response.status }
+    : { status: response.status, title: post.title };
+};
+
+/** What the locales drive carries from one step to the next. */
+interface LocalesRun extends DriveRun {
+  /** The post's English title as the public reads it when the run starts. */
+  live: string | undefined;
+  payload: string;
+  /** The post's newest English draft when the run starts. */
+  post: LivePost;
+  /** The post's title in Spanish, for this run. */
+  spanish: string;
+}
+
+/**
+ * Saves a Spanish title as a draft, with a shared field beside it. The
+ * approval says who each field is for; afterwards only the Spanish draft
+ * has the title, and the public sees no change in either locale.
+ */
+const translatePost = async (
+  run: LocalesRun,
+  page: Page
+): Promise<Approved> => {
+  const { post } = run;
+  const slug = `${post.slug}-${run.marker}`;
+
+  const drafted = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: post.updatedAt,
+      fields: { slug, title: run.spanish },
+      id: post.id,
+      kind: "update_draft",
+      locale: "es",
+    },
+    shot: "es-draft",
+  });
+
+  const marked = [
+    "in the es locale",
+    "title · es only",
+    "slug · every locale",
+  ].every((text) => drafted.preview.includes(text));
+
+  const named = drafted.receipt.includes('"locale":"es"');
+  const spanish = await readPostIn(run, post.id, "es");
+  const english = await readPostIn(run, post.id, "en");
+  const publicEnglish = await publicPost(run.payload, post.id);
+  const publicSpanish = await publicPostIn(run.payload, post.id, "es");
+
+  run.expect(
+    marked,
+    "the approval page does not name the es locale and mark title for es only and slug for every locale"
+  );
+  run.expect(named, "get_run does not name the locale in the receipt");
+  run.expect(
+    spanish?.title === run.spanish && english?.title === post.title,
+    `the drafts read "${spanish?.title}" in es and "${english?.title}" in en`
+  );
+  run.expect(
+    spanish?.slug === slug && english?.slug === slug,
+    `the shared slug reads "${spanish?.slug}" in es and "${english?.slug}" in en`
+  );
+  run.expect(
+    publicEnglish.title === run.live && publicSpanish.status === 404,
+    `the public sees "${publicEnglish.title}" in en and ${publicSpanish.status} in es`
+  );
+  run.log.step(
+    "execute: payload.apply update_draft with locale es, a Spanish title and another slug; approve it",
+    `approval names the locale and marks each field: ${marked}; receipt names es: ${named}; draft title "${spanish?.title}" in es, "${english?.title}" in en; draft slug "${spanish?.slug}" in both; the public still sees "${publicEnglish.title}" in en and ${publicSpanish.status} in es`
+  );
+
+  return drafted;
+};
+
+/**
+ * Publishes the Spanish locale alone, putting the shared slug back in the
+ * same write. The approval warns that shared fields go live for every
+ * locale; afterwards the public can read the post in both.
+ */
+const publishSpanish = async (
+  run: LocalesRun,
+  page: Page,
+  expected: string
+): Promise<Approved> => {
+  const { post } = run;
+
+  const published = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: expected,
+      fields: { slug: post.slug, title: run.spanish },
+      id: post.id,
+      kind: "update_draft",
+      locale: "es",
+      publish: true,
+    },
+    shot: "es-publish",
+  });
+
+  const warned = [
+    "This publishes the es locale only",
+    "_status · es only",
+    "slug · every locale",
+  ].every((text) => published.preview.includes(text));
+
+  const publicSpanish = await publicPostIn(run.payload, post.id, "es");
+  const publicEnglish = await publicPost(run.payload, post.id);
+  const front = await pageStatus(run.payload, `/news/${post.slug}`);
+
+  run.expect(
+    warned,
+    "the approval page does not warn that one locale is published and shared fields go live for all"
+  );
+  run.expect(
+    publicSpanish.title === run.spanish,
+    `the public reads ${publicSpanish.status} "${publicSpanish.title}" in es`
+  );
+  run.expect(
+    publicEnglish.title === run.live && front === 200,
+    `the public reads "${publicEnglish.title}" in en; /news/${post.slug} answers ${front}`
+  );
+  run.log.step(
+    "execute: payload.apply update_draft with locale es and publish: true, putting the slug back; approve it",
+    `approval warns what goes live for whom: ${warned}; the public reads "${publicSpanish.title}" in es and "${publicEnglish.title}" in en; /news/${post.slug} answers ${front}`
+  );
+
+  return published;
+};
+
+/**
+ * Opens the approval of an unpublish that names no locale, to see that it
+ * names every locale it would take down, then rejects it.
+ */
+const previewWholeUnpublish = async (
+  run: LocalesRun,
+  page: Page,
+  expected: string
+): Promise<void> => {
+  const { preview } = await openApproval(
+    run,
+    page,
+    postScript(run.marker, {
+      collection: "posts",
+      expected_updated_at: expected,
+      id: run.post.id,
+      kind: "unpublish",
+    })
+  );
+
+  const names = ["in every locale", "published in en, es"].every((text) =>
+    preview.includes(text)
+  );
+
+  run.expect(
+    names,
+    "the approval of an unpublish with no locale does not name the locales it takes down"
+  );
+  await run.log.shot(page, "unpublish-all-approval");
+  await page.getByRole("button", { name: "Reject" }).click();
+  await page.waitForLoadState("networkidle");
+  run.log.step(
+    "Open the approval of an unpublish that names no locale, then reject it",
+    `names both locales: ${names}`
+  );
+};
+
+/**
+ * Takes the Spanish locale down again, with a newer draft that changes the
+ * shared slug in the way. Payload puts a draft's shared fields live for the
+ * locales that stay published whenever one locale's status is written, so
+ * the approval has to show the slug and warn about it; afterwards the
+ * English post is still up, at the draft's slug. The last write publishes
+ * the first slug again, so the post ends the run as it began for the public.
+ */
+const unpublishSpanish = async (
+  run: LocalesRun,
+  page: Page,
+  expected: string
+): Promise<void> => {
+  const { post } = run;
+  const slug = `${post.slug}-${run.marker}`;
+
+  const drafted = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: expected,
+      fields: { slug, title: run.spanish },
+      id: post.id,
+      kind: "update_draft",
+      locale: "es",
+    },
+    shot: "es-shared-draft",
+  });
+
+  const unpublished = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: drafted.updatedAt,
+      id: post.id,
+      kind: "unpublish",
+      locale: "es",
+    },
+    shot: "es-unpublish",
+  });
+
+  const warned = [
+    "Only the es locale is unpublished",
+    "A newer draft changes fields every locale shares (slug)",
+    "slug · every locale",
+  ].every((text) => unpublished.preview.includes(text));
+
+  const reported = unpublished.receipt.includes(
+    '"changed_paths":["_status","slug"]'
+  );
+
+  const publicSpanish = await publicPostIn(run.payload, post.id, "es");
+  const publicEnglish = await publicPost(run.payload, post.id);
+  const moved = await pageStatus(run.payload, `/news/${slug}`);
+
+  run.expect(
+    warned,
+    "the approval page does not say only es is unpublished and that the draft's slug goes live for the others"
+  );
+  run.expect(
+    reported,
+    `get_run does not list _status and slug as changed: ${unpublished.receipt.slice(0, 300)}`
+  );
+  run.expect(
+    publicSpanish.status === 404,
+    `the public still reads the post in es: ${publicSpanish.status}`
+  );
+  run.expect(
+    publicEnglish.title === run.live && moved === 200,
+    `the public reads "${publicEnglish.title}" in en; /news/${slug} answers ${moved}`
+  );
+  run.log.step(
+    "Save another slug as a draft in es, then execute: payload.apply unpublish with locale es; approve it",
+    `approval says only es goes and that the draft's slug goes live for the others: ${warned}; receipt lists _status and slug: ${reported}; the public reads ${publicSpanish.status} in es and still "${publicEnglish.title}" in en, now at /news/${slug} (${moved})`
+  );
+
+  // Put back: the first slug, published in the default locale.
+  await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: unpublished.updatedAt,
+      fields: { slug: post.slug, title: run.live ?? post.title },
+      id: post.id,
+      kind: "update_draft",
+      publish: true,
+    },
+    shot: "put-back",
+  });
+
+  const restored = await publicPost(run.payload, post.id);
+  const front = await pageStatus(run.payload, `/news/${post.slug}`);
+  const spanish = await publicPostIn(run.payload, post.id, "es");
+
+  run.expect(
+    restored.title === run.live && front === 200 && spanish.status === 404,
+    `after putting the slug back the public reads "${restored.title}" in en, /news/${post.slug} answers ${front} and es answers ${spanish.status}`
+  );
+  run.log.step(
+    "Publish the first slug again in en, built on the unpublish receipt's updated_at",
+    `the public reads "${restored.title}" in en; /news/${post.slug} answers ${front}; es answers ${spanish.status}`
+  );
+};
+
+/** The home page's sections in one locale: each row's id and heading. */
+interface Headings {
+  id: number;
+  rows: { heading: string | null; id: string }[];
+  updatedAt: string;
+}
+
+const READ_HEADINGS = (locale: string) => `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "pages", draft: true, depth: 0, limit: 1, locale: "${locale}", fallbackLocale: "none", where: { slug: { equals: "home" } } },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  return doc ? { id: doc.id, rows: doc.layout.map((row) => ({ heading: row.heading ?? null, id: row.id })), updatedAt: doc.updatedAt } : null;
+}`;
+
+const readHeadings = async (
+  run: Session,
+  locale: string
+): Promise<Headings | null> => {
+  const read = await execute<Headings>(
+    run.origin,
+    run.token,
+    READ_HEADINGS(locale)
+  );
+
+  return read.structuredContent.result ?? null;
+};
+
+const headingsOf = (page: Headings | null): string =>
+  (page?.rows ?? []).map((row) => row.heading ?? "").join(" | ");
+
+/**
+ * Gives every section of the home page that has a heading a Spanish one, as
+ * a draft. A section's heading is kept for each locale inside a `layout`
+ * every locale shares, so each change is marked for es only, the Spanish
+ * draft gets the headings and the English one keeps its own.
+ */
+const translateHeadings = async (
+  run: LocalesRun,
+  page: Page
+): Promise<void> => {
+  const english = await readHeadings(run, "en");
+
+  if (!english) {
+    throw new Error("No home page: seed Payload first.");
+  }
+
+  const changes: RowChangeRequest[] = english.rows
+    .filter((row) => row.heading)
+    .map((row) => ({
+      op: "set",
+      path: `layout[id=${row.id}].heading`,
+      value: `${row.heading} (es ${run.marker})`,
+    }));
+
+  const { executionId, preview } = await openApproval(
+    run,
+    page,
+    `async () => payload.apply({
+  intent: "Translate the home page's headings for launch-verify run ${run.marker}",
+  operations: [{
+    kind: "patch_rows",
+    collection: "pages",
+    id: ${english.id},
+    locale: "es",
+    expected_updated_at: ${JSON.stringify(english.updatedAt)},
+    changes: ${JSON.stringify(changes)},
+  }],
+})`
+  );
+
+  const marked = preview.split("Heading · es only").length - 1;
+
+  await run.log.shot(page, "es-rows-approval");
+  await approve(page);
+
+  const receipt = JSON.stringify(await runRecord(run, executionId));
+  const spanish = await readHeadings(run, "es");
+  const after = await readHeadings(run, "en");
+
+  const translated = (spanish?.rows ?? []).filter((row) =>
+    row.heading?.endsWith(`(es ${run.marker})`)
+  ).length;
+
+  run.expect(
+    marked === changes.length && !preview.includes("Heading · every locale"),
+    `the approval page marks ${marked} of ${changes.length} headings for es only`
+  );
+  run.expect(
+    receipt.includes('"status":"succeeded"'),
+    `the row changes did not succeed: ${receipt.slice(0, 300)}`
+  );
+  run.expect(
+    translated === changes.length,
+    `the Spanish draft has ${translated} of ${changes.length} headings`
+  );
+  run.expect(
+    headingsOf(after) === headingsOf(english),
+    `the English headings changed: ${headingsOf(after)}`
+  );
+  run.log.step(
+    "execute: payload.apply patch_rows with locale es, a Spanish heading for each section of the home page; approve it",
+    `approval marks ${marked} of ${changes.length} headings for es only; Spanish draft has ${translated} of them; English headings are still "${headingsOf(after)}"`
+  );
+};
+
+// The site settings in one locale, with nothing borrowed from the default.
+const READ_SETTINGS_IN = (locale: string) => `async () => {
+  const found = await payload.call({
+    tool: "findGlobalDraft",
+    arguments: { slug: "site-settings", depth: 0, locale: "${locale}", fallbackLocale: "none" },
+  });
+  const doc = found.structured && found.structured.doc;
+  return doc && { siteName: doc.siteName, tagline: doc.tagline ?? null, updatedAt: doc.updatedAt };
+}`;
+
+const readSettingsIn = async (
+  run: Session,
+  locale: string
+): Promise<SettingsSummary | null> => {
+  const read = await execute<SettingsSummary>(
+    run.origin,
+    run.token,
+    READ_SETTINGS_IN(locale)
+  );
+
+  return read.structuredContent.result ?? null;
+};
+
+/**
+ * Gives the site a Spanish tagline. The settings global has no drafts, so
+ * the write is live: the Spanish tagline changes and the English one stays.
+ */
+const translateTagline = async (run: LocalesRun, page: Page): Promise<void> => {
+  const english = await readSettingsIn(run, "en");
+
+  if (!english) {
+    throw new Error("No site settings: seed Payload first.");
+  }
+
+  const tagline = `Cultivamos juntos (${run.marker})`;
+
+  const { executionId, preview } = await openApproval(
+    run,
+    page,
+    `async () => payload.apply({
+  intent: "Translate the site tagline for launch-verify run ${run.marker}",
+  operations: [{
+    kind: "update_global",
+    global: "site-settings",
+    locale: "es",
+    publish: true,
+    expected_updated_at: ${JSON.stringify(english.updatedAt)},
+    fields: { tagline: ${JSON.stringify(tagline)} },
+  }],
+})`
+  );
+
+  const marked = ["in the es locale", "tagline · es only"].every((text) =>
+    preview.includes(text)
+  );
+
+  await run.log.shot(page, "es-global-approval");
+  await approve(page);
+
+  const receipt = JSON.stringify(await runRecord(run, executionId));
+  const spanish = await readSettingsIn(run, "es");
+  const after = await readSettingsIn(run, "en");
+
+  run.expect(marked, "the approval page does not mark the tagline for es only");
+  run.expect(
+    receipt.includes('"status":"succeeded"'),
+    `the tagline did not save: ${receipt.slice(0, 300)}`
+  );
+  run.expect(
+    spanish?.tagline === tagline && after?.tagline === english.tagline,
+    `the tagline reads "${spanish?.tagline}" in es and "${after?.tagline}" in en`
+  );
+  run.log.step(
+    "execute: payload.apply update_global with locale es and a Spanish tagline; approve it",
+    `approval marks the tagline for es only: ${marked}; tagline "${spanish?.tagline}" in es, still "${after?.tagline}" in en`
+  );
+};
+
+const LOCALES_HINT =
+  "This Payload was not launched with the demo's locales: run cleanup mcp and cleanup payload, then launch mcp --locales.";
+
+/**
+ * MCP gateway on a Payload with two locales (`launch mcp --locales`): an
+ * editor's agent translates a published post. A Spanish draft leaves the
+ * English post alone; publishing Spanish publishes that locale only and
+ * warns about the fields every locale shares; unpublishing Spanish leaves
+ * English up; a locale the site does not have is refused. The same holds
+ * for rows inside a shared field and for a global.
+ */
+const mcpPayloadLocales: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp --locales first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+    const session: Session = { origin, token };
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const site = await execute<SiteLocales>(origin, token, READ_LOCALES);
+    const locales = site.structuredContent.result?.locales ?? [];
+    const perLocale = site.structuredContent.result?.posts ?? [];
+
+    if (!(locales.includes("es") && perLocale.includes("title"))) {
+      throw new Error(LOCALES_HINT);
+    }
+
+    log.step(
+      "execute: read the site's locales from getEditingInfo",
+      `locales ${locales.join(", ")}; posts keep ${perLocale.join(", ")} for each`
+    );
+
+    const first = await firstPublishedPost(payloadOrigin);
+    const post = first && (await readPostIn(session, first.id, "en"));
+
+    if (!post) {
+      throw new Error("No published post: seed Payload first.");
+    }
+
+    const live = await publicPost(payloadOrigin, post.id);
+
+    const run: LocalesRun = {
+      ...session,
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      live: live.title,
+      log,
+      marker,
+      payload: payloadOrigin,
+      post,
+      spanish: `Título en español (${marker})`,
+    };
+
+    log.step(
+      "execute: read a published post in en",
+      `posts/${post.id}, newest draft "${post.title}", updated ${post.updatedAt}; the public reads "${live.title}"`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    await refusedRequest(run, page, {
+      code: postScript(marker, {
+        collection: "posts",
+        expected_updated_at: post.updatedAt,
+        fields: { title: "Bonjour" },
+        id: post.id,
+        kind: "update_draft",
+        locale: "fr",
+      }),
+      reason: "unknown_locale",
+      shot: "unknown-locale-refused",
+      what: "a draft in a locale the site does not have",
+    });
+
+    const drafted = await translatePost(run, page);
+    const published = await publishSpanish(run, page, drafted.updatedAt);
+
+    await previewWholeUnpublish(run, page, published.updatedAt);
+    await unpublishSpanish(run, page, published.updatedAt);
+    await translateHeadings(run, page);
+    await translateTagline(run, page);
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-locales failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
     new Map([
       ["payload-draft", mcpPayloadDraft],
       ["payload-global", mcpPayloadGlobal],
+      ["payload-locales", mcpPayloadLocales],
       ["payload-restore", mcpPayloadRestore],
       ["payload-rows", mcpPayloadRows],
       ["payload-trash", mcpPayloadTrash],

@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 
+import { demoLocalized } from "../demo-locales";
 import { postPath } from "../lib/posts";
 import { previewable } from "../lib/preview";
 
@@ -19,7 +20,7 @@ export const Posts: CollectionConfig = {
   },
   defaultSort: "-publishedAt",
   fields: [
-    { name: "title", required: true, type: "text" },
+    { ...demoLocalized, name: "title", required: true, type: "text" },
     {
       admin: { description: "The post's address: /news/<slug>." },
       index: true,
@@ -32,11 +33,12 @@ export const Posts: CollectionConfig = {
       admin: {
         description: "One or two sentences for the listing and link previews.",
       },
+      ...demoLocalized,
       name: "excerpt",
       type: "textarea",
     },
     { name: "hero", relationTo: "media", type: "upload" },
-    { name: "content", type: "richText" },
+    { ...demoLocalized, name: "content", type: "richText" },
     {
       admin: {
         date: { pickerAppearance: "dayOnly" },

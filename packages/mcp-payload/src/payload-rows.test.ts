@@ -379,6 +379,139 @@ describe(patchRows, () => {
   });
 });
 
+// The same page on a site with locales: each section's heading and each
+// card's note are kept for each locale, and so are the breadcrumbs, rows and
+// all. Everything else is shared.
+const LOCALIZED_ROWS: RowContext = {
+  localizedFields: ["breadcrumbs", "_status"],
+  richTextFields: [],
+  rowFields: [
+    {
+      blocks: [
+        {
+          localizedFields: ["heading"],
+          richTextFields: ["body"],
+          rowFields: [],
+          slug: "content",
+        },
+        {
+          localizedFields: ["heading"],
+          richTextFields: [],
+          rowFields: [
+            {
+              localizedFields: ["note"],
+              path: "cards",
+              richTextFields: ["note"],
+              rowFields: [],
+              type: "array",
+            },
+          ],
+          slug: "cardGrid",
+        },
+      ],
+      path: "layout",
+      type: "blocks",
+    },
+    {
+      localizedFields: [],
+      path: "breadcrumbs",
+      richTextFields: [],
+      rowFields: [],
+      type: "array",
+    },
+  ],
+};
+
+const inSpanish = async (changes: RowChange[]): Promise<string[]> => {
+  const result = await patchRows(
+    { ...page(), breadcrumbs: [{ id: "b1", label: "Home" }] },
+    LOCALIZED_ROWS,
+    changes,
+    converters,
+    "es"
+  );
+
+  return result.snapshots.map((field) => field.label ?? "");
+};
+
+describe("patchRows in a locale", () => {
+  it("marks a localized field of a row for that locale, and the rest for all", async () => {
+    const labels = await inSpanish([
+      { op: "set", path: "layout[id=s1].heading", value: "Introducción" },
+      {
+        op: "set",
+        path: "layout[id=s2].cards[id=c1].title",
+        value: "Semillas",
+      },
+      {
+        markdown: "Primero",
+        op: "set_markdown",
+        path: "layout[id=s2].cards[id=c1].note",
+      },
+    ]);
+
+    expect(labels).toStrictEqual([
+      "Layout › Content (row 1) › Heading · es only",
+      "Layout › Card grid (row 2) › Cards › row 1 › Title · every locale",
+      "Layout › Card grid (row 2) › Cards › row 1 › Note · es only",
+    ]);
+  });
+
+  it("marks rows put in, taken out and moved in a shared field for every locale", async () => {
+    const labels = await inSpanish([
+      {
+        after_id: null,
+        field: "layout",
+        op: "insert",
+        row: { blockType: "content", heading: "Nueva" },
+      },
+      { field: "layout[id=s2].cards", op: "remove", row_id: "c2" },
+      {
+        after_id: null,
+        field: "layout[id=s2].cards",
+        op: "move",
+        row_id: "c3",
+      },
+    ]);
+
+    expect(labels.map((label) => label.split(" · ")[1])).toStrictEqual([
+      "every locale",
+      "every locale",
+      "every locale",
+    ]);
+  });
+
+  it("marks every change inside a localized rows field for that locale", async () => {
+    const labels = await inSpanish([
+      { op: "set", path: "breadcrumbs[id=b1].label", value: "Inicio" },
+      {
+        after_id: "b1",
+        field: "breadcrumbs",
+        op: "insert",
+        row: { label: "Noticias" },
+      },
+    ]);
+
+    expect(labels.map((label) => label.split(" · ")[1])).toStrictEqual([
+      "es only",
+      "es only",
+    ]);
+  });
+
+  it("leaves labels alone when no locale is given", async () => {
+    const result = await patchRows(
+      page(),
+      LOCALIZED_ROWS,
+      [{ op: "set", path: "layout[id=s1].heading", value: "Hi" }],
+      converters
+    );
+
+    expect(result.snapshots[0]?.label).toBe(
+      "Layout › Content (row 1) › Heading"
+    );
+  });
+});
+
 describe(readBackRows, () => {
   it("reports what landed, what Payload rewrote and what it dropped", async () => {
     const result = await patch([

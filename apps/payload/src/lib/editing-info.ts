@@ -12,6 +12,12 @@ export const MAX_ROW_DEPTH = 4;
 
 /** One block type a blocks field takes, and what a row of it holds. */
 export interface BlockInfo {
+  /**
+   * Localized fields in one row, by path from the row. A field under one of
+   * them is localized with it; every other field of the row holds one value
+   * for all locales.
+   */
+  localizedFields: string[];
   /** Rich text fields in one row, by path from the row. */
   richTextFields: string[];
   /** Array and blocks fields in one row. */
@@ -23,6 +29,8 @@ export interface BlockInfo {
 export interface RowsFieldInfo {
   /** Blocks fields only: the block types a row may be. */
   blocks?: BlockInfo[];
+  /** Array fields only: localized fields in one row, by path from the row. */
+  localizedFields?: string[];
   /**
    * The field's path from the document, or from the row that holds it.
    * Groups and named tabs join with a dot: `hero.links`.
@@ -51,6 +59,13 @@ export interface RelationFieldInfo {
 export interface FieldsInfo {
   /** Whether any field, at any depth, is localized. */
   localized: boolean;
+  /**
+   * Every localized field outside a row, by path: the fields Payload keeps
+   * one value of for each locale. A field under one of them (in a localized
+   * group, or in the rows of a localized array) is localized with it. Every
+   * other field holds one value for all locales.
+   */
+  localizedFields: string[];
   relationFields: RelationFieldInfo[];
   /** Every rich text field outside a row, by path. */
   richTextFields: string[];
@@ -78,6 +93,7 @@ interface DescribedRows {
 
 const emptyInfo = (): FieldsInfo => ({
   localized: false,
+  localizedFields: [],
   relationFields: [],
   richTextFields: [],
   rowFields: [],
@@ -85,6 +101,7 @@ const emptyInfo = (): FieldsInfo => ({
 
 const merge = (into: FieldsInfo, from: FieldsInfo): void => {
   into.localized ||= from.localized;
+  into.localizedFields.push(...from.localizedFields);
   into.relationFields.push(...from.relationFields);
   into.richTextFields.push(...from.richTextFields);
   into.rowFields.push(...from.rowFields);
@@ -115,6 +132,7 @@ const blockInfo = (
 
   return {
     info: {
+      localizedFields: fields.localizedFields,
       richTextFields: fields.richTextFields,
       rowFields: fields.rowFields,
       slug: block.slug,
@@ -139,6 +157,7 @@ const describeRows = (
     return {
       localized: fields.localized,
       rows: {
+        localizedFields: fields.localizedFields,
         path,
         richTextFields: fields.richTextFields,
         rowFields: fields.rowFields,
@@ -173,7 +192,10 @@ export const describeFields = (
   for (const field of fields) {
     const path = `${walk.prefix}${field.name}`;
 
-    info.localized ||= isLocalized(field);
+    if (isLocalized(field)) {
+      info.localized = true;
+      info.localizedFields.push(path);
+    }
 
     switch (field.type) {
       case "array":

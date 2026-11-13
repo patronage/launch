@@ -17,7 +17,7 @@ import type {
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
-import { payloadErrorMessage, payloadRest } from "./payload";
+import { inLocale, payloadErrorMessage, payloadRest } from "./payload";
 import {
   assertDraftDocument,
   classifyReadback,
@@ -41,6 +41,18 @@ import { readEditingInfo } from "./payload-editing";
 import type { CollectionEditing, EditingInfo } from "./payload-editing";
 import { applyGlobal, preflightGlobal } from "./payload-global-apply";
 import type { PayloadGlobalAdminUrl } from "./payload-global-apply";
+import {
+  inScope,
+  localeScope,
+  namedLocale,
+  publishLocalesQuery,
+} from "./payload-locale";
+import type { LocaleScope } from "./payload-locale";
+import {
+  confirmEveryLocale,
+  readLocaleStatuses,
+  withLocaleStatuses,
+} from "./payload-locale-status";
 import {
   draftChangedPaths,
   draftFields,
@@ -79,7 +91,7 @@ const documentIdSchema = z.union([z.number(), z.string()]);
 const createdSchema = z.object({ doc: z.object({ id: documentIdSchema }) });
 
 const operationPath = (operation: UpdateDraftOperation): string =>
-  documentPath(operation.collection, operation.id, !operation.publish);
+  `${documentPath(operation.collection, operation.id, !operation.publish)}${publishLocalesQuery(operation)}`;
 
 const createPath = (operation: DraftOperation): string =>
   `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
@@ -169,6 +181,8 @@ interface PreflightContext {
   // Where a staged file is read from. Without it, an upload has no file.
   files?: UploadFiles | undefined;
   info: EditingInfo;
+  // The locale the operation works in, where its target has any.
+  locale?: LocaleScope | undefined;
   siteUrl: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
   titles: TitleLookup;
@@ -309,7 +323,7 @@ const preflightOne = async (
   return preview;
 };
 
-const preflightAs = (
+const preflightKind = (
   context: PreflightContext,
   operation: PayloadOperation,
   index: number
@@ -337,6 +351,45 @@ const preflightAs = (
   return isRowsOperation(operation)
     ? preflightRows(context, operation, index)
     : preflightOne(context, operation, index);
+};
+
+// On a target with localized fields an operation works in one locale: the
+// one it names, or the site's default. A named locale is put on every
+// request the operation makes; the default is what Payload reads and
+// writes anyway. Either way the preview says which, and marks each field
+// as that locale's or as shared by all.
+const preflightAs = async (
+  context: PreflightContext,
+  operation: PayloadOperation,
+  index: number
+): Promise<OperationPreflight> => {
+  const locale = localeScope(context.info, operation);
+
+  if (!locale) {
+    return await preflightKind(context, operation, index);
+  }
+
+  const preview = await preflightKind(
+    {
+      ...context,
+      client: locale.named
+        ? inLocale(context.client, locale.code)
+        : context.client,
+      locale,
+    },
+    operation,
+    index
+  );
+
+  // Read apart from the operation's own locale, with a client bound to none.
+  const statuses = await readLocaleStatuses(
+    context.client,
+    operation,
+    locale,
+    context.telemetry
+  );
+
+  return withLocaleStatuses(inScope(preview, locale, operation), statuses);
 };
 
 const preflightFrom = async (
@@ -716,7 +769,7 @@ const applyOne = async (
   }
 };
 
-const applyAs = (
+const applyKind = (
   context: ApplyContext,
   operation: PayloadOperation,
   snapshot: OperationPreflight
@@ -744,6 +797,79 @@ const applyAs = (
   return isRowsOperation(operation)
     ? applyRows(context, operation, snapshot)
     : applyOne(context, operation, snapshot);
+};
+
+// What an operation that works in a locale adds around its write. A named
+// locale is checked against the site again before anything is written in
+// it: Payload writes the default locale for a code it does not know, so an
+// operation whose locale has gone is refused, not sent. One that publishes
+// every locale is read back in all of them.
+const applyInLocale = async (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  const named = namedLocale(operation);
+
+  const scope = localeScope(
+    await readEditingInfo(context.client, context.telemetry),
+    operation
+  );
+
+  const statuses = () =>
+    readLocaleStatuses(context.client, operation, scope, context.telemetry);
+
+  const before = await statuses();
+
+  const written = await applyKind(
+    named === undefined
+      ? context
+      : { ...context, client: inLocale(context.client, named) },
+    operation,
+    snapshot
+  );
+
+  const receipt = confirmEveryLocale(
+    written,
+    before,
+    before && (await statuses())
+  );
+
+  // The locale leads, so the cap on a receipt's details never drops it.
+  const details = receiptDetails({ locale: named, ...receipt.details });
+
+  return details ? { ...receipt, details } : receipt;
+};
+
+const applyAs = async (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  const inLocaleOrAll =
+    namedLocale(operation) !== undefined ||
+    ("publish_all_locales" in operation &&
+      operation.publish_all_locales === true);
+
+  if (!inLocaleOrAll) {
+    return await applyKind(context, operation, snapshot);
+  }
+
+  try {
+    return await applyInLocale(context, operation, snapshot);
+  } catch (error) {
+    const receiptError = toReceiptError(error);
+
+    return {
+      changed_paths: [],
+      error: receiptError,
+      kind: operation.kind,
+      normalized_paths: [],
+      operation_index: snapshot.operationIndex,
+      status: CONFLICT_CODES.has(receiptError.code) ? "conflict" : "failed",
+      target: snapshot.target,
+    };
+  }
 };
 
 interface DraftApplyOptions {

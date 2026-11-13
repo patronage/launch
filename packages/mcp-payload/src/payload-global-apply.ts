@@ -30,6 +30,8 @@ import {
 } from "./payload-documents";
 import { readEditingInfo } from "./payload-editing";
 import type { EditingInfo, GlobalEditing } from "./payload-editing";
+import { publishLocalesQuery } from "./payload-locale";
+import type { LocaleScope } from "./payload-locale";
 import {
   draftFields,
   globalFieldPaths,
@@ -63,6 +65,8 @@ export interface GlobalContext {
 export interface GlobalPreflightContext extends GlobalContext {
   globalAdminUrl: PayloadGlobalAdminUrl;
   info: EditingInfo;
+  // The locale the change is made in, where the global has any.
+  locale?: LocaleScope | undefined;
   titles: TitleLookup;
 }
 
@@ -123,6 +127,7 @@ export const editableGlobal = (
 // A row path always goes through a row, so the global's own rich text
 // fields never come into it.
 const rowContext = (global: GlobalEditing): RowContext => ({
+  localizedFields: global.localizedFields,
   richTextFields: [],
   rowFields: global.rowFields,
 });
@@ -145,9 +150,16 @@ const converters: RowConverters = {
 const patchGlobalRows = (
   record: JsonObject,
   global: GlobalEditing,
-  operation: UpdateGlobalOperation
+  operation: UpdateGlobalOperation,
+  locale?: string
 ): Promise<RowsPatch> =>
-  patchRows(record, rowContext(global), operation.changes ?? [], converters);
+  patchRows(
+    record,
+    rowContext(global),
+    operation.changes ?? [],
+    converters,
+    locale
+  );
 
 // Whether the write publishes a draft. A global without drafts has no
 // `_status` to set: every save of it is the published one.
@@ -190,7 +202,12 @@ export const preflightGlobal = async (
     )
   );
 
-  const patch = await patchGlobalRows(record, global, operation);
+  const patch = await patchGlobalRows(
+    record,
+    global,
+    operation,
+    context.locale?.code
+  );
 
   const preview: OperationPreflight = {
     editUrl: context.globalAdminUrl(operation.global),
@@ -287,7 +304,7 @@ const writeGlobal = async (
   // does not publish. Payload ignores `draft=true` on a global without them.
   const write = await payloadRest(
     client,
-    globalPath(operation.global, global.drafts && !publishes),
+    `${globalPath(operation.global, global.drafts && !publishes)}${publishes ? publishLocalesQuery(operation) : ""}`,
     telemetry,
     {
       body: JSON.stringify(body),

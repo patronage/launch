@@ -17,7 +17,7 @@ node .agents/skills/launch-verify/scripts/verify.ts --help
 | --- | --- | --- | --- |
 | `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form`, `seo` |
 | `web-wordpress` | `apps/web-wordpress` on `vite dev`, reading WordPress in Docker | 3000 | `pages` |
-| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft`, `payload-global`, `payload-restore`, `payload-rows`, `payload-trash`, `payload-unpublish`, `payload-upload` |
+| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft`, `payload-global`, `payload-locales` (needs `launch mcp --locales`), `payload-restore`, `payload-rows`, `payload-trash`, `payload-unpublish`, `payload-upload` |
 
 The feature map is in [features/README.md](features/README.md). The Timber install renders its own pages in PHP and isn't covered here.
 
@@ -56,6 +56,8 @@ node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: 
 ```
 
 `launch mcp` starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`. If another checkout holds Payload's or the stand-in's port, pass `--payload-port N` or `--access-port N`.
+
+`launch payload --locales` and `launch mcp --locales` run Payload with two locales (`en` and `es`), for the `payload-locales` drive. The demo has one language, so this builds Payload with `PAYLOAD_DEMO_LOCALES=en,es` and gives it a fresh database of its own, migrated and seeded on every such launch, under `apps/payload/.demo-locales/` (ignored by git). The normal local database is not touched. A Payload server already running the other way is not reused: run `cleanup payload` (and `cleanup mcp`) first, and again afterwards to go back to the one-language demo.
 
 Launch fails when Doctor fails, and it refuses in these cases:
 
@@ -101,6 +103,7 @@ node .agents/skills/launch-verify/scripts/verify.ts drive payload seo
 node .agents/skills/launch-verify/scripts/verify.ts drive web-wordpress pages
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-draft
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-global
+node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-locales   # after launch mcp --locales
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-restore
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-rows
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-trash
@@ -126,7 +129,7 @@ Each `drive` or `capture` writes to `.agents/skills/launch-verify/evidence/<utc-
 - `NN-<step>.png`: numbered full-page screenshots of each action and its result;
 - `page.html` and `response.json`, from `capture`: the status, final URL, headers and checkout SHA;
 - `form-submissions.json`, from `apply-form`: the stored submission, read back as the local admin;
-- `run.json`, from `payload-draft`, `payload-rows` and `payload-upload` (`change-run.json` and `restore-run.json` from `payload-global`; `draft-run.json`, `unpublish-run.json` and `republish-run.json` from `payload-unpublish`; `draft-run.json`, `restore-run.json`, `restore-publish-run.json` and `put-back-run.json` from `payload-restore`; `trash-run.json`, `restore-draft-run.json`, `trash-again-run.json` and `restore-publish-run.json` from `payload-trash`): the gateway's receipt for the approved write, as `get_run` reports it;
+- `run.json`, from `payload-draft`, `payload-rows` and `payload-upload` (`change-run.json` and `restore-run.json` from `payload-global`; `draft-run.json`, `unpublish-run.json` and `republish-run.json` from `payload-unpublish`; `draft-run.json`, `restore-run.json`, `restore-publish-run.json` and `put-back-run.json` from `payload-restore`; `trash-run.json`, `restore-draft-run.json`, `trash-again-run.json` and `restore-publish-run.json` from `payload-trash`; `es-draft-run.json`, `es-publish-run.json`, `es-shared-draft-run.json`, `es-unpublish-run.json` and `put-back-run.json` from `payload-locales`): the gateway's receipt for the approved write, as `get_run` reports it;
 - `server-log.txt`: the Worker's log lines during the run, which include each request's evlog wide event with `upstream.d1` or `upstream.wordpress` timings. The `cache` field (vinext's HIT, STALE or MISS) only appears on ISR pages served by a build (`vite preview`) or a deployed Worker. Under the web-wordpress `vite dev` surface and on Payload's `no-store` pages, it never appears. Events say `environment: 'production'` even locally.
 
 Look at each screenshot against its transcript line before calling a run good. A form drive passes only when the POST succeeded, the confirmation showed, and the row came back from the API.

@@ -6,7 +6,11 @@ import type {
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
-import { payloadMcpRequest, toPayloadToolResult } from "./payload";
+import {
+  clientLocale,
+  payloadMcpRequest,
+  toPayloadToolResult,
+} from "./payload";
 import type { PayloadToolResult } from "./payload";
 
 // The read-only tools apps/payload adds to Payload's MCP server
@@ -50,6 +54,9 @@ export const callPayloadTool = async (
 // groups with a dot (`hero.links`).
 export interface RowsField {
   blocks?: BlockRows[] | undefined;
+  // Array fields: the localized fields of one row, by path from the row.
+  // Absent from a Payload whose `getEditingInfo` does not list them.
+  localizedFields?: string[] | undefined;
   path: string;
   richTextFields?: string[] | undefined;
   rowFields?: RowsField[] | undefined;
@@ -57,6 +64,8 @@ export interface RowsField {
 }
 
 export interface BlockRows {
+  // The localized fields of one row of this block, by path from the row.
+  localizedFields?: string[] | undefined;
   richTextFields: string[];
   rowFields: RowsField[];
   slug: string;
@@ -67,12 +76,14 @@ const rowsFieldSchema: z.ZodType<RowsField> = z.lazy(() =>
     blocks: z
       .array(
         z.object({
+          localizedFields: z.array(z.string()).optional(),
           richTextFields: z.array(z.string()),
           rowFields: z.array(rowsFieldSchema),
           slug: z.string(),
         })
       )
       .optional(),
+    localizedFields: z.array(z.string()).optional(),
     path: z.string(),
     richTextFields: z.array(z.string()).optional(),
     rowFields: z.array(rowsFieldSchema).optional(),
@@ -118,6 +129,12 @@ const collectionEditingSchema = z.object({
   canUpdate: z.boolean(),
   drafts: z.boolean(),
   localized: z.boolean().default(false),
+  // The localized fields outside any row, by path; a field under one of
+  // them is localized with it, and every other field is shared by all
+  // locales. `_status` is among them where the collection keeps a status
+  // for each locale. Absent from a Payload that does not list them, and
+  // then an operation cannot name a locale.
+  localizedFields: z.array(z.string()).optional(),
   preview: z.boolean().default(false),
   relationFields: z.array(relationFieldSchema).default([]),
   richTextFields: z.array(z.string()),
@@ -133,6 +150,8 @@ const globalEditingSchema = z.object({
   canUpdate: z.boolean(),
   drafts: z.boolean(),
   localized: z.boolean().default(false),
+  // As for a collection.
+  localizedFields: z.array(z.string()).optional(),
   // Whether another editor has the global open in the admin. Absent from a
   // Payload whose `getEditingInfo` does not report it, and then a global is
   // not written to: Payload itself saves a global over an editor's lock.
@@ -211,12 +230,22 @@ export const readDocumentAddress = async (
   telemetry: UpstreamTelemetry
 ): Promise<DocumentAddress> => {
   const address: DocumentAddress = {};
+  const args: JsonObject = { id, slug: collection };
+
+  // An operation in a locale asks for that locale's address: a slug, or
+  // the front end's routes, can differ from one locale to the next. A
+  // Payload whose tool takes no `locale` refuses, and reads as no address.
+  const locale = clientLocale(client);
+
+  if (locale !== undefined) {
+    args.locale = locale;
+  }
 
   try {
     const result = await callPayloadTool(
       client,
       PREVIEW_URL_TOOL,
-      { id, slug: collection },
+      args,
       telemetry
     );
 
