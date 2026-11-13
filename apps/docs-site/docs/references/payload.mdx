@@ -76,7 +76,16 @@ Metadata renders in `<head>` for every visitor. Next and vinext normally stream 
 
 ## Deployed
 
-The app runs as the Worker `launch-payload`, with its database (D1 until the move to PlanetScale) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default, because they would share production's bindings; there is no PlanetScale staging branch yet. The app's README covers the deploy, secrets and Workers Builds setup.
+The app runs as the Worker `launch-payload`, with its database (D1 until the move to PlanetScale) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default. On D1 they need their own D1 database. On Postgres they read the PlanetScale branch `preview` through its own Hyperdrive configuration: a branch that adds no migrations reads the shared copy in `public`, and one that adds migrations gets its own schema with that copy and its migrations (see [Branch previews on Postgres](#branch-previews-on-postgres)). The app's README covers the deploy, secrets and Workers Builds setup.
+
+### Branch previews on Postgres
+
+Every PR can get a preview URL on content that resembles the live site, without a database per PR. All previews share the PlanetScale branch `preview` and one Hyperdrive configuration. Its `public` schema holds the shared preview copy: production's content plus preview editors.
+
+- A branch that adds no Payload migrations reads `public` and costs nothing beyond its Worker Preview.
+- A branch that adds migrations gets a schema of its own, named after a hash of the branch. Before the build, `scripts/preview-schema.mjs prepare` copies `public` into it and runs the branch's migrations on top, so the shared copy is untouched. The Worker is built with that schema and reads it through the same Hyperdrive configuration.
+
+Committed migrations name no schema for this to work, and a test enforces it. Stale schemas are dropped with `preview-schema.mjs sweep`. See [ADR 0021](https://github.com/patronage/launch/blob/main/docs/adr/0021-payload-previews-on-one-preview-database.md).
 
 ## What else the research found
 

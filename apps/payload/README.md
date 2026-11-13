@@ -110,6 +110,17 @@ After the first deploy, record the provisioned D1 database id and R2 bucket in `
 
 Branch builds are off by default. To opt in, create a D1 database and R2 bucket for previews, set `WORKER_PREVIEWS=true` with `PAYLOAD_PREVIEW_D1_ID`, `PAYLOAD_PREVIEW_D1_NAME` and `PAYLOAD_PREVIEW_R2_BUCKET` when configuring Builds, and protect every preview admin/API hostname with Access first. A Preview never binds the production database or bucket; a Preview build without its own fails. Once `WORKER_DOMAIN` is set, the Worker is served only there, not on `workers.dev`. Version preview URLs are disabled to keep the CMS behind its protected hostnames. Before enabling branch builds, export a `PAYLOAD_SECRET` for previews and run `pnpm run secrets --preview-base` with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Production secrets do not populate [Previews Base](https://developers.cloudflare.com/workers/previews/configuration/#secrets). New previews inherit its secrets; changing the base does not update existing previews. `--dry-run` still lists only names and sends no request.
 
+### Branch previews on Postgres
+
+With `PAYLOAD_DB=postgres`, a Preview reads the PlanetScale branch `preview` through its own Hyperdrive configuration (`PAYLOAD_PREVIEW_HYPERDRIVE_ID`) and media bucket (`PAYLOAD_PREVIEW_R2_BUCKET`), never production's ([ADR 0021](../../docs/adr/0021-payload-previews-on-one-preview-database.md)). The branch's `public` schema is the shared preview copy. Before a preview build, `pnpm run deploy --preview` runs `node scripts/preview-schema.mjs prepare --branch <branch>` (the branch is `WORKERS_CI_BRANCH` in Workers Builds, else the checkout's):
+
+- A branch that adds no migrations reads `public`. Nothing is created.
+- A branch that adds migrations gets its own schema, `preview_<hash of the branch name>`, with `public`'s rows (preview users included) copied in and the branch's migrations run on top. The Worker is built with `PAYLOAD_DB_SCHEMA` set to it, and runs no migrations at boot. Later builds migrate the schema in place.
+
+`prepare` needs `PREVIEW_DATABASE_URL`, a direct connection (port 5432, `sslmode=verify-full`) to the `preview` branch as a role that inherits `postgres`. On the Builds trigger it is a secret variable, added by hand. What the script creates belongs to `postgres`, so the role can be deleted. It refuses any database that has not been marked once with `node scripts/preview-schema.mjs init`. `drop --branch <name>` removes a branch's schema, and `sweep --days <n> [--dry-run]` drops schemas not prepared for that many days.
+
+`PREVIEW_SCHEMA_E2E=1 node --test scripts/preview-schema-e2e.test.mjs` runs all of it against a throwaway Postgres in Docker.
+
 `pnpm run builds:configure` connects an existing Worker to Workers Builds and refuses to enable optional branch builds until its Preview base secrets exist. It runs through your `cf auth login` and needs `CLOUDFLARE_ACCOUNT_ID`, `BUILD_TOKEN_UUID`, `GITHUB_OWNER_ID` and `GITHUB_REPO_ID`. Optional `PAYLOAD_DB`, `HYPERDRIVE_ID`, `WORKER_DOMAIN` and the `ACCESS_*` settings become build variables. They are copied onto the Builds trigger once, so a setting added later has to be added to the trigger too (see the docs site's Workers Builds page). It runs a frozen install and lint for the workspace, followed by typechecks and tests for this app and its dependencies. See [Workers Builds](../../docs/spikes/11-workers-builds.md) for the setup sequence.
 
 ## How it fits together
@@ -127,6 +138,7 @@ Branch builds are off by default. To opt in, create a D1 database and R2 bucket 
 - `src/payload.config.ts` reads bindings from `cloudflare:workers`. `src/db.ts` picks the adapter. Vite replaces `PAYLOAD_DB` at build time, so the bundle only carries one adapter.
 - The Payload CLI runs in Node. `pnpm payload` loads `scripts/register-node-hooks.mjs`, which resolves `cloudflare:workers` to Miniflare bindings that share local state with `vite preview`. The D1 and R2 bindings come from `cloudflare.config.ts`, because Miniflare keys local D1 files by database id. If `pnpm seed` ran before that change and the admin is empty, delete `.cloudflare/state` and migrate and seed again.
 - Schema push is off: drizzle-kit cannot load in workerd. Use `pnpm payload migrate:create` after changing collections. The deployed Worker applies pending migrations on boot (`prodMigrations`).
+- Postgres migrations name no schema, so a branch preview can run them into its own (above). `migrate:create` writes `"public".` before enum and foreign-key names: delete that prefix from the new migration. `pnpm test` fails while any migration has it.
 - `src/request-scoped-pg.ts` gives Payload a `pg.Pool` that opens one connection per checkout. workerd ties sockets to the request that opened them.
 - `src/og-stub.ts` replaces `next/og`, used only by Payload's admin OG image route. That keeps about 1 MB (gzipped) of wasm out of the Worker.
 

@@ -2,16 +2,16 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
-   CREATE TYPE "public"."enum_pages_hero_links_link_type" AS ENUM('reference', 'custom');
-  CREATE TYPE "public"."enum_pages_hero_links_link_variant" AS ENUM('primary', 'secondary', 'text');
-  CREATE TYPE "public"."enum_pages_hero_variant" AS ENUM('home', 'split', 'media', 'simple', 'freeform');
-  CREATE TYPE "public"."enum_pages_hero_skin" AS ENUM('light', 'dark', 'accent');
-  CREATE TYPE "public"."enum_pages_hero_align" AS ENUM('start', 'center');
-  CREATE TYPE "public"."enum__pages_v_version_hero_links_link_type" AS ENUM('reference', 'custom');
-  CREATE TYPE "public"."enum__pages_v_version_hero_links_link_variant" AS ENUM('primary', 'secondary', 'text');
-  CREATE TYPE "public"."enum__pages_v_version_hero_variant" AS ENUM('home', 'split', 'media', 'simple', 'freeform');
-  CREATE TYPE "public"."enum__pages_v_version_hero_skin" AS ENUM('light', 'dark', 'accent');
-  CREATE TYPE "public"."enum__pages_v_version_hero_align" AS ENUM('start', 'center');
+   CREATE TYPE "enum_pages_hero_links_link_type" AS ENUM('reference', 'custom');
+  CREATE TYPE "enum_pages_hero_links_link_variant" AS ENUM('primary', 'secondary', 'text');
+  CREATE TYPE "enum_pages_hero_variant" AS ENUM('home', 'split', 'media', 'simple', 'freeform');
+  CREATE TYPE "enum_pages_hero_skin" AS ENUM('light', 'dark', 'accent');
+  CREATE TYPE "enum_pages_hero_align" AS ENUM('start', 'center');
+  CREATE TYPE "enum__pages_v_version_hero_links_link_type" AS ENUM('reference', 'custom');
+  CREATE TYPE "enum__pages_v_version_hero_links_link_variant" AS ENUM('primary', 'secondary', 'text');
+  CREATE TYPE "enum__pages_v_version_hero_variant" AS ENUM('home', 'split', 'media', 'simple', 'freeform');
+  CREATE TYPE "enum__pages_v_version_hero_skin" AS ENUM('light', 'dark', 'accent');
+  CREATE TYPE "enum__pages_v_version_hero_align" AS ENUM('start', 'center');
   CREATE TABLE "pages_hero_links" (
   	"_order" integer NOT NULL,
   	"_parent_id" integer NOT NULL,
@@ -57,14 +57,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_pages_v" ADD COLUMN "version_hero_align" "enum__pages_v_version_hero_align" DEFAULT 'start';
   ALTER TABLE "_pages_v" ADD COLUMN "version_hero_subhead" varchar;
   ALTER TABLE "_pages_v" ADD COLUMN "version_hero_body" jsonb;
-  ALTER TABLE "pages_hero_links" ADD CONSTRAINT "pages_hero_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "_pages_v_version_hero_links" ADD CONSTRAINT "_pages_v_version_hero_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "pages_hero_links" ADD CONSTRAINT "pages_hero_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "pages"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_pages_v_version_hero_links" ADD CONSTRAINT "_pages_v_version_hero_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   CREATE INDEX "pages_hero_links_order_idx" ON "pages_hero_links" USING btree ("_order");
   CREATE INDEX "pages_hero_links_parent_id_idx" ON "pages_hero_links" USING btree ("_parent_id");
   CREATE INDEX "_pages_v_version_hero_links_order_idx" ON "_pages_v_version_hero_links" USING btree ("_order");
   CREATE INDEX "_pages_v_version_hero_links_parent_id_idx" ON "_pages_v_version_hero_links" USING btree ("_parent_id");
-  ALTER TABLE "pages" ADD CONSTRAINT "pages_hero_image_id_media_id_fk" FOREIGN KEY ("hero_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
-  ALTER TABLE "_pages_v" ADD CONSTRAINT "_pages_v_version_hero_image_id_media_id_fk" FOREIGN KEY ("version_hero_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "pages" ADD CONSTRAINT "pages_hero_image_id_media_id_fk" FOREIGN KEY ("hero_image_id") REFERENCES "media"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_pages_v" ADD CONSTRAINT "_pages_v_version_hero_image_id_media_id_fk" FOREIGN KEY ("version_hero_image_id") REFERENCES "media"("id") ON DELETE set null ON UPDATE no action;
   CREATE INDEX "pages_hero_hero_image_idx" ON "pages" USING btree ("hero_image_id");
   CREATE INDEX "_pages_v_version_hero_version_hero_image_idx" ON "_pages_v" USING btree ("version_hero_image_id");`)
 }
@@ -79,8 +79,8 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP INDEX "_pages_v_version_hero_version_hero_image_idx";
   ALTER TABLE "pages" RENAME COLUMN "hero_image_id" TO "hero_id";
   ALTER TABLE "_pages_v" RENAME COLUMN "version_hero_image_id" TO "version_hero_id";
-  ALTER TABLE "pages" ADD CONSTRAINT "pages_hero_id_media_id_fk" FOREIGN KEY ("hero_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
-  ALTER TABLE "_pages_v" ADD CONSTRAINT "_pages_v_version_hero_id_media_id_fk" FOREIGN KEY ("version_hero_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "pages" ADD CONSTRAINT "pages_hero_id_media_id_fk" FOREIGN KEY ("hero_id") REFERENCES "media"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_pages_v" ADD CONSTRAINT "_pages_v_version_hero_id_media_id_fk" FOREIGN KEY ("version_hero_id") REFERENCES "media"("id") ON DELETE set null ON UPDATE no action;
   CREATE INDEX "pages_hero_idx" ON "pages" USING btree ("hero_id");
   CREATE INDEX "_pages_v_version_version_hero_idx" ON "_pages_v" USING btree ("version_hero_id");
   ALTER TABLE "pages" DROP COLUMN "hero_variant";
@@ -97,14 +97,14 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   ALTER TABLE "_pages_v" DROP COLUMN "version_hero_align";
   ALTER TABLE "_pages_v" DROP COLUMN "version_hero_subhead";
   ALTER TABLE "_pages_v" DROP COLUMN "version_hero_body";
-  DROP TYPE "public"."enum_pages_hero_links_link_type";
-  DROP TYPE "public"."enum_pages_hero_links_link_variant";
-  DROP TYPE "public"."enum_pages_hero_variant";
-  DROP TYPE "public"."enum_pages_hero_skin";
-  DROP TYPE "public"."enum_pages_hero_align";
-  DROP TYPE "public"."enum__pages_v_version_hero_links_link_type";
-  DROP TYPE "public"."enum__pages_v_version_hero_links_link_variant";
-  DROP TYPE "public"."enum__pages_v_version_hero_variant";
-  DROP TYPE "public"."enum__pages_v_version_hero_skin";
-  DROP TYPE "public"."enum__pages_v_version_hero_align";`)
+  DROP TYPE "enum_pages_hero_links_link_type";
+  DROP TYPE "enum_pages_hero_links_link_variant";
+  DROP TYPE "enum_pages_hero_variant";
+  DROP TYPE "enum_pages_hero_skin";
+  DROP TYPE "enum_pages_hero_align";
+  DROP TYPE "enum__pages_v_version_hero_links_link_type";
+  DROP TYPE "enum__pages_v_version_hero_links_link_variant";
+  DROP TYPE "enum__pages_v_version_hero_variant";
+  DROP TYPE "enum__pages_v_version_hero_skin";
+  DROP TYPE "enum__pages_v_version_hero_align";`)
 }

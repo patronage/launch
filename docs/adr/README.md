@@ -28,3 +28,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0018](0018-payload-connector-writes.md) | Payload connector writes through REST as the approver; staged uploads, row patches, globals, unpublish, version restore, trash, locales; no permanent delete |
 | [0019](0019-local-pulls-copy-content-only.md) | `pnpm db:pull` copies a PlanetScale Postgres branch's content tables only, through a temporary read-only role, into a local Postgres; users never leave PlanetScale |
 | [0020](0020-payload-production-on-planetscale.md) | Payload production on Postgres through Hyperdrive and PlanetScale, moved from D1 with `pnpm d1:copy`; replaces 0007's database choice |
+| [0021](0021-payload-previews-on-one-preview-database.md) | Payload Previews share one PlanetScale `preview` branch: the shared copy in `public`, or the branch's own schema when it adds migrations; committed migrations name no schema |

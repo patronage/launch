@@ -13,6 +13,10 @@ export default defineConfig({
     "process.env.PAYLOAD_DEMO_LOCALES": JSON.stringify(
       process.env.PAYLOAD_DEMO_LOCALES ?? ""
     ),
+    // A PR preview's own Postgres schema (pr_<n>), fixed when its Worker is built.
+    "process.env.PAYLOAD_DB_SCHEMA": JSON.stringify(
+      process.env.PAYLOAD_DB_SCHEMA ?? ""
+    ),
   },
   plugins: [
     {

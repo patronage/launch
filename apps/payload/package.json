@@ -22,7 +22,7 @@
     "hyperdrive:configure": "node scripts/hyperdrive.mjs",
     "secrets": "node scripts/secrets.mjs",
     "builds:configure": "node scripts/workers-builds.mjs",
-    "test": "vitest run && node --test scripts/config-startup.test.mjs scripts/db-pull-tables.test.mjs scripts/d1-to-postgres.test.mjs scripts/hyperdrive.test.mjs"
+    "test": "vitest run && node --test scripts/config-startup.test.mjs scripts/db-pull-tables.test.mjs scripts/d1-to-postgres.test.mjs scripts/hyperdrive.test.mjs scripts/preview-schema.test.mjs"
   },
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",
