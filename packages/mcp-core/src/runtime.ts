@@ -184,16 +184,21 @@ export abstract class BaseGatewayRuntime<
     return connector.parseApply(args);
   };
 
-  // Durable Object storage as the staged-file store sees it.
+  #blobStorage: BlobStorage | undefined;
+
+  // Durable Object storage as the staged-file store sees it. It is one object
+  // for this instance's life, because the store queues stagings per storage.
   #blobs(): BlobStorage {
     const { storage } = this.ctx;
 
-    return {
+    this.#blobStorage ??= {
       delete: (keys) => storage.delete(keys),
       get: (key) => storage.get(key),
       list: (options) => storage.list(options),
       put: (key, value) => storage.put(key, value),
     };
+
+    return this.#blobStorage;
   }
 
   #store(): RuntimeStore {
@@ -882,8 +887,17 @@ export abstract class BaseGatewayRuntime<
     await Promise.all(expired.map((id) => this.#forget(id)));
     await this.#pruneProgress();
     // A file whose run never reached an ending this object saw (it restarted
-    // mid-run) is dropped on the same clock as an unanswered approval.
-    await pruneBlobs(this.#blobs(), Date.now() - PAUSED_MAX_AGE_MS);
+    // mid-run) is dropped on the same clock as an unanswered approval. A run
+    // still waiting on an approval has a requester on record until it is
+    // forgotten, and keeps its files: it may have paused again since it
+    // staged them.
+    await pruneBlobs(
+      this.#blobs(),
+      Date.now() - PAUSED_MAX_AGE_MS,
+      async (executionId) =>
+        (await this.ctx.storage.get<string>(requesterKey(executionId))) !==
+        undefined
+    );
     await this.ctx.storage.setAlarm(Date.now() + PAUSED_MAX_AGE_MS);
   }
 }

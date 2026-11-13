@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { delay } from "./concurrency";
 import {
   BLOB_CHUNK_BYTES,
   BLOB_META_PREFIX,
@@ -154,6 +155,111 @@ describe(stageBlob, () => {
   });
 });
 
+describe("staging under load and failure", () => {
+  it("holds two files staged together to the run's limit", async () => {
+    const { storage: memory, values } = memoryStorage();
+    const limits = { maxRunBlobBytes: 1500 };
+
+    // A list that takes a moment, as real storage does, so two stagings
+    // would both read the run as empty if nothing kept them in turn.
+    const storage: BlobStorage = {
+      ...memory,
+      list: async <T>(options: { prefix: string }) => {
+        const found = await memory.list<T>(options);
+
+        await delay(5);
+
+        return found;
+      },
+    };
+
+    const results = await Promise.allSettled([
+      stageBlob(storage, "exec_1", bytesOf(1000, 1), FACTS, limits),
+      stageBlob(storage, "exec_1", bytesOf(1000, 2), FACTS, limits),
+    ]);
+
+    expect(results.map((result) => result.status).toSorted()).toStrictEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    // One meta and its one chunk: the refused file left nothing behind.
+    expect(values.size).toBe(2);
+  });
+
+  it("lets another run stage while one is refused", async () => {
+    const { storage } = memoryStorage();
+    const limits = { maxRunBlobBytes: 1500 };
+
+    const [first, second] = await Promise.all([
+      stageBlob(storage, "exec_1", bytesOf(1000, 1), FACTS, limits),
+      stageBlob(storage, "exec_2", bytesOf(1000, 2), FACTS, limits),
+    ]);
+
+    expect(first.executionId).toBe("exec_1");
+    expect(second.executionId).toBe("exec_2");
+  });
+
+  it("leaves nothing behind when a chunk cannot be written", async () => {
+    const { storage, values } = memoryStorage();
+    const bytes = bytesOf(BLOB_CHUNK_BYTES * 2 + 5);
+    const sha256 = await sha256Hex(bytes);
+
+    const failing: BlobStorage = {
+      ...storage,
+      put: (key, value) =>
+        key === `blob:exec_1:${sha256}:1`
+          ? Promise.reject(new Error("storage is full"))
+          : storage.put(key, value),
+    };
+
+    await expect(stageBlob(failing, "exec_1", bytes, FACTS)).rejects.toThrow(
+      "storage is full"
+    );
+    expect(values.size).toBe(0);
+    // The run can stage the same file again once storage takes it.
+    await expect(
+      stageBlob(storage, "exec_1", bytes, FACTS)
+    ).resolves.toMatchObject({ sha256 });
+  });
+
+  it("keeps a half-written file unreadable, counted once and reclaimable", async () => {
+    const { storage, values } = memoryStorage();
+    const bytes = bytesOf(BLOB_CHUNK_BYTES + 5);
+    const sha256 = await sha256Hex(bytes);
+
+    // What a write leaves when it stops between its first chunk and its
+    // last, and its own clean-up fails too.
+    const broken: BlobStorage = {
+      ...storage,
+      delete: () => Promise.reject(new Error("storage is down")),
+      put: (key, value) =>
+        key === `blob:exec_1:${sha256}:1`
+          ? Promise.reject(new Error("storage is down"))
+          : storage.put(key, value),
+    };
+
+    await expect(stageBlob(broken, "exec_1", bytes, FACTS)).rejects.toThrow(
+      "storage is down"
+    );
+    await expect(
+      readBlobMeta(storage, "exec_1", sha256)
+    ).resolves.toBeUndefined();
+    await expect(readBlob(storage, "exec_1", sha256)).resolves.toBeUndefined();
+
+    // It still holds its share of the limit, but is not counted twice when
+    // the same file is staged again.
+    await expect(
+      stageBlob(storage, "exec_1", bytesOf(10, 9), FACTS, {
+        maxRunBlobBytes: bytes.byteLength,
+      })
+    ).rejects.toMatchObject({ code: "run_blob_limit" });
+
+    await deleteRunBlobs(storage, "exec_1");
+
+    expect(values.size).toBe(0);
+  });
+});
+
 describe(readBlob, () => {
   it("is scoped to the run that staged the file", async () => {
     const { storage } = memoryStorage();
@@ -230,5 +336,29 @@ describe("cleanup", () => {
     await expect(
       readBlob(storage, "exec_2", fresh.sha256)
     ).resolves.toBeDefined();
+  });
+
+  it("keeps an old file whose run can still use it", async () => {
+    const { storage, values } = memoryStorage();
+    const waiting = await stageBlob(storage, "exec_1", bytesOf(10, 1), FACTS);
+    const orphan = await stageBlob(storage, "exec_2", bytesOf(10, 2), FACTS);
+
+    for (const blob of [waiting, orphan]) {
+      const aged: StagedBlob = { ...blob, stagedAt: blob.stagedAt - 10_000 };
+
+      values.set(`${BLOB_META_PREFIX}${blob.executionId}:${blob.sha256}`, aged);
+    }
+
+    await expect(
+      pruneBlobs(storage, waiting.stagedAt - 5000, (executionId) =>
+        Promise.resolve(executionId === "exec_1")
+      )
+    ).resolves.toBe(1);
+    await expect(
+      readBlob(storage, "exec_1", waiting.sha256)
+    ).resolves.toBeDefined();
+    await expect(
+      readBlob(storage, "exec_2", orphan.sha256)
+    ).resolves.toBeUndefined();
   });
 });
