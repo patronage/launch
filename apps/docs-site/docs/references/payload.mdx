@@ -37,6 +37,8 @@ No performance difference has been measured yet. Local runs say nothing about ne
 
 On `localhost` only, the login page offers a one-click sign-in as the first user. It is hidden through a tunnel and on a deployed Worker.
 
+On the deployed Worker, Cloudflare Access signs editors in: an editor who passes Access lands in the admin as the Payload user with the same email. **Log out** in the user menu ends both the Payload session and the Access session, so the next visit goes back to the Access login. Access ends that session for every Access-protected app the editor uses, not just the CMS. The WordPress admin behaves differently: logging out of WordPress leaves the Access session and shows WordPress's own login form.
+
 ## Search and redirects
 
 Editors control how a page or post appears to search engines, and where old addresses go.

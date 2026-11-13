@@ -31,6 +31,8 @@ export default buildConfig({
     components: {
       // Local sign-in for the demo account; see lib/local-login.ts.
       beforeLogin: ["/components/admin/local-login-link#LocalLoginLink"],
+      // Ends the Access session too; see lib/access-logout.ts.
+      logout: { Button: "/components/admin/logout-button#LogoutButton" },
     },
     importMap: {
       baseDir: path.resolve(dirname),
