@@ -1,4 +1,5 @@
 import {
+  ACCESS_STRATEGY_NAME,
   accessAuthStrategy,
   accessGatewayAuthStrategy,
 } from "@patronage/access/payload";
@@ -6,6 +7,12 @@ import { env } from "cloudflare:workers";
 import { JWTAuthentication } from "payload";
 import type { AuthStrategy, CollectionConfig } from "payload";
 
+import {
+  accessOptedOut,
+  accessOptOutCookie,
+  accessSignInEnabled,
+  isHttps,
+} from "../lib/access-opt-out";
 import { accessSessionExp, parseAccessStrategy } from "../lib/access-session";
 import { guardFirstUser } from "../lib/first-user-guard";
 import { shouldDeferToPayload } from "../lib/payload-credential";
@@ -41,6 +48,16 @@ const asPayloadStrategy = (strategy: AccessStrategy): AuthStrategy => ({
 
       return checked;
     };
+
+    // An editor who logged out stays logged out of the browser strategy until
+    // they sign in again (see lib/access-opt-out.ts). The gateway's calls
+    // never carry the browser's cookies, so it is not affected.
+    if (
+      strategy.name === ACCESS_STRATEGY_NAME &&
+      accessOptedOut(headers, payload.config.cookiePrefix)
+    ) {
+      return { user: null };
+    }
 
     if (
       await shouldDeferToPayload(
@@ -128,6 +145,25 @@ export const Users: CollectionConfig = {
     // Add more fields as needed
   ],
   hooks: {
+    // Logging out leaves the Access session alone, so the Access strategy
+    // would sign the editor straight back in. The opt-out cookie stops that
+    // until they sign in again (see lib/access-opt-out.ts).
+    afterLogout: [
+      ({ req }) => {
+        if (!accessSignInEnabled(env)) {
+          return;
+        }
+
+        req.responseHeaders ??= new Headers();
+        req.responseHeaders.append(
+          "Set-Cookie",
+          accessOptOutCookie({
+            cookiePrefix: req.payload.config.cookiePrefix,
+            secure: isHttps(req.url),
+          })
+        );
+      },
+    ],
     // The first user comes from localhost or through Access, never from
     // whoever reaches a fresh deploy first.
     beforeOperation: [
