@@ -37,7 +37,7 @@ No performance difference has been measured yet. Local runs say nothing about ne
 
 On `localhost` only, the login page offers a one-click sign-in as the first user. It is hidden through a tunnel and on a deployed Worker.
 
-On the deployed Worker, Cloudflare Access signs editors in: an editor who passes Access lands in the admin as the Payload user with the same email. **Log out** in the user menu ends both the Payload session and the Access session, so the next visit goes back to the Access login. Access ends that session for every Access-protected app the editor uses, not just the CMS. The WordPress admin behaves differently: logging out of WordPress leaves the Access session and shows WordPress's own login form.
+On the deployed Worker, Cloudflare Access signs editors in: an editor who passes Access lands in the admin as the Payload user with the same email. **Log out** works as it does in the WordPress admin: it ends the CMS session but not the Access session, and shows the login form. From there the editor signs in with a password, or chooses **Sign in with Access as …** to go straight back in. For an hour after logging out, the admin keeps showing the form instead of signing the editor in automatically. WordPress holds off only on the page shown right after logout; its next visit to the login page signs the editor in again. To end the Access session itself, visit `/cdn-cgi/access/logout`; Access ends it for every Access-protected app.
 
 ## Search and redirects
 
