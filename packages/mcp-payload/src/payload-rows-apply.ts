@@ -254,6 +254,45 @@ const writeRows = async (
   };
 };
 
+// The longest value a receipt detail holds before mcp-core cuts it short.
+const DETAIL_LIMIT = 400;
+
+// The ids that fit whole in one receipt detail. An id is never cut: a cut
+// one would read as an id and name no row.
+const wholeIds = (ids: string[]): string[] => {
+  const listed: string[] = [];
+
+  for (const id of ids) {
+    if ([...listed, id].join(", ").length > DETAIL_LIMIT) {
+      break;
+    }
+
+    listed.push(id);
+  }
+
+  return listed;
+};
+
+interface InsertedRows {
+  // Only when not every id fits: how many rows were put in, so the caller
+  // knows to read the document for the rest.
+  inserted_row_count: number | undefined;
+  inserted_row_ids: string;
+}
+
+// The ids Payload gave the new rows, in the order they were asked for, so
+// a later change can name them. The operation's schema keeps the number of
+// inserts to what fits with Payload's own ids; longer custom ids may not.
+export const insertedRows = (inserted: string[]): InsertedRows => {
+  const listed = wholeIds(inserted);
+
+  return {
+    inserted_row_count:
+      listed.length < inserted.length ? inserted.length : undefined,
+    inserted_row_ids: listed.join(", "),
+  };
+};
+
 type LandedFacts = Pick<
   OperationReceipt,
   "details" | "updated_at" | "version_id"
@@ -291,10 +330,8 @@ const landedFacts = async (
     facts.version_id = versionId;
   }
 
-  // The ids Payload gave the new rows, in the order they were asked for, so
-  // a later change can name them.
   const details = receiptDetails({
-    inserted_row_ids: inserted.join(", "),
+    ...insertedRows(inserted),
     preview_url: preview,
   });
 

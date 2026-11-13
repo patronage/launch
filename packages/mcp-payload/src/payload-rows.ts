@@ -291,10 +291,17 @@ const setField = (
   const located = locate(working, context, parts, change.path);
   const field = located.names.join(".");
 
-  if (located.context.richTextFields.includes(field)) {
+  // The field itself, or anything inside its stored Lexical value: a `set`
+  // there would skip the Markdown conversion and its check for content
+  // Markdown cannot carry.
+  const richText = located.context.richTextFields.find(
+    (entry) => field === entry || field.startsWith(`${entry}.`)
+  );
+
+  if (richText !== undefined) {
     throw conflict(
       "use_set_markdown",
-      `${change.path} is rich text; change it with set_markdown`
+      `${change.path} is ${field === richText ? "" : "inside "}rich text; change the field with set_markdown`
     );
   }
 

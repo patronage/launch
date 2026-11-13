@@ -29,6 +29,7 @@ import {
 } from "./payload-row-paths";
 import { patchRows, readBackRows } from "./payload-rows";
 import type { RowContext, RowConverters } from "./payload-rows";
+import { insertedRows } from "./payload-rows-apply";
 
 // What `getEditingInfo` says a page holds: a hero with links, and sections.
 const PAGE_ROWS: RowContext = {
@@ -339,6 +340,10 @@ describe(patchRows, () => {
     ["unknown_row", { op: "set", path: "layout[id=nope].heading", value: "x" }],
     ["not_a_rows_field", { op: "set", path: "title[id=s1].x", value: "x" }],
     ["use_set_markdown", { op: "set", path: "layout[id=s1].body", value: "x" }],
+    [
+      "use_set_markdown",
+      { op: "set", path: "layout[id=s1].body.root.children", value: [] },
+    ],
     ["rows_field", { op: "set", path: "layout[id=s2].cards", value: [] }],
     [
       "not_rich_text",
@@ -745,6 +750,32 @@ describe("patch_rows", () => {
   });
 });
 
+describe(insertedRows, () => {
+  it("lists the ids Payload gave twelve new rows", () => {
+    const ids = Array.from(
+      { length: 12 },
+      (_unused, index) =>
+        `6af6ac6162213c0001b8c5${String(index).padStart(2, "0")}`
+    );
+
+    expect(insertedRows(ids)).toStrictEqual({
+      inserted_row_count: undefined,
+      inserted_row_ids: ids.join(", "),
+    });
+  });
+
+  it("never cuts an id: it lists the ones that fit and counts them all", () => {
+    const ids = Array.from({ length: 8 }, (_unused, index) =>
+      `${index}`.padEnd(64, "x")
+    );
+
+    const listed = insertedRows(ids);
+
+    expect(listed.inserted_row_count).toBe(8);
+    expect(listed.inserted_row_ids.split(", ")).toStrictEqual(ids.slice(0, 6));
+  });
+});
+
 const parse = (operation: JsonObject) =>
   parseDraftApplyInput({ intent: "Update the page", operations: [operation] });
 
@@ -796,6 +827,34 @@ describe("patch_rows in payload.apply", () => {
         { field: "layout", op: "remove", row_id: "s1" },
         { after_id: null, field: "layout", op: "move", row_id: "s1" },
       ],
+    ],
+    [
+      "a field of a row that is removed",
+      [
+        { op: "set", path: "layout[id=s1].heading", value: "a" },
+        { field: "layout", op: "remove", row_id: "s1" },
+      ],
+    ],
+    [
+      "a row put inside a row that is removed",
+      [
+        { field: "layout", op: "remove", row_id: "s2" },
+        {
+          after_id: null,
+          field: "layout[id=s2].cards",
+          op: "insert",
+          row: { title: "x" },
+        },
+      ],
+    ],
+    [
+      "more new rows than a receipt can name",
+      Array.from({ length: 13 }, (_unused, index) => ({
+        after_id: null,
+        field: "layout[id=s2].cards",
+        op: "insert",
+        row: { title: `Card ${index}` },
+      })),
     ],
     [
       "a row moved after itself",

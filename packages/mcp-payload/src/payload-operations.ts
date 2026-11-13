@@ -224,6 +224,10 @@ export type RowChange = z.infer<typeof rowChangeSchema>;
 
 export const MAX_ROW_CHANGES = 50;
 
+// As many new rows as a receipt can name: it lists the id Payload gave each
+// one, and a receipt detail is bounded.
+export const MAX_ROW_INSERTS = 12;
+
 // What a change names, for telling two changes to the same thing apart: a
 // row's field, or a row that is removed or moved. Inserts never collide.
 const changeKey = (change: RowChange): string | undefined => {
@@ -238,6 +242,28 @@ const changeKey = (change: RowChange): string | undefined => {
   return change.op === "insert"
     ? undefined
     : `${change.field}[id=${change.row_id}]`;
+};
+
+// A row that is removed takes everything inside it along, so a change to
+// one of its fields or to rows it holds would have nothing to be read back
+// from. Such a pair is refused whichever way round it is sent.
+const removedRowRules = (changes: RowChange[], ctx: z.RefinementCtx): void => {
+  const removed = changes.flatMap((change) =>
+    change.op === "remove" ? [`${change.field}[id=${change.row_id}].`] : []
+  );
+
+  for (const [index, change] of changes.entries()) {
+    const where = "path" in change ? change.path : change.field;
+    const inside = removed.find((row) => where.startsWith(row));
+
+    if (inside !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${inside.slice(0, -1)} is removed, so nothing inside it can change`,
+        path: ["changes", index],
+      });
+    }
+  }
 };
 
 const rowChangeRules = (
@@ -279,6 +305,18 @@ const rowChangeRules = (
         path: ["changes", index],
       });
     }
+  }
+
+  removedRowRules(operation.changes, ctx);
+
+  const inserts = operation.changes.filter((change) => change.op === "insert");
+
+  if (inserts.length > MAX_ROW_INSERTS) {
+    ctx.addIssue({
+      code: "custom",
+      message: `an operation inserts at most ${MAX_ROW_INSERTS} rows`,
+      path: ["changes"],
+    });
   }
 };
 
