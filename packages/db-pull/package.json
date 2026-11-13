@@ -1,0 +1,20 @@
+{
+  "name": "@launch/db-pull",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Copies a PlanetScale Postgres branch's content into a local Postgres for development: a temporary read-only role, a content-only dump, and a checked swap.",
+  "license": "MIT",
+  "bin": {
+    "launch-db-pull": "./pull-postgres.sh"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pg": "8.20.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

@@ -14,9 +14,13 @@
     "generate": "pnpm payload generate:types && pnpm payload generate:importmap",
     "seed": "pnpm payload run scripts/seed.ts",
     "record-fixture": "pnpm payload run scripts/record-fixture.ts",
+    "db": "docker compose up -d --wait",
+    "db:stop": "docker compose stop",
+    "db:recreate": "docker compose down --volumes && docker compose up -d --wait",
+    "db:pull": "launch-db-pull",
     "secrets": "node scripts/secrets.mjs",
     "builds:configure": "node scripts/workers-builds.mjs",
-    "test": "vitest run && node --test scripts/config-startup.test.mjs"
+    "test": "vitest run && node --test scripts/config-startup.test.mjs scripts/db-pull-tables.test.mjs"
   },
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",
@@ -42,7 +46,6 @@
     "graphql": "16.15.0",
     "next": "16.4.6",
     "payload": "4.0.0-beta.6",
-    "pg": "8.20.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-server-dom-webpack": "19.3.1",
@@ -51,6 +54,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.v.16",
+    "@launch/db-pull": "workspace:*",
     "@launch/demo-content": "workspace:*",
     "@launch/worker-scripts": "workspace:*",
     "@tailwindcss/vite": "4.3.5",
@@ -64,6 +68,7 @@
     "cross-env": "10.1.0",
     "jose": "6.2.17",
     "miniflare": "5.20261023.2-beta",
+    "pg": "8.20.0",
     "playwright": "1.65.0",
     "vite": "catalog:",
     "vitest": "catalog:"
