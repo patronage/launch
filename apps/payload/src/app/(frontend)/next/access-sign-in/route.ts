@@ -6,6 +6,7 @@ import {
   accessSignInEnabled,
   clearAccessOptOutCookie,
   isHttps,
+  isSameOriginPost,
 } from "@/lib/access-opt-out";
 import { getPayloadConfig } from "@/lib/payload-config";
 
@@ -20,9 +21,7 @@ export const POST = async (request: NextRequest): Promise<Response> => {
     return new Response("Not found.", { status: 404 });
   }
 
-  const site = request.headers.get("sec-fetch-site");
-
-  if (site !== null && site !== "same-origin") {
+  if (!isSameOriginPost(request.headers, new URL(request.url).origin)) {
     return new Response("Sign in from the admin's login page.", {
       status: 403,
     });

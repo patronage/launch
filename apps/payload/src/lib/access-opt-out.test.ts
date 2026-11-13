@@ -6,6 +6,7 @@ import {
   accessSignInEnabled,
   clearAccessOptOutCookie,
   isHttps,
+  isSameOriginPost,
 } from "./access-opt-out";
 
 describe(accessSignInEnabled, () => {
@@ -64,5 +65,47 @@ describe(isHttps, () => {
     expect(isHttps("https://cms.example.com/api/users/logout")).toBeTruthy();
     expect(isHttps("http://localhost:4173/api/users/logout")).toBeFalsy();
     expect(isHttps(undefined)).toBeFalsy();
+  });
+});
+
+describe(isSameOriginPost, () => {
+  const origin = "https://cms.example.com";
+
+  it("trusts Fetch Metadata when the browser sends it", () => {
+    expect(
+      isSameOriginPost(new Headers({ "sec-fetch-site": "same-origin" }), origin)
+    ).toBeTruthy();
+    expect(
+      isSameOriginPost(
+        new Headers({ origin, "sec-fetch-site": "cross-site" }),
+        origin
+      )
+    ).toBeFalsy();
+  });
+
+  it("falls back to the Origin, then the Referer", () => {
+    expect(isSameOriginPost(new Headers({ origin }), origin)).toBeTruthy();
+    expect(
+      isSameOriginPost(new Headers({ origin: "https://evil.example" }), origin)
+    ).toBeFalsy();
+    expect(
+      isSameOriginPost(
+        new Headers({ referer: `${origin}/admin/login` }),
+        origin
+      )
+    ).toBeTruthy();
+    expect(
+      isSameOriginPost(
+        new Headers({ referer: "https://evil.example/page" }),
+        origin
+      )
+    ).toBeFalsy();
+  });
+
+  it("refuses a request with nothing to check", () => {
+    expect(isSameOriginPost(new Headers(), origin)).toBeFalsy();
+    expect(
+      isSameOriginPost(new Headers({ origin: "null" }), origin)
+    ).toBeFalsy();
   });
 });

@@ -70,3 +70,23 @@ export const clearAccessOptOutCookie = (options: CookieOptions): string =>
 /** Whether a request URL is HTTPS, so its cookies should be `Secure`. */
 export const isHttps = (url: string | undefined): boolean =>
   url?.startsWith("https:") ?? false;
+
+/**
+ * Whether a POST came from this site's own pages. Fetch Metadata answers when
+ * the browser sends it; otherwise the Origin, then the Referer, must match
+ * `origin`. A request with none of them is refused, so another site cannot
+ * undo a logout.
+ */
+export const isSameOriginPost = (headers: Headers, origin: string): boolean => {
+  const site = headers.get("sec-fetch-site");
+
+  if (site !== null) {
+    return site === "same-origin";
+  }
+
+  const source = headers.get("origin") ?? headers.get("referer");
+
+  return (
+    source !== null && URL.canParse(source) && new URL(source).origin === origin
+  );
+};
