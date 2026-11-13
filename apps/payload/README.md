@@ -35,7 +35,7 @@ The demo has one language. To try localized content, set `PAYLOAD_DEMO_LOCALES` 
 
 ```bash
 export PAYLOAD_DEMO_LOCALES=en,es
-pnpm migrate:create demo_locales && pnpm payload migrate && pnpm seed
+pnpm payload migrate:create demo_locales && pnpm payload migrate && pnpm seed
 pnpm build && pnpm preview
 ```
 
