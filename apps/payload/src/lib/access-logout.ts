@@ -11,6 +11,14 @@
 
 export const ACCESS_LOGOUT_PATH = "/cdn-cgi/access/logout";
 
+/**
+ * The admin view that logs out of both, under the admin route. The user
+ * menu links to it rather than logging out on click, so Payload's
+ * leave-without-saving prompt, which watches link clicks, still guards
+ * unsaved edits.
+ */
+export const ACCESS_LOGOUT_VIEW_PATH = "/access-logout";
+
 interface AccessSettings {
   ACCESS_AUD?: string;
   ACCESS_TEAM_DOMAIN?: string;

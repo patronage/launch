@@ -33,6 +33,7 @@ import { LLMInstructionsDescription as LLMInstructionsDescription_3817bf644402e6
 import { LLMInstructionsCell as LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { LogoutButton as LogoutButton_7be663afcc270c9353afe7b80c6fe97d } from '../../../components/admin/logout-button'
 import { LocalLoginLink as LocalLoginLink_877b95e060f6d07e50beb359001dbedd } from '../../../components/admin/local-login-link'
+import { AccessLogoutView as AccessLogoutView_b538354517c4a1e778b975416c0f450d } from '../../../components/admin/access-logout-view'
 import { WelcomeWidget as WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionQueryWidget as CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
@@ -81,6 +82,7 @@ export const importMap = {
   "@payloadcms/ui/rsc#LLMInstructionsCell": LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a,
   "/components/admin/logout-button#LogoutButton": LogoutButton_7be663afcc270c9353afe7b80c6fe97d,
   "/components/admin/local-login-link#LocalLoginLink": LocalLoginLink_877b95e060f6d07e50beb359001dbedd,
+  "/components/admin/access-logout-view#AccessLogoutView": AccessLogoutView_b538354517c4a1e778b975416c0f450d,
   "@payloadcms/ui/rsc#WelcomeWidget": WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionQueryWidget": CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a,
