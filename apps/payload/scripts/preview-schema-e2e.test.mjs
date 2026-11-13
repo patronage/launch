@@ -348,3 +348,34 @@ test(
     assert.equal(psql("select count(*) from launch_preview.schemas"), "0");
   }
 );
+
+test(
+  "a schema an earlier run left half built is rebuilt",
+  { skip: !enabled && "set PREVIEW_SCHEMA_E2E=1", timeout: SUITE_TIMEOUT_MS },
+  () => {
+    // What a build that died after creating the schema leaves: the schema,
+    // part of a table, and the empty row written before the first migration.
+    psql(`create schema "${SCHEMA}"`);
+    psql(`create table "${SCHEMA}".pages (id serial primary key)`);
+    psql(
+      `insert into launch_preview.schemas values ('${SCHEMA}', '${FEATURE}', '{}', now())`
+    );
+
+    const run = preview(["prepare", "--branch", FEATURE], withBranchMigration);
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+    assert.match(run.stdout, /an earlier run did not finish it/u);
+    assert.equal(
+      psql(`select count(*) from "${SCHEMA}".pages`),
+      psql("select count(*) from public.pages")
+    );
+    assert.equal(
+      psql(
+        `select cardinality(migrations) > 0 from launch_preview.schemas where schema_name = '${SCHEMA}'`
+      ),
+      "t"
+    );
+
+    const drop = preview(["drop", "--branch", FEATURE]);
+    assert.equal(drop.status, 0, drop.stderr);
+  }
+);

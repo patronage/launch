@@ -414,6 +414,76 @@ const dropSchema = async (client, schema) => {
 };
 
 /**
+ * Whether a branch schema was finished. Its row is written empty before the
+ * first migration and filled in only once the copy and the branch's
+ * migrations are done, so a run that stopped halfway leaves it empty.
+ */
+const isComplete = async (client, schema) => {
+  const { rows } = await client.query(
+    `select cardinality(migrations) as n from ${META}.schemas where schema_name = $1`,
+    [schema]
+  );
+
+  return rows.length > 0 && rows[0].n > 0;
+};
+
+const buildSchema = async ({
+  branch,
+  client,
+  decision,
+  log,
+  migrate,
+  migrations,
+  schema,
+  shared,
+  url,
+}) => {
+  if (await schemaExists(client, schema)) {
+    if (await isComplete(client, schema)) {
+      const existing = await migrationNames(client, schema);
+      const wanted = new Set(migrations);
+
+      const sharedPrefix = shared.every(
+        (name, index) => existing[index] === name
+      );
+
+      // A schema built from an older shared copy, or holding migrations this
+      // branch no longer has, is rebuilt rather than patched.
+      if (!sharedPrefix || existing.some((name) => !wanted.has(name))) {
+        log(
+          `Rebuilding ${schema}: its migrations no longer match this branch.`
+        );
+        await dropSchema(client, schema);
+      }
+    } else {
+      log(`Rebuilding ${schema}: an earlier run did not finish it.`);
+      await dropSchema(client, schema);
+    }
+  }
+
+  if (await schemaExists(client, schema)) {
+    log(`Migrating ${schema} for ${branch}.`);
+  } else {
+    log(
+      `Creating ${schema} for ${branch}, which adds ${decision.added.join(", ")}.`
+    );
+    await client.query(`create schema ${ident(schema)}`);
+    await record(client, { branch, migrations: [], schema });
+    migrate({ only: shared, schema, url });
+    await copySchema({ client, log, target: schema });
+  }
+
+  migrate({ schema, url });
+  await reassignToOwner(client);
+
+  await record(client, {
+    branch,
+    migrations: await migrationNames(client, schema),
+    schema,
+  });
+};
+
+/**
  * Makes the branch's database ready and returns the schema to build with, or
  * "" for the shared copy in public.
  */
@@ -451,42 +521,28 @@ export const prepare = async ({
 
   const schema = schemaForBranch(branch);
 
-  if (await schemaExists(client, schema)) {
-    const existing = await migrationNames(client, schema);
-    const wanted = new Set(migrations);
+  // Two builds of one branch take turns; the lock ends with the connection.
+  await client.query("select pg_advisory_lock(hashtext($1))", [
+    `${META}:${schema}`,
+  ]);
 
-    const sharedPrefix = shared.every(
-      (name, index) => existing[index] === name
-    );
-
-    // A schema built from an older shared copy, or holding migrations this
-    // branch no longer has, is rebuilt rather than patched.
-    if (!sharedPrefix || existing.some((name) => !wanted.has(name))) {
-      log(`Rebuilding ${schema}: its migrations no longer match this branch.`);
-      await dropSchema(client, schema);
-    }
+  try {
+    await buildSchema({
+      branch,
+      client,
+      decision,
+      log,
+      migrate,
+      migrations,
+      schema,
+      shared,
+      url,
+    });
+  } finally {
+    await client.query("select pg_advisory_unlock(hashtext($1))", [
+      `${META}:${schema}`,
+    ]);
   }
-
-  if (await schemaExists(client, schema)) {
-    log(`Migrating ${schema} for ${branch}.`);
-  } else {
-    log(
-      `Creating ${schema} for ${branch}, which adds ${decision.added.join(", ")}.`
-    );
-    await client.query(`create schema ${ident(schema)}`);
-    await record(client, { branch, migrations: [], schema });
-    migrate({ only: shared, schema, url });
-    await copySchema({ client, log, target: schema });
-  }
-
-  migrate({ schema, url });
-  await reassignToOwner(client);
-
-  await record(client, {
-    branch,
-    migrations: await migrationNames(client, schema),
-    schema,
-  });
 
   return schema;
 };
