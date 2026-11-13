@@ -2577,7 +2577,7 @@ const unpublishPost = async (
 
   const warned = [
     `The public page at ${post.pagePath} goes away as soon as you approve`,
-    "No redirect from that path exists",
+    "Links to it will 404 unless a redirect covers them",
   ].every((text) => unpublished.preview.includes(text));
 
   const reported = ['"changed_paths":["_status"]', '"version_id":"'].every(
@@ -2697,12 +2697,13 @@ const mcpPayloadUnpublish: Drive = async ({
     });
 
     // A draft saved after the post was published, so there is something for
-    // unpublishing to keep.
+    // unpublishing to keep. It carries another slug too: the page that goes
+    // away is still the published one, at the first slug.
     const drafted = await approvePost(run, page, {
       operation: {
         collection: "posts",
         expected_updated_at: post.updatedAt,
-        fields: { title: draftTitle },
+        fields: { slug: `${post.slug}-${marker}`, title: draftTitle },
         id: post.id,
         kind: "update_draft",
       },
@@ -2712,8 +2713,8 @@ const mcpPayloadUnpublish: Drive = async ({
     const stillPublic = await publicPost(payloadOrigin, post.id);
 
     log.step(
-      "execute: payload.apply update_draft retitling the post as a draft; approve it",
-      `draft title "${draftTitle}"; the public still sees "${stillPublic.title}"`
+      "execute: payload.apply update_draft giving the post another title and slug as a draft; approve it",
+      `draft title "${draftTitle}", draft slug "${post.slug}-${marker}"; the public still sees "${stillPublic.title}"`
     );
 
     await refusedRequest(run, page, {
@@ -2753,7 +2754,7 @@ const mcpPayloadUnpublish: Drive = async ({
       operation: {
         collection: "posts",
         expected_updated_at: unpublished.updatedAt,
-        fields: { title: post.title },
+        fields: { slug: post.slug, title: post.title },
         id: post.id,
         kind: "update_draft",
         publish: true,
@@ -2773,7 +2774,7 @@ const mcpPayloadUnpublish: Drive = async ({
       `${pagePath} answers ${after} after republishing`
     );
     log.step(
-      "Publish the post again with its first title, built on the unpublish receipt's updated_at",
+      "Publish the post again with its first title and slug, built on the unpublish receipt's updated_at",
       `public API title "${restored.title}"; ${pagePath} answers ${after}`
     );
 

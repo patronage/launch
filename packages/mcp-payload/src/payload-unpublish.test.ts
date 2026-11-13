@@ -47,23 +47,17 @@ interface FakeOptions {
   locked?: boolean;
   // The post as the public sees it.
   publicStatus?: string;
-  redirects?: JsonObject[];
 }
 
 // A Payload stand-in with one post, published, with a newer draft saved
 // since. Unpublishing it works the way Payload's own does.
 const fakePayload = (options: FakeOptions = {}) => {
   const writes: { body: JsonObject; search: string }[] = [];
-  const redirectReads: string[] = [];
   let publicStatus = options.publicStatus ?? "published";
   let stamp = READ_AT;
 
   const info = {
-    collections: [
-      collection("posts"),
-      collection("redirects", { drafts: false, preview: false }),
-      ...(options.collections ?? []),
-    ],
+    collections: [collection("posts"), ...(options.collections ?? [])],
   };
 
   const tool = (rpc: { params: { name: string } }) =>
@@ -87,12 +81,6 @@ const fakePayload = (options: FakeOptions = {}) => {
         jsonrpc: "2.0",
         result: tool(await request.json()),
       });
-    }
-
-    if (url.pathname === "/api/redirects") {
-      redirectReads.push(url.searchParams.get("where[from][equals]") ?? "");
-
-      return Response.json({ docs: options.redirects ?? [] });
     }
 
     if (url.pathname.endsWith("/versions")) {
@@ -126,7 +114,6 @@ const fakePayload = (options: FakeOptions = {}) => {
 
   return {
     handler,
-    redirectReads,
     // Another editor saves the post between the preview and the write.
     touch: () => {
       stamp = "2026-11-13T10:30:00.000Z";
@@ -182,7 +169,7 @@ describe("unpublish preview", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the status change and where the page is, with no redirect", async () => {
+  it("shows the status change and where the page is", async () => {
     const fake = fakePayload();
 
     vi.stubGlobal("fetch", fake.handler);
@@ -208,23 +195,9 @@ describe("unpublish preview", () => {
         slug: "hello",
         target: "posts/3",
         warning:
-          "The public page at /news/hello goes away as soon as you approve. No redirect from that path exists, so links to it will 404.",
+          "The public page at /news/hello goes away as soon as you approve. Links to it will 404 unless a redirect covers them.",
       },
     ]);
-    expect(fake.redirectReads).toStrictEqual(["/news/hello"]);
-  });
-
-  it("says when a redirect from the path exists", async () => {
-    vi.stubGlobal(
-      "fetch",
-      fakePayload({ redirects: [{ from: "/news/hello", id: 1 }] }).handler
-    );
-
-    const preview = await preflight([unpublish()]);
-
-    expect(preview.operations[0]?.warning).toBe(
-      "The public page at /news/hello goes away as soon as you approve. A redirect from that path exists, so links to it will follow the redirect."
-    );
   });
 
   it("warns without a path when Payload gives none", async () => {
@@ -237,9 +210,8 @@ describe("unpublish preview", () => {
     const preview = await preflight([unpublish()]);
 
     expect(preview.operations[0]?.warning).toBe(
-      "The public page goes away as soon as you approve. Links to it will 404 unless a redirect exists."
+      "The public page goes away as soon as you approve. Links to it will 404 unless a redirect covers them."
     );
-    expect(fake.redirectReads).toStrictEqual([]);
   });
 
   it.each<[string, FakeOptions, JsonObject]>([

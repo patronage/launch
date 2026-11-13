@@ -139,63 +139,23 @@ const publishedDocument = async (
   return { slug: slug.success ? slug.data : "", stamp };
 };
 
-const redirectsSchema = z.object({ docs: z.array(z.unknown()) });
-
-// Whether an editor-managed redirect leaves the document's public path
-// (`@payloadcms/plugin-redirects` keeps them in `redirects`, by `from`).
-// Undefined where the site has no such collection or it cannot be read.
-const redirectFrom = async (
-  context: UnpublishPreflightContext,
-  path: string
-): Promise<boolean | undefined> => {
-  if (!context.info.collections.some((entry) => entry.slug === "redirects")) {
-    return undefined;
-  }
-
-  try {
-    const result = await payloadRest(
-      context.client,
-      `/api/redirects?where[from][equals]=${encodeURIComponent(path)}&limit=1&depth=0`,
-      context.telemetry
-    );
-
-    const parsed = redirectsSchema.safeParse(result.json);
-
-    return result.status === 200 && parsed.success
-      ? parsed.data.docs.length > 0
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 // As much of a path as a warning shows.
 const PATH_LIMIT = 120;
 
-const GENERIC_WARNING =
-  "The public page goes away as soon as you approve. Links to it will 404 unless a redirect exists.";
-
 // What the approver is told above the change: where the page is, and what
-// happens to links to it.
-const unpublishWarning = async (
-  context: UnpublishPreflightContext,
-  address: DocumentAddress
-): Promise<string> => {
+// happens to links to it. Whether a redirect would catch them is not said:
+// which redirect a site's front end follows, and whether its destination
+// can be reached, are that front end's rules, and a wrong promise here is
+// worse than none.
+const unpublishWarning = (address: DocumentAddress): string => {
   const { path } = address;
 
-  if (path === undefined || path.length > PATH_LIMIT) {
-    return GENERIC_WARNING;
-  }
+  const page =
+    path === undefined || path.length > PATH_LIMIT
+      ? "The public page"
+      : `The public page at ${path}`;
 
-  const redirected = await redirectFrom(context, path);
-
-  if (redirected === undefined) {
-    return `The public page at ${path} goes away as soon as you approve. Links to it will 404 unless a redirect exists.`;
-  }
-
-  return redirected
-    ? `The public page at ${path} goes away as soon as you approve. A redirect from that path exists, so links to it will follow the redirect.`
-    : `The public page at ${path} goes away as soon as you approve. No redirect from that path exists, so links to it will 404.`;
+  return `${page} goes away as soon as you approve. Links to it will 404 unless a redirect covers them.`;
 };
 
 const documentAddress = (
@@ -247,7 +207,7 @@ export const preflightUnpublish = async (
     sentence: unpublishSentence(operation),
     slug,
     target,
-    warning: await unpublishWarning(context, address),
+    warning: unpublishWarning(address),
   };
 
   if (previewUrl) {

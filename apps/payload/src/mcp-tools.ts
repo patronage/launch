@@ -253,6 +253,64 @@ const documentId = z.union([
     .regex(/^[A-Za-z0-9_-]+$/u),
 ]);
 
+type PreviewLink = NonNullable<SanitizedCollectionConfig["admin"]["preview"]>;
+
+const statusSchema = z.object({ _status: z.string() });
+
+interface Addressed {
+  id: number | string;
+  preview: PreviewLink;
+  slug: CollectionSlug;
+}
+
+// One reading of the document, as this editor, and the link the admin's
+// Preview button would make for it.
+const previewLinkOf = async (
+  req: PayloadRequest,
+  target: Addressed,
+  draft: boolean
+): Promise<{ status: string | undefined; url: string | null } | undefined> => {
+  const doc = await req.payload.findByID({
+    collection: target.slug,
+    depth: 0,
+    disableErrors: true,
+    draft,
+    id: target.id,
+    overrideAccess: false,
+    req,
+  });
+
+  if (!doc) {
+    return undefined;
+  }
+
+  const status = statusSchema.safeParse(doc);
+
+  const url =
+    (await target.preview(
+      { ...doc },
+      { locale: req.locale ?? "", req, token: null }
+    )) ?? null;
+
+  return { status: status.success ? status.data._status : undefined, url };
+};
+
+// Where the public reaches the document now: the address of the document
+// itself, which is its published version. A newer draft can carry another
+// slug, and that is where the document would be served once the draft is
+// published, not where it is today. Null while it is not published.
+const publicPath = async (
+  req: PayloadRequest,
+  target: Addressed
+): Promise<string | null> => {
+  const published = await previewLinkOf(req, target, false);
+
+  // A collection without drafts has no status: every document is public.
+  return published && (published.status ?? "published") === "published"
+    ? publicPathOf(published.url)
+    : null;
+};
+
 export const getPreviewUrl = defineCollectionTool({
   access: readPermission,
   annotations: {
@@ -263,7 +321,7 @@ export const getPreviewUrl = defineCollectionTool({
     title: "Get preview link",
   },
   description:
-    "The front end's draft preview link for one document, as the admin's Preview button opens it, and `path`, the public path the document is served at once published. Both are null when the document has no address yet. Writes nothing.",
+    "The front end's draft preview link for one document, as the admin's Preview button opens it (`url`, null when the document has no address yet), and the path the public reaches the document at now (`path`, from its published version; null while it is not published). Writes nothing.",
   input: z.object({ id: documentId }),
 }).handler(async ({ input, req, slug }) => {
   const preview = req.payload.collections[slug]?.config.admin.preview;
@@ -272,30 +330,18 @@ export const getPreviewUrl = defineCollectionTool({
     return errorResult(`${slug} has no preview link`);
   }
 
-  // Read as this editor, newest version first, the way the admin does.
-  const doc = await req.payload.findByID({
-    collection: slug,
-    depth: 0,
-    disableErrors: true,
-    draft: true,
-    id: input.id,
-    overrideAccess: false,
-    req,
-  });
+  const target = { id: input.id, preview, slug };
 
-  if (!doc) {
+  // Newest version first, the way the admin does.
+  const newest = await previewLinkOf(req, target, true);
+
+  if (!newest) {
     return errorResult(`${slug}/${input.id} was not found`);
   }
 
-  const url =
-    (await preview(
-      { ...doc },
-      { locale: req.locale ?? "", req, token: null }
-    )) ?? null;
-
   return {
-    ...textResult(url ?? ""),
-    structuredContent: { path: publicPathOf(url), url },
+    ...textResult(newest.url ?? ""),
+    structuredContent: { path: await publicPath(req, target), url: newest.url },
   };
 });
 
