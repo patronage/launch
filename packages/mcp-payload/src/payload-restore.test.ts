@@ -84,6 +84,8 @@ interface FakeOptions {
   noLockTool?: boolean;
   // Payload refuses to publish what was restored.
   publishRefused?: boolean;
+  // The first read after a publish fails; the publish itself went through.
+  readFailsAfterPublish?: boolean;
   // Another editor saves the target right after the restore lands.
   savedAfterRestore?: boolean;
 }
@@ -101,6 +103,7 @@ interface Write {
 const fakePayload = (options: FakeOptions = {}) => {
   const writes: Write[] = [];
   const locked = new Set<string>();
+  let failNextRead = false;
 
   const stored = new Map<string, JsonObject>(
     Object.entries({
@@ -239,6 +242,7 @@ const fakePayload = (options: FakeOptions = {}) => {
     };
 
     stored.set(owner, published);
+    failNextRead = options.readFailsAfterPublish === true;
 
     return Response.json(
       owner.startsWith("globals/") ? { result: published } : { doc: published }
@@ -296,6 +300,12 @@ const fakePayload = (options: FakeOptions = {}) => {
       }
 
       return Response.json(answer);
+    }
+
+    if (request.method === "GET" && failNextRead) {
+      failNextRead = false;
+
+      return Response.json({ errors: [{ message: "Busy" }] }, { status: 500 });
     }
 
     if (request.method === "GET") {
@@ -471,6 +481,26 @@ describe("restore_version preview", () => {
     expect(preview.operations[0]?.warning).toBe(LOCALES_WARNING);
   });
 
+  it("restores a version that matches in the one locale it can read", async () => {
+    const fake = fakePayload({
+      collections: [{ ...POSTS, localized: true, slug: "pages" }],
+    });
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    // Version 12 holds what the document holds, in this locale.
+    const operation = restorePost({ collection: "pages", version_id: 12 });
+
+    await expect(preflight([operation])).resolves.toMatchObject({
+      operations: [{ warning: LOCALES_WARNING }],
+    });
+
+    const [receipt] = await apply([operation]);
+
+    expect(fake.writes).toHaveLength(1);
+    expect(receipt).toMatchObject({ changed_paths: [], status: "changed" });
+  });
+
   it("adds the status row when the operation publishes", async () => {
     vi.stubGlobal("fetch", fakePayload().handler);
 
@@ -600,7 +630,7 @@ describe("restore_version write", () => {
         body: { _status: "published" },
         method: "PATCH",
         path: "/api/posts/3",
-        search: "?depth=0",
+        search: "?depth=0&publishAllLocales=true",
       },
     ]);
 
@@ -628,6 +658,21 @@ describe("restore_version write", () => {
       status: "failed",
       updated_at: RESTORED_AT,
     });
+  });
+
+  it("keeps a publish that went through when the read after it fails once", async () => {
+    const fake = fakePayload({ readFailsAfterPublish: true });
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    const [receipt] = await apply([restorePost({ publish: true })]);
+
+    expect(receipt).toMatchObject({
+      changed_paths: ["content", "layout", "title", "_status"],
+      status: "changed",
+      updated_at: PUBLISHED_AT,
+    });
+    expect(receipt).not.toHaveProperty("error");
   });
 
   it("leaves a draft another editor saved since unpublished", async () => {
@@ -768,7 +813,7 @@ describe("restore_global_version", () => {
     ).toStrictEqual([
       "POST /api/globals/footer/versions/21?depth=0&draft=true",
       "POST /api/globals/footer/versions/21?depth=0&draft=true",
-      "POST /api/globals/footer?depth=0",
+      "POST /api/globals/footer?depth=0&publishAllLocales=true",
     ]);
     expect(published).toMatchObject({
       changed_paths: ["note"],

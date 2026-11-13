@@ -480,7 +480,9 @@ export const preflightRestore = async (
   const paths = Object.keys(restoredFields(current, version));
   const publishes = subject.drafts && operation.publish === true;
 
-  if (paths.length === 0 && !publishes) {
+  // Both reads hold one locale, so on a localized target an empty list does
+  // not show that the other locales match too.
+  if (paths.length === 0 && !publishes && !subject.localized) {
     throw new ApplyConflictError(
       "nothing_to_restore",
       `${subject.target} already holds what version ${operation.version_id} holds`
@@ -576,8 +578,12 @@ const sendRestore = async (
   return restoredStamp(write);
 };
 
+// Asked for by name: where a site keeps a status per locale, Payload would
+// otherwise publish one locale of a restore that brought back all of them.
+const ALL_LOCALES = "&publishAllLocales=true";
+
 // Publishes the draft the restore just saved, the way `update_draft` with
-// `publish: true` and no fields publishes the current draft.
+// `publish: true` and no fields publishes the current draft, in every locale.
 const sendPublish = async (
   context: RestoreContext,
   operation: RestoreOperation,
@@ -589,13 +595,13 @@ const sendPublish = async (
     operation.kind === "restore_version"
       ? await payloadRest(
           context.client,
-          documentPath(operation.collection, operation.id, false),
+          `${documentPath(operation.collection, operation.id, false)}${ALL_LOCALES}`,
           context.telemetry,
           { body, headers: JSON_WRITE, method: "PATCH" }
         )
       : await payloadRest(
           context.client,
-          globalPath(operation.global, false),
+          `${globalPath(operation.global, false)}${ALL_LOCALES}`,
           context.telemetry,
           { body, headers: JSON_WRITE, method: "POST" }
         );
@@ -682,6 +688,50 @@ interface Restored {
   stamp: string | undefined;
 }
 
+// The read after writes that have landed. One failed read does not undo
+// them, so it is tried once more before the receipt gives up on them.
+const readLanded = async (
+  context: RestoreContext,
+  operation: RestoreOperation
+): Promise<JsonObject> => {
+  try {
+    return await readCurrent(context, operation);
+  } catch {
+    return readCurrent(context, operation);
+  }
+};
+
+// Publishes the draft the restore saved and answers with the stamp to find
+// the write by: the publish's own, or the restore's when it did not publish.
+const publishRestored = async (
+  context: RestoreContext,
+  operation: RestoreOperation,
+  input: {
+    snapshot: OperationPreflight;
+    stamp: string | undefined;
+    subject: Subject;
+  }
+): Promise<Pick<Restored, "publishError" | "stamp">> => {
+  const { snapshot, stamp, subject } = input;
+
+  try {
+    // Publishing takes whatever the newest draft is, so it is only sent
+    // while that is still the one the restore saved.
+    const draft = await readCurrent(context, operation);
+
+    if (stamp !== undefined && updatedAt(draft) !== stamp) {
+      throw new ApplyConflictError(
+        "modified_since_restore",
+        `${snapshot.target} was saved again right after the restore`
+      );
+    }
+
+    return { stamp: await sendPublish(context, operation, subject.target) };
+  } catch (error) {
+    return { publishError: toReceiptError(error), stamp };
+  }
+};
+
 const restore = async (
   context: RestoreContext,
   operation: RestoreOperation,
@@ -714,36 +764,21 @@ const restore = async (
   }
 
   // The restore has landed as a draft. A publish that fails now leaves that
-  // draft in place, and the receipt says so instead of losing it.
-  try {
-    // Publishing takes whatever the newest draft is, so it is only sent
-    // while that is still the one the restore saved.
-    const draft = await readCurrent(context, operation);
+  // draft in place, and the receipt says so instead of losing it. Only the
+  // publish itself is caught here: a read that fails after it went through
+  // is not a publish that failed.
+  const published = await publishRestored(context, operation, {
+    snapshot,
+    stamp,
+    subject,
+  });
 
-    if (stamp !== undefined && updatedAt(draft) !== stamp) {
-      throw new ApplyConflictError(
-        "modified_since_restore",
-        `${snapshot.target} was saved again right after the restore`
-      );
-    }
-
-    const published = await sendPublish(context, operation, subject.target);
-
-    return {
-      after: await readCurrent(context, operation),
-      before,
-      fields,
-      stamp: published,
-    };
-  } catch (error) {
-    return {
-      after: await readCurrent(context, operation),
-      before,
-      fields,
-      publishError: toReceiptError(error),
-      stamp,
-    };
-  }
+  return {
+    after: await readLanded(context, operation),
+    before,
+    fields,
+    ...published,
+  };
 };
 
 export const applyRestore = async (
@@ -851,7 +886,12 @@ export const applyRestore = async (
 
     return {
       ...landed,
-      ...outcome(paths.changed.length > 0 ? "changed" : "unchanged", paths),
+      // On a localized target the restore may have changed locales the
+      // readback does not hold, so it is not called unchanged.
+      ...outcome(
+        paths.changed.length > 0 || subject.localized ? "changed" : "unchanged",
+        paths
+      ),
     };
   } catch (error) {
     return failure(toReceiptError(error));
