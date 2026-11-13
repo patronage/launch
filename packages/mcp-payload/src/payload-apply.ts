@@ -49,6 +49,7 @@ import {
   draftTarget,
   isGlobalOperation,
   isRowsOperation,
+  isUnpublishOperation,
   isUploadOperation,
   operationTarget,
   STATUS_FIELD,
@@ -62,6 +63,7 @@ import { createTitleLookup, fieldSnapshot } from "./payload-relations";
 import type { TitleLookup } from "./payload-relations";
 import { toMarkdown, toRichText } from "./payload-rich-text";
 import { applyRows, preflightRows } from "./payload-rows-apply";
+import { applyUnpublish, preflightUnpublish } from "./payload-unpublish-apply";
 import { applyUpload, preflightUpload } from "./payload-upload-apply";
 import type { UploadFiles } from "./payload-upload-apply";
 
@@ -311,6 +313,10 @@ const preflightAs = (
 
   if (isGlobalOperation(operation)) {
     return preflightGlobal(context, operation, index);
+  }
+
+  if (isUnpublishOperation(operation)) {
+    return preflightUnpublish(context, operation, index);
   }
 
   return isRowsOperation(operation)
@@ -706,6 +712,10 @@ const applyAs = (
 
   if (isGlobalOperation(operation)) {
     return applyGlobal(context, operation, snapshot);
+  }
+
+  if (isUnpublishOperation(operation)) {
+    return applyUnpublish(context, operation, snapshot);
   }
 
   return isRowsOperation(operation)

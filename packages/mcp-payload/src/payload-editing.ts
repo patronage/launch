@@ -180,17 +180,33 @@ export const readEditingInfo = async (
   return parsed.data;
 };
 
-const previewUrlSchema = z.object({ url: z.string().nullable() });
+// `path` came after `url`: a Payload that still answers with the link alone
+// reads as one that knows no public path.
+const previewUrlSchema = z.object({
+  path: z.string().nullable().default(null),
+  url: z.string().nullable(),
+});
 
-// The link the admin's Preview button opens for one document, as Payload
-// built it: usually a path on the site itself. Never a reason to stop a
-// write, so every failure reads as "no link".
-export const readPreviewUrl = async (
+/** Where the front end shows one document. */
+export interface DocumentAddress {
+  // The public path it is served at once published, such as `/news/hello`.
+  path?: string;
+  // The link the admin's Preview button opens: its draft preview.
+  url?: string;
+}
+
+// Where the front end shows one document, as Payload says: the link the
+// admin's Preview button opens (usually a path on the site itself) and the
+// document's public path. Never a reason to stop a write, so every failure
+// reads as "no address".
+export const readDocumentAddress = async (
   client: UpstreamClient,
   collection: string,
   id: number | string,
   telemetry: UpstreamTelemetry
-): Promise<string | undefined> => {
+): Promise<DocumentAddress> => {
+  const address: DocumentAddress = {};
+
   try {
     const result = await callPayloadTool(
       client,
@@ -201,8 +217,27 @@ export const readPreviewUrl = async (
 
     const parsed = previewUrlSchema.safeParse(result.structured);
 
-    return parsed.success ? (parsed.data.url ?? undefined) : undefined;
+    if (parsed.success && parsed.data.url) {
+      address.url = parsed.data.url;
+    }
+
+    if (parsed.success && parsed.data.path) {
+      address.path = parsed.data.path;
+    }
   } catch {
-    return undefined;
+    // No address.
   }
+
+  return address;
+};
+
+export const readPreviewUrl = async (
+  client: UpstreamClient,
+  collection: string,
+  id: number | string,
+  telemetry: UpstreamTelemetry
+): Promise<string | undefined> => {
+  const address = await readDocumentAddress(client, collection, id, telemetry);
+
+  return address.url;
 };

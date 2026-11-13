@@ -7,6 +7,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 - Rich text fields can be written as Markdown, converted with the field's own editor features.
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field by row id, without resending the field.
 - An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.
+- An `unpublish` operation takes a published document off the public site and keeps its content as a draft.
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway for a later `upload_media` or `replace_media_file` operation in the same script. It writes nothing to Payload.
 
 ## Rows
@@ -83,6 +84,31 @@ await payload.apply({
 - **`expected_updated_at` is required**, read with `findGlobalDraft`, which gives the global's newest version as the admin opens it. Payload's own `findGlobal` reads the published global, whose `updatedAt` is refused as stale while a newer draft exists. The request is refused when the global has changed since it was read, and again at approval when it has changed since the preview.
 - **A global another editor has open is left alone** (`locked`). Payload's REST endpoint for a global saves over an editor's lock and removes it, where the one for a document answers 423. So the gateway reads the lock from `getEditingInfo`, which reports `locked` for each global, when the approval is drawn and again just before it saves, and writes nothing while another editor's lock holds. A lock taken in the moment between that last check and the save is not seen. A site whose `getEditingInfo` does not report `locked` gets no global writes (`lock_unknown`).
 - After approval the gateway sends only the fields whose value differs, in one `POST /api/globals/{slug}` as the approver, and reads the global back. Nothing is sent, and no version is made, when every field is already as asked. The receipt's target is `globals/{slug}`; it carries `updated_at`, the `version_id` of the version the write made and, for inserted rows, `details.inserted_row_ids`.
+
+## Unpublishing
+
+`unpublish` takes a published document off the public site and keeps its content as a draft:
+
+```js
+await payload.apply({
+  intent: "Take the cleanup day post down",
+  operations: [
+    {
+      kind: "unpublish",
+      collection: "posts",
+      id: 4,
+      expected_updated_at: post.updatedAt,
+    },
+  ],
+});
+```
+
+- It is the request the admin's own Unpublish button sends: `PATCH /api/{collection}/{id}?unpublishAllLocales=true` with `_status: "draft"`, as the approver. Payload carries the newest draft's content over to the document, marks the newest version a draft in place rather than adding one, and stops serving the document to anonymous reads. No other field changes.
+- **The approval warns that the public page goes away at once**, and names it where it can: "The public page at /news/fall-cleanup-day goes away as soon as you approve. Links to it will 404 unless a redirect covers them." The path comes from `getPreviewUrl`, which now answers with the document's public `path` beside its preview `url`: the address of its published version, which a newer draft with another slug does not change. The gateway does not say whether a redirect would catch those links, and never makes one: which redirect a front end follows, and whether its destination can be reached, are that front end's rules.
+- **`expected_updated_at` is required**, read with `draft: true`. The request is refused when the document has changed since it was read, and again at approval when it has changed since the preview.
+- A document that is not published is refused (`already_draft`), as is a collection without drafts. Whether a document is published is read from the document itself, not from its newest version, which is a draft whenever someone has saved one since it was published.
+- After the write the gateway reads the document back as the public would get it. A document Payload still serves is reported as failed (`still_published`). The receipt lists `_status` in `changed_paths`, with `updated_at`, `version_id` and `details.preview_url`.
+- To publish again, send `update_draft` with `publish: true` and no fields: it publishes the draft as it stands.
 
 ## Files
 
