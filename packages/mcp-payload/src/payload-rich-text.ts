@@ -75,16 +75,16 @@ export const toRichText = async (
   return parsed.data.value;
 };
 
-export const toMarkdown = async (
+const convertToMarkdown = async (
   client: UpstreamClient,
   target: RichTextTarget,
   value: JsonValue | undefined,
   telemetry: UpstreamTelemetry
-): Promise<string> => {
+): Promise<z.infer<typeof markdownResultSchema>> => {
   const stored = recordSchema.safeParse(value);
 
   if (!stored.success) {
-    return "";
+    return { lost: [], markdown: "" };
   }
 
   const result = await callPayloadTool(
@@ -102,14 +102,41 @@ export const toMarkdown = async (
     );
   }
 
+  return parsed.data;
+};
+
+export const toMarkdown = async (
+  client: UpstreamClient,
+  target: RichTextTarget,
+  value: JsonValue | undefined,
+  telemetry: UpstreamTelemetry
+): Promise<string> => {
+  const converted = await convertToMarkdown(client, target, value, telemetry);
+
   // Writing Markdown back would turn these nodes into plain text, deleting
   // them while the Markdown preview hides what they held.
-  if (parsed.data.lost.length > 0) {
+  if (converted.lost.length > 0) {
     throw new ApplyConflictError(
       "markdown_would_lose_content",
-      `${target.collection} ${named(target)} holds ${parsed.data.lost.join(", ")} nodes that Markdown cannot carry; change it in fields as Lexical JSON, or in the Payload admin`
+      `${target.collection} ${named(target)} holds ${converted.lost.join(", ")} nodes that Markdown cannot carry; change it in fields as Lexical JSON, or in the Payload admin`
     );
   }
 
-  return parsed.data.markdown;
+  return converted.markdown;
+};
+
+/**
+ * Rich text as Markdown for reading only, where nothing is written back
+ * from it: nodes Markdown cannot carry come out as Payload's placeholders
+ * instead of stopping the conversion.
+ */
+export const readableMarkdown = async (
+  client: UpstreamClient,
+  target: RichTextTarget,
+  value: JsonValue | undefined,
+  telemetry: UpstreamTelemetry
+): Promise<string> => {
+  const converted = await convertToMarkdown(client, target, value, telemetry);
+
+  return converted.markdown;
 };

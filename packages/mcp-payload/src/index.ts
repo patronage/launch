@@ -25,6 +25,7 @@ export type {
   DraftOperation,
   PatchRowsOperation,
   PayloadOperation,
+  RestoreOperation,
   RowChange,
   UnpublishOperation,
   UpdateGlobalOperation,

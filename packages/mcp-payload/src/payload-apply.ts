@@ -48,6 +48,7 @@ import {
   draftSentence,
   draftTarget,
   isGlobalOperation,
+  isRestoreOperation,
   isRowsOperation,
   isUnpublishOperation,
   isUploadOperation,
@@ -61,6 +62,7 @@ import type {
 } from "./payload-operations";
 import { createTitleLookup, fieldSnapshot } from "./payload-relations";
 import type { TitleLookup } from "./payload-relations";
+import { applyRestore, preflightRestore } from "./payload-restore-apply";
 import { toMarkdown, toRichText } from "./payload-rich-text";
 import { applyRows, preflightRows } from "./payload-rows-apply";
 import { applyUnpublish, preflightUnpublish } from "./payload-unpublish-apply";
@@ -317,6 +319,10 @@ const preflightAs = (
 
   if (isUnpublishOperation(operation)) {
     return preflightUnpublish(context, operation, index);
+  }
+
+  if (isRestoreOperation(operation)) {
+    return preflightRestore(context, operation, index);
   }
 
   return isRowsOperation(operation)
@@ -716,6 +722,10 @@ const applyAs = (
 
   if (isUnpublishOperation(operation)) {
     return applyUnpublish(context, operation, snapshot);
+  }
+
+  if (isRestoreOperation(operation)) {
+    return applyRestore(context, operation, snapshot);
   }
 
   return isRowsOperation(operation)

@@ -4,6 +4,7 @@ import type { CollectionSlug, GlobalSlug } from "payload";
 
 import {
   findGlobalDraft,
+  getDocumentLock,
   getEditingInfo,
   getPreviewUrl,
   markdownToRichText,
@@ -13,16 +14,20 @@ import {
 // Payload's MCP server at /api/mcp, read-only. Writes reach Payload through
 // the MCP gateway's approval step (ADR 0014), so every built-in tool that
 // changes data is off here.
-const READ_ONLY_COLLECTION = {
-  tools: {
-    create: false,
-    delete: false,
-    duplicate: false,
-    getUploadInstructions: false,
-    restoreVersion: false,
-    update: false,
-  },
+const NO_WRITES = {
+  create: false,
+  delete: false,
+  duplicate: false,
+  getUploadInstructions: false,
+  restoreVersion: false,
+  update: false,
 } as const;
+
+// `getDocumentLock` says whether another editor has a document open: the
+// gateway asks before a write Payload itself would make over their lock.
+const READ_ONLY_COLLECTION = {
+  tools: { ...NO_WRITES, getDocumentLock },
+};
 
 // Collections with a rich text field also convert Markdown both ways, so the
 // gateway can take Markdown from a model and show Markdown to the approver.
@@ -45,7 +50,7 @@ const HIDDEN_COLLECTION = {
     findVersionByID: false,
     findVersions: false,
     getCollectionSchema: false,
-    ...READ_ONLY_COLLECTION.tools,
+    ...NO_WRITES,
   },
 } as const;
 

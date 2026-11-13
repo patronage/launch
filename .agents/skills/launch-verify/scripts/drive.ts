@@ -2133,17 +2133,29 @@ const refusedRequest = async (
 
 const LOCK_REASON = "open in the Payload admin for another editor";
 
+/** What another editor has open, as Payload's lock document names it. */
+interface HeldLock {
+  /** The lock document's own fields: `globalSlug`, or `document`. */
+  data:
+    | { document: { relationTo: string; value: number | string } }
+    | { globalSlug: string };
+  /** How the transcript names it, such as "the site settings". */
+  named: string;
+  /** How the refused request reads, such as "a change to a global". */
+  what: string;
+}
+
 /**
- * Another editor has the site settings open: Payload keeps a lock document
- * for them, as its admin does while a form is open. A change asked for
- * meanwhile is refused, and their lock is still there afterwards. Payload
- * itself would save the global and remove the lock. The second editor is
- * made for this step and removed after it.
+ * Another editor has something open: Payload keeps a lock document for
+ * them, as its admin does while a form is open. A change asked for meanwhile
+ * is refused, and their lock is still there afterwards. Payload itself would
+ * save a global, or restore a version, and remove the lock. The second
+ * editor is made for this step and removed after it.
  */
 const refusedWhileLocked = async (
   run: DriveRun,
   page: Page,
-  options: { admin: Page; code: string; payloadOrigin: string }
+  options: { admin: Page; code: string; lock: HeldLock; payloadOrigin: string }
 ): Promise<void> => {
   const api = `${options.payloadOrigin}/api`;
   const { request } = options.admin;
@@ -2162,7 +2174,7 @@ const refusedWhileLocked = async (
   try {
     const locked = await request.post(`${api}/payload-locked-documents`, {
       data: {
-        globalSlug: "site-settings",
+        ...options.lock.data,
         user: { relationTo: "users", value: editorId },
       },
     });
@@ -2171,11 +2183,13 @@ const refusedWhileLocked = async (
     const lockId = lock.doc?.id;
 
     if (lockId === undefined) {
-      throw new Error(`Could not lock the global: HTTP ${locked.status()}`);
+      throw new Error(
+        `Could not lock ${options.lock.named}: HTTP ${locked.status()}`
+      );
     }
 
     run.log.step(
-      "Lock the site settings for a second editor, as the admin does while they have it open",
+      `Lock ${options.lock.named} for a second editor, as the admin does while they have it open`,
       `lock ${lockId} held by ${run.marker}@example.test`
     );
 
@@ -2183,7 +2197,7 @@ const refusedWhileLocked = async (
       code: options.code,
       reason: LOCK_REASON,
       shot: "locked-refused",
-      what: "a change to a global another editor has open",
+      what: `${options.lock.what} another editor has open`,
     });
 
     const held = await request.get(`${api}/payload-locked-documents/${lockId}`);
@@ -2199,24 +2213,57 @@ const refusedWhileLocked = async (
   }
 };
 
+/** The script an agent sends to bring back a version of the site settings. */
+const restoreGlobalScript = (options: {
+  expected: string;
+  marker: string;
+  versionId: number | string;
+}) => `async () => payload.apply({
+  intent: "Put the site tagline back for launch-verify run ${options.marker}",
+  operations: [{
+    kind: "restore_global_version",
+    global: "site-settings",
+    version_id: ${JSON.stringify(options.versionId)},
+    expected_updated_at: ${JSON.stringify(options.expected)},
+    publish: true,
+  }],
+})`;
+
+/** A change to the tagline, and what it is checked against. */
+interface TaglineChange {
+  expected: string;
+  from: string;
+  /** Set to bring back this version instead of sending the tagline. */
+  restore?: number | string;
+  shot: string;
+  to: string;
+}
+
 /**
- * Changes the tagline with `publish: true`, approves it, and gives back when
- * the receipt says the global was last updated.
+ * Changes the tagline with `publish: true`, by sending it or by restoring a
+ * version that holds it, approves it, and gives back when the receipt says
+ * the global was last updated.
  */
 const approveGlobal = async (
   run: DriveRun,
   page: Page,
-  change: { expected: string; from: string; shot: string; to: string }
+  change: TaglineChange
 ): Promise<string> => {
   const { executionId, preview } = await openApproval(
     run,
     page,
-    globalScript({
-      expected: change.expected,
-      marker: run.marker,
-      publish: true,
-      tagline: change.to,
-    })
+    change.restore === undefined
+      ? globalScript({
+          expected: change.expected,
+          marker: run.marker,
+          publish: true,
+          tagline: change.to,
+        })
+      : restoreGlobalScript({
+          expected: change.expected,
+          marker: run.marker,
+          versionId: change.restore,
+        })
   );
 
   const warned = preview.includes("live as soon as you approve");
@@ -2250,24 +2297,48 @@ const approveGlobal = async (
     '"version_id":"',
   ].every((text) => receipt.includes(text));
 
+  const sent =
+    change.restore === undefined
+      ? `update_global with publish: true, tagline "${change.to}"`
+      : `restore_global_version ${change.restore} with publish: true, which holds tagline "${change.to}"`;
+
   run.expect(
     landed,
     `get_run does not report tagline as changed with a version: ${receipt.slice(0, 300)}`
   );
   run.log.step(
-    `execute: payload.apply update_global with publish: true, tagline "${change.to}"; approve it`,
+    `execute: payload.apply ${sent}; approve it`,
     `warns that it is live at once: ${warned}; shows before and after: ${shown}; ${outcome.slice(outcome.indexOf("Result:")).slice(0, 48)}; receipt lists tagline with a version: ${landed} (${change.shot}-run.json)`
   );
 
   return /"updated_at":"(?<stamp>[^"]+)"/u.exec(receipt)?.groups?.stamp ?? "";
 };
 
+/** The id of the site settings' newest version, read as the local admin. */
+const newestSettingsVersion = async (
+  admin: Page,
+  payloadOrigin: string
+): Promise<number | string> => {
+  const response = await admin.request.get(
+    `${payloadOrigin}/api/globals/site-settings/versions?depth=0&limit=1&sort=-updatedAt`
+  );
+
+  const found: { docs?: { id: number | string }[] } = await response.json();
+  const id = found.docs?.at(0)?.id;
+
+  if (id === undefined) {
+    throw new Error("The site settings have no version: seed Payload first.");
+  }
+
+  return id;
+};
+
 /**
  * MCP gateway: an editor's agent changes a global. The site settings keep no
  * drafts, so a change that does not say it publishes is refused, the
  * approval warns that the change is live at once, the public API shows it
- * the moment it is approved, and a second write built on the first receipt
- * puts the tagline back.
+ * the moment it is approved, and restoring the version from before the
+ * change, built on the first receipt, puts the tagline back.
  */
 const mcpPayloadGlobal: Drive = async ({
   origin,
@@ -2369,8 +2440,17 @@ const mcpPayloadGlobal: Drive = async ({
         publish: true,
         tagline,
       }),
+      lock: {
+        data: { globalSlug: "site-settings" },
+        named: "the site settings",
+        what: "a change to a global",
+      },
       payloadOrigin,
     });
+
+    // The version to come back to at the end: the settings as they are now.
+    const firstVersion = await newestSettingsVersion(admin, payloadOrigin);
+
     await admin.close();
 
     const changedAt = await approveGlobal(run, page, {
@@ -2396,10 +2476,12 @@ const mcpPayloadGlobal: Drive = async ({
     );
 
     // Built on the first receipt's `updated_at`, the way an agent chains a
-    // second write without reading again. It leaves the site as it was.
+    // second write without reading again. It brings back the version from
+    // before the change, which leaves the site as it was.
     await approveGlobal(run, page, {
       expected: changedAt,
       from: tagline,
+      restore: firstVersion,
       shot: "restore",
       to: before,
     });
@@ -2411,7 +2493,7 @@ const mcpPayloadGlobal: Drive = async ({
       `the tagline was not put back: "${restored.tagline}"`
     );
     log.step(
-      "Put the tagline back with a second write built on the first receipt's updated_at",
+      "Put the tagline back by restoring the version from before the change, built on the first receipt's updated_at",
       `public tagline "${restored.tagline}"`
     );
 
@@ -2469,15 +2551,16 @@ const readLivePost = async (
 interface PostOperation {
   collection: "posts";
   expected_updated_at: string;
-  fields?: { title: string };
+  fields?: { slug?: string; title: string };
   id: number;
-  kind: "unpublish" | "update_draft";
+  kind: "restore_version" | "unpublish" | "update_draft";
   publish?: true;
+  version_id?: number | string;
 }
 
 const postScript = (marker: string, operation: PostOperation) =>
   `async () => payload.apply({
-  intent: "Take a post down and put it back for launch-verify run ${marker}",
+  intent: "Change a post and put it back for launch-verify run ${marker}",
   operations: [${JSON.stringify(operation)}],
 })`;
 
@@ -2793,12 +2876,382 @@ const mcpPayloadUnpublish: Drive = async ({
   }
 };
 
+/** What READ_VERSIONS returns for each version. */
+interface PostVersion {
+  id: number | string;
+  parent: number | string;
+  status: string;
+  title: string;
+}
+
+// A post's versions through the gateway, newest first, as Payload's own
+// read tool answers: a heading and one fenced JSON block.
+const READ_VERSIONS = (where: string) => `async () => {
+  const found = await payload.call({
+    tool: "findVersions",
+    arguments: { slug: "posts", depth: 0, limit: 10, sort: "-updatedAt", where: ${where} },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const docs = JSON.parse(block ? block[1] : "{}").docs ?? [];
+  return docs.map((doc) => ({ id: doc.id, parent: doc.parent, status: doc.version._status, title: doc.version.title }));
+}`;
+
+const readVersions = async (
+  run: Session,
+  where: string
+): Promise<PostVersion[]> => {
+  const read = await execute<PostVersion[]>(
+    run.origin,
+    run.token,
+    READ_VERSIONS(where)
+  );
+
+  return read.structuredContent.result ?? [];
+};
+
+/** The receipt's `version_id`: the version an approved write made. */
+const madeVersion = (approved: Approved): string =>
+  /"version_id":"(?<id>[^"]+)"/u.exec(approved.receipt)?.groups?.id ?? "";
+
+/** What the restore drive carries about its post. */
+interface RestoredPost {
+  draftTitle: string;
+  id: number;
+  payload: string;
+  title: string;
+}
+
+/**
+ * Brings the published version back as a draft: the approval names the
+ * version and shows the title before and after, the receipt lists the
+ * title, the newest draft has the first title again, and the public saw
+ * the same post throughout.
+ */
+const restoreAsDraft = async (
+  run: DriveRun,
+  page: Page,
+  request: { expected: string; post: RestoredPost; versionId: number | string }
+): Promise<Approved> => {
+  const { post } = request;
+
+  const restored = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: request.expected,
+      id: post.id,
+      kind: "restore_version",
+      version_id: request.versionId,
+    },
+    shot: "restore",
+  });
+
+  const shown = [
+    `version ${request.versionId}, saved`,
+    post.draftTitle,
+    post.title,
+  ].every((text) => restored.preview.includes(text));
+
+  const reported = [
+    '"changed_paths":["title"]',
+    `"restored_version_id":"${request.versionId}"`,
+    '"version_id":"',
+  ].every((text) => restored.receipt.includes(text));
+
+  const draft = await readLivePost(run, `{ id: { equals: ${post.id} } }`);
+  const live = await publicPost(post.payload, post.id);
+
+  run.expect(shown, "the approval page does not show the version and titles");
+  run.expect(reported, "the receipt does not list the title and the version");
+  run.expect(
+    draft?.title === post.title && draft.status === "draft",
+    `the newest draft is "${draft?.title}" (${draft?.status})`
+  );
+  run.expect(
+    live.title === post.title,
+    `the public sees "${live.title}" after a restore as a draft`
+  );
+  run.log.step(
+    `execute: payload.apply restore_version ${request.versionId}, the published one, as a draft; approve it`,
+    `shows the version and the title before and after: ${shown}; receipt lists title, the restored version and a new version: ${reported} (restore-run.json); newest draft is "${draft?.title}" (${draft?.status}); the public still sees "${live.title}"`
+  );
+
+  return restored;
+};
+
+/**
+ * Brings the retitled draft back and publishes it, which the gateway does
+ * in two writes: the public now sees the draft's title.
+ */
+const restoreAndPublish = async (
+  run: DriveRun,
+  page: Page,
+  request: { expected: string; post: RestoredPost; versionId: string }
+): Promise<Approved> => {
+  const { post } = request;
+
+  const published = await approvePost(run, page, {
+    operation: {
+      collection: "posts",
+      expected_updated_at: request.expected,
+      id: post.id,
+      kind: "restore_version",
+      publish: true,
+      version_id: request.versionId,
+    },
+    shot: "restore-publish",
+  });
+
+  const reported = published.receipt.includes(
+    '"changed_paths":["title","_status"]'
+  );
+
+  const live = await publicPost(post.payload, post.id);
+
+  run.expect(reported, "the receipt does not list the title and _status");
+  run.expect(
+    live.title === post.draftTitle,
+    `the public sees "${live.title}" after a restore that publishes`
+  );
+  run.log.step(
+    `execute: payload.apply restore_version ${request.versionId}, the retitled draft, with publish: true; approve it`,
+    `receipt lists title and _status: ${reported} (restore-publish-run.json); the public now sees "${live.title}"`
+  );
+
+  return published;
+};
+
+/** The requests about a post's versions that must not reach an approval. */
+const refusedRestores = async (
+  run: DriveRun,
+  page: Page,
+  request: {
+    admin: Page;
+    expected: string;
+    post: RestoredPost;
+    stale: string;
+    versionId: number | string;
+  }
+): Promise<void> => {
+  const { post } = request;
+
+  const restore = (rest: Partial<PostOperation>): string =>
+    postScript(run.marker, {
+      collection: "posts",
+      expected_updated_at: request.expected,
+      id: post.id,
+      kind: "restore_version",
+      version_id: request.versionId,
+      ...rest,
+    });
+
+  const [other] = await readVersions(
+    run,
+    `{ parent: { not_equals: ${post.id} } }`
+  );
+
+  if (!other) {
+    throw new Error("No version of another post: seed Payload first.");
+  }
+
+  await refusedRequest(run, page, {
+    code: restore({ expected_updated_at: request.stale }),
+    reason: "stale_expected_updated_at",
+    shot: "stale-refused",
+    what: "a restore built on a read from before the draft",
+  });
+  await refusedRequest(run, page, {
+    code: restore({ version_id: other.id }),
+    reason: "version_of_another_document",
+    shot: "other-document-refused",
+    what: `a restore of version ${other.id}, which is posts/${other.parent}'s`,
+  });
+  await refusedWhileLocked(run, page, {
+    admin: request.admin,
+    code: restore({}),
+    lock: {
+      data: { document: { relationTo: "posts", value: post.id } },
+      named: `posts/${post.id}`,
+      what: "a restore of a post",
+    },
+    payloadOrigin: post.payload,
+  });
+};
+
+/**
+ * Restoring versions, end to end: a published post gets a retitled draft,
+ * the published version is restored as a draft, then the retitled one is
+ * restored and published, and the post is put back as it was.
+ */
+const mcpPayloadRestore: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const admin = await openLocalAdmin(browser, payloadOrigin);
+    const email = await adminEmail(admin, payloadOrigin);
+    const token = signIn(email);
+
+    const run: DriveRun = {
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      log,
+      marker,
+      origin,
+      token,
+    };
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const live = await readLivePost(
+      run,
+      '{ _status: { equals: "published" } }'
+    );
+
+    if (!live) {
+      throw new Error(
+        "No published post without a newer draft: seed Payload first."
+      );
+    }
+
+    const post: RestoredPost = {
+      draftTitle: `${live.title} (${marker})`,
+      id: live.id,
+      payload: payloadOrigin,
+      title: live.title,
+    };
+
+    const [published] = await readVersions(
+      run,
+      `{ parent: { equals: ${live.id} } }`
+    );
+
+    if (published?.status !== "published") {
+      throw new Error(`posts/${live.id} has no published newest version.`);
+    }
+
+    log.step(
+      "execute: read a published post with no newer draft, and its newest version",
+      `posts/${live.id} "${live.title}", updated ${live.updatedAt}; version ${published.id} (${published.status})`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    const drafted = await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: live.updatedAt,
+        fields: { title: post.draftTitle },
+        id: live.id,
+        kind: "update_draft",
+      },
+      shot: "draft",
+    });
+
+    log.step(
+      "execute: payload.apply update_draft retitling the post as a draft; approve it",
+      `draft title "${post.draftTitle}", version ${madeVersion(drafted)}`
+    );
+
+    await refusedRestores(run, page, {
+      admin,
+      expected: drafted.updatedAt,
+      post,
+      stale: live.updatedAt,
+      versionId: published.id,
+    });
+    await admin.close();
+
+    const restored = await restoreAsDraft(run, page, {
+      expected: drafted.updatedAt,
+      post,
+      versionId: published.id,
+    });
+
+    const republished = await restoreAndPublish(run, page, {
+      expected: restored.updatedAt,
+      post,
+      versionId: madeVersion(drafted),
+    });
+
+    // Put back: the first title, published, with no draft after it.
+    await approvePost(run, page, {
+      operation: {
+        collection: "posts",
+        expected_updated_at: republished.updatedAt,
+        fields: { title: post.title },
+        id: live.id,
+        kind: "update_draft",
+        publish: true,
+      },
+      shot: "put-back",
+    });
+
+    const after = await publicPost(payloadOrigin, live.id);
+
+    run.expect(
+      after.title === post.title,
+      `the post was not put back: "${after.title}"`
+    );
+    log.step(
+      "Publish the post again with its first title, built on the last receipt's updated_at",
+      `public API title "${after.title}"`
+    );
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-restore failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
     new Map([
       ["payload-draft", mcpPayloadDraft],
       ["payload-global", mcpPayloadGlobal],
+      ["payload-restore", mcpPayloadRestore],
       ["payload-rows", mcpPayloadRows],
       ["payload-unpublish", mcpPayloadUnpublish],
       ["payload-upload", mcpPayloadUpload],
