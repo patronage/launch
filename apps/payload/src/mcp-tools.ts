@@ -6,8 +6,18 @@ import {
 } from "@payloadcms/richtext-lexical";
 import type { SerializedEditorState } from "@payloadcms/richtext-lexical/lexical";
 import { getAccessResults } from "payload";
-import type { CollectionSlug, PayloadRequest, RichTextField } from "payload";
+import type {
+  CollectionSlug,
+  FlattenedBlock,
+  GlobalSlug,
+  PayloadRequest,
+  RichTextField,
+  SanitizedCollectionConfig,
+} from "payload";
 import { z } from "zod";
+
+import { describeDocumentFields } from "./lib/editing-info";
+import type { BlockLookup } from "./lib/editing-info";
 
 // Read-only tools for the MCP gateway (apps/mcp). Two convert rich text, so
 // an agent can write Markdown and the person approving it reads Markdown too.
@@ -15,6 +25,8 @@ import { z } from "zod";
 // knows which Lexical features a field has. `getEditingInfo` tells the
 // gateway which collections keep drafts. None of them reads or writes a
 // document: the gateway saves changes through its approval step.
+// `getPreviewUrl` reads one document, as the editor, to give the link the
+// admin's Preview button opens.
 
 const MAX_MARKDOWN_LENGTH = 200_000;
 
@@ -187,11 +199,224 @@ export const richTextToMarkdown = defineCollectionTool({
   };
 });
 
+const documentId = z.union([
+  z.number().int().positive(),
+  z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/u),
+]);
+
+export const getPreviewUrl = defineCollectionTool({
+  access: readPermission,
+  annotations: {
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+    readOnlyHint: true,
+    title: "Get preview link",
+  },
+  description:
+    "The front end's draft preview link for one document, as the admin's Preview button opens it. `url` is null when the document has no address yet. Writes nothing.",
+  input: z.object({ id: documentId }),
+}).handler(async ({ input, req, slug }) => {
+  const preview = req.payload.collections[slug]?.config.admin.preview;
+
+  if (!preview) {
+    return errorResult(`${slug} has no preview link`);
+  }
+
+  // Read as this editor, newest version first, the way the admin does.
+  const doc = await req.payload.findByID({
+    collection: slug,
+    depth: 0,
+    disableErrors: true,
+    draft: true,
+    id: input.id,
+    overrideAccess: false,
+    req,
+  });
+
+  if (!doc) {
+    return errorResult(`${slug}/${input.id} was not found`);
+  }
+
+  const url =
+    (await preview(
+      { ...doc },
+      { locale: req.locale ?? "", req, token: null }
+    )) ?? null;
+
+  return {
+    ...textResult(url ?? ""),
+    structuredContent: { url },
+  };
+});
+
+// Blocks a field names by slug live in the config's own `blocks` list.
+const blockLookup = (req: PayloadRequest): BlockLookup => {
+  const blocks = new Map<string, FlattenedBlock>(
+    Object.entries(req.payload.blocks)
+  );
+
+  return (slug) => blocks.get(slug);
+};
+
+// A draft setting is `false` or an options object; only whether it is on
+// matters to the gateway.
+const draftSettings = (
+  versions: SanitizedCollectionConfig["versions"] | undefined
+) => {
+  const drafts = versions ? versions.drafts : false;
+
+  return {
+    autosave: Boolean(drafts && drafts.autosave),
+    drafts: Boolean(drafts),
+    schedulePublish: Boolean(drafts && drafts.schedulePublish),
+  };
+};
+
+interface AllowedHost {
+  hostname: string;
+  pathname?: string;
+  protocol?: string;
+}
+
+// The parts of an allow-list entry the gateway matches a URL against.
+const allowedHost = (entry: AllowedHost): AllowedHost => {
+  const host: AllowedHost = { hostname: entry.hostname };
+
+  if (entry.pathname !== undefined) {
+    host.pathname = entry.pathname;
+  }
+
+  if (entry.protocol !== undefined) {
+    host.protocol = entry.protocol;
+  }
+
+  return host;
+};
+
+// What an upload collection accepts. `urlAllowList` is the hosts Payload
+// itself would fetch a pasted URL from; null means it fetches from none.
+const uploadInfo = (req: PayloadRequest, config: SanitizedCollectionConfig) => {
+  if (!config.upload) {
+    return;
+  }
+
+  const paste = config.upload.pasteURL;
+
+  return {
+    maxFileSize: req.payload.config.upload.limits?.fileSize ?? null,
+    mimeTypes: config.upload.mimeTypes ?? [],
+    urlAllowList:
+      paste && paste.allowList.length > 0
+        ? paste.allowList.map((entry) => allowedHost(entry))
+        : null,
+    // Whether the collection keeps versions, which decides what a file
+    // replacement can say about the file it replaces.
+    versions: Boolean(config.versions),
+  };
+};
+
+const localizationInfo = (req: PayloadRequest) => {
+  const { localization } = req.payload.config;
+
+  return localization
+    ? {
+        defaultLocale: localization.defaultLocale,
+        locales: localization.localeCodes,
+      }
+    : null;
+};
+
+type AccessResults = Awaited<ReturnType<typeof getAccessResults>>;
+
+const collectionInfo = (
+  req: PayloadRequest,
+  access: AccessResults,
+  slug: CollectionSlug
+) => {
+  const permissions = access.collections?.[slug];
+  const config = req.payload.collections[slug]?.config;
+
+  if (!(permissions?.read && config)) {
+    return [];
+  }
+
+  const fields = describeDocumentFields(
+    config.flattenedFields,
+    blockLookup(req)
+  );
+
+  return [
+    {
+      ...draftSettings(config.versions),
+      canCreate: Boolean(permissions.create),
+      canDelete: Boolean(permissions.delete),
+      canUpdate: Boolean(permissions.update),
+      localized: fields.localized,
+      preview: Boolean(config.admin.preview),
+      relationFields: fields.relationFields,
+      richTextFields: richTextFields(req, slug).map((field) => field.name),
+      rowFields: fields.rowFields,
+      slug,
+      titleField: config.admin.useAsTitle,
+      trash: Boolean(config.trash),
+      // Absent for a collection that holds no files; JSON drops the key.
+      upload: uploadInfo(req, config),
+    },
+  ];
+};
+
+const globalInfo = (
+  req: PayloadRequest,
+  access: AccessResults,
+  slug: GlobalSlug
+) => {
+  const permissions = access.globals?.[slug];
+
+  const config = req.payload.globals.config.find(
+    (global) => global.slug === slug
+  );
+
+  if (!(permissions?.read && config)) {
+    return [];
+  }
+
+  const fields = describeDocumentFields(
+    config.flattenedFields,
+    blockLookup(req)
+  );
+
+  return [
+    {
+      canUpdate: Boolean(permissions.update),
+      drafts: Boolean(config.versions && config.versions.drafts),
+      localized: fields.localized,
+      relationFields: fields.relationFields,
+      // Top-level only, as for a collection: the fields Markdown can fill.
+      richTextFields: fields.richTextFields.filter(
+        (path) => !path.includes(".")
+      ),
+      rowFields: fields.rowFields,
+      slug,
+    },
+  ];
+};
+
 // What the gateway needs before it writes: whether a collection keeps drafts
 // (without them a "draft" would publish at once), which fields take Markdown,
-// and what this editor may do. Only the collections passed in are described,
-// so collections hidden from MCP stay hidden here too.
-export const getEditingInfo = (slugs: readonly CollectionSlug[]) =>
+// which hold rows, what an upload collection accepts, and what this editor
+// may do. Only the collections and globals passed in are described, so those
+// hidden from MCP stay hidden here too. The first version reported
+// `canCreate`, `canUpdate`, `drafts`, `richTextFields` and `slug` for each
+// collection; those keep their meaning, so an older gateway reads this one.
+export const getEditingInfo = (
+  slugs: readonly CollectionSlug[],
+  globalSlugs: readonly GlobalSlug[] = []
+) =>
   defineTool({
     access: ({ req }) => Boolean(req.user),
     annotations: {
@@ -202,33 +427,19 @@ export const getEditingInfo = (slugs: readonly CollectionSlug[]) =>
       title: "Get editing info",
     },
     description:
-      "List the collections this editor can read, with whether each keeps drafts, which top-level fields are rich text, and whether the editor may create or update there.",
+      "List the collections and globals this editor can read: whether each keeps drafts, which fields are rich text, which are arrays or blocks and what their rows hold, what an upload collection accepts, the site's locales, and what the editor may create, update or delete.",
     input: z.object({}),
   }).handler(async ({ req }) => {
     const access = await getAccessResults({ req });
 
-    const collections = slugs.flatMap((slug) => {
-      const permissions = access.collections?.[slug];
-
-      if (!permissions?.read) {
-        return [];
-      }
-
-      const versions = req.payload.collections[slug]?.config.versions;
-
-      return [
-        {
-          canCreate: Boolean(permissions.create),
-          canUpdate: Boolean(permissions.update),
-          drafts: Boolean(versions && versions.drafts),
-          richTextFields: richTextFields(req, slug).map((field) => field.name),
-          slug,
-        },
-      ];
-    });
+    const info = {
+      collections: slugs.flatMap((slug) => collectionInfo(req, access, slug)),
+      globals: globalSlugs.flatMap((slug) => globalInfo(req, access, slug)),
+      localization: localizationInfo(req),
+    };
 
     return {
-      ...textResult(JSON.stringify({ collections })),
-      structuredContent: { collections },
+      ...textResult(JSON.stringify(info)),
+      structuredContent: info,
     };
   });

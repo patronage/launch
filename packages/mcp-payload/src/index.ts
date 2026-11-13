@@ -5,8 +5,17 @@ export { createPayloadClient, payloadConfigured } from "./payload";
 export {
   applyDraftOperations,
   preflightDraftOperations,
-  readEditingInfo,
 } from "./payload-apply";
+
+export { readEditingInfo } from "./payload-editing";
+
+export type {
+  BlockRows,
+  CollectionEditing,
+  EditingInfo,
+  GlobalEditing,
+  RowsField,
+} from "./payload-editing";
 
 export { payloadConnector } from "./payload-gateway";
 

@@ -27,6 +27,8 @@ p.run{color:#6b7280;font-size:.85rem;margin:0 0 1rem}
 section{border-top:1px solid #e6e9ef;padding-top:1rem;margin-top:1rem}
 table{border-collapse:collapse;width:100%;margin:.5rem 0 0}
 th,td{border:1px solid #e6e9ef;padding:.4rem .6rem;text-align:left;vertical-align:top;font-size:.9rem;overflow-wrap:anywhere}
+thead th{white-space:nowrap}
+tbody th,tbody td{min-width:5.5rem}
 td.before{color:#6b7280}
 tr.unchanged td{opacity:.55}
 .notice{background:#f1f5fd;border:1px solid #b4c6e6;padding:.75rem 1rem;border-radius:6px}
@@ -278,9 +280,17 @@ const renderTarget = (operation: OperationPreflight): string => {
   const href = httpsHref(operation.editUrl);
   const target = escapeHtml(operation.target);
 
-  return href
+  const preview = httpsHref(operation.previewUrl ?? "");
+
+  const link = href
     ? `<a href="${escapeHtml(href)}">Open ${target} in ${escapeHtml(operation.editor ?? "wp-admin")}</a>`
     : `<span>${target}</span>`;
+
+  // The page as it is before this change, so an approver can see what the
+  // rows below belong to.
+  return preview
+    ? `${link} · <a href="${escapeHtml(preview)}">Preview the current draft</a>`
+    : link;
 };
 
 const fileSize = (bytes: number): string => {

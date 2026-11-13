@@ -79,6 +79,17 @@ const approvalHtml = renderApprovalPage({
   previewDigest: "",
 });
 
+const pageWithPreview = (previewUrl: string): string =>
+  renderApprovalPage({
+    csrfToken: "abc123",
+    executionId: "exec_1",
+    preflight: {
+      intent: "Fix the headline",
+      operations: [{ ...operation, previewUrl }],
+    },
+    previewDigest: "",
+  });
+
 describe(escapeHtml, () => {
   it("escapes every html-significant character", () => {
     expect(escapeHtml(`<a href="x">&'</a>`)).toBe(
@@ -288,6 +299,18 @@ describe(renderApprovalPage, () => {
     expect(html).not.toContain("data:text/html");
     expect(html).not.toContain("<a ");
     expect(html).toContain("pages/42");
+  });
+
+  it("offers a draft preview beside the edit link, over HTTPS only", () => {
+    expect(
+      pageWithPreview("https://site.example/next/preview?path=%2Fabout")
+    ).toContain(
+      '<a href="https://site.example/next/preview?path=%2Fabout">Preview the current draft</a>'
+    );
+    expect(pageWithPreview(`${"java"}script:alert(1)`)).not.toContain(
+      "Preview the"
+    );
+    expect(approvalHtml).not.toContain("Preview the");
   });
 
   it("renders an already-truncated preview without the rest of the value", () => {

@@ -2,11 +2,13 @@ import type { GatewayConnector } from "@patronage/mcp-core";
 
 import type { PayloadEnv } from "./env";
 import { createPayloadClient, payloadConfigured } from "./payload";
-import { preflightDraftOperations, readEditingInfo } from "./payload-apply";
+import { preflightDraftOperations } from "./payload-apply";
+import { readEditingInfo } from "./payload-editing";
 import { draftSentence, parseDraftApplyInput } from "./payload-operations";
 import {
   createPayloadTools,
   payloadAdminLink,
+  payloadSiteLink,
   PAYLOAD_CONNECTOR_INSTRUCTIONS,
 } from "./payload-tools";
 
@@ -20,14 +22,23 @@ const PAYLOAD_EXECUTE_DESCRIPTION = [
 // draft writes through the approval step.
 export const payloadConnector: GatewayConnector<PayloadEnv> = {
   configured: payloadConfigured,
-  // The collections this editor can read, which keep drafts, and which
-  // fields take Markdown.
-  describe: async (env, caller, telemetry) => ({
-    collections: await readEditingInfo(
+  // The collections and globals this editor can read: which keep drafts,
+  // which fields take Markdown or hold rows, what an upload collection
+  // accepts, and the site's locales.
+  describe: async (env, caller, telemetry) => {
+    const info = await readEditingInfo(
       createPayloadClient(env, caller),
       telemetry
-    ),
-  }),
+    );
+
+    // Parsed and passed on whole; `describe_site` bounds what a text-only
+    // client is shown.
+    return {
+      collections: info.collections,
+      globals: info.globals,
+      localization: info.localization,
+    };
+  },
   executeDescription: PAYLOAD_EXECUTE_DESCRIPTION,
   instructions: PAYLOAD_CONNECTOR_INSTRUCTIONS,
   name: "payload",
@@ -47,7 +58,8 @@ export const payloadConnector: GatewayConnector<PayloadEnv> = {
       input.intent,
       input.operations,
       payloadAdminLink(env),
-      telemetry
+      telemetry,
+      payloadSiteLink(env)
     );
   },
   tools: createPayloadTools,

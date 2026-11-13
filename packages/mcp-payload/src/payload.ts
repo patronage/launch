@@ -208,6 +208,40 @@ export const toPayloadToolResult = (value: JsonValue): PayloadToolResult => {
   return result;
 };
 
+const publicOrigin = (env: PayloadEnv): URL | undefined => {
+  const origin = env.PAYLOAD_ADMIN_URL?.trim() || env.PAYLOAD_API_URL?.trim();
+
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return assertSafeApiUrl(origin);
+  } catch {
+    return undefined;
+  }
+};
+
+// A link Payload made to its own site, such as a draft preview path, as an
+// absolute URL. Payload usually answers with a path; an absolute URL is kept
+// only when it stays on the site's own origin, so nothing Payload returns can
+// send an approver somewhere else.
+export const payloadSiteUrl = (env: PayloadEnv, link: string): string => {
+  const origin = publicOrigin(env);
+
+  if (!(origin && link)) {
+    return "";
+  }
+
+  try {
+    const url = new URL(link, origin);
+
+    return url.origin === origin.origin ? url.toString() : "";
+  } catch {
+    return "";
+  }
+};
+
 // The admin link the approval page offers. Over a Service binding the
 // gateway knows no public origin, so the link comes from PAYLOAD_ADMIN_URL
 // and is left out when that is unset.
@@ -216,18 +250,12 @@ export const payloadAdminUrl = (
   collection: string,
   id: number | string
 ): string => {
-  const origin = env.PAYLOAD_ADMIN_URL?.trim() || env.PAYLOAD_API_URL?.trim();
+  const origin = publicOrigin(env);
 
-  if (!origin) {
-    return "";
-  }
-
-  try {
-    return new URL(
-      `/admin/collections/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
-      assertSafeApiUrl(origin)
-    ).toString();
-  } catch {
-    return "";
-  }
+  return origin
+    ? new URL(
+        `/admin/collections/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
+        origin
+      ).toString()
+    : "";
 };

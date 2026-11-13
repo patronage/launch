@@ -4,6 +4,7 @@ import {
   batchStatus,
   deepEqual,
   previewValue,
+  receiptDetails,
 } from "@patronage/mcp-core";
 import type {
   ApplyPreflight,
@@ -20,13 +21,15 @@ import type {
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
+import { payloadErrorMessage, payloadRest } from "./payload";
 import {
-  payloadErrorMessage,
-  payloadMcpRequest,
-  payloadRest,
-  toPayloadToolResult,
-} from "./payload";
-import type { PayloadToolResult } from "./payload";
+  callPayloadTool,
+  MARKDOWN_TO_RICH_TEXT_TOOL,
+  readEditingInfo,
+  readPreviewUrl,
+  RICH_TEXT_TO_MARKDOWN_TOOL,
+} from "./payload-editing";
+import type { CollectionEditing, EditingInfo } from "./payload-editing";
 import {
   draftChangedPaths,
   draftFields,
@@ -39,14 +42,10 @@ import type {
   DraftOperation,
   UpdateDraftOperation,
 } from "./payload-operations";
+import { createTitleLookup, relationPreview } from "./payload-relations";
+import type { TitleLookup } from "./payload-relations";
 
 const MISSED_PATH_LIMIT = 5;
-
-// The read-only tools apps/payload adds to Payload's MCP server
-// (apps/payload/src/mcp-tools.ts).
-export const EDITING_INFO_TOOL = "getEditingInfo";
-export const MARKDOWN_TO_RICH_TEXT_TOOL = "markdownToRichText";
-export const RICH_TEXT_TO_MARKDOWN_TOOL = "richTextToMarkdown";
 
 const recordSchema = z.record(z.string(), z.json());
 const stringSchema = z.string();
@@ -60,24 +59,21 @@ const markdownResultSchema = z.object({
 
 const richTextResultSchema = z.object({ value: recordSchema });
 
-const collectionEditingSchema = z.object({
-  canCreate: z.boolean(),
-  canUpdate: z.boolean(),
-  drafts: z.boolean(),
-  richTextFields: z.array(z.string()),
-  slug: z.string(),
-});
-
-const editingInfoSchema = z.object({
-  collections: z.array(collectionEditingSchema),
-});
-
-export type CollectionEditing = z.infer<typeof collectionEditingSchema>;
-
 export type PayloadAdminUrl = (
   collection: string,
   id: number | string
 ) => string;
+
+// Turns a link Payload made to its own site into an absolute URL, or "" when
+// the gateway knows no public origin for it.
+export type PayloadSiteUrl = (link: string) => string;
+
+// Payload answers 423 when another editor has the document open: REST
+// writes never override a lock.
+const LOCKED_STATUS = 423;
+
+// As long as a receipt's `version_id` may be.
+const VERSION_ID_LIMIT = 64;
 
 // Every read names the draft, so it returns the newest version, draft or
 // published. A write names it too, saving a new draft version and leaving
@@ -135,56 +131,16 @@ const readDocument = async (
   return parsed.data;
 };
 
-// One call to a Payload MCP tool whose failure stops the operation: an
-// unknown field, a conversion Payload refused, a tool the editor lacks.
-const callTool = async (
-  client: UpstreamClient,
-  name: string,
-  args: JsonObject,
-  telemetry: UpstreamTelemetry
-): Promise<PayloadToolResult> => {
-  const result = toPayloadToolResult(
-    await payloadMcpRequest(
-      client,
-      "tools/call",
-      { arguments: args, name },
-      telemetry
-    )
-  );
-
-  if (result.isError) {
-    throw new ApplyConflictError(
-      "payload_tool_failed",
-      `Payload ${name}: ${result.text.slice(0, 200)}`
-    );
-  }
-
-  return result;
-};
-
-// Which collections keep drafts and take Markdown, as this editor sees them.
-export const readEditingInfo = async (
-  client: UpstreamClient,
-  telemetry: UpstreamTelemetry
-): Promise<CollectionEditing[]> => {
-  const result = await callTool(client, EDITING_INFO_TOOL, {}, telemetry);
-  const parsed = editingInfoSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError("Payload returned invalid editing info");
-  }
-
-  return parsed.data.collections;
-};
-
 // Only a collection with drafts keeps the published version apart from the
 // one being written. Without drafts, `?draft=true` is ignored and the write
 // would go live, so such a collection is refused before anything is shown.
 const assertEditable = (
-  info: CollectionEditing[],
+  info: EditingInfo,
   operation: DraftOperation
-): void => {
-  const collection = info.find((entry) => entry.slug === operation.collection);
+): CollectionEditing => {
+  const collection = info.collections.find(
+    (entry) => entry.slug === operation.collection
+  );
 
   if (!collection) {
     throw new ApplyConflictError(
@@ -222,6 +178,8 @@ const assertEditable = (
       `${notRichText.join(", ")} in ${operation.collection} does not take Markdown`
     );
   }
+
+  return collection;
 };
 
 // The same check on the document itself: a draft-enabled collection always
@@ -255,7 +213,7 @@ const toRichText = async (
   markdown: string,
   telemetry: UpstreamTelemetry
 ): Promise<JsonObject> => {
-  const result = await callTool(
+  const result = await callPayloadTool(
     client,
     MARKDOWN_TO_RICH_TEXT_TOOL,
     { field, markdown, slug: collection },
@@ -286,7 +244,7 @@ const toMarkdown = async (
     return "";
   }
 
-  const result = await callTool(
+  const result = await callPayloadTool(
     client,
     RICH_TEXT_TO_MARKDOWN_TOOL,
     { field, slug: collection, value: stored.data },
@@ -361,8 +319,10 @@ const resolveBody = async (
 interface PreflightContext {
   adminUrl: PayloadAdminUrl;
   client: UpstreamClient;
-  info: CollectionEditing[];
+  info: EditingInfo;
+  siteUrl: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
+  titles: TitleLookup;
 }
 
 // A Markdown field is previewed as Markdown on both sides, so the approver
@@ -370,6 +330,7 @@ interface PreflightContext {
 const snapshotField = async (
   context: PreflightContext,
   operation: DraftOperation,
+  collection: CollectionEditing,
   record: JsonObject,
   path: string
 ): Promise<FieldSnapshot> => {
@@ -390,9 +351,22 @@ const snapshotField = async (
     const before = record[path];
     const after = draftFields(operation)[path];
 
+    const relation = collection.relationFields.find(
+      (field) => field.path === path
+    );
+
+    // A relationship or upload names its documents; the ids alone decide
+    // whether it changed.
+    const [shownBefore, shownAfter] = relation
+      ? await Promise.all([
+          relationPreview(context.titles, relation, before),
+          relationPreview(context.titles, relation, after),
+        ])
+      : [previewValue(before), previewValue(after)];
+
     return {
-      after: previewValue(after),
-      before: previewValue(before),
+      after: shownAfter,
+      before: shownBefore,
       changed: !deepEqual(before, after),
       path,
     };
@@ -455,12 +429,33 @@ const previewSlug = (operation: DraftOperation, record: JsonObject): string => {
   return slug.success ? slug.data : "";
 };
 
+// The front end's draft preview of the document as it is now, where its
+// collection has one. A new document has no address until it is saved.
+const previewLink = async (
+  context: Pick<PreflightContext, "client" | "siteUrl" | "telemetry">,
+  collection: CollectionEditing,
+  id: number | string
+): Promise<string> => {
+  if (!collection.preview) {
+    return "";
+  }
+
+  const link = await readPreviewUrl(
+    context.client,
+    collection.slug,
+    id,
+    context.telemetry
+  );
+
+  return link === undefined ? "" : context.siteUrl(link);
+};
+
 const preflightOne = async (
   context: PreflightContext,
   operation: DraftOperation,
   index: number
 ): Promise<OperationPreflight> => {
-  assertEditable(context.info, operation);
+  const collection = assertEditable(context.info, operation);
   const { record, stamp } = await currentRecord(context, operation);
 
   // Converting now proves Payload accepts the Markdown before anyone is asked
@@ -469,11 +464,16 @@ const preflightOne = async (
 
   const fields = await Promise.all(
     draftChangedPaths(operation).map((path) =>
-      snapshotField(context, operation, record, path)
+      snapshotField(context, operation, collection, record, path)
     )
   );
 
-  return {
+  const previewUrl =
+    operation.kind === "create_draft"
+      ? ""
+      : await previewLink(context, collection, operation.id);
+
+  const preview: OperationPreflight = {
     editUrl:
       operation.kind === "create_draft"
         ? ""
@@ -486,6 +486,12 @@ const preflightOne = async (
     slug: previewSlug(operation, record),
     target: draftTarget(operation),
   };
+
+  if (previewUrl) {
+    preview.previewUrl = previewUrl;
+  }
+
+  return preview;
 };
 
 const preflightFrom = async (
@@ -504,19 +510,29 @@ const preflightFrom = async (
   return [first, ...(await preflightFrom(context, operations, index + 1))];
 };
 
+const noSiteUrl: PayloadSiteUrl = () => "";
+
 export const preflightDraftOperations = async (
   client: UpstreamClient,
   intent: string,
   operations: DraftOperation[],
   adminUrl: PayloadAdminUrl,
-  telemetry: UpstreamTelemetry
+  telemetry: UpstreamTelemetry,
+  siteUrl: PayloadSiteUrl = noSiteUrl
 ): Promise<ApplyPreflight> => {
   const info = await readEditingInfo(client, telemetry);
 
   // One at a time, in order, as the WordPress preview does: each read is
   // bounded and a failure names the first document that could not be shown.
   const results = await preflightFrom(
-    { adminUrl, client, info, telemetry },
+    {
+      adminUrl,
+      client,
+      info,
+      siteUrl,
+      telemetry,
+      titles: createTitleLookup(client, info, telemetry),
+    },
     operations,
     0
   );
@@ -618,6 +634,14 @@ class CreatedReadbackError extends Error {
 interface WriteResult {
   after: JsonObject;
   before: JsonObject;
+  // Set when the write made the document, so its receipt can name the id.
+  created?: true;
+  id: number | string;
+  // False when nothing was sent, because nothing the operation named differs.
+  sent: boolean;
+  // The document's `updatedAt` in the write's own response, which ties the
+  // version the write made to it. Absent when nothing was sent.
+  stamp?: string | undefined;
   target: string;
 }
 
@@ -646,7 +670,13 @@ const writeUpdate = async (
 
   // Nothing left to send: no new draft version for a change that is none.
   if (Object.keys(body).length === 0) {
-    return { after: before, before, target: snapshot.target };
+    return {
+      after: before,
+      before,
+      id: operation.id,
+      sent: false,
+      target: snapshot.target,
+    };
   }
 
   const write = await payloadRest(client, operationPath(operation), telemetry, {
@@ -654,6 +684,13 @@ const writeUpdate = async (
     headers: { "Content-Type": "application/json" },
     method: "PATCH",
   });
+
+  if (write.status === LOCKED_STATUS) {
+    throw new ApplyConflictError(
+      "locked",
+      `${snapshot.target} is open in the Payload admin for another editor; try again once they have finished`
+    );
+  }
 
   if (write.status < 200 || write.status >= 300) {
     throw new ApplyConflictError("write_failed", payloadErrorMessage(write));
@@ -667,6 +704,9 @@ const writeUpdate = async (
       telemetry
     ),
     before,
+    id: operation.id,
+    sent: true,
+    stamp: writtenStamp(write),
     target: snapshot.target,
   };
 };
@@ -698,6 +738,10 @@ const writeCreate = async (
     return {
       after: await readDocument(client, collection, id, telemetry),
       before: {},
+      created: true,
+      id,
+      sent: true,
+      stamp: writtenStamp(write),
       target,
     };
   } catch (error) {
@@ -707,12 +751,120 @@ const writeCreate = async (
   }
 };
 
-const applyOne = async (
+const versionsSchema = z.object({
+  docs: z.array(z.object({ id: documentIdSchema, updatedAt: z.string() })),
+});
+
+const writtenSchema = z.object({ doc: recordSchema });
+
+// When Payload says the write itself saved the document: the `updatedAt` of
+// the document in the write's own response, which is also the time on the
+// version that write made.
+const writtenStamp = (write: UpstreamFetchResult): string | undefined => {
+  const parsed = writtenSchema.safeParse(write.json);
+
+  return parsed.success ? updatedAt(parsed.data.doc) : undefined;
+};
+
+// The version this write made: the one saved at the time the write's own
+// response reported. Another editor's save or an autosave can land a moment
+// later, so "the newest version" could be theirs; a receipt names a version
+// only when it is this write's. A receipt without one is still a true
+// receipt, so a failed lookup is no failure.
+const writtenVersionId = async (
   client: UpstreamClient,
-  operation: DraftOperation,
-  snapshot: OperationPreflight,
+  collection: string,
+  written: Pick<WriteResult, "id" | "stamp">,
   telemetry: UpstreamTelemetry
+): Promise<string | undefined> => {
+  if (written.stamp === undefined) {
+    return undefined;
+  }
+
+  try {
+    const result = await payloadRest(
+      client,
+      `/api/${encodeURIComponent(collection)}/versions?where[parent][equals]=${encodeURIComponent(String(written.id))}&where[updatedAt][equals]=${encodeURIComponent(written.stamp)}&limit=1&depth=0&select[updatedAt]=true`,
+      telemetry
+    );
+
+    const parsed = versionsSchema.safeParse(result.json);
+    const [version] = parsed.success ? parsed.data.docs : [];
+
+    return result.status === 200 && version?.updatedAt === written.stamp
+      ? String(version.id).slice(0, VERSION_ID_LIMIT)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+interface ApplyContext {
+  client: UpstreamClient;
+  siteUrl: PayloadSiteUrl;
+  telemetry: UpstreamTelemetry;
+}
+
+type LandedFacts = Pick<
+  OperationReceipt,
+  "details" | "updated_at" | "version_id"
+>;
+
+// What a caller needs after a write to carry on from it: when the document
+// was last updated, for the next write's `expected_updated_at`; the version
+// the write made; a new document's id; and the link to preview the draft.
+const landedFacts = async (
+  context: ApplyContext,
+  collection: CollectionEditing,
+  written: WriteResult
+): Promise<LandedFacts> => {
+  const facts: LandedFacts = {};
+  const stamp = updatedAt(written.after);
+
+  if (stamp !== undefined) {
+    facts.updated_at = stamp;
+  }
+
+  if (!written.sent) {
+    return facts;
+  }
+
+  const [versionId, preview] = await Promise.all([
+    writtenVersionId(
+      context.client,
+      collection.slug,
+      written,
+      context.telemetry
+    ),
+    previewLink(context, collection, written.id),
+  ]);
+
+  if (versionId !== undefined) {
+    facts.version_id = versionId;
+  }
+
+  const details = receiptDetails({
+    id: written.created ? written.id : undefined,
+    preview_url: preview,
+  });
+
+  if (details) {
+    facts.details = details;
+  }
+
+  return facts;
+};
+
+// Nothing was written in either case, and trying again later can work.
+const CONFLICT_CODES = new Set(["locked", "modified_since_preflight"]);
+
+const applyOne = async (
+  context: ApplyContext,
+  operation: DraftOperation,
+  snapshot: OperationPreflight
 ): Promise<OperationReceipt> => {
+  const { client, telemetry } = context;
+
   const failure = (
     error: ReceiptError,
     target = snapshot.target
@@ -722,7 +874,7 @@ const applyOne = async (
     kind: operation.kind,
     normalized_paths: [],
     operation_index: snapshot.operationIndex,
-    status: error.code === "modified_since_preflight" ? "conflict" : "failed",
+    status: CONFLICT_CODES.has(error.code) ? "conflict" : "failed",
     target,
   });
 
@@ -738,7 +890,10 @@ const applyOne = async (
   try {
     // Checked again at write time: a collection's drafts or this editor's
     // permissions may have changed since the preview.
-    assertEditable(await readEditingInfo(client, telemetry), operation);
+    const collection = assertEditable(
+      await readEditingInfo(client, telemetry),
+      operation
+    );
 
     const body = withoutUnchangedMarkdown(
       await resolveBody(client, operation, telemetry),
@@ -752,11 +907,13 @@ const applyOne = async (
         : await writeUpdate(client, operation, snapshot, body, telemetry);
 
     const readback = classifyReadback(body, written.before, written.after);
+    const landed = await landedFacts(context, collection, written);
 
     // A hook or field access can keep `_status` a draft, which readback
     // would count as normalised. A requested publish must have landed.
     if (operation.publish && written.after[STATUS_FIELD] !== "published") {
       return {
+        ...landed,
         changed_paths: readback.changed.filter((path) => path !== STATUS_FIELD),
         error: {
           code: "not_published",
@@ -772,6 +929,7 @@ const applyOne = async (
 
     if (readback.missed.length > 0) {
       return {
+        ...landed,
         changed_paths: readback.changed,
         error: {
           code: "readback_mismatch",
@@ -786,6 +944,7 @@ const applyOne = async (
     }
 
     return {
+      ...landed,
       changed_paths: readback.changed,
       kind: operation.kind,
       normalized_paths: readback.normalized,
@@ -819,6 +978,8 @@ interface DraftApplyOptions {
   operations: DraftOperation[];
   preflight: ApplyPreflight;
   requesterOpaque: string;
+  // Makes the draft preview link a receipt offers. Without it, none is.
+  siteUrl?: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
 }
 
@@ -835,7 +996,15 @@ const applyFrom = async (
   const snapshot = options.preflight.operations.at(index);
 
   const receipt: OperationReceipt = snapshot
-    ? await applyOne(options.client, operation, snapshot, options.telemetry)
+    ? await applyOne(
+        {
+          client: options.client,
+          siteUrl: options.siteUrl ?? noSiteUrl,
+          telemetry: options.telemetry,
+        },
+        operation,
+        snapshot
+      )
     : {
         changed_paths: [],
         error: {

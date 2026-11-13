@@ -1,9 +1,10 @@
 import { mcpPlugin } from "@payloadcms/plugin-mcp";
 import type { MCPPluginConfig } from "@payloadcms/plugin-mcp";
-import type { CollectionSlug } from "payload";
+import type { CollectionSlug, GlobalSlug } from "payload";
 
 import {
   getEditingInfo,
+  getPreviewUrl,
   markdownToRichText,
   richTextToMarkdown,
 } from "./mcp-tools";
@@ -24,9 +25,11 @@ const READ_ONLY_COLLECTION = {
 
 // Collections with a rich text field also convert Markdown both ways, so the
 // gateway can take Markdown from a model and show Markdown to the approver.
+// Both have a front-end address, so they give its draft preview link too.
 const RICH_TEXT_COLLECTION = {
   tools: {
     ...READ_ONLY_COLLECTION.tools,
+    getPreviewUrl,
     markdownToRichText,
     richTextToMarkdown,
   },
@@ -66,14 +69,19 @@ const VISIBLE_COLLECTIONS = Object.entries(collections ?? {}).flatMap(
     config === HIDDEN_COLLECTION ? [] : [slug as CollectionSlug]
 );
 
+const globals: MCPPluginConfig["globals"] = {
+  "site-settings": {
+    tools: { restoreGlobalVersion: false, update: false },
+  },
+};
+
+// SAFETY: the keys of `globals` are global slugs by its type.
+const VISIBLE_GLOBALS = Object.keys(globals ?? {}) as GlobalSlug[];
+
 export const mcp = () =>
   mcpPlugin({
     collections,
-    globals: {
-      "site-settings": {
-        tools: { restoreGlobalVersion: false, update: false },
-      },
-    },
+    globals,
     mcp: {
       serverOptions: { serverInfo: { name: "launch-payload" } },
     },
@@ -81,5 +89,7 @@ export const mcp = () =>
     // directly. Cloudflare Access is the only sign-in (ADR 0011), and the
     // gateway signs in through the `cloudflare-access-gateway` strategy.
     oauth: false,
-    tools: { getEditingInfo: getEditingInfo(VISIBLE_COLLECTIONS) },
+    tools: {
+      getEditingInfo: getEditingInfo(VISIBLE_COLLECTIONS, VISIBLE_GLOBALS),
+    },
   });

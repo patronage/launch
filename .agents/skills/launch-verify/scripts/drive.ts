@@ -520,6 +520,8 @@ const pagesSmoke =
 
 /** What READ_POST returns for one post. */
 interface PostSummary {
+  /** The post's hero image, as the media document's id. */
+  hero: number | null;
   id: number;
   status: string;
   title: string;
@@ -530,6 +532,11 @@ interface PostSummary {
 interface StructuredContent {
   approvalUrl?: string;
   executionId?: string;
+  /** `describe_site`: what the Payload connector says can be written. */
+  payload?: {
+    collections?: { rowFields?: { path: string }[]; slug: string }[];
+    globals?: { slug: string }[];
+  };
   result?: PostSummary | null;
   status?: string;
 }
@@ -541,8 +548,11 @@ interface RpcResult {
   tools?: { name: string }[];
 }
 
-/** The two gateway tools this drive calls. */
-type ToolArguments = { code: string } | { executionId: string };
+/** The arguments of the gateway tools this drive calls. */
+type ToolArguments =
+  | { code: string }
+  | { executionId: string }
+  | Record<string, never>;
 
 interface ToolCall {
   arguments: ToolArguments;
@@ -637,7 +647,7 @@ const READ_POST = (where: string) => `async () => {
   });
   const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
   const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
-  return doc ? { id: doc.id, title: doc.title, updatedAt: doc.updatedAt, status: doc._status } : null;
+  return doc ? { id: doc.id, title: doc.title, updatedAt: doc.updatedAt, status: doc._status, hero: doc.hero ?? null } : null;
 }`;
 
 const MARKER = / \(verify-[0-9a-f]{8}\)$/u;
@@ -724,6 +734,7 @@ const localAdminEmail = async (
 /** The script an agent sends to retitle one post as a draft. */
 const retitleScript = (options: {
   expected: string;
+  hero: number | null;
   id: number;
   marker: string;
   title: string;
@@ -733,10 +744,51 @@ const retitleScript = (options: {
     kind: "update_draft",
     collection: "posts",
     id: ${options.id},
-    fields: { title: ${JSON.stringify(options.title)} },
+    fields: ${JSON.stringify(
+      // The hero is sent as it is, so the preview has an upload to name.
+      options.hero === null
+        ? { title: options.title }
+        : { hero: options.hero, title: options.title }
+    )},
     expected_updated_at: ${JSON.stringify(options.expected)},
   }],
 })`;
+
+/** What `describe_site` says can be written in Payload, by slug. */
+const describedPayload = async (
+  origin: string,
+  token: string
+): Promise<{ globals: string[]; withRows: string[] }> => {
+  const described = await callTool(origin, token, "describe_site", {});
+  const site = described.structuredContent.payload;
+
+  return {
+    globals: (site?.globals ?? []).map((global) => global.slug),
+    withRows: (site?.collections ?? [])
+      .filter((collection) => (collection.rowFields ?? []).length > 0)
+      .map((collection) => collection.slug),
+  };
+};
+
+/**
+ * Whether an approval page names a post's hero by its file, such as
+ * "harvest.jpg (media 5)", instead of the bare id Payload stores. Undefined
+ * for a post with no hero.
+ */
+const namesHero = (preview: string, hero: number | null): boolean | undefined =>
+  hero === null
+    ? undefined
+    : new RegExp(`\\S+\\.\\w+ \\(media ${hero}\\)`, "u").test(preview);
+
+/** What a run's receipt, as JSON text, says about the approved write. */
+const receiptFacts = (receipt: string) => ({
+  succeeded:
+    receipt.includes('"status":"succeeded"') &&
+    receipt.includes('"status":"changed"'),
+  titleChanged: receipt.includes('"changed_paths":["title"]'),
+  versioned:
+    receipt.includes('"updated_at":"') && receipt.includes('"version_id":"'),
+});
 
 /**
  * MCP gateway: an editor's agent reads a post through the gateway, asks to
@@ -818,6 +870,17 @@ const mcpPayloadDraft: Drive = async ({
     expect(tools.includes("execute"), "the gateway lists no execute tool");
     log.step("POST /mcp tools/list, signed in", tools.join(", "));
 
+    const site = await describedPayload(origin, token);
+
+    expect(
+      site.withRows.length > 0 && site.globals.length > 0,
+      "describe_site lists no rows or no globals for Payload"
+    );
+    log.step(
+      "describe_site: what Payload says can be written",
+      `collections with arrays or blocks: ${site.withRows.join(", ")}; globals: ${site.globals.join(", ")}`
+    );
+
     const live = await firstPublishedPost(payloadOrigin);
 
     if (!live) {
@@ -840,7 +903,7 @@ const mcpPayloadDraft: Drive = async ({
 
     const before = live.title;
     const title = `${post.title.replace(MARKER, "")} (${marker})`;
-    const request = { id: post.id, marker, title };
+    const request = { hero: post.hero, id: post.id, marker, title };
 
     log.step(
       "execute: read a published post's newest draft through payload.call",
@@ -935,9 +998,16 @@ const mcpPayloadDraft: Drive = async ({
       preview.includes(marker),
       "the approval page does not show the new title"
     );
+
+    const heroNamed = namesHero(preview, post.hero);
+
+    expect(
+      heroNamed !== false,
+      "the approval page shows the hero as a bare id"
+    );
     log.step(
       "Open the approval page",
-      `shows the new title: ${preview.includes(marker)}; shows the old title: ${preview.includes(post.title)}`
+      `shows the new title: ${preview.includes(marker)}; shows the old title: ${preview.includes(post.title)}; names the hero's file: ${heroNamed ?? "no hero"}`
     );
     await log.shot(page, "approval");
 
@@ -956,14 +1026,16 @@ const mcpPayloadDraft: Drive = async ({
       path.join(dir, "run.json"),
       `${JSON.stringify(run.structuredContent, null, 2)}\n`
     );
+    const landed = receiptFacts(receipt);
+
+    expect(landed.succeeded, "get_run reports no successful change");
     expect(
-      receipt.includes('"status":"succeeded"') &&
-        receipt.includes('"status":"changed"'),
-      "get_run reports no successful change"
+      landed.versioned,
+      "the receipt does not say when the post was updated or which version was made"
     );
     log.step(
       "get_run for the approved run",
-      `succeeded: ${receipt.includes('"status":"succeeded"')}; title changed: ${receipt.includes('"changed_paths":["title"]')} (run.json)`
+      `succeeded: ${landed.succeeded}; title changed: ${landed.titleChanged}; names the new version: ${landed.versioned} (run.json)`
     );
 
     const after = await execute(

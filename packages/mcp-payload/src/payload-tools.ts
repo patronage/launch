@@ -14,13 +14,15 @@ import {
   createPayloadClient,
   payloadAdminUrl,
   payloadMcpRequest,
+  payloadSiteUrl,
   toPayloadToolResult,
 } from "./payload";
 import { applyDraftOperations } from "./payload-apply";
 import { parseDraftApplyInput } from "./payload-operations";
 
 // Payload's built-in tools that only read, and the read-only ones
-// apps/payload adds (editing info and the two rich text conversions). Payload's own config already turns
+// apps/payload adds (editing info, the draft preview link and the two rich
+// text conversions). Payload's own config already turns
 // every write off (apps/payload/src/mcp.ts); this list keeps reads the only
 // thing `payload.call` can reach should that config ever change, because a
 // write here would skip the approval `payload.apply` goes through.
@@ -39,6 +41,7 @@ export const PAYLOAD_READ_TOOLS = new Set([
   "getConfigInfo",
   "getEditingInfo",
   "getGlobalSchema",
+  "getPreviewUrl",
   "markdownToRichText",
   "richTextToMarkdown",
 ]);
@@ -107,6 +110,7 @@ export const createPayloadTools = (
           preflight,
           requesterOpaque:
             (await deps.store.readRequester(executionId)) ?? "unknown",
+          siteUrl: payloadSiteLink(deps.env),
           telemetry: deps.telemetry(),
         });
       },
@@ -213,3 +217,8 @@ export const payloadAdminLink =
   (env: PayloadEnv) =>
   (collection: string, id: number | string): string =>
     payloadAdminUrl(env, collection, id);
+
+export const payloadSiteLink =
+  (env: PayloadEnv) =>
+  (link: string): string =>
+    payloadSiteUrl(env, link);
