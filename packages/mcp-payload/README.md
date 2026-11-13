@@ -8,7 +8,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 
 - A relationship or upload field is previewed by name: `raised-beds.jpg (media 7)`, not `7`. Titles are read as the approver, from collections Payload described to them, at most 40 per preview.
 - Where a collection has a front-end preview, the approval page links to the current draft beside the admin link, and the receipt carries the link in `details.preview_url`.
-- A receipt for a write that landed carries `updated_at` (the next write's `expected_updated_at`), `version_id` (the version the write made) and, for a new document, `details.id`. A document another editor has open in the admin is reported as `locked`, with nothing written.
+- A receipt for a write that landed carries `updated_at` (the next write's `expected_updated_at`), `version_id` (the version the write made, matched by the time Payload saved it, and left out when it cannot be told apart from someone else's save) and, for a new document, `details.id`. A document another editor has open in the admin is reported as `locked`, with nothing written.
 
 It also gives `describe_site` what the editor can write to, from Payload's `getEditingInfo`: for each collection whether it keeps drafts, autosaves or has a trash, its rich text fields, its array and blocks fields with what a row of each holds (`rowFields`), its relationship and upload fields, what an upload collection accepts, and what the editor may create, update or delete; the same for globals; and the site's locales. A Payload that still runs the first `getEditingInfo` (five fields per collection) keeps working: everything newer reads as absent.
 

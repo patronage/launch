@@ -639,6 +639,9 @@ interface WriteResult {
   id: number | string;
   // False when nothing was sent, because nothing the operation named differs.
   sent: boolean;
+  // The document's `updatedAt` in the write's own response, which ties the
+  // version the write made to it. Absent when nothing was sent.
+  stamp?: string | undefined;
   target: string;
 }
 
@@ -703,6 +706,7 @@ const writeUpdate = async (
     before,
     id: operation.id,
     sent: true,
+    stamp: writtenStamp(write),
     target: snapshot.target,
   };
 };
@@ -737,6 +741,7 @@ const writeCreate = async (
       created: true,
       id,
       sent: true,
+      stamp: writtenStamp(write),
       target,
     };
   } catch (error) {
@@ -747,29 +752,47 @@ const writeCreate = async (
 };
 
 const versionsSchema = z.object({
-  docs: z.array(z.object({ id: documentIdSchema })),
+  docs: z.array(z.object({ id: documentIdSchema, updatedAt: z.string() })),
 });
 
-// The version the write just made: the newest one of the document. A receipt
-// without it is still a true receipt, so a failed lookup is no failure.
-const latestVersionId = async (
+const writtenSchema = z.object({ doc: recordSchema });
+
+// When Payload says the write itself saved the document: the `updatedAt` of
+// the document in the write's own response, which is also the time on the
+// version that write made.
+const writtenStamp = (write: UpstreamFetchResult): string | undefined => {
+  const parsed = writtenSchema.safeParse(write.json);
+
+  return parsed.success ? updatedAt(parsed.data.doc) : undefined;
+};
+
+// The version this write made: the one saved at the time the write's own
+// response reported. Another editor's save or an autosave can land a moment
+// later, so "the newest version" could be theirs; a receipt names a version
+// only when it is this write's. A receipt without one is still a true
+// receipt, so a failed lookup is no failure.
+const writtenVersionId = async (
   client: UpstreamClient,
   collection: string,
-  id: number | string,
+  written: Pick<WriteResult, "id" | "stamp">,
   telemetry: UpstreamTelemetry
 ): Promise<string | undefined> => {
+  if (written.stamp === undefined) {
+    return undefined;
+  }
+
   try {
     const result = await payloadRest(
       client,
-      `/api/${encodeURIComponent(collection)}/versions?where[parent][equals]=${encodeURIComponent(String(id))}&sort=-updatedAt&limit=1&depth=0&select[updatedAt]=true`,
+      `/api/${encodeURIComponent(collection)}/versions?where[parent][equals]=${encodeURIComponent(String(written.id))}&where[updatedAt][equals]=${encodeURIComponent(written.stamp)}&limit=1&depth=0&select[updatedAt]=true`,
       telemetry
     );
 
     const parsed = versionsSchema.safeParse(result.json);
-    const [newest] = parsed.success ? parsed.data.docs : [];
+    const [version] = parsed.success ? parsed.data.docs : [];
 
-    return result.status === 200 && newest !== undefined
-      ? String(newest.id).slice(0, VERSION_ID_LIMIT)
+    return result.status === 200 && version?.updatedAt === written.stamp
+      ? String(version.id).slice(0, VERSION_ID_LIMIT)
       : undefined;
   } catch {
     return undefined;
@@ -807,10 +830,10 @@ const landedFacts = async (
   }
 
   const [versionId, preview] = await Promise.all([
-    latestVersionId(
+    writtenVersionId(
       context.client,
       collection.slug,
-      written.id,
+      written,
       context.telemetry
     ),
     previewLink(context, collection, written.id),

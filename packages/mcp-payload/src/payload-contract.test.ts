@@ -211,7 +211,12 @@ describe(payloadSiteUrl, () => {
 });
 
 interface FakeOptions {
+  // Payload answers the versions query with its newest version, whatever
+  // time was asked for.
+  ignoreVersionFilter?: boolean;
   locked?: boolean;
+  // Another editor saves the post right after the approved write.
+  overtaken?: boolean;
   previewUrl?: string | null;
 }
 
@@ -236,6 +241,8 @@ const fakePayload = (options: FakeOptions = {}) => {
     title: "New post",
     updatedAt: "2026-11-13T12:00:00.000Z",
   };
+
+  const versions: { id: number; updatedAt: string }[] = [];
 
   const others = new Map<string, JsonObject>([
     ["/api/authors/3", { id: 3, name: "Ada Okafor" }],
@@ -278,7 +285,13 @@ const fakePayload = (options: FakeOptions = {}) => {
     }
 
     if (url.pathname.endsWith("/versions")) {
-      return Response.json({ docs: [{ id: 91, updatedAt: post.updatedAt }] });
+      const stamp = url.searchParams.get("where[updatedAt][equals]");
+
+      return Response.json({
+        docs: options.ignoreVersionFilter
+          ? versions.slice(-1)
+          : versions.filter((version) => version.updatedAt === stamp),
+      });
     }
 
     if (request.method === "PATCH" && options.locked) {
@@ -289,16 +302,26 @@ const fakePayload = (options: FakeOptions = {}) => {
     }
 
     if (request.method === "PATCH") {
-      post = {
+      const doc = {
         ...post,
         ...JSON.parse(body),
         updatedAt: "2026-11-13T11:00:00.000Z",
       };
 
-      return Response.json({ doc: post });
+      post = doc;
+      versions.push({ id: 91, updatedAt: doc.updatedAt });
+
+      if (options.overtaken) {
+        post = { ...doc, updatedAt: "2026-11-13T11:00:05.000Z" };
+        versions.push({ id: 92, updatedAt: "2026-11-13T11:00:05.000Z" });
+      }
+
+      return Response.json({ doc });
     }
 
     if (request.method === "POST") {
+      versions.push({ id: 77, updatedAt: "2026-11-13T12:00:00.000Z" });
+
       return Response.json({ doc: created });
     }
 
@@ -495,6 +518,32 @@ describe("the receipt", () => {
     });
   });
 
+  it("names its own version when another editor saves right after", async () => {
+    vi.stubGlobal("fetch", fakePayload({ overtaken: true }).handler);
+
+    const [receipt] = await apply([update]);
+
+    // The newest version is the other editor's; the receipt names the one
+    // saved at the time the approved write reported.
+    expect(receipt).toMatchObject({
+      status: "changed",
+      updated_at: "2026-11-13T11:00:05.000Z",
+      version_id: "91",
+    });
+  });
+
+  it("names no version it cannot tie to the write", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakePayload({ ignoreVersionFilter: true, overtaken: true }).handler
+    );
+
+    const [receipt] = await apply([update]);
+
+    expect(receipt?.status).toBe("changed");
+    expect(receipt).not.toHaveProperty("version_id");
+  });
+
   it("names a new document's id", async () => {
     vi.stubGlobal("fetch", fakePayload().handler);
 
@@ -511,6 +560,7 @@ describe("the receipt", () => {
       status: "changed",
       target: "posts/34",
       updated_at: "2026-11-13T12:00:00.000Z",
+      version_id: "77",
     });
   });
 
