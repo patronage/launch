@@ -20,6 +20,8 @@ Both databases passed the same end-to-end browser test in local workerd, and the
 
 `PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
 
+After changing a collection or field, `pnpm migrate:create <name>` writes the migration for both databases. Postgres migrations name no schema, so a branch preview can run them into its own; the command deletes the `"public".` that Payload's own `migrate:create` writes, and the app's tests fail if a migration still has it.
+
 ### Moving from D1
 
 `pnpm run hyperdrive:configure` creates the Hyperdrive configuration (or finds it) and prints its id. `pnpm d1:copy --target <postgres-url>` copies the D1 database into a freshly migrated Postgres with the same ids, reading D1 only, in one transaction that commits only when every table's row count matches. Sessions, document locks and the key-value cache aren't copied, so editors sign in again. Then `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID` are added to the existing Workers Builds trigger (see [Workers Builds](/deploy/workers-builds)) and production is rebuilt. D1 is left as it was, so setting `PAYLOAD_DB` back to `d1` and rebuilding goes back. The app's README has the step-by-step switch.
