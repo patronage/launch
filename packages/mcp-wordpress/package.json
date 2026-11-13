@@ -33,15 +33,15 @@
   },
   "dependencies": {
     "@patronage/mcp-core": "workspace:*",
-    "graphql": "17.0.2",
+    "graphql": "17.1.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261031.1",
+    "@cloudflare/workers-types": "5.20261112.1",
     "@patronage/access": "workspace:*",
     "@types/node": "catalog:",
-    "evlog": "2.26.0",
-    "tsdown": "0.23.4",
+    "evlog": "2.35.1",
+    "tsdown": "0.23.7",
     "vitest": "catalog:"
   },
   "engines": {

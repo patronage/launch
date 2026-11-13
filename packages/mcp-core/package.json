@@ -38,21 +38,21 @@
     "typecheck": "pnpm generate && tsc --noEmit && tsc --noEmit -p src/approval-card"
   },
   "dependencies": {
-    "@cloudflare/codemode": "0.5.1",
-    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@cloudflare/codemode": "0.5.6",
+    "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/server": "2.0.0",
     "@patronage/access": "workspace:*",
     "agents": "0.21.0",
-    "evlog": "2.26.0",
-    "jose": "6.2.14",
+    "evlog": "2.35.1",
+    "jose": "6.2.17",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261031.1",
+    "@cloudflare/workers-types": "5.20261112.1",
     "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "catalog:",
     "esbuild": "0.28.2",
-    "tsdown": "0.23.4",
+    "tsdown": "0.23.7",
     "vitest": "catalog:"
   },
   "engines": {

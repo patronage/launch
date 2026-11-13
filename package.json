@@ -24,10 +24,10 @@
   "devDependencies": {
     "@changesets/cli": "3.0.3",
     "oxfmt": "0.75.0",
-    "oxlint": "1.90.0",
+    "oxlint": "1.93.0",
     "taze": "21.3.0",
     "typescript": "7.0.2",
-    "ultracite": "8.1.0"
+    "ultracite": "8.2.0"
   },
   "engines": {
     "node": ">=24"
