@@ -243,8 +243,9 @@ check( ! Patronage_Access_JWT_Verifier::is_same_origin_post( array( 'HTTP_ORIGIN
  *
  * @param array<string,string> $query
  */
-function button( ?string $jwt, array $query = array( 'loggedout' => 'true' ) ): string {
-	$_GET = $query;
+function button( ?string $jwt, array $query = array( 'loggedout' => 'true' ), array $post = array() ): string {
+	$_GET     = $query;
+	$_REQUEST = array_merge( $query, $post );
 	unset( $_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] );
 	if ( null !== $jwt ) {
 		$_SERVER['HTTP_CF_ACCESS_JWT_ASSERTION'] = $jwt;
@@ -264,6 +265,8 @@ check( '<p class="message">You are now logged out.</p>' === button( token( $priv
 check( '<p class="message">You are now logged out.</p>' === button( token( $private, array( 'aud' => 'another-application' ) ) ), 'other application, no button' );
 check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array( 'action' => 'lostpassword' ) ), 'other actions, no button' );
 check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array( 'interim-login' => '1' ) ), 'session-expired modal, no button' );
+check( '<p class="message">You are now logged out.</p>' === button( token( $private ), array(), array( 'interim-login' => '1', 'log' => 'editor' ) ), 'failed password in the session-expired modal, no button' );
+check( str_contains( button( token( $private ), array(), array( 'redirect_to' => 'https://cms.example.com/wp-admin/post.php?post=1', 'log' => 'editor' ) ), 'redirect_to=https%3A%2F%2Fcms.example.com%2Fwp-admin%2Fpost.php%3Fpost%3D1&amp;action=patronage_access_sign_in' ), 'failed password post keeps redirect_to for the button' );
 
 $test_logged_in = true;
 check( null === attempt( token( $private ) ), 'signed-in user untouched' );

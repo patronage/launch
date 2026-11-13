@@ -628,9 +628,11 @@ final class Patronage_Access_REST_Auth {
 	public static function sign_in_button( mixed $message ): mixed {
 		$message = is_string( $message ) ? $message : '';
 		$token   = (string) self::request_header( self::ORIGIN_HEADER );
+		// wp-login.php reads these from $_REQUEST: a failed password post carries
+		// interim-login and redirect_to in the form body.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display decision.
-		$action = $_GET['action'] ?? 'login';
-		if ( ! self::browser_login_enabled() || '' === $token || is_user_logged_in() || 'login' !== $action || isset( $_GET['interim-login'] ) ) {
+		$action = $_REQUEST['action'] ?? 'login';
+		if ( ! self::browser_login_enabled() || '' === $token || is_user_logged_in() || 'login' !== $action || isset( $_REQUEST['interim-login'] ) ) {
 			return $message;
 		}
 
@@ -641,8 +643,8 @@ final class Patronage_Access_REST_Auth {
 
 		$kept = array();
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] ) ) {
-			$kept['redirect_to'] = wp_unslash( $_GET['redirect_to'] );
+		if ( isset( $_REQUEST['redirect_to'] ) && is_string( $_REQUEST['redirect_to'] ) ) {
+			$kept['redirect_to'] = wp_unslash( $_REQUEST['redirect_to'] );
 		}
 		$kept['action'] = self::SIGN_IN_ACTION;
 		$url            = wp_login_url() . '?' . http_build_query( $kept );
