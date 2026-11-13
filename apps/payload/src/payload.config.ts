@@ -17,6 +17,7 @@ import { Users } from "./collections/users";
 import { database } from "./db";
 import { formOverrides } from "./forms";
 import { SiteSettings } from "./globals/site-settings";
+import { ACCESS_LOGOUT_VIEW_PATH } from "./lib/access-logout";
 import { mcp } from "./mcp";
 import { redirects } from "./redirects";
 import { richTextBlocks } from "./rich-text/blocks";
@@ -31,6 +32,15 @@ export default buildConfig({
     components: {
       // Local sign-in for the demo account; see lib/local-login.ts.
       beforeLogin: ["/components/admin/local-login-link#LocalLoginLink"],
+      // Ends the Access session too; see lib/access-logout.ts.
+      logout: { Button: "/components/admin/logout-button#LogoutButton" },
+      views: {
+        accessLogout: {
+          Component: "/components/admin/access-logout-view#AccessLogoutView",
+          exact: true,
+          path: ACCESS_LOGOUT_VIEW_PATH,
+        },
+      },
     },
     importMap: {
       baseDir: path.resolve(dirname),
