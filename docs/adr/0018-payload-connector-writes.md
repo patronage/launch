@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed, 2026-11-13. Extends [ADR 0014](0014-mcp-gateway-worker.md). Tracked in #113.
+Proposed, 2026-11-13. Extends [ADR 0014](0014-mcp-gateway-worker.md). Tracked in [issue #113](https://github.com/patronage/launch/issues/113).
 
 ## Context
 
