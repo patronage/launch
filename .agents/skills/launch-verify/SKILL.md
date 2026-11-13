@@ -1,6 +1,6 @@
 ---
 name: launch-verify
-description: Launch, doctor, drive and capture evidence for Launch's local front ends, the Payload app (apps/payload, local D1) and the headless WordPress front end (apps/web-wordpress with Docker WordPress), in a real browser. Use to prove a change to pages, sections, forms or the admin works before a PR. It never deploys or touches a hosted CMS.
+description: Launch, doctor, drive and capture evidence for Launch's local front ends, the Payload app (apps/payload, local D1) and the headless WordPress front end (apps/web-wordpress with Docker WordPress), and for the MCP gateway (apps/mcp) writing to the local Payload through a real approval, in a real browser. Use to prove a change to pages, sections, forms, the admin or an MCP connector works before a PR. It never deploys or touches a hosted CMS.
 ---
 
 # Verify Launch locally
@@ -17,6 +17,7 @@ node .agents/skills/launch-verify/scripts/verify.ts --help
 | --- | --- | --- | --- |
 | `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form`, `seo` |
 | `web-wordpress` | `apps/web-wordpress` on `vite dev`, reading WordPress in Docker | 3000 | `pages` |
+| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft` |
 
 The feature map is in [features/README.md](features/README.md). The Timber install renders its own pages in PHP and isn't covered here.
 
@@ -38,11 +39,23 @@ WordPress, once per machine (needs Docker). Use `run setup`: in pnpm 12, a bare 
 pnpm --filter cms-wordpress-headless run setup           # WordPress on :8080, demo content, apps/web-wordpress/.env.local
 ```
 
+The MCP gateway, once per checkout, after the Payload steps above. The gateway and Payload share one proof secret, and a local Worker reads a secret only from its own `.dev.vars`:
+
+```bash
+PROOF=$(openssl rand -hex 32)
+echo "ACCESS_GATEWAY_PROOF_SECRET=$PROOF" >> apps/payload/.dev.vars
+printf 'APPROVAL_CSRF_SECRET=%s\nPAYLOAD_ACCESS_PROOF_SECRET=%s\n' "$(openssl rand -hex 32)" "$PROOF" > apps/mcp/.dev.vars
+```
+
+A local Worker reads `.dev.vars.development` (the gateway) or `.dev.vars.production` (Payload) instead of `.dev.vars` when that file exists, and never merges the two. If a checkout has one, the secrets go there.
+
 Then start the surface:
 
 ```bash
-node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: launch web-wordpress, --port N
+node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: launch web-wordpress, launch mcp, --port N
 ```
+
+`launch mcp` starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`. If another checkout holds Payload's or the stand-in's port, pass `--payload-port N` or `--access-port N`.
 
 Launch fails when Doctor fails, and it refuses in these cases:
 
@@ -50,6 +63,7 @@ Launch fails when Doctor fails, and it refuses in these cases:
 - a required env file is missing;
 - `WORDPRESS_URL` isn't local, or the WordPress Access service token is set, in the shell or in any env file the app loads (`.env`, `.env.local`, `.env.development*`, `.dev.vars*`);
 - `PAYLOAD_DB=postgres` is set;
+- for `mcp`: the two secrets are missing or don't match, a Payload, WordPress or Access URL in the shell or `apps/mcp`'s env files isn't local, a service token or `PAYLOAD_WORKER` is set, or Payload is already running without the stand-in;
 - `PAYLOAD_SECRET` is empty.
 
 For Payload it runs `pnpm payload migrate` and `pnpm build` every time, so a stale build is never verified. For web-wordpress it runs `pnpm codegen`. It then starts the server in its own process group and records a receipt (`.state/<surface>/run.json`, with the pid, port, app directory and a token). The server log goes to `.state/<surface>/server.log`. Ready means launch ends with `Doctor: PASS`. If this checkout already runs an owned server on that port, launch reuses it.
@@ -69,7 +83,8 @@ Doctor is read-only. When the environment check fails, it stops there and makes 
 - the environment is local;
 - the receipt's process is alive and runs in this checkout's app directory;
 - for web-wordpress, the WordPress GraphQL endpoint answers;
-- each health route (`/`, `/news`, `/admin` for Payload, `/` and `/about` for WordPress) returns 200 after at most five same-origin redirects.
+- for mcp, the stand-in and a Payload that trusts it are this checkout's, a request signed by the stand-in gets `200` from `/mcp`, and one with no sign-in is refused;
+- each health route (`/`, `/news`, `/admin` for Payload, `/` and `/about` for WordPress, the signing keys for the stand-in) returns 200 after at most five same-origin redirects.
 
 Fix the first FAIL line and run it again. Doctor never starts, migrates or seeds anything, and it fails on a server it has no receipt for, however healthy that server is.
 
@@ -84,6 +99,7 @@ node .agents/skills/launch-verify/scripts/verify.ts drive payload pages
 node .agents/skills/launch-verify/scripts/verify.ts drive payload apply-form
 node .agents/skills/launch-verify/scripts/verify.ts drive payload seo
 node .agents/skills/launch-verify/scripts/verify.ts drive web-wordpress pages
+node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-draft
 ```
 
 Drives use the repo's own Playwright (`apps/payload`'s dependency, the one `pnpm --filter payload smoke` uses), headless Chromium at 1280×900, and wait for `networkidle` before typing, because vinext hydrates after the first paint. Install Chromium once with `pnpm --filter payload exec playwright install chromium`, or set `VERIFY_CHROMIUM` to a Chromium binary.
@@ -104,6 +120,7 @@ Each `drive` or `capture` writes to `.agents/skills/launch-verify/evidence/<utc-
 - `NN-<step>.png`: numbered full-page screenshots of each action and its result;
 - `page.html` and `response.json`, from `capture`: the status, final URL, headers and checkout SHA;
 - `form-submissions.json`, from `apply-form`: the stored submission, read back as the local admin;
+- `run.json`, from `payload-draft`: the gateway's receipt for the approved write, as `get_run` reports it;
 - `server-log.txt`: the Worker's log lines during the run, which include each request's evlog wide event with `upstream.d1` or `upstream.wordpress` timings. The `cache` field (vinext's HIT, STALE or MISS) only appears on ISR pages served by a build (`vite preview`) or a deployed Worker. Under the web-wordpress `vite dev` surface and on Payload's `no-store` pages, it never appears. Events say `environment: 'production'` even locally.
 
 Look at each screenshot against its transcript line before calling a run good. A form drive passes only when the POST succeeded, the confirmation showed, and the row came back from the API.
@@ -126,6 +143,7 @@ To reset local Payload data on purpose, run cleanup first, then delete `apps/pay
 | --- | --- |
 | `scripts/verify.ts` | `launch`, `doctor`, `capture`, `drive`, `cleanup` and `status`. Holds the receipts, the environment refusals and the redirect-limited probe |
 | `scripts/drive.ts` | The Playwright drives. Add a drive here when a feature file gains a repeatable path |
+| `scripts/access-standin.ts` | The local stand-in for a Cloudflare Access team domain: serves its signing key and signs JWTs for synthetic editors |
 | `scripts/verify.test.ts` | Self-test: `node --test .agents/skills/launch-verify/scripts/verify.test.ts` |
 
 When routes, seed slugs, field names or labels change, update the matching feature file and drive, then run the self-test and the drive.
