@@ -1,7 +1,11 @@
 import type { FlattenedBlock, FlattenedField } from "payload";
 import { describe, expect, it } from "vitest";
 
-import { describeDocumentFields, MAX_ROW_DEPTH } from "./editing-info";
+import {
+  describeDocumentFields,
+  findFieldByPath,
+  MAX_ROW_DEPTH,
+} from "./editing-info";
 import type { BlockLookup } from "./editing-info";
 
 const text = (name: string, localized = false): FlattenedField => ({
@@ -181,5 +185,51 @@ describe(describeDocumentFields, () => {
     }
 
     expect(levels).toBe(MAX_ROW_DEPTH);
+  });
+});
+
+describe(findFieldByPath, () => {
+  const card = array("cards", [text("title"), richText("note")]);
+  const cardGrid = block("cardGrid", [text("heading"), card]);
+  const content = block("content", [richText("body")]);
+
+  const fields: FlattenedField[] = [
+    richText("content"),
+    {
+      fields: [],
+      flattenedFields: [richText("body"), array("links", [text("label")])],
+      name: "hero",
+      type: "group",
+    },
+    {
+      blocks: [content, "cardGrid"],
+      name: "layout",
+      type: "blocks",
+    },
+  ];
+
+  const lookup: BlockLookup = (slug) =>
+    slug === "cardGrid" ? cardGrid : undefined;
+
+  const typeAt = (path: string[]): string | undefined =>
+    findFieldByPath(fields, path, lookup)?.type;
+
+  it("finds a top-level field and one inside a group", () => {
+    expect(typeAt(["content"])).toBe("richText");
+    expect(typeAt(["hero", "body"])).toBe("richText");
+    expect(typeAt(["hero", "links", "label"])).toBe("text");
+  });
+
+  it("steps through a blocks field by the block's slug", () => {
+    expect(typeAt(["layout", "content", "body"])).toBe("richText");
+    expect(typeAt(["layout", "cardGrid", "cards", "note"])).toBe("richText");
+  });
+
+  it("finds nothing for a path that leads nowhere", () => {
+    expect(typeAt(["layout", "body"])).toBeUndefined();
+    expect(typeAt(["layout", "quote", "body"])).toBeUndefined();
+    expect(typeAt(["layout", "content"])).toBeUndefined();
+    expect(typeAt(["content", "body"])).toBeUndefined();
+    expect(typeAt(["missing"])).toBeUndefined();
   });
 });

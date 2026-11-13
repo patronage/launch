@@ -6,6 +6,13 @@ import {
 import type { JsonValue } from "@patronage/mcp-core";
 import { z } from "zod";
 
+import {
+  MAX_PATH_LENGTH,
+  parseRowFieldPath,
+  parseRowsFieldPath,
+  ROW_ID,
+} from "./payload-row-paths";
+
 // What `payload.apply` can change. The draft kinds change top-level fields of
 // one document, saved as a new draft of it or as a new draft document; the
 // upload kinds (further down) add a file or replace one. A change is published only
@@ -167,11 +174,133 @@ const replaceMediaFileOperationSchema = z.strictObject({
   kind: z.literal("replace_media_file"),
 });
 
+// One change to one row of an array or blocks field. Paths are field names
+// joined by dots, with `[id=<rowId>]` after a rows field to pick a row:
+// `layout[id=6650a1f2].cards[id=b7c1].title`.
+const rowPathSchema = z.string().min(1).max(MAX_PATH_LENGTH);
+const rowIdSchema = z.string().regex(ROW_ID);
+
+// A new row's own fields. Payload gives the row its id.
+const newRowSchema = z
+  .record(fieldNameSchema.or(z.literal("blockType")), z.json())
+  .refine((row) => Object.keys(row).length > 0, {
+    message: "a new row needs at least one field",
+  });
+
+const rowChangeSchema = z.discriminatedUnion("op", [
+  // A field of one row, as Payload stores it.
+  z.strictObject({
+    op: z.literal("set"),
+    path: rowPathSchema,
+    value: z.json(),
+  }),
+  // A rich text field of one row, written as Markdown.
+  z.strictObject({
+    markdown: z.string().max(MAX_MARKDOWN_LENGTH),
+    op: z.literal("set_markdown"),
+    path: rowPathSchema,
+  }),
+  // A new row, first in the field or right after another row.
+  z.strictObject({
+    after_id: rowIdSchema.nullable(),
+    field: rowPathSchema,
+    op: z.literal("insert"),
+    row: newRowSchema,
+  }),
+  z.strictObject({
+    field: rowPathSchema,
+    op: z.literal("remove"),
+    row_id: rowIdSchema,
+  }),
+  z.strictObject({
+    after_id: rowIdSchema.nullable(),
+    field: rowPathSchema,
+    op: z.literal("move"),
+    row_id: rowIdSchema,
+  }),
+]);
+
+export type RowChange = z.infer<typeof rowChangeSchema>;
+
+export const MAX_ROW_CHANGES = 50;
+
+// What a change names, for telling two changes to the same thing apart: a
+// row's field, or a row that is removed or moved. Inserts never collide.
+const changeKey = (change: RowChange): string | undefined => {
+  if (change.op === "set" || change.op === "set_markdown") {
+    parseRowFieldPath(change.path);
+
+    return change.path;
+  }
+
+  parseRowsFieldPath(change.field);
+
+  return change.op === "insert"
+    ? undefined
+    : `${change.field}[id=${change.row_id}]`;
+};
+
+const rowChangeRules = (
+  operation: { changes: RowChange[] },
+  ctx: z.RefinementCtx
+): void => {
+  const seen = new Set<string>();
+
+  for (const [index, change] of operation.changes.entries()) {
+    try {
+      const key = changeKey(change);
+
+      if (key !== undefined && seen.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${key} is changed more than one time`,
+          path: ["changes", index],
+        });
+      }
+
+      if (key !== undefined) {
+        seen.add(key);
+      }
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          error instanceof ApplyValidationError
+            ? error.message
+            : "is not a row path",
+        path: ["changes", index],
+      });
+    }
+
+    if (change.op === "move" && change.after_id === change.row_id) {
+      ctx.addIssue({
+        code: "custom",
+        message: "a row cannot be moved after itself",
+        path: ["changes", index],
+      });
+    }
+  }
+};
+
+const patchRowsOperationSchema = z
+  .strictObject({
+    changes: z.array(rowChangeSchema).min(1).max(MAX_ROW_CHANGES),
+    collection: slugSchema,
+    // Required: the changes are made on the document as it was read, so
+    // they are never made against one the model did not just read.
+    expected_updated_at: z.string().min(1).max(64),
+    id: documentIdSchema,
+    kind: z.literal("patch_rows"),
+    publish: z.literal(true).optional(),
+  })
+  .superRefine(rowChangeRules);
+
 const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
   uploadMediaOperationSchema,
   replaceMediaFileOperationSchema,
+  patchRowsOperationSchema,
 ]);
 
 export type DraftOperation =
@@ -184,7 +313,39 @@ export type UploadOperation =
   | z.infer<typeof replaceMediaFileOperationSchema>
   | z.infer<typeof uploadMediaOperationSchema>;
 
+export type PatchRowsOperation = z.infer<typeof patchRowsOperationSchema>;
+
 export type PayloadOperation = z.infer<typeof operationSchema>;
+
+export const isRowsOperation = (
+  operation: PayloadOperation
+): operation is PatchRowsOperation => operation.kind === "patch_rows";
+
+export const rowsTarget = (operation: PatchRowsOperation): string =>
+  `${operation.collection}/${operation.id}`;
+
+// The top-level fields a row path starts in, without taking the path apart.
+const rowsFields = (operation: PatchRowsOperation): string[] =>
+  [
+    ...new Set(
+      operation.changes.map(
+        (change) =>
+          /^[A-Za-z0-9_]+/u.exec(
+            "path" in change ? change.path : change.field
+          )?.[0] ?? ""
+      )
+    ),
+  ].toSorted();
+
+export const rowsSentence = (operation: PatchRowsOperation): string => {
+  const count = operation.changes.length;
+  const document = `${operation.collection} ${operation.id}`;
+  const what = `${count} row ${count === 1 ? "change" : "changes"} in ${joinPhrase(rowsFields(operation))}`;
+
+  return operation.publish
+    ? `Save ${what} to ${document} and publish it`
+    : `Save ${what} as a draft of ${document}`;
+};
 
 export const isUploadOperation = (
   operation: PayloadOperation
@@ -249,20 +410,32 @@ export const draftSentence = (operation: DraftOperation): string => {
     : `Create a new ${operation.collection} draft with ${fields}`;
 };
 
-export const operationTarget = (operation: PayloadOperation): string =>
-  isUploadOperation(operation)
-    ? uploadTarget(operation)
-    : draftTarget(operation);
+export const operationTarget = (operation: PayloadOperation): string => {
+  if (isUploadOperation(operation)) {
+    return uploadTarget(operation);
+  }
 
-export const operationSentence = (operation: PayloadOperation): string =>
-  isUploadOperation(operation)
-    ? uploadSentence(operation)
+  return isRowsOperation(operation)
+    ? rowsTarget(operation)
+    : draftTarget(operation);
+};
+
+export const operationSentence = (operation: PayloadOperation): string => {
+  if (isUploadOperation(operation)) {
+    return uploadSentence(operation);
+  }
+
+  return isRowsOperation(operation)
+    ? rowsSentence(operation)
     : draftSentence(operation);
+};
 
 // An operation on a document that exists already. Each makes its own
 // document otherwise, so those never collide.
 const namesExistingTarget = (operation: PayloadOperation): boolean =>
-  operation.kind === "update_draft" || operation.kind === "replace_media_file";
+  operation.kind === "update_draft" ||
+  operation.kind === "replace_media_file" ||
+  operation.kind === "patch_rows";
 
 const draftApplyInputSchema = z
   .object({

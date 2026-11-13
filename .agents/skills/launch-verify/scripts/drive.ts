@@ -529,7 +529,7 @@ interface PostSummary {
 }
 
 /** The parts of the gateway's structured tool results this drive reads. */
-interface StructuredContent {
+interface StructuredContent<R = PostSummary> {
   approvalUrl?: string;
   executionId?: string;
   /** `describe_site`: what the Payload connector says can be written. */
@@ -542,14 +542,15 @@ interface StructuredContent {
     }[];
     globals?: { slug: string }[];
   };
-  result?: PostSummary | null;
+  /** What the script returned. */
+  result?: R | null;
   status?: string;
 }
 
 /** The parts of an MCP JSON-RPC result this drive reads. */
-interface RpcResult {
+interface RpcResult<R = PostSummary> {
   content?: { text?: string; type: string }[];
-  structuredContent?: StructuredContent;
+  structuredContent?: StructuredContent<R>;
   tools?: { name: string }[];
 }
 
@@ -564,8 +565,8 @@ interface ToolCall {
   name: string;
 }
 
-interface ToolResult {
-  structuredContent: StructuredContent;
+interface ToolResult<R = PostSummary> {
+  structuredContent: StructuredContent<R>;
   text: string;
 }
 
@@ -573,12 +574,12 @@ interface ToolResult {
  * One MCP request to the local gateway, as a client that is not a browser
  * sends it: JSON-RPC over Streamable HTTP, answered as JSON or as one event.
  */
-const mcpRequest = async (
+const mcpRequest = async <R = PostSummary>(
   origin: string,
   token: string | null,
   method: "tools/call" | "tools/list",
   params?: ToolCall
-): Promise<{ result?: RpcResult; status: number }> => {
+): Promise<{ result?: RpcResult<R>; status: number }> => {
   const headers = new Headers({
     accept: "application/json, text/event-stream",
     "content-type": "application/json",
@@ -610,7 +611,7 @@ const mcpRequest = async (
         ?.slice(6) ?? "");
 
   try {
-    const parsed: { result?: RpcResult } = JSON.parse(json);
+    const parsed: { result?: RpcResult<R> } = JSON.parse(json);
 
     return { result: parsed.result, status: response.status };
   } catch {
@@ -618,13 +619,13 @@ const mcpRequest = async (
   }
 };
 
-const callTool = async (
+const callTool = async <R = PostSummary>(
   origin: string,
   token: string,
   name: string,
   args: ToolArguments
-): Promise<ToolResult> => {
-  const { result, status } = await mcpRequest(origin, token, "tools/call", {
+): Promise<ToolResult<R>> => {
+  const { result, status } = await mcpRequest<R>(origin, token, "tools/call", {
     arguments: args,
     name,
   });
@@ -639,9 +640,15 @@ const callTool = async (
   };
 };
 
-/** Runs one script through the gateway's `execute` tool. */
-const execute = (origin: string, token: string, code: string) =>
-  callTool(origin, token, "execute", { code });
+/**
+ * Runs one script through the gateway's `execute` tool. `R` is the shape of
+ * what the script returns.
+ */
+const execute = <R = PostSummary>(
+  origin: string,
+  token: string,
+  code: string
+) => callTool<R>(origin, token, "execute", { code });
 
 // A findDocuments answer is a heading and one fenced JSON block, holding one
 // document or a list of them.
@@ -1475,11 +1482,535 @@ const mcpPayloadUpload: Drive = async ({
   }
 };
 
+/** What READ_HOME returns: the home page's newest draft, as rows. */
+interface PageSummary {
+  /** The first content section's body as Markdown, and that section's id. */
+  body: { markdown: string; rowId: string } | null;
+  /** The first card grid with more than one card. */
+  grid: { cards: { id: string; title: string }[]; rowId: string } | null;
+  id: number;
+  /** The whole `layout` field, as JSON text. */
+  layout: string;
+  updatedAt: string;
+}
+
+// The home page's newest draft through the gateway: its sections, and one
+// section's rich text as Markdown, converted by Payload with that nested
+// field's own editor.
+const READ_HOME = `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "pages", draft: true, depth: 0, limit: 1, where: { slug: { equals: "home" } } },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  if (!doc) return null;
+  const grid = doc.layout.find((row) => row.blockType === "cardGrid" && row.cards.length > 1);
+  const content = doc.layout.find((row) => row.blockType === "content" && row.body);
+  const body = content && await payload.call({
+    tool: "richTextToMarkdown",
+    arguments: { slug: "pages", field: "body", path: ["layout", "content", "body"], value: content.body },
+  });
+  return {
+    body: body && body.structured ? { markdown: body.structured.markdown, rowId: content.id } : null,
+    grid: grid ? { cards: grid.cards.map((card) => ({ id: card.id, title: card.title })), rowId: grid.id } : null,
+    id: doc.id,
+    layout: JSON.stringify(doc.layout),
+    updatedAt: doc.updatedAt,
+  };
+}`;
+
+/** The home page's newest draft, read through the gateway. */
+const readHome = async (
+  origin: string,
+  token: string
+): Promise<PageSummary | null> => {
+  const read = await execute<PageSummary>(origin, token, READ_HOME);
+
+  return read.structuredContent.result ?? null;
+};
+
+/** One row of an array or blocks field, as Payload's REST API returns it. */
+interface StoredRow {
+  cards?: StoredRow[];
+  id: string;
+  title?: string;
+}
+
+const parseRows = (layout: string): StoredRow[] => JSON.parse(layout);
+
+/** The home page's sections as an anonymous visitor's API read returns them. */
+const publishedLayout = async (
+  payloadOrigin: string,
+  id: number
+): Promise<StoredRow[]> => {
+  const response = await fetch(`${payloadOrigin}/api/pages/${id}?depth=0`);
+  const page: { layout?: StoredRow[] } = await response.json();
+
+  return page.layout ?? [];
+};
+
+const cardTitle = (
+  layout: StoredRow[],
+  gridId: string,
+  cardId: string
+): string | undefined =>
+  layout
+    .find((row) => row.id === gridId)
+    ?.cards?.find((card) => card.id === cardId)?.title;
+
+/** The row changes this drive asks for. */
+type RowChangeRequest =
+  | {
+      after_id: string | null;
+      field: string;
+      op: "insert";
+      row: { title: string };
+    }
+  | { field: string; op: "remove"; row_id: string }
+  | { markdown: string; op: "set_markdown"; path: string }
+  | { op: "set"; path: string; value: string };
+
+/** The script an agent sends to change rows of the home page's sections. */
+const rowsScript = (options: {
+  changes: RowChangeRequest[];
+  expected: string;
+  id: number;
+  marker: string;
+}) => `async () => payload.apply({
+  intent: "Change rows of the home page for launch-verify run ${options.marker}",
+  operations: [{
+    kind: "patch_rows",
+    collection: "pages",
+    id: ${options.id},
+    expected_updated_at: ${JSON.stringify(options.expected)},
+    changes: ${JSON.stringify(options.changes)},
+  }],
+})`;
+
+/** The id Payload gave a row a run put in, from that run's receipt. */
+const insertedRowId = (receipt: string): string =>
+  /"inserted_row_ids":"(?<id>[A-Za-z0-9_-]+)"/u.exec(receipt)?.groups?.id ?? "";
+
+/** What the rows drive carries from one step to the next. */
+interface RowsRun {
+  /** The card that is retitled. */
+  card: { id: string; title: string };
+  /** The path of the grid's `cards` field. */
+  cardsField: string;
+  dir: string;
+  expect: (pass: boolean, what: string) => void;
+  grid: { cards: { id: string; title: string }[]; rowId: string };
+  log: ReturnType<typeof transcript>;
+  marker: string;
+  origin: string;
+  pageId: number;
+  /** The card's new title. */
+  title: string;
+  /** The path of the card's `title` field. */
+  titlePath: string;
+  token: string;
+}
+
+/** A row request that paused: its run, and where a person approves it. */
+interface RowsRequest {
+  executionId: string;
+  url: string;
+}
+
+/** Sends row changes for the home page and expects them to pause. */
+const requestRows = async (
+  run: RowsRun,
+  expected: string,
+  changes: RowChangeRequest[]
+): Promise<RowsRequest> => {
+  const result = await execute(
+    run.origin,
+    run.token,
+    rowsScript({ changes, expected, id: run.pageId, marker: run.marker })
+  );
+
+  const url = result.structuredContent.approvalUrl ?? "";
+
+  if (!url.startsWith(`${run.origin}/mcp/approvals/`)) {
+    throw new Error(
+      `the row changes did not pause for approval: ${result.text.slice(0, 200)}`
+    );
+  }
+
+  return { executionId: result.structuredContent.executionId ?? "", url };
+};
+
+/** Clicks Approve and reads what the page says once the write is over. */
+const approve = async (page: Page): Promise<string> => {
+  await page.getByRole("button", { name: "Approve" }).click();
+  await page.waitForLoadState("networkidle");
+
+  return mainText(page);
+};
+
+/** A run's record, as `get_run` reports it. */
+const runRecord = async (run: RowsRun, executionId: string) => {
+  const result = await callTool(run.origin, run.token, "get_run", {
+    executionId,
+  });
+
+  return result.structuredContent;
+};
+
+const retitleOf = (run: RowsRun): RowChangeRequest => ({
+  op: "set",
+  path: run.titlePath,
+  value: run.title,
+});
+
+/**
+ * Asks to retitle one card, opens the approval page and leaves it open, the
+ * way an approver might leave a tab while someone else edits the page.
+ */
+const previewRetitle = async (
+  run: RowsRun,
+  page: Page,
+  expected: string
+): Promise<void> => {
+  const request = await requestRows(run, expected, [retitleOf(run)]);
+
+  await page.goto(request.url, { waitUntil: "networkidle" });
+
+  const preview = await mainText(page);
+
+  const titles = [run.title, run.card.title].every((text) =>
+    preview.includes(text)
+  );
+
+  const labelled = ["Card grid (row", run.titlePath].every((text) =>
+    preview.includes(text)
+  );
+
+  run.expect(
+    titles,
+    "the approval page does not show the card's title before and after"
+  );
+  run.expect(
+    labelled,
+    "the approval page does not say which row the change is in"
+  );
+  run.log.step(
+    "execute: payload.apply patch_rows retitling one card, then open its approval page and leave it open",
+    `shows the old and new title: ${titles}; labels the row: ${labelled}`
+  );
+  await run.log.shot(page, "retitle-approval");
+};
+
+/**
+ * A second request, built on the same read, puts a card in the grid and is
+ * approved. Gives back the id Payload made for the new row.
+ */
+const approveInsert = async (
+  run: RowsRun,
+  page: Page,
+  expected: string
+): Promise<string> => {
+  const newTitle = `Launch verify card ${run.marker}`;
+
+  const request = await requestRows(run, expected, [
+    {
+      after_id: run.grid.cards.at(-1)?.id ?? null,
+      field: run.cardsField,
+      op: "insert",
+      row: { title: newTitle },
+    },
+  ]);
+
+  await page.goto(request.url, { waitUntil: "networkidle" });
+
+  const preview = await mainText(page);
+  const shown = ["(new row)", newTitle].every((text) => preview.includes(text));
+
+  run.expect(shown, "the insert's approval page does not show the new row");
+  await run.log.shot(page, "insert-approval");
+  await approve(page);
+
+  const record = await runRecord(run, request.executionId);
+  const insertedId = insertedRowId(JSON.stringify(record));
+
+  run.log.step(
+    "A second request puts a card in the same grid; approve it in another tab",
+    `shows the new row: ${shown}; the receipt names the row Payload made: ${insertedId || "no"}`
+  );
+
+  if (!insertedId) {
+    throw new Error("the insert's receipt does not name the new row");
+  }
+
+  return insertedId;
+};
+
+/** The home page after the insert: what the last request is built on. */
+interface CurrentHome {
+  body: { markdown: string; rowId: string };
+  updatedAt: string;
+}
+
+/**
+ * Approves the first request, whose preview was drawn before the insert. It
+ * has to be refused, with the card left as it was.
+ */
+const refuseOutdated = async (
+  run: RowsRun,
+  page: Page
+): Promise<CurrentHome> => {
+  const refused = await approve(page);
+  const now = await readHome(run.origin, run.token);
+
+  if (!now?.body) {
+    throw new Error("the home page could not be read after the insert");
+  }
+
+  run.expect(
+    refused.includes("modified_since_preflight"),
+    `approving a preview the page has moved on from was not refused: ${refused.slice(0, 200)}`
+  );
+  run.expect(
+    cardTitle(parseRows(now.layout), run.grid.rowId, run.card.id) ===
+      run.card.title,
+    "the refused request changed the card anyway"
+  );
+  run.log.step(
+    "Go back to the first tab and click Approve on its now outdated preview",
+    `${refused.slice(refused.indexOf("Result:")).slice(0, 44)}; says modified_since_preflight: ${refused.includes("modified_since_preflight")}`
+  );
+  await run.log.shot(page, "outdated-refused");
+
+  return { body: now.body, updatedAt: now.updatedAt };
+};
+
+/**
+ * The request that lands, built on the page as it is now: retitle the card,
+ * take the new card out again, and send one section's body back unchanged.
+ */
+const approveRows = async (
+  run: RowsRun,
+  page: Page,
+  options: { current: CurrentHome; insertedId: string }
+): Promise<void> => {
+  const bodyPath = `layout[id=${options.current.body.rowId}].body`;
+  const removedPath = `${run.cardsField}[id=${options.insertedId}]`;
+
+  const request = await requestRows(run, options.current.updatedAt, [
+    retitleOf(run),
+    { field: run.cardsField, op: "remove", row_id: options.insertedId },
+    {
+      markdown: options.current.body.markdown,
+      op: "set_markdown",
+      path: bodyPath,
+    },
+  ]);
+
+  await page.goto(request.url, { waitUntil: "networkidle" });
+
+  const preview = await mainText(page);
+
+  run.expect(
+    ["(removed)", run.title].every((text) => preview.includes(text)),
+    "the last approval page does not show the retitle and the removed row"
+  );
+  await run.log.shot(page, "rows-approval");
+
+  const outcome = await approve(page);
+
+  await run.log.shot(page, "rows-approved");
+
+  const record = await runRecord(run, request.executionId);
+  const receipt = JSON.stringify(record);
+
+  writeFileSync(
+    path.join(run.dir, "run.json"),
+    `${JSON.stringify(record, null, 2)}\n`
+  );
+
+  const listed = [
+    '"status":"succeeded"',
+    JSON.stringify(run.titlePath),
+    removedPath,
+  ].every((text) => receipt.includes(text));
+
+  run.expect(
+    listed,
+    "get_run does not report the retitle and the removal as changed"
+  );
+  run.expect(
+    !receipt.includes(bodyPath),
+    "the unchanged Markdown was reported as a change"
+  );
+  run.log.step(
+    "execute: retitle the card, remove the new card and resend one body's Markdown unchanged; approve it",
+    `${outcome.slice(outcome.indexOf("Result:")).slice(0, 60)}; receipt lists the retitle and the removal: ${listed}; lists the unchanged body: ${receipt.includes(bodyPath)} (run.json)`
+  );
+};
+
+/**
+ * The end state: the draft holds the new title, every other row is as it
+ * was first read, and the published page has not changed.
+ */
+const checkRowsLanded = async (
+  run: RowsRun,
+  before: { layout: string; published: string | undefined; payload: string }
+): Promise<void> => {
+  const final = await readHome(run.origin, run.token);
+  const rows = parseRows(final?.layout ?? "[]");
+  const draftTitle = cardTitle(rows, run.grid.rowId, run.card.id);
+
+  // Every row but the retitled card, byte for byte as it was first read.
+  const untouched =
+    JSON.stringify(rows).replace(
+      JSON.stringify(run.title),
+      JSON.stringify(run.card.title)
+    ) === JSON.stringify(parseRows(before.layout));
+
+  const published = cardTitle(
+    await publishedLayout(before.payload, run.pageId),
+    run.grid.rowId,
+    run.card.id
+  );
+
+  run.expect(
+    draftTitle === run.title,
+    "the draft does not hold the card's new title"
+  );
+  run.expect(untouched, "a row the changes did not name is not as it was");
+  run.expect(
+    published === before.published,
+    "the published page changed; the edit should be a draft"
+  );
+  run.log.step(
+    "Read the page again: the newest draft, then the public API",
+    `draft card "${draftTitle}"; every other row unchanged: ${untouched}; published card "${published}"`
+  );
+};
+
+/**
+ * MCP gateway: an editor's agent changes single rows of the home page's
+ * sections. One card is retitled without resending the page, a row is put in
+ * and taken out again, a request the page has moved on from is refused at
+ * approval, and the published page stays as it was.
+ */
+const mcpPayloadRows: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const home = await readHome(origin, token);
+    const [, card] = home?.grid?.cards ?? [];
+
+    if (!(home?.grid && home.body && card)) {
+      throw new Error(
+        "The home page has no card grid and content section to change: seed Payload first."
+      );
+    }
+
+    const cardsField = `layout[id=${home.grid.rowId}].cards`;
+
+    const run: RowsRun = {
+      card,
+      cardsField,
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      grid: home.grid,
+      log,
+      marker,
+      origin,
+      pageId: home.id,
+      title: `${card.title.replace(MARKER, "")} (${marker})`,
+      titlePath: `${cardsField}[id=${card.id}].title`,
+      token,
+    };
+
+    const published = cardTitle(
+      await publishedLayout(payloadOrigin, home.id),
+      home.grid.rowId,
+      card.id
+    );
+
+    log.step(
+      "execute: read the home page's newest draft, and one section's body as Markdown",
+      `pages/${home.id}, updated ${home.updatedAt}; card "${card.title}" in a grid of ${home.grid.cards.length}; published as "${published}"; body is ${home.body.markdown.length} characters of Markdown`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const other = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    await previewRetitle(run, page, home.updatedAt);
+
+    const insertedId = await approveInsert(run, other, home.updatedAt);
+    const current = await refuseOutdated(run, page);
+
+    await approveRows(run, page, { current, insertedId });
+    await checkRowsLanded(run, {
+      layout: home.layout,
+      payload: payloadOrigin,
+      published,
+    });
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-rows failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
     new Map([
       ["payload-draft", mcpPayloadDraft],
+      ["payload-rows", mcpPayloadRows],
       ["payload-upload", mcpPayloadUpload],
     ]),
   ],

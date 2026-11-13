@@ -23,7 +23,9 @@ export { payloadConnector } from "./payload-gateway";
 export type {
   DraftApplyInput,
   DraftOperation,
+  PatchRowsOperation,
   PayloadOperation,
+  RowChange,
   UploadOperation,
 } from "./payload-operations";
 

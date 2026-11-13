@@ -1,6 +1,5 @@
 import {
   ApplyConflictError,
-  UpstreamRequestError,
   batchStatus,
   previewValue,
   receiptDetails,
@@ -10,7 +9,6 @@ import type {
   BatchReceipt,
   FieldSnapshot,
   JsonObject,
-  JsonValue,
   OperationPreflight,
   OperationReceipt,
   ReceiptError,
@@ -21,27 +19,25 @@ import { z } from "zod";
 
 import { payloadErrorMessage, payloadRest } from "./payload";
 import {
+  assertDraftDocument,
   classifyReadback,
   CONFLICT_CODES,
   documentPath,
+  draftCollection,
   draftQuery,
   LOCKED_STATUS,
   lockedError,
   missedPathsMessage,
+  previewLink,
   readDocument,
+  requireStamp,
   toReceiptError,
   updatedAt,
   writtenStamp,
   writtenVersionId,
 } from "./payload-documents";
 import type { PayloadAdminUrl, PayloadSiteUrl } from "./payload-documents";
-import {
-  callPayloadTool,
-  MARKDOWN_TO_RICH_TEXT_TOOL,
-  readEditingInfo,
-  readPreviewUrl,
-  RICH_TEXT_TO_MARKDOWN_TOOL,
-} from "./payload-editing";
+import { readEditingInfo } from "./payload-editing";
 import type { CollectionEditing, EditingInfo } from "./payload-editing";
 import {
   draftChangedPaths,
@@ -49,6 +45,7 @@ import {
   draftMarkdown,
   draftSentence,
   draftTarget,
+  isRowsOperation,
   isUploadOperation,
   operationTarget,
   STATUS_FIELD,
@@ -60,20 +57,14 @@ import type {
 } from "./payload-operations";
 import { createTitleLookup, fieldSnapshot } from "./payload-relations";
 import type { TitleLookup } from "./payload-relations";
+import { toMarkdown, toRichText } from "./payload-rich-text";
+import { applyRows, preflightRows } from "./payload-rows-apply";
 import { applyUpload, preflightUpload } from "./payload-upload-apply";
 import type { UploadFiles } from "./payload-upload-apply";
 
-const recordSchema = z.record(z.string(), z.json());
 const stringSchema = z.string();
 const documentIdSchema = z.union([z.number(), z.string()]);
 const createdSchema = z.object({ doc: z.object({ id: documentIdSchema }) });
-
-const markdownResultSchema = z.object({
-  lost: z.array(z.string()).default([]),
-  markdown: z.string(),
-});
-
-const richTextResultSchema = z.object({ value: recordSchema });
 
 const operationPath = (operation: UpdateDraftOperation): string =>
   documentPath(operation.collection, operation.id, !operation.publish);
@@ -81,30 +72,11 @@ const operationPath = (operation: UpdateDraftOperation): string =>
 const createPath = (operation: DraftOperation): string =>
   `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
 
-// Only a collection with drafts keeps the published version apart from the
-// one being written. Without drafts, `?draft=true` is ignored and the write
-// would go live, so such a collection is refused before anything is shown.
 const assertEditable = (
   info: EditingInfo,
   operation: DraftOperation
 ): CollectionEditing => {
-  const collection = info.collections.find(
-    (entry) => entry.slug === operation.collection
-  );
-
-  if (!collection) {
-    throw new ApplyConflictError(
-      "unknown_collection",
-      `${operation.collection} is not a collection this editor can read`
-    );
-  }
-
-  if (!collection.drafts) {
-    throw new ApplyConflictError(
-      "drafts_not_enabled",
-      `${operation.collection} has no drafts, so a change there would publish at once`
-    );
-  }
+  const collection = draftCollection(info, operation.collection);
 
   const allowed =
     operation.kind === "create_draft"
@@ -132,93 +104,6 @@ const assertEditable = (
   return collection;
 };
 
-// The same check on the document itself: a draft-enabled collection always
-// stores `_status`, so a document without one is refused too.
-const assertDrafts = (record: JsonObject, operation: DraftOperation): void => {
-  if (!("_status" in record)) {
-    throw new ApplyConflictError(
-      "drafts_not_enabled",
-      `${operation.collection} has no drafts, so a change there would publish at once`
-    );
-  }
-};
-
-const readStamp = (record: JsonObject, operation: DraftOperation): string => {
-  const stamp = updatedAt(record);
-
-  if (stamp === undefined) {
-    throw new ApplyConflictError(
-      "unreadable_updated_at",
-      `Payload did not report when ${draftTarget(operation)} was last updated`
-    );
-  }
-
-  return stamp;
-};
-
-const toRichText = async (
-  client: UpstreamClient,
-  collection: string,
-  field: string,
-  markdown: string,
-  telemetry: UpstreamTelemetry
-): Promise<JsonObject> => {
-  const result = await callPayloadTool(
-    client,
-    MARKDOWN_TO_RICH_TEXT_TOOL,
-    { field, markdown, slug: collection },
-    telemetry
-  );
-
-  const parsed = richTextResultSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError(
-      `Payload returned no rich text for ${field}`
-    );
-  }
-
-  return parsed.data.value;
-};
-
-const toMarkdown = async (
-  client: UpstreamClient,
-  collection: string,
-  field: string,
-  value: JsonValue | undefined,
-  telemetry: UpstreamTelemetry
-): Promise<string> => {
-  const stored = recordSchema.safeParse(value);
-
-  if (!stored.success) {
-    return "";
-  }
-
-  const result = await callPayloadTool(
-    client,
-    RICH_TEXT_TO_MARKDOWN_TOOL,
-    { field, slug: collection, value: stored.data },
-    telemetry
-  );
-
-  const parsed = markdownResultSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError(`Payload returned no Markdown for ${field}`);
-  }
-
-  // Writing Markdown back would turn these nodes into plain text, deleting
-  // them while the Markdown preview hides what they held.
-  if (parsed.data.lost.length > 0) {
-    throw new ApplyConflictError(
-      "markdown_would_lose_content",
-      `${collection} ${field} holds ${parsed.data.lost.join(", ")} nodes that Markdown cannot carry; change it in fields as Lexical JSON, or in the Payload admin`
-    );
-  }
-
-  return parsed.data.markdown;
-};
-
 // What Payload is sent: the stored values as given, and each Markdown field
 // converted with that field's own editor features.
 const resolveBody = async (
@@ -236,8 +121,7 @@ const resolveBody = async (
           field,
           await toRichText(
             client,
-            operation.collection,
-            field,
+            { collection: operation.collection, field },
             text,
             telemetry
           ),
@@ -313,8 +197,7 @@ const snapshotField = async (
 
   const before = await toMarkdown(
     context.client,
-    operation.collection,
-    path,
+    { collection: operation.collection, field: path },
     record[path],
     context.telemetry
   );
@@ -344,8 +227,9 @@ const currentRecord = async (
     context.telemetry
   );
 
-  assertDrafts(record, operation);
-  const stamp = readStamp(record, operation);
+  assertDraftDocument(record, operation.collection);
+
+  const stamp = requireStamp(record, draftTarget(operation));
 
   if (
     operation.expected_updated_at !== undefined &&
@@ -366,27 +250,6 @@ const previewSlug = (operation: DraftOperation, record: JsonObject): string => {
   );
 
   return slug.success ? slug.data : "";
-};
-
-// The front end's draft preview of the document as it is now, where its
-// collection has one. A new document has no address until it is saved.
-const previewLink = async (
-  context: Pick<PreflightContext, "client" | "siteUrl" | "telemetry">,
-  collection: CollectionEditing,
-  id: number | string
-): Promise<string> => {
-  if (!collection.preview) {
-    return "";
-  }
-
-  const link = await readPreviewUrl(
-    context.client,
-    collection.slug,
-    id,
-    context.telemetry
-  );
-
-  return link === undefined ? "" : context.siteUrl(link);
 };
 
 const preflightOne = async (
@@ -433,6 +296,20 @@ const preflightOne = async (
   return preview;
 };
 
+const preflightAs = (
+  context: PreflightContext,
+  operation: PayloadOperation,
+  index: number
+): Promise<OperationPreflight> => {
+  if (isUploadOperation(operation)) {
+    return preflightUpload(context, operation, index);
+  }
+
+  return isRowsOperation(operation)
+    ? preflightRows(context, operation, index)
+    : preflightOne(context, operation, index);
+};
+
 const preflightFrom = async (
   context: PreflightContext,
   operations: PayloadOperation[],
@@ -444,9 +321,7 @@ const preflightFrom = async (
     return [];
   }
 
-  const first = isUploadOperation(operation)
-    ? await preflightUpload(context, operation, index)
-    : await preflightOne(context, operation, index);
+  const first = await preflightAs(context, operation, index);
 
   return [first, ...(await preflightFrom(context, operations, index + 1))];
 };
@@ -553,7 +428,7 @@ const writeUpdate = async (
     telemetry
   );
 
-  assertDrafts(before, operation);
+  assertDraftDocument(before, operation.collection);
 
   if (updatedAt(before) !== snapshot.modifiedGmt) {
     throw new ApplyConflictError(
@@ -812,10 +687,15 @@ const applyAs = (
   context: ApplyContext,
   operation: PayloadOperation,
   snapshot: OperationPreflight
-): Promise<OperationReceipt> =>
-  isUploadOperation(operation)
-    ? applyUpload(context, operation, snapshot)
+): Promise<OperationReceipt> => {
+  if (isUploadOperation(operation)) {
+    return applyUpload(context, operation, snapshot);
+  }
+
+  return isRowsOperation(operation)
+    ? applyRows(context, operation, snapshot)
     : applyOne(context, operation, snapshot);
+};
 
 interface DraftApplyOptions {
   approverOpaque: string;
