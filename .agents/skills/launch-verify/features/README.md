@@ -9,6 +9,6 @@ What a visitor, an editor or an editor's agent can do on Launch's local front en
 | [News](news.md) | payload, web-wordpress | `capture` |
 | [Payload admin](payload-admin.md) | payload | by hand, after `apply-form` signs in |
 | [SEO and redirects](seo.md) | payload | `drive payload seo` |
-| [MCP gateway](mcp-gateway.md) | mcp (with payload and the Access stand-in) | `drive mcp payload-draft`, `drive mcp payload-rows`, `drive mcp payload-upload` |
+| [MCP gateway](mcp-gateway.md) | mcp (with payload and the Access stand-in) | `drive mcp payload-draft`, `drive mcp payload-global`, `drive mcp payload-rows`, `drive mcp payload-upload` |
 
 A proof covers the entry points its feature file lists. Driving only the most convenient one leaves the rest unverified, so say which you skipped.

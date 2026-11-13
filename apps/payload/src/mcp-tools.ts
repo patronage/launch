@@ -1,4 +1,8 @@
-import { defineCollectionTool, defineTool } from "@payloadcms/plugin-mcp";
+import {
+  defineCollectionTool,
+  defineGlobalTool,
+  defineTool,
+} from "@payloadcms/plugin-mcp";
 import {
   convertLexicalToMarkdown,
   convertMarkdownToLexical,
@@ -13,9 +17,11 @@ import type {
   PayloadRequest,
   RichTextField,
   SanitizedCollectionConfig,
+  SanitizedGlobalConfig,
 } from "payload";
 import { z } from "zod";
 
+import { DEFAULT_LOCK_SECONDS, heldByAnother } from "./lib/document-lock";
 import { describeDocumentFields, findFieldByPath } from "./lib/editing-info";
 import type { BlockLookup } from "./lib/editing-info";
 
@@ -26,7 +32,8 @@ import type { BlockLookup } from "./lib/editing-info";
 // gateway which collections keep drafts. None of them reads or writes a
 // document: the gateway saves changes through its approval step.
 // `getPreviewUrl` reads one document, as the editor, to give the link the
-// admin's Preview button opens.
+// admin's Preview button opens, and `findGlobalDraft` reads a global's
+// newest version, which Payload's own `findGlobal` tool cannot ask for.
 
 const MAX_MARKDOWN_LENGTH = 200_000;
 
@@ -291,6 +298,41 @@ export const getPreviewUrl = defineCollectionTool({
   };
 });
 
+const MAX_DEPTH = 3;
+
+// Payload's own `findGlobal` tool reads the published global only. Where a
+// global keeps drafts, an edit starts from its newest version, as the admin
+// does, and that version's `updatedAt` is the one a write is checked against.
+export const findGlobalDraft = defineGlobalTool({
+  access: ({ permissions, req, slug }) =>
+    Boolean(req.user && permissions?.globals?.[slug]?.read),
+  annotations: {
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+    readOnlyHint: true,
+    title: "Find global draft",
+  },
+  description:
+    "Read a global as the admin opens it: its newest version, which is a draft where one is newer than what is published. A global without drafts reads as it is. Writes nothing.",
+  input: z.object({
+    depth: z.number().int().min(0).max(MAX_DEPTH).default(0),
+  }),
+}).handler(async ({ input, req, slug }) => {
+  const doc = await req.payload.findGlobal({
+    depth: input.depth,
+    draft: true,
+    overrideAccess: false,
+    req,
+    slug,
+  });
+
+  return {
+    ...textResult(JSON.stringify(doc)),
+    structuredContent: { doc },
+  };
+});
+
 // A draft setting is `false` or an options object; only whether it is on
 // matters to the gateway.
 const draftSettings = (
@@ -409,7 +451,44 @@ const collectionInfo = (
   ];
 };
 
-const globalInfo = (
+const LOCKS = "payload-locked-documents";
+
+// Whether another editor has the global open in the admin. Payload makes
+// this check itself before it saves a collection document, but not before
+// it saves a global, so the gateway asks here first. The lock documents are
+// read past access control, as Payload reads them, and only this one fact
+// about them is reported.
+const lockedByAnother = async (
+  req: PayloadRequest,
+  config: SanitizedGlobalConfig
+): Promise<boolean> => {
+  if (config.lockDocuments === false || !req.payload.collections[LOCKS]) {
+    return false;
+  }
+
+  const found = await req.payload.find({
+    collection: LOCKS,
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+    pagination: false,
+    req,
+    sort: "-updatedAt",
+    where: { globalSlug: { equals: config.slug } },
+  });
+
+  const [lock] = found.docs;
+
+  return lock
+    ? heldByAnother(lock, {
+        now: Date.now(),
+        seconds: config.lockDocuments?.duration ?? DEFAULT_LOCK_SECONDS,
+        userId: req.user?.id,
+      })
+    : false;
+};
+
+const globalInfo = async (
   req: PayloadRequest,
   access: AccessResults,
   slug: GlobalSlug
@@ -434,6 +513,8 @@ const globalInfo = (
       canUpdate: Boolean(permissions.update),
       drafts: Boolean(config.versions && config.versions.drafts),
       localized: fields.localized,
+      // True while another editor has the global open in the admin.
+      locked: await lockedByAnother(req, config),
       relationFields: fields.relationFields,
       // Top-level only, as for a collection: the fields Markdown can fill.
       richTextFields: fields.richTextFields.filter(
@@ -448,8 +529,9 @@ const globalInfo = (
 // What the gateway needs before it writes: whether a collection keeps drafts
 // (without them a "draft" would publish at once), which fields take Markdown,
 // which hold rows, what an upload collection accepts, and what this editor
-// may do. Only the collections and globals passed in are described, so those
-// hidden from MCP stay hidden here too. The first version reported
+// may do, and whether another editor has a global open. Only the collections
+// and globals passed in are described, so those hidden from MCP stay hidden
+// here too. The first version reported
 // `canCreate`, `canUpdate`, `drafts`, `richTextFields` and `slug` for each
 // collection; those keep their meaning, so an older gateway reads this one.
 export const getEditingInfo = (
@@ -466,14 +548,18 @@ export const getEditingInfo = (
       title: "Get editing info",
     },
     description:
-      "List the collections and globals this editor can read: whether each keeps drafts, which fields are rich text, which are arrays or blocks and what their rows hold, what an upload collection accepts, the site's locales, and what the editor may create, update or delete.",
+      "List the collections and globals this editor can read: whether each keeps drafts, which fields are rich text, which are arrays or blocks and what their rows hold, what an upload collection accepts, the site's locales, what the editor may create, update or delete, and whether another editor has a global open.",
     input: z.object({}),
   }).handler(async ({ req }) => {
     const access = await getAccessResults({ req });
 
+    const globals = await Promise.all(
+      globalSlugs.map((slug) => globalInfo(req, access, slug))
+    );
+
     const info = {
       collections: slugs.flatMap((slug) => collectionInfo(req, access, slug)),
-      globals: globalSlugs.flatMap((slug) => globalInfo(req, access, slug)),
+      globals: globals.flat(),
       localization: localizationInfo(req),
     };
 

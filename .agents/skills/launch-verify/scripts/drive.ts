@@ -704,10 +704,11 @@ const publishedTitle = async (
  * editor is the first local admin, created here on a fresh database the way
  * apply-form does, or signed in with "Continue as".
  */
-const localAdminEmail = async (
+/** A page signed in to the local Payload admin as its one local admin. */
+const openLocalAdmin = async (
   browser: Browser,
   payloadOrigin: string
-): Promise<string> => {
+): Promise<Page> => {
   const admin = await browser.newPage({
     viewport: { height: 900, width: 1280 },
   });
@@ -731,16 +732,34 @@ const localAdminEmail = async (
     await admin.waitForLoadState("networkidle");
   }
 
+  return admin;
+};
+
+const adminEmail = async (
+  admin: Page,
+  payloadOrigin: string
+): Promise<string> => {
   const response = await admin.request.get(`${payloadOrigin}/api/users/me`);
   const me: { user?: { email?: string } } = await response.json();
-
-  await admin.close();
 
   if (!me.user?.email) {
     throw new Error("Could not sign in to the local Payload admin.");
   }
 
   return me.user.email;
+};
+
+const localAdminEmail = async (
+  browser: Browser,
+  payloadOrigin: string
+): Promise<string> => {
+  const admin = await openLocalAdmin(browser, payloadOrigin);
+
+  try {
+    return await adminEmail(admin, payloadOrigin);
+  } finally {
+    await admin.close();
+  }
 };
 
 /** The script an agent sends to retitle one post as a draft. */
@@ -1592,8 +1611,14 @@ const rowsScript = (options: {
 const insertedRowId = (receipt: string): string =>
   /"inserted_row_ids":"(?<id>[A-Za-z0-9_-]+)"/u.exec(receipt)?.groups?.id ?? "";
 
+/** A signed-in caller of the local gateway. */
+interface Session {
+  origin: string;
+  token: string;
+}
+
 /** What the rows drive carries from one step to the next. */
-interface RowsRun {
+interface RowsRun extends Session {
   /** The card that is retitled. */
   card: { id: string; title: string };
   /** The path of the grid's `cards` field. */
@@ -1603,13 +1628,11 @@ interface RowsRun {
   grid: { cards: { id: string; title: string }[]; rowId: string };
   log: ReturnType<typeof transcript>;
   marker: string;
-  origin: string;
   pageId: number;
   /** The card's new title. */
   title: string;
   /** The path of the card's `title` field. */
   titlePath: string;
-  token: string;
 }
 
 /** A row request that paused: its run, and where a person approves it. */
@@ -1650,7 +1673,7 @@ const approve = async (page: Page): Promise<string> => {
 };
 
 /** A run's record, as `get_run` reports it. */
-const runRecord = async (run: RowsRun, executionId: string) => {
+const runRecord = async (run: Session, executionId: string) => {
   const result = await callTool(run.origin, run.token, "get_run", {
     executionId,
   });
@@ -2005,11 +2028,414 @@ const mcpPayloadRows: Drive = async ({
   }
 };
 
+/** What READ_SETTINGS returns: the site settings global. */
+interface SettingsSummary {
+  siteName: string;
+  tagline: string | null;
+  updatedAt: string;
+}
+
+// The site settings global through the gateway, read as the admin opens it:
+// its newest version, whose `updatedAt` a write is checked against.
+const READ_SETTINGS = `async () => {
+  const found = await payload.call({
+    tool: "findGlobalDraft",
+    arguments: { slug: "site-settings", depth: 0 },
+  });
+  const doc = found.structured && found.structured.doc;
+  return doc && { siteName: doc.siteName, tagline: doc.tagline ?? null, updatedAt: doc.updatedAt };
+}`;
+
+/** The site settings as an anonymous visitor's API read returns them. */
+const publicSettings = async (
+  payloadOrigin: string
+): Promise<{ siteName?: string; tagline?: string | null }> => {
+  const response = await fetch(
+    `${payloadOrigin}/api/globals/site-settings?depth=0`
+  );
+
+  return await response.json();
+};
+
+/** The script an agent sends to change the site's tagline. */
+const globalScript = (options: {
+  expected: string;
+  marker: string;
+  publish: boolean;
+  tagline: string;
+}) => `async () => payload.apply({
+  intent: "Change the site tagline for launch-verify run ${options.marker}",
+  operations: [{
+    kind: "update_global",
+    global: "site-settings",
+    expected_updated_at: ${JSON.stringify(options.expected)},
+    fields: { tagline: ${JSON.stringify(options.tagline)} },${options.publish ? "\n    publish: true," : ""}
+  }],
+})`;
+
+/** What the global drive carries from one step to the next. */
+interface GlobalRun extends Session {
+  dir: string;
+  expect: (pass: boolean, what: string) => void;
+  log: ReturnType<typeof transcript>;
+  marker: string;
+}
+
+/** Opens the approval page a script pauses on. */
+const openApproval = async (
+  run: Session,
+  page: Page,
+  code: string
+): Promise<{ executionId: string; preview: string }> => {
+  const result = await execute(run.origin, run.token, code);
+  const url = result.structuredContent.approvalUrl ?? "";
+
+  if (!url.startsWith(`${run.origin}/mcp/approvals/`)) {
+    throw new Error(
+      `the request has no local approval link: ${result.text.slice(0, 200)}`
+    );
+  }
+
+  await page.goto(url, { waitUntil: "networkidle" });
+
+  return {
+    executionId: result.structuredContent.executionId ?? "",
+    preview: await mainText(page),
+  };
+};
+
+/**
+ * A request Payload's state does not allow: its page says why and offers no
+ * Approve button.
+ */
+const refusedGlobal = async (
+  run: GlobalRun,
+  page: Page,
+  request: { code: string; reason: string; shot: string; what: string }
+): Promise<void> => {
+  const { preview } = await openApproval(run, page, request.code);
+
+  const offered = await page
+    .getByRole("button", { name: "Approve" })
+    .isVisible();
+
+  run.expect(!offered, `${request.what} was offered for approval`);
+  run.expect(
+    preview.includes(request.reason),
+    `the page of ${request.what} does not say ${request.reason}`
+  );
+  run.log.step(
+    `Open the approval page of ${request.what}`,
+    `Approve offered: ${offered}; says ${request.reason}: ${preview.includes(request.reason)}`
+  );
+  await run.log.shot(page, request.shot);
+};
+
+const LOCK_REASON = "open in the Payload admin for another editor";
+
+/**
+ * Another editor has the site settings open: Payload keeps a lock document
+ * for them, as its admin does while a form is open. A change asked for
+ * meanwhile is refused, and their lock is still there afterwards. Payload
+ * itself would save the global and remove the lock. The second editor is
+ * made for this step and removed after it.
+ */
+const refusedWhileLocked = async (
+  run: GlobalRun,
+  page: Page,
+  options: { admin: Page; code: string; payloadOrigin: string }
+): Promise<void> => {
+  const api = `${options.payloadOrigin}/api`;
+  const { request } = options.admin;
+
+  const created = await request.post(`${api}/users`, {
+    data: { email: `${run.marker}@example.test`, password: randomUUID() },
+  });
+
+  const editor: { doc?: { id?: number | string } } = await created.json();
+  const editorId = editor.doc?.id;
+
+  if (editorId === undefined) {
+    throw new Error(`Could not add a second editor: HTTP ${created.status()}`);
+  }
+
+  try {
+    const locked = await request.post(`${api}/payload-locked-documents`, {
+      data: {
+        globalSlug: "site-settings",
+        user: { relationTo: "users", value: editorId },
+      },
+    });
+
+    const lock: { doc?: { id?: number | string } } = await locked.json();
+    const lockId = lock.doc?.id;
+
+    if (lockId === undefined) {
+      throw new Error(`Could not lock the global: HTTP ${locked.status()}`);
+    }
+
+    run.log.step(
+      "Lock the site settings for a second editor, as the admin does while they have it open",
+      `lock ${lockId} held by ${run.marker}@example.test`
+    );
+
+    await refusedGlobal(run, page, {
+      code: options.code,
+      reason: LOCK_REASON,
+      shot: "locked-refused",
+      what: "a change to a global another editor has open",
+    });
+
+    const held = await request.get(`${api}/payload-locked-documents/${lockId}`);
+
+    run.expect(held.ok(), "the other editor's lock is gone after the refusal");
+    run.log.step(
+      "Read the other editor's lock after the refusal",
+      `still held: ${held.ok()}`
+    );
+    await request.delete(`${api}/payload-locked-documents/${lockId}`);
+  } finally {
+    await request.delete(`${api}/users/${editorId}`);
+  }
+};
+
+/**
+ * Changes the tagline with `publish: true`, approves it, and gives back when
+ * the receipt says the global was last updated.
+ */
+const approveGlobal = async (
+  run: GlobalRun,
+  page: Page,
+  change: { expected: string; from: string; shot: string; to: string }
+): Promise<string> => {
+  const { executionId, preview } = await openApproval(
+    run,
+    page,
+    globalScript({
+      expected: change.expected,
+      marker: run.marker,
+      publish: true,
+      tagline: change.to,
+    })
+  );
+
+  const warned = preview.includes("live as soon as you approve");
+
+  const shown = [change.from, change.to].every((text) =>
+    preview.includes(text)
+  );
+
+  run.expect(warned, "the approval page does not warn that the change is live");
+  run.expect(
+    shown,
+    "the approval page does not show the tagline before and after"
+  );
+  await run.log.shot(page, `${change.shot}-approval`);
+
+  const outcome = await approve(page);
+
+  await run.log.shot(page, `${change.shot}-approved`);
+
+  const record = await runRecord(run, executionId);
+  const receipt = JSON.stringify(record);
+
+  writeFileSync(
+    path.join(run.dir, `${change.shot}-run.json`),
+    `${JSON.stringify(record, null, 2)}\n`
+  );
+
+  const landed = [
+    '"status":"succeeded"',
+    '"changed_paths":["tagline"]',
+    '"version_id":"',
+  ].every((text) => receipt.includes(text));
+
+  run.expect(
+    landed,
+    `get_run does not report tagline as changed with a version: ${receipt.slice(0, 300)}`
+  );
+  run.log.step(
+    `execute: payload.apply update_global with publish: true, tagline "${change.to}"; approve it`,
+    `warns that it is live at once: ${warned}; shows before and after: ${shown}; ${outcome.slice(outcome.indexOf("Result:")).slice(0, 48)}; receipt lists tagline with a version: ${landed} (${change.shot}-run.json)`
+  );
+
+  return /"updated_at":"(?<stamp>[^"]+)"/u.exec(receipt)?.groups?.stamp ?? "";
+};
+
+/**
+ * MCP gateway: an editor's agent changes a global. The site settings keep no
+ * drafts, so a change that does not say it publishes is refused, the
+ * approval warns that the change is live at once, the public API shows it
+ * the moment it is approved, and a second write built on the first receipt
+ * puts the tagline back.
+ */
+const mcpPayloadGlobal: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  try {
+    const admin = await openLocalAdmin(browser, payloadOrigin);
+    const email = await adminEmail(admin, payloadOrigin);
+    const token = signIn(email);
+
+    const run: GlobalRun = {
+      dir,
+      expect: (pass, what) => {
+        if (!pass) {
+          failures.push(what);
+        }
+      },
+      log,
+      marker,
+      origin,
+      token,
+    };
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const read = await execute<SettingsSummary>(origin, token, READ_SETTINGS);
+    const settings = read.structuredContent.result;
+
+    if (!settings?.tagline) {
+      throw new Error("The site settings have no tagline: seed Payload first.");
+    }
+
+    const before = settings.tagline;
+    const tagline = `${before.replace(MARKER, "")} (${marker})`;
+
+    log.step(
+      "execute: read the site-settings global through payload.call",
+      `tagline "${before}", updated ${settings.updatedAt}`
+    );
+
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    await refusedGlobal(run, page, {
+      code: globalScript({
+        expected: settings.updatedAt,
+        marker,
+        publish: false,
+        tagline,
+      }),
+      reason: "publish_required",
+      shot: "no-publish-refused",
+      what: "a change to a global without drafts that does not say publish: true",
+    });
+    await refusedGlobal(run, page, {
+      code: globalScript({
+        expected: "2020-01-01T00:00:00.000Z",
+        marker,
+        publish: true,
+        tagline,
+      }),
+      reason: "stale_expected_updated_at",
+      shot: "stale-refused",
+      what: "a request with a stale expected_updated_at",
+    });
+    await refusedWhileLocked(run, page, {
+      admin,
+      code: globalScript({
+        expected: settings.updatedAt,
+        marker,
+        publish: true,
+        tagline,
+      }),
+      payloadOrigin,
+    });
+    await admin.close();
+
+    const changedAt = await approveGlobal(run, page, {
+      expected: settings.updatedAt,
+      from: before,
+      shot: "change",
+      to: tagline,
+    });
+
+    const live = await publicSettings(payloadOrigin);
+
+    run.expect(
+      live.tagline === tagline,
+      `the public API does not show the new tagline: "${live.tagline}"`
+    );
+    run.expect(
+      live.siteName === settings.siteName,
+      "the site name changed; only the tagline was sent"
+    );
+    log.step(
+      "Read the global from the public API",
+      `tagline "${live.tagline}"; site name still "${live.siteName}": ${live.siteName === settings.siteName}`
+    );
+
+    // Built on the first receipt's `updated_at`, the way an agent chains a
+    // second write without reading again. It leaves the site as it was.
+    await approveGlobal(run, page, {
+      expected: changedAt,
+      from: tagline,
+      shot: "restore",
+      to: before,
+    });
+
+    const restored = await publicSettings(payloadOrigin);
+
+    run.expect(
+      restored.tagline === before,
+      `the tagline was not put back: "${restored.tagline}"`
+    );
+    log.step(
+      "Put the tagline back with a second write built on the first receipt's updated_at",
+      `public tagline "${restored.tagline}"`
+    );
+
+    log.step(
+      "Browser console errors on the approval pages",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-global failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
     new Map([
       ["payload-draft", mcpPayloadDraft],
+      ["payload-global", mcpPayloadGlobal],
       ["payload-rows", mcpPayloadRows],
       ["payload-upload", mcpPayloadUpload],
     ]),

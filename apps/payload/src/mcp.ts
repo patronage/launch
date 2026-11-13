@@ -3,6 +3,7 @@ import type { MCPPluginConfig } from "@payloadcms/plugin-mcp";
 import type { CollectionSlug, GlobalSlug } from "payload";
 
 import {
+  findGlobalDraft,
   getEditingInfo,
   getPreviewUrl,
   markdownToRichText,
@@ -69,9 +70,11 @@ const VISIBLE_COLLECTIONS = Object.entries(collections ?? {}).flatMap(
     config === HIDDEN_COLLECTION ? [] : [slug as CollectionSlug]
 );
 
+// A global is read as the admin opens it, newest version first, so an edit
+// through the gateway starts from the same place.
 const globals: MCPPluginConfig["globals"] = {
   "site-settings": {
-    tools: { restoreGlobalVersion: false, update: false },
+    tools: { findGlobalDraft, restoreGlobalVersion: false, update: false },
   },
 };
 

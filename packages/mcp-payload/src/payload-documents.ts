@@ -2,8 +2,10 @@ import {
   ApplyConflictError,
   UpstreamRequestError,
   deepEqual,
+  previewValue,
 } from "@patronage/mcp-core";
 import type {
+  FieldSnapshot,
   JsonObject,
   ReceiptError,
   UpstreamClient,
@@ -69,26 +71,51 @@ const failed = (
     result.status === 404 ? fallback : payloadErrorMessage(result)
   );
 
-export const readDocument = async (
+// One document or global, by its REST path. `missing` is what a 404 reads as.
+const readRecord = async (
   client: UpstreamClient,
-  collection: string,
-  id: number | string,
-  telemetry: UpstreamTelemetry
+  path: string,
+  telemetry: UpstreamTelemetry,
+  missing: string
 ): Promise<JsonObject> => {
-  const result = await payloadRest(
-    client,
-    documentPath(collection, id),
-    telemetry
-  );
-
+  const result = await payloadRest(client, path, telemetry);
   const parsed = recordSchema.safeParse(result.json);
 
   if (result.status < 200 || result.status >= 300 || !parsed.success) {
-    throw failed(result, `${collection}/${id} was not found`);
+    throw failed(result, missing);
   }
 
   return parsed.data;
 };
+
+export const readDocument = (
+  client: UpstreamClient,
+  collection: string,
+  id: number | string,
+  telemetry: UpstreamTelemetry
+): Promise<JsonObject> =>
+  readRecord(
+    client,
+    documentPath(collection, id),
+    telemetry,
+    `${collection}/${id} was not found`
+  );
+
+// A global is one document, named by its slug alone.
+export const globalPath = (slug: string, draft = true): string =>
+  `/api/globals/${encodeURIComponent(slug)}${draftQuery(draft)}`;
+
+export const readGlobal = (
+  client: UpstreamClient,
+  slug: string,
+  telemetry: UpstreamTelemetry
+): Promise<JsonObject> =>
+  readRecord(
+    client,
+    globalPath(slug),
+    telemetry,
+    `The ${slug} global was not found`
+  );
 
 export const toReceiptError = <E>(error: E): ReceiptError => {
   if (error instanceof ApplyConflictError) {
@@ -111,7 +138,12 @@ const versionsSchema = z.object({
   ),
 });
 
-const writtenSchema = z.object({ doc: recordSchema });
+// A collection's write answers with the document under `doc`; a global's
+// with it under `result`.
+const writtenSchema = z.union([
+  z.object({ doc: recordSchema }).transform((written) => written.doc),
+  z.object({ result: recordSchema }).transform((written) => written.result),
+]);
 
 // When Payload says the write itself saved the document: the `updatedAt` of
 // the document in the write's own response, which the version that write
@@ -123,7 +155,7 @@ export const writtenStamp = (
 ): string | undefined => {
   const parsed = writtenSchema.safeParse(write.json);
 
-  return parsed.success ? updatedAt(parsed.data.doc) : undefined;
+  return parsed.success ? updatedAt(parsed.data) : undefined;
 };
 
 export interface WrittenDocument {
@@ -137,33 +169,62 @@ export interface WrittenDocument {
 // later, so "the newest version" could be theirs; a receipt names a version
 // only when it is this write's. A receipt without one is still a true
 // receipt, so a failed lookup is no failure.
-export const writtenVersionId = async (
+const versionSavedAt = async (
   client: UpstreamClient,
-  collection: string,
-  written: WrittenDocument,
+  versionsPath: string,
+  stamp: string | undefined,
   telemetry: UpstreamTelemetry
 ): Promise<string | undefined> => {
-  if (written.stamp === undefined) {
+  if (stamp === undefined) {
     return undefined;
   }
 
   try {
     const result = await payloadRest(
       client,
-      `/api/${encodeURIComponent(collection)}/versions?where[parent][equals]=${encodeURIComponent(String(written.id))}&where[version.updatedAt][equals]=${encodeURIComponent(written.stamp)}&limit=1&depth=0&select[version][updatedAt]=true`,
+      `${versionsPath}where[version.updatedAt][equals]=${encodeURIComponent(stamp)}&limit=1&depth=0`,
       telemetry
     );
 
     const parsed = versionsSchema.safeParse(result.json);
     const [version] = parsed.success ? parsed.data.docs : [];
 
-    return result.status === 200 && version?.version.updatedAt === written.stamp
+    return result.status === 200 && version?.version.updatedAt === stamp
       ? String(version.id).slice(0, VERSION_ID_LIMIT)
       : undefined;
   } catch {
     return undefined;
   }
 };
+
+export const writtenVersionId = (
+  client: UpstreamClient,
+  collection: string,
+  written: WrittenDocument,
+  telemetry: UpstreamTelemetry
+): Promise<string | undefined> =>
+  versionSavedAt(
+    client,
+    `/api/${encodeURIComponent(collection)}/versions?select[version][updatedAt]=true&where[parent][equals]=${encodeURIComponent(String(written.id))}&`,
+    written.stamp,
+    telemetry
+  );
+
+// The same for a global, whose versions are all its own. The version is
+// read whole: asked for `version.updatedAt` alone, Payload leaves that very
+// field out of a global's version.
+export const writtenGlobalVersionId = (
+  client: UpstreamClient,
+  slug: string,
+  stamp: string | undefined,
+  telemetry: UpstreamTelemetry
+): Promise<string | undefined> =>
+  versionSavedAt(
+    client,
+    `/api/globals/${encodeURIComponent(slug)}/versions?`,
+    stamp,
+    telemetry
+  );
 
 // Nothing was written in either case, and trying again later can work.
 export const CONFLICT_CODES = new Set(["locked", "modified_since_preflight"]);
@@ -259,6 +320,14 @@ export const assertDraftDocument = (
     );
   }
 };
+
+// The `_status` row an operation that publishes shows the approver.
+export const publishSnapshot = (record: JsonObject): FieldSnapshot => ({
+  after: "published",
+  before: previewValue(record._status),
+  changed: record._status !== "published",
+  path: "_status",
+});
 
 export const requireStamp = (record: JsonObject, target: string): string => {
   const stamp = updatedAt(record);

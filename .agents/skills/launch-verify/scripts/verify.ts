@@ -1246,7 +1246,7 @@ Commands:
                                    (mcp also takes --payload-port N and --access-port N)
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
-  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft, payload-rows, payload-upload)
+  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft, payload-global, payload-rows, payload-upload)
   cleanup <surface>                Stop only the process group in this surface's receipt
   status                           Show each surface's receipt
 

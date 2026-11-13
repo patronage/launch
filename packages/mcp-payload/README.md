@@ -6,6 +6,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 - `payload.apply({ intent, operations })` stages `update_draft` and `create_draft` operations for approval. Approved changes are saved as drafts unless an operation sets `publish: true`, which the approval card shows as a `_status` change to `published`.
 - Rich text fields can be written as Markdown, converted with the field's own editor features.
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field by row id, without resending the field.
+- An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway for a later `upload_media` or `replace_media_file` operation in the same script. It writes nothing to Payload.
 
 ## Rows
@@ -58,6 +59,31 @@ await payload.apply({
 - **The approval** shows one line per change, labelled by where the row sits (`Layout › Card grid (row 3) › Cards › row 2 › Title`), with before and after: a new row's fields under `(new row)`, a removed row's fields against `(removed)`, and a move as its old and new position. Rows that do not change are not shown.
 - **The receipt** lists each changed path in `changed_paths`, and gives the ids Payload made for inserted rows in `details.inserted_row_ids`, comma-separated in the order they were inserted. An id is never cut short: if the ids are too long to all fit, the receipt lists the ones that do and gives the number of new rows in `details.inserted_row_count`.
 
+## Globals
+
+A global is the one document of its own kind that holds site settings, a footer or the like. `update_global` changes it:
+
+```js
+await payload.apply({
+  intent: "Change the site's tagline",
+  operations: [
+    {
+      kind: "update_global",
+      global: "site-settings",
+      expected_updated_at: settings.updatedAt,
+      fields: { tagline: "Grow food, block by block" },
+      publish: true,
+    },
+  ],
+});
+```
+
+- `fields` holds top-level values as Payload stores them, and `changes` takes the row changes of [`patch_rows`](#rows) for the global's array and blocks fields. A field cannot be in both. Markdown is not converted for a global yet: a rich text field is set as Lexical JSON in `fields`, and `set_markdown` is refused.
+- **Drafts decide what `publish` means.** A global that keeps drafts is saved as a draft unless the operation sets `publish: true`, which the approval shows as a `_status` row. A global without drafts is live the moment it is saved, so the operation is refused (`publish_required`) unless it says `publish: true`, and its approval carries the warning "This global has no drafts: the change is live as soon as you approve." `describe_site` lists each global with `drafts` and `canUpdate`.
+- **`expected_updated_at` is required**, read with `findGlobalDraft`, which gives the global's newest version as the admin opens it. Payload's own `findGlobal` reads the published global, whose `updatedAt` is refused as stale while a newer draft exists. The request is refused when the global has changed since it was read, and again at approval when it has changed since the preview.
+- **A global another editor has open is left alone** (`locked`). Payload's REST endpoint for a global saves over an editor's lock and removes it, where the one for a document answers 423. So the gateway reads the lock from `getEditingInfo`, which reports `locked` for each global, when the approval is drawn and again just before it saves, and writes nothing while another editor's lock holds. A lock taken in the moment between that last check and the save is not seen. A site whose `getEditingInfo` does not report `locked` gets no global writes (`lock_unknown`).
+- After approval the gateway sends only the fields whose value differs, in one `POST /api/globals/{slug}` as the approver, and reads the global back. Nothing is sent, and no version is made, when every field is already as asked. The receipt's target is `globals/{slug}`; it carries `updated_at`, the `version_id` of the version the write made and, for inserted rows, `details.inserted_row_ids`.
+
 ## Files
 
 A file never travels in an operation. A script stages it first and names it in `payload.apply` by the hash `stageUpload` returns:
@@ -94,7 +120,7 @@ return payload.apply({
 - Where a collection has a front-end preview, the approval page links to the current draft beside the admin link, and the receipt carries the link in `details.preview_url`.
 - A receipt for a write that landed carries `updated_at` (the next write's `expected_updated_at`), `version_id` (the version the write made, matched by the time Payload saved it, and left out when it cannot be told apart from someone else's save) and, for a new document, `details.id`. A document another editor has open in the admin is reported as `locked`, with nothing written.
 
-It also gives `describe_site` what the editor can write to, from Payload's `getEditingInfo`: for each collection whether it keeps drafts, autosaves or has a trash, its rich text fields, its array and blocks fields with what a row of each holds (`rowFields`), its relationship and upload fields, what an upload collection accepts, and what the editor may create, update or delete; the same for globals; and the site's locales. A Payload that still runs the first `getEditingInfo` (five fields per collection) keeps working: everything newer reads as absent.
+It also gives `describe_site` what the editor can write to, from Payload's `getEditingInfo`: for each collection whether it keeps drafts, autosaves or has a trash, its rich text fields, its array and blocks fields with what a row of each holds (`rowFields`), its relationship and upload fields, what an upload collection accepts, and what the editor may create, update or delete; the same for globals, with whether another editor has each open (`locked`); and the site's locales. A Payload that still runs the first `getEditingInfo` (five fields per collection) keeps working: everything newer reads as absent.
 
 Payload is reached through a Service binding (`PAYLOAD`) or by URL through Access (`PAYLOAD_API_URL` with a service token). Either way the gateway forwards the Access JWT with a proof signed by `PAYLOAD_ACCESS_PROOF_SECRET`. Bindings are in `PayloadEnv` (`src/env.ts`). The Payload side is in [`apps/payload`](../../apps/payload): `@payloadcms/plugin-mcp` with read tools only, `accessGatewayAuthStrategy` from `@patronage/access/payload` on the users collection, and the `getEditingInfo`, `getPreviewUrl`, `markdownToRichText` and `richTextToMarkdown` tools (`src/mcp-tools.ts`, with `src/lib/editing-info.ts`). `patch_rows` needs the two rich text tools to take a `path` for a field inside a row. `payload.apply` needs `getEditingInfo` and refuses writes without it; `getPreviewUrl` is optional, and without it no preview link is offered. `IMAGES`, the Cloudflare Images binding, is optional too: it measures an uploaded picture and makes its thumbnail.
 

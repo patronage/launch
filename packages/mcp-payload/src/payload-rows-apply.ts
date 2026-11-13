@@ -4,7 +4,6 @@ import {
   receiptDetails,
 } from "@patronage/mcp-core";
 import type {
-  FieldSnapshot,
   JsonObject,
   OperationPreflight,
   OperationReceipt,
@@ -23,6 +22,7 @@ import {
   lockedError,
   missedPathsMessage,
   previewLink,
+  publishSnapshot,
   readDocument,
   requireStamp,
   toReceiptError,
@@ -117,13 +117,6 @@ const readDraft = async (
   return record;
 };
 
-const statusSnapshot = (record: JsonObject): FieldSnapshot => ({
-  after: "published",
-  before: previewValue(record[STATUS_FIELD]),
-  changed: record[STATUS_FIELD] !== "published",
-  path: STATUS_FIELD,
-});
-
 export const preflightRows = async (
   context: RowsPreflightContext,
   operation: PatchRowsOperation,
@@ -154,7 +147,7 @@ export const preflightRows = async (
     editUrl: context.adminUrl(operation.collection, operation.id),
     editor: "Payload admin",
     fields: operation.publish
-      ? [...patch.snapshots, statusSnapshot(record)]
+      ? [...patch.snapshots, publishSnapshot(record)]
       : patch.snapshots,
     modifiedGmt: stamp,
     operationIndex: index,
