@@ -785,6 +785,33 @@ const mcpPayloadDraft: Drive = async ({
     );
     log.step("POST /mcp tools/list with no sign-in", `${anonymous.status}`);
 
+    // Payload's MCP plugin can run its own OAuth server, which would let an
+    // MCP client sign in to Payload without Access. Launch turns it off.
+    const discovery = await fetch(
+      `${payloadOrigin}/api/mcp/oauth/.well-known/openid-configuration`
+    );
+
+    const registration = await fetch(
+      `${payloadOrigin}/api/mcp/oauth/register`,
+      {
+        body: JSON.stringify({
+          client_name: "launch-verify",
+          redirect_uris: ["http://localhost/callback"],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+
+    expect(
+      discovery.status === 404 && registration.status === 404,
+      "Payload serves its own OAuth sign-in for MCP clients"
+    );
+    log.step(
+      "Ask Payload for its own MCP OAuth sign-in: discovery, then client registration",
+      `${discovery.status}, ${registration.status}`
+    );
+
     const listed = await mcpRequest(origin, token, "tools/list");
     const tools = (listed.result?.tools ?? []).map((tool) => tool.name);
 

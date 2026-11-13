@@ -77,5 +77,9 @@ export const mcp = () =>
     mcp: {
       serverOptions: { serverInfo: { name: "launch-payload" } },
     },
+    // The plugin's own OAuth server would let an MCP client sign in to Payload
+    // directly. Cloudflare Access is the only sign-in (ADR 0011), and the
+    // gateway signs in through the `cloudflare-access-gateway` strategy.
+    oauth: false,
     tools: { getEditingInfo: getEditingInfo(VISIBLE_COLLECTIONS) },
   });

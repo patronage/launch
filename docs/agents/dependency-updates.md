@@ -21,7 +21,6 @@ A procedure an unattended agent can follow once a week to move Launch's npm and 
 
 | Package | Held at | Why | Unblock when |
 | --- | --- | --- | --- |
-| `payload`, `@payloadcms/*` (`apps/payload`) | 4.0.0-beta.6 | beta.8 adds `_stored` and `_transforms` columns to `media`; the committed D1 and Postgres migrations don't create them, so the seed fails. Verify and build still pass, only the seed catches it. | A separate PR adds the migrations (`apps/payload/src/migrations/d1` and `postgres`). |
 | `pg`, `@types/pg` (`apps/payload`) | 8.20.0 | `@payloadcms/db-postgres` pins both exactly. A second `@types/pg` fails the Payload typecheck. | db-postgres moves its pins. Match them. |
 | `@modelcontextprotocol/client`, `@modelcontextprotocol/server` (`packages/mcp-core`) | 2.0.0 | `agents` 0.21.0 pins them exactly (`pnpm peers check`). `agents` 0.33 is a 0.x major. | `agents` is upgraded in its own PR. |
 | `packageManager` pnpm | 12.16.1 | See Rules. | A PR that also reruns `builds:configure` for each app. |

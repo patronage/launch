@@ -3,7 +3,7 @@ import { parseCookies } from "payload";
 // Whether a request should be left to Payload's own strategies instead of the
 // Access strategies in collections/users.ts.
 //
-// Payload 4.0.0-beta.6 runs custom strategies before its own `local-jwt`
+// Payload 4 (checked at 4.0.0-beta.8) runs custom strategies before its own `local-jwt`
 // strategy, so the Access strategy has to step aside for an admin who is
 // already signed in to Payload: a user signed in through Access has no session
 // id, and Payload would refuse to refresh that admin's session.
