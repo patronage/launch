@@ -4,19 +4,33 @@ import { bindings, defineConfig, defineWorker } from "cf/config";
 const usePostgres = process.env.PAYLOAD_DB === "postgres";
 
 // A Preview runs branch code, so it never binds production content. It gets
-// its own D1 database and media bucket, named by build variables, and a
-// Preview build without them fails rather than falling back to production.
+// its own database and media bucket, named by build variables, and a Preview
+// build without them fails rather than falling back to production. On D1 that
+// is a preview D1 database. On Postgres it is the preview database's
+// Hyperdrive config: the shared copy in public, or the branch's own schema
+// when it adds migrations (scripts/preview-schema.mjs, ADR 0021).
 const previewStore = () => {
   const {
     PAYLOAD_PREVIEW_D1_ID: d1Id,
     PAYLOAD_PREVIEW_D1_NAME: d1Name,
+    PAYLOAD_PREVIEW_HYPERDRIVE_ID: hyperdriveId,
     PAYLOAD_PREVIEW_R2_BUCKET: bucket,
   } = process.env;
 
   if (usePostgres) {
-    throw new Error(
-      "Payload Previews support D1 only: a Preview would share production's Hyperdrive database."
-    );
+    if (!(hyperdriveId && bucket)) {
+      throw new Error(
+        "Payload Previews on Postgres need their own store: set PAYLOAD_PREVIEW_HYPERDRIVE_ID and PAYLOAD_PREVIEW_R2_BUCKET."
+      );
+    }
+
+    if (hyperdriveId === process.env.HYPERDRIVE_ID) {
+      throw new Error(
+        "PAYLOAD_PREVIEW_HYPERDRIVE_ID is production's Hyperdrive config. A Preview must read the preview database."
+      );
+    }
+
+    return { bucket, d1: undefined, hyperdriveId };
   }
 
   if (!(d1Id && d1Name && bucket)) {
@@ -25,7 +39,7 @@ const previewStore = () => {
     );
   }
 
-  return { bucket, d1: { id: d1Id, name: d1Name } };
+  return { bucket, d1: { id: d1Id, name: d1Name }, hyperdriveId: undefined };
 };
 
 export default defineConfig(({ isPreview }) => {
@@ -73,7 +87,7 @@ export default defineConfig(({ isPreview }) => {
           usePostgres &&
           bindings.hyperdrive({
             dev: { connectionString: process.env.POSTGRES_URL },
-            id: process.env.HYPERDRIVE_ID ?? "local",
+            id: preview?.hyperdriveId ?? process.env.HYPERDRIVE_ID ?? "local",
           }),
         // Resizes media for the front end (app/(frontend)/media).
         IMAGES: bindings.images(),
