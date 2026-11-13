@@ -77,6 +77,9 @@ export interface OperationPreflight {
   fields: FieldSnapshot[];
   modifiedGmt: string;
   operationIndex: number;
+  // Where the front end shows the target as it is now, drafts included, for
+  // a CMS that has such a link. Offered beside `editUrl`.
+  previewUrl?: string;
   sentence: string;
   slug: string;
   target: string;
