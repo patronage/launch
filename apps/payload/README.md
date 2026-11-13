@@ -2,7 +2,7 @@
 
 One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://github.com/cloudflare/vinext) instead of Next.js. The admin, REST and GraphQL APIs and the public pages are a single Worker. The public pages read content through Payload's Local API.
 
-- Database: D1, which is the chosen database for the demo. Postgres through Hyperdrive is an option (`PAYLOAD_DB=postgres`).
+- Database: Postgres on PlanetScale through Hyperdrive in production (`PAYLOAD_DB=postgres`, [ADR 0020](../../docs/adr/0020-payload-production-on-planetscale.md)), once the move below is done; until then the live demo runs on D1. D1 stays the default for local work.
 - Media: R2
 - Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `posts` with `authors` and `categories`, `media`, and `forms` and `form-submissions` from the form-builder plugin; global: `site-settings`
 - Preview: pages and posts autosave drafts, and editors see them through the admin's preview button and Live Preview (see below)
@@ -59,6 +59,21 @@ pnpm build && pnpm preview
 
 It reads through a temporary read-only PlanetScale role, which it deletes once the dump ends, and copies the rows of the `content` tables in `db-pull.tables` only. Users, sessions, admin preferences, form submissions and forms' notification emails stay in PlanetScale, so the copy has no users: open the admin on localhost and create the first one. `scripts/db-pull-after.mjs` then compares the copy's migrations with this checkout and `origin/main`, and prints `migrate:status`. A new collection, field or plugin table needs a line in `db-pull.tables`; `pnpm test` fails until it has one. Media stays in R2. The shared script and its settings are in [`packages/db-pull`](../../packages/db-pull/README.md).
 
+### Move production from D1 to PlanetScale
+
+`pnpm d1:copy` copies the production D1 database into an empty, migrated Postgres, table by table with the same ids. It reads D1 through `cf d1 query` (SELECTs only) with the cf CLI signed in, and writes everything in one transaction that commits only when every table's row count matches D1. Sessions, document locks and the key-value cache are not copied, so editors sign in again. `--local` copies the local D1 instead and `--dry-run` writes nothing. `D1_COPY_E2E=1 node --test scripts/d1-to-postgres-e2e.test.mjs` runs it end to end against a throwaway D1 and Postgres container, and checks that Payload reads the same documents from both.
+
+The switch, from this app, with editing paused from step 3 to step 6:
+
+1. `pnpm run hyperdrive:configure` creates the Hyperdrive configuration `launch-payload` with the managed PlanetScale integration (organization, database and branch from `db-pull.env`), turns caching off and prints its id. `--dry-run` only reads.
+2. Create a short-lived PlanetScale role that can run migrations, and put its connection URL in `TARGET` (it stays in the shell, never in a file): `pscale role create launch-payload main d1-copy --inherited-roles postgres --ttl 1h --format json --org sysadmin-patronage`.
+3. `PAYLOAD_DB=postgres POSTGRES_URL="$TARGET" pnpm payload migrate`, then `pnpm d1:copy --target "$TARGET" --dry-run` and `pnpm d1:copy --target "$TARGET"`.
+4. Add `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID=<id>` to the Workers Builds trigger (`pnpm run builds:configure` with both exported) and rebuild production.
+5. Check the public pages, sign in to the admin, then delete the role (`pscale role delete launch-payload main <role-id>`).
+6. Resume editing.
+
+To go back, remove the two variables from the trigger and rebuild: D1 still holds the content as of step 3. Delete the D1 database only once Postgres has run for a while.
+
 ## Deploy
 
 Export `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for the target account, plus a fresh `PAYLOAD_SECRET` for the remote Worker, then run from this app:
@@ -72,7 +87,7 @@ pnpm run secrets            # update runtime secrets once the Worker exists
 
 The deploy uses `cf deploy --prebuilt`. On the first production deploy, it passes the declared secrets from the environment through stdin, because `cf` cannot set secrets before the Worker exists. Dry runs exclude their values. Later deploys without values in the environment retain the stored secrets; keep them out of Workers Builds variables. `pnpm run secrets` updates them separately once the Worker exists. Both commands suppress output when uploading values and report only names or a failure exit status; check authentication and retry on failure.
 
-After the first deploy, record the provisioned D1 database id and R2 bucket in `cloudflare.config.ts`. The Worker applies pending migrations on its first request. Open `/admin` to create the first user. That only works on `localhost`, or on the deployed Worker once Access protects `/admin` and `/api` and the Worker has `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`: Payload alone would let anyone who reached a fresh deploy first create that user, so `src/lib/first-user-guard.ts` requires a verified Access login with the same email. This runs live as `launch-payload` (2026-10-30), with the D1 id pinned. Two Workers-only fixes keep it running:
+After the first deploy, record the provisioned D1 database id and R2 bucket in `cloudflare.config.ts` (with `PAYLOAD_DB=postgres`, the database is the Hyperdrive configuration from `pnpm run hyperdrive:configure` instead). The Worker applies pending migrations on its first request. Open `/admin` to create the first user. That only works on `localhost`, or on the deployed Worker once Access protects `/admin` and `/api` and the Worker has `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`: Payload alone would let anyone who reached a fresh deploy first create that user, so `src/lib/first-user-guard.ts` requires a verified Access login with the same email. This runs live as `launch-payload` (2026-10-30), with the D1 id pinned. Two Workers-only fixes keep it running:
 
 - `src/lib/payload-config.ts` loads the config on the first request, not at startup, because the eager load read D1 during startup validation.
 - `src/lib/worker-crypto.ts` hashes passwords with PBKDF2 through `@noble/hashes`, because Workers' native crypto caps the iteration count below Payload's.
