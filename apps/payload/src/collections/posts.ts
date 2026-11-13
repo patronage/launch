@@ -73,5 +73,8 @@ export const Posts: CollectionConfig = {
     },
   ],
   slug: "posts",
+  // Deleting in the admin moves a document to the trash, where it can be
+  // restored, instead of removing it and its versions.
+  trash: true,
   versions: preview.versions,
 };

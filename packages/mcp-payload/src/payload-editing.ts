@@ -83,6 +83,10 @@ const rowsFieldSchema: z.ZodType<RowsField> = z.lazy(() =>
 const relationFieldSchema = z.object({
   hasMany: z.boolean(),
   path: z.string(),
+  // Whether Payload stores each value as `{ relationTo, value }`. Absent
+  // from a Payload whose `getEditingInfo` does not say; a field that names
+  // more than one collection is always stored that way.
+  polymorphic: z.boolean().optional(),
   relationTo: z.array(z.string()),
 });
 

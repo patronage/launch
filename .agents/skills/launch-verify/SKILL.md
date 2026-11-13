@@ -17,7 +17,7 @@ node .agents/skills/launch-verify/scripts/verify.ts --help
 | --- | --- | --- | --- |
 | `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form`, `seo` |
 | `web-wordpress` | `apps/web-wordpress` on `vite dev`, reading WordPress in Docker | 3000 | `pages` |
-| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft`, `payload-global`, `payload-restore`, `payload-rows`, `payload-unpublish`, `payload-upload` |
+| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft`, `payload-global`, `payload-restore`, `payload-rows`, `payload-trash`, `payload-unpublish`, `payload-upload` |
 
 The feature map is in [features/README.md](features/README.md). The Timber install renders its own pages in PHP and isn't covered here.
 
@@ -103,6 +103,7 @@ node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-draft
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-global
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-restore
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-rows
+node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-trash
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-unpublish
 node .agents/skills/launch-verify/scripts/verify.ts drive mcp payload-upload
 ```
@@ -125,7 +126,7 @@ Each `drive` or `capture` writes to `.agents/skills/launch-verify/evidence/<utc-
 - `NN-<step>.png`: numbered full-page screenshots of each action and its result;
 - `page.html` and `response.json`, from `capture`: the status, final URL, headers and checkout SHA;
 - `form-submissions.json`, from `apply-form`: the stored submission, read back as the local admin;
-- `run.json`, from `payload-draft`, `payload-rows` and `payload-upload` (`change-run.json` and `restore-run.json` from `payload-global`; `draft-run.json`, `unpublish-run.json` and `republish-run.json` from `payload-unpublish`; `draft-run.json`, `restore-run.json`, `restore-publish-run.json` and `put-back-run.json` from `payload-restore`): the gateway's receipt for the approved write, as `get_run` reports it;
+- `run.json`, from `payload-draft`, `payload-rows` and `payload-upload` (`change-run.json` and `restore-run.json` from `payload-global`; `draft-run.json`, `unpublish-run.json` and `republish-run.json` from `payload-unpublish`; `draft-run.json`, `restore-run.json`, `restore-publish-run.json` and `put-back-run.json` from `payload-restore`; `trash-run.json`, `restore-draft-run.json`, `trash-again-run.json` and `restore-publish-run.json` from `payload-trash`): the gateway's receipt for the approved write, as `get_run` reports it;
 - `server-log.txt`: the Worker's log lines during the run, which include each request's evlog wide event with `upstream.d1` or `upstream.wordpress` timings. The `cache` field (vinext's HIT, STALE or MISS) only appears on ISR pages served by a build (`vite preview`) or a deployed Worker. Under the web-wordpress `vite dev` surface and on Payload's `no-store` pages, it never appears. Events say `environment: 'production'` even locally.
 
 Look at each screenshot against its transcript line before calling a run good. A form drive passes only when the POST succeeded, the confirmation showed, and the row came back from the API.

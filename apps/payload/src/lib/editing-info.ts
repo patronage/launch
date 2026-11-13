@@ -39,6 +39,12 @@ export interface RowsFieldInfo {
 export interface RelationFieldInfo {
   hasMany: boolean;
   path: string;
+  /**
+   * Whether the field names its collections as a list. Payload then stores
+   * each value as `{ relationTo, value }`, also when the list has one entry,
+   * and a query has to ask for `<path>.value`.
+   */
+  polymorphic: boolean;
   relationTo: string[];
 }
 
@@ -202,6 +208,7 @@ export const describeFields = (
         info.relationFields.push({
           hasMany: field.hasMany === true,
           path,
+          polymorphic: Array.isArray(field.relationTo),
           relationTo: [field.relationTo].flat(),
         });
 

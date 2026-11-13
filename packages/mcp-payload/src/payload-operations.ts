@@ -450,6 +450,27 @@ const restoreGlobalVersionOperationSchema = z.strictObject({
   version_id: versionIdSchema,
 });
 
+// Moves a document to the trash, where it can be restored. Nothing is
+// deleted for good through the connector.
+const trashOperationSchema = z.strictObject({
+  collection: slugSchema,
+  // Required: a published page goes away at once, so it is never trashed on
+  // the strength of a state the model did not just read.
+  expected_updated_at: z.string().min(1).max(64),
+  id: documentIdSchema,
+  kind: z.literal("trash"),
+});
+
+// Takes a document back out of the trash, as a draft unless the operation
+// publishes.
+const restoreFromTrashOperationSchema = z.strictObject({
+  collection: slugSchema,
+  expected_updated_at: z.string().min(1).max(64),
+  id: documentIdSchema,
+  kind: z.literal("restore_from_trash"),
+  publish: z.literal(true).optional(),
+});
+
 const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
@@ -460,6 +481,8 @@ const operationSchema = z.discriminatedUnion("kind", [
   unpublishOperationSchema,
   restoreVersionOperationSchema,
   restoreGlobalVersionOperationSchema,
+  trashOperationSchema,
+  restoreFromTrashOperationSchema,
 ]);
 
 export type DraftOperation =
@@ -481,6 +504,10 @@ export type UnpublishOperation = z.infer<typeof unpublishOperationSchema>;
 export type RestoreOperation =
   | z.infer<typeof restoreGlobalVersionOperationSchema>
   | z.infer<typeof restoreVersionOperationSchema>;
+
+export type TrashOperation =
+  | z.infer<typeof restoreFromTrashOperationSchema>
+  | z.infer<typeof trashOperationSchema>;
 
 export type PayloadOperation = z.infer<typeof operationSchema>;
 
@@ -629,6 +656,26 @@ export const draftSentence = (operation: DraftOperation): string => {
     : `Create a new ${operation.collection} draft with ${fields}`;
 };
 
+export const isTrashOperation = (
+  operation: PayloadOperation
+): operation is TrashOperation =>
+  operation.kind === "trash" || operation.kind === "restore_from_trash";
+
+export const trashTarget = (operation: TrashOperation): string =>
+  `${operation.collection}/${operation.id}`;
+
+export const trashSentence = (operation: TrashOperation): string => {
+  const document = `${operation.collection} ${operation.id}`;
+
+  if (operation.kind === "trash") {
+    return `Move ${document} to the trash`;
+  }
+
+  return operation.publish
+    ? `Restore ${document} from the trash and publish it`
+    : `Restore ${document} from the trash as a draft`;
+};
+
 export const operationTarget = (operation: PayloadOperation): string => {
   if (isUploadOperation(operation)) {
     return uploadTarget(operation);
@@ -644,6 +691,10 @@ export const operationTarget = (operation: PayloadOperation): string => {
 
   if (isRestoreOperation(operation)) {
     return restoreTarget(operation);
+  }
+
+  if (isTrashOperation(operation)) {
+    return trashTarget(operation);
   }
 
   return isRowsOperation(operation)
@@ -668,6 +719,10 @@ export const operationSentence = (operation: PayloadOperation): string => {
     return restoreSentence(operation);
   }
 
+  if (isTrashOperation(operation)) {
+    return trashSentence(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsSentence(operation)
     : draftSentence(operation);
@@ -682,7 +737,9 @@ const namesExistingTarget = (operation: PayloadOperation): boolean =>
   operation.kind === "update_global" ||
   operation.kind === "unpublish" ||
   operation.kind === "restore_version" ||
-  operation.kind === "restore_global_version";
+  operation.kind === "restore_global_version" ||
+  operation.kind === "trash" ||
+  operation.kind === "restore_from_trash";
 
 const draftApplyInputSchema = z
   .object({

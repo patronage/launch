@@ -9,6 +9,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 - An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.
 - An `unpublish` operation takes a published document off the public site and keeps its content as a draft.
 - `restore_version` and `restore_global_version` operations bring back an earlier version of a document or a global, as a new draft unless the operation publishes.
+- `trash` and `restore_from_trash` operations move a document to the trash and take it back out. Nothing is deleted for good.
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway for a later `upload_media` or `replace_media_file` operation in the same script. It writes nothing to Payload.
 
 ## Rows
@@ -140,6 +141,34 @@ await payload.apply({
 - On a site with locales, Payload restores every locale of the version. The approval says so, and shows the fields in one locale; a version that matches in that locale is still restored, since the others may differ. `publish: true` publishes every locale (`publishAllLocales=true`).
 - A version of a file (an upload collection) cannot be restored (`not_supported`): replace the file with `replace_media_file`.
 - The receipt lists the fields that changed, with `updated_at`, the `version_id` of the version the write made, `details.restored_version_id` and, for a document with a preview, `details.preview_url`.
+
+## Trash
+
+`trash` moves a document to the trash, and `restore_from_trash` takes it back out:
+
+```js
+await payload.apply({
+  intent: "Take the cleanup day post off the site for good",
+  operations: [
+    {
+      kind: "trash",
+      collection: "posts",
+      id: 4,
+      expected_updated_at: post.updatedAt,
+    },
+  ],
+});
+```
+
+- **Nothing is deleted for good.** The gateway never sends a `DELETE`: in Payload that removes a document and its versions, `?trash=true` included, where the flag only lets the delete reach a document already in the trash. `trash` is the save the admin's own Delete button sends on a collection that keeps a trash, `PATCH /api/{collection}/{id}` with `deletedAt` set to now, as the approver, and Payload asks for both update and delete permission. Emptying the trash stays in the admin.
+- **Only a collection that keeps a trash takes it** (`trash: true` in its config, which `getEditingInfo` reports). Any other collection is refused (`trash_not_enabled`), since there the only delete is for good. So is a collection without drafts, as for every write, and an upload collection (`not_supported`).
+- **A trashed document is gone from every read that does not ask for the trash**: the public site, the REST API and the read tools answer as if it did not exist. Read it with `findDocuments` and `trash: true` (`where: { deletedAt: { exists: true } }` lists only what is in the trash).
+- **The approval warns that a public page goes away at once**, and names it: "The public page at /news/fall-cleanup-day goes away as soon as you approve, and links to it will 404. It moves to the trash, where it can be restored as a draft." Payload gives a trashed document the content of its newest version, so where a published document has a newer draft the warning adds that the draft is what comes back, not the page as published.
+- **The approval lists documents that point at it**, in a "Linked from at least" row: up to five by collection, id and title, and a count of the rest, in which a document that points at it through two fields is counted once. The gateway asks Payload one query for each relationship or upload field outside any row that can hold the collection, twelve at most, as the editor. A link inside an array or blocks row, in rich text or in a global is not found, which is why the row says "at least". Those documents keep pointing at the trashed one; nothing is rewritten.
+- **`restore_from_trash` brings it back as a draft**, so its public page stays away until someone publishes it: `PATCH /api/{collection}/{id}?trash=true` with `deletedAt: null` and `_status: "draft"`. With `publish: true` it is restored as published in the same write, as the admin's "restore as published" does, and the approval warns that the page comes back as soon as it is approved, holding what the document held when it went to the trash. On a site with locales either one applies to every locale.
+- **`expected_updated_at` is required** on both. Read the document with `draft: true` before it is trashed, and with `trash: true` and `draft: true` while it is in the trash. A document already in the trash is refused (`already_in_trash`), as is restoring one that is not there (`not_in_trash`).
+- **A document another editor has open is left alone** (`locked`): both are ordinary saves, so Payload answers 423 itself.
+- After the write the gateway reads the document back. One that is not where the operation was to put it is reported as failed (`not_trashed`, `still_in_trash`, `not_published` when a restore with `publish: true` came back as a draft, or `still_published` when a restore as a draft came back published). The receipt lists `deletedAt` in `changed_paths` (and `_status` for a restore), with `updated_at`, `version_id` and, for a restore, `details.preview_url`.
 
 ## Files
 
