@@ -13,6 +13,7 @@ import type { PayloadEnv } from "./env";
 import {
   createPayloadClient,
   payloadAdminUrl,
+  payloadGlobalAdminUrl,
   payloadMcpRequest,
   payloadSiteUrl,
   toPayloadToolResult,
@@ -56,6 +57,7 @@ export const PAYLOAD_CONNECTOR_INSTRUCTIONS = [
   'Reads: payload.tools() lists the read tools and their input schemas; payload.call({tool, arguments}) runs one, e.g. payload.call({tool: "findDocuments", arguments: {slug: "posts", where: {slug: {equals: "hello"}}, draft: true}}). Results are {isError, text, structured?}; the documents are JSON inside text.',
   `Writes: payload.apply({intent, operations}) pauses for human approval and saves each change as a draft. Send 1-${MAX_OPERATIONS} operations shaped {kind: "update_draft", collection, id, fields?, markdown?, publish?, expected_updated_at?} or {kind: "create_draft", collection, fields?, markdown?, publish?}. Add publish: true only when the person asked to publish; the approval shows it, and an update with publish: true and no fields publishes the current draft. fields holds top-level field values as Payload stores them; markdown holds rich text fields as Markdown, which Payload converts with the field's editor features. payload.call({tool: "getEditingInfo", arguments: {}}) lists which collections keep drafts and which fields are rich text. Before an update, read with draft: true and copy updatedAt to expected_updated_at.`,
   `Rows: to change part of an array or blocks field (page sections, cards, links) without resending the field, send {kind: "patch_rows", collection, id, expected_updated_at, publish?, changes} with 1-${MAX_ROW_CHANGES} changes, applied in order: {op: "set", path, value} for one field of a row; {op: "set_markdown", path, markdown} for a rich text field of a row; {op: "insert", field, after_id, row} for a new row (after_id: null puts it first; a blocks row needs blockType; no id; at most ${MAX_ROW_INSERTS} inserts in one operation); {op: "remove", field, row_id}; {op: "move", field, row_id, after_id}. A path is field names joined by dots with [id=<row id>] after each array or blocks field, such as layout[id=6650a1f2].cards[id=b7c1].title; field is the same, ending at the array or blocks field. Read the document with draft: true and depth: 0 for the row ids and updatedAt; describe_site lists each collection's rowFields. Rows the changes do not name are sent back as they were read. The receipt gives the ids of new rows, comma-separated in the order they were inserted, under details.inserted_row_ids.`,
+  'Globals: to change a global (site settings, a footer), send {kind: "update_global", global, expected_updated_at, fields?, changes?, publish?}. fields holds top-level values as Payload stores them, and changes takes the same row changes as patch_rows, except set_markdown. Read the global with payload.call({tool: "findGlobal", arguments: {slug, depth: 0}}) and copy its updatedAt. describe_site lists the globals and whether each keeps drafts: one with drafts is saved as a draft unless publish: true; one without drafts is live as soon as it is saved, so there the operation is refused unless it says publish: true, which you add only when the person asked for the change to go live.',
   'Files: first stage the file with payload.stageUpload({collection, source: {url}}) for a URL the collection allows (describe_site lists them under upload.urlAllowList; null means it takes none), or source: {base64, filename, mimeType} for a very small file: the whole script is at most 20,000 characters, which leaves room for about 14 KB of file, so anything larger has to come from a URL. It returns {upload_ref, filename, mimeType, bytes, width?, height?} and writes nothing. Then payload.apply an operation shaped {kind: "upload_media", collection, upload_ref, filename?, fields?} for a new file, or {kind: "replace_media_file", collection, id, upload_ref, expected_updated_at, filename?, fields?} to replace the file of an existing document, which changes it at once everywhere it is used. fields holds the other fields of the document, such as alt. The receipt gives the new id, filename and url under details. SVG files are refused.',
   "Do every read before payload.apply: once the write is approved, reads later in the script are refused, and the returned receipt reports the result.",
 ].join(" ");
@@ -86,7 +88,7 @@ export const createPayloadTools = (
 ): ConnectorToolMap =>
   ({
     apply: {
-      description: `Save 1-${MAX_OPERATIONS} operations: update_draft or create_draft as Payload drafts (published where an operation sets publish: true), patch_rows to change, insert, remove or move single rows of an array or blocks field by row id, upload_media for a file staged with payload.stageUpload, or replace_media_file for a new file on an existing upload document. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
+      description: `Save 1-${MAX_OPERATIONS} operations: update_draft or create_draft as Payload drafts (published where an operation sets publish: true), patch_rows to change, insert, remove or move single rows of an array or blocks field by row id, update_global to change a global's fields and rows, upload_media for a file staged with payload.stageUpload, or replace_media_file for a new file on an existing upload document. Give the work a concise, one-sentence intent for the human approval card. Pauses for human approval; returns one receipt per operation.`,
       execute: async (args, ctx) => {
         const input = parseDraftApplyInput(args);
         const caller = deps.scope.require();
@@ -258,6 +260,11 @@ export const payloadAdminLink =
   (env: PayloadEnv) =>
   (collection: string, id: number | string): string =>
     payloadAdminUrl(env, collection, id);
+
+export const payloadGlobalAdminLink =
+  (env: PayloadEnv) =>
+  (slug: string): string =>
+    payloadGlobalAdminUrl(env, slug);
 
 export const payloadSiteLink =
   (env: PayloadEnv) =>

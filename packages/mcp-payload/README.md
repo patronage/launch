@@ -6,6 +6,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 - `payload.apply({ intent, operations })` stages `update_draft` and `create_draft` operations for approval. Approved changes are saved as drafts unless an operation sets `publish: true`, which the approval card shows as a `_status` change to `published`.
 - Rich text fields can be written as Markdown, converted with the field's own editor features.
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field by row id, without resending the field.
+- An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway for a later `upload_media` or `replace_media_file` operation in the same script. It writes nothing to Payload.
 
 ## Rows
@@ -57,6 +58,30 @@ await payload.apply({
 - **What is sent.** After approval the gateway reads the draft again, applies the changes, and sends only the top-level fields they touch in one `PATCH ?draft=true` (or published, with `publish: true`). Every row the changes did not name goes back exactly as it was read.
 - **The approval** shows one line per change, labelled by where the row sits (`Layout › Card grid (row 3) › Cards › row 2 › Title`), with before and after: a new row's fields under `(new row)`, a removed row's fields against `(removed)`, and a move as its old and new position. Rows that do not change are not shown.
 - **The receipt** lists each changed path in `changed_paths`, and gives the ids Payload made for inserted rows in `details.inserted_row_ids`, comma-separated in the order they were inserted. An id is never cut short: if the ids are too long to all fit, the receipt lists the ones that do and gives the number of new rows in `details.inserted_row_count`.
+
+## Globals
+
+A global is the one document of its own kind that holds site settings, a footer or the like. `update_global` changes it:
+
+```js
+await payload.apply({
+  intent: "Change the site's tagline",
+  operations: [
+    {
+      kind: "update_global",
+      global: "site-settings",
+      expected_updated_at: settings.updatedAt,
+      fields: { tagline: "Grow food, block by block" },
+      publish: true,
+    },
+  ],
+});
+```
+
+- `fields` holds top-level values as Payload stores them, and `changes` takes the row changes of [`patch_rows`](#rows) for the global's array and blocks fields. A field cannot be in both. Markdown is not converted for a global yet: a rich text field is set as Lexical JSON in `fields`, and `set_markdown` is refused.
+- **Drafts decide what `publish` means.** A global that keeps drafts is saved as a draft unless the operation sets `publish: true`, which the approval shows as a `_status` row. A global without drafts is live the moment it is saved, so the operation is refused (`publish_required`) unless it says `publish: true`, and its approval carries the warning "This global has no drafts: the change is live as soon as you approve." `describe_site` lists each global with `drafts` and `canUpdate`.
+- **`expected_updated_at` is required**, read from `findGlobal` (or `GET /api/globals/{slug}`). The request is refused when the global has changed since it was read, and again at approval when it has changed since the preview.
+- After approval the gateway sends only the fields whose value differs, in one `POST /api/globals/{slug}` as the approver, and reads the global back. Nothing is sent, and no version is made, when every field is already as asked. The receipt's target is `globals/{slug}`; it carries `updated_at`, the `version_id` of the version the write made and, for inserted rows, `details.inserted_row_ids`.
 
 ## Files
 

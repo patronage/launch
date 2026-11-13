@@ -39,12 +39,15 @@ import {
 import type { PayloadAdminUrl, PayloadSiteUrl } from "./payload-documents";
 import { readEditingInfo } from "./payload-editing";
 import type { CollectionEditing, EditingInfo } from "./payload-editing";
+import { applyGlobal, preflightGlobal } from "./payload-global-apply";
+import type { PayloadGlobalAdminUrl } from "./payload-global-apply";
 import {
   draftChangedPaths,
   draftFields,
   draftMarkdown,
   draftSentence,
   draftTarget,
+  isGlobalOperation,
   isRowsOperation,
   isUploadOperation,
   operationTarget,
@@ -153,6 +156,7 @@ const resolveBody = async (
 interface PreflightContext {
   adminUrl: PayloadAdminUrl;
   client: UpstreamClient;
+  globalAdminUrl: PayloadGlobalAdminUrl;
   // Where a staged file is read from. Without it, an upload has no file.
   files?: UploadFiles | undefined;
   info: EditingInfo;
@@ -305,6 +309,10 @@ const preflightAs = (
     return preflightUpload(context, operation, index);
   }
 
+  if (isGlobalOperation(operation)) {
+    return preflightGlobal(context, operation, index);
+  }
+
   return isRowsOperation(operation)
     ? preflightRows(context, operation, index)
     : preflightOne(context, operation, index);
@@ -327,10 +335,13 @@ const preflightFrom = async (
 };
 
 const noSiteUrl: PayloadSiteUrl = () => "";
+const noGlobalAdminUrl: PayloadGlobalAdminUrl = () => "";
 
 export interface DraftPreflightOptions {
   // The run's staged files, for an upload's preview.
   files?: UploadFiles | undefined;
+  // Makes the link to a global in the admin. Without it, none is offered.
+  globalAdminUrl?: PayloadGlobalAdminUrl | undefined;
   // Makes the draft preview link a preview offers. Without it, none is.
   siteUrl?: PayloadSiteUrl | undefined;
 }
@@ -352,6 +363,7 @@ export const preflightDraftOperations = async (
       adminUrl,
       client,
       files: options.files,
+      globalAdminUrl: options.globalAdminUrl ?? noGlobalAdminUrl,
       info,
       siteUrl: options.siteUrl ?? noSiteUrl,
       telemetry,
@@ -690,6 +702,10 @@ const applyAs = (
 ): Promise<OperationReceipt> => {
   if (isUploadOperation(operation)) {
     return applyUpload(context, operation, snapshot);
+  }
+
+  if (isGlobalOperation(operation)) {
+    return applyGlobal(context, operation, snapshot);
   }
 
   return isRowsOperation(operation)

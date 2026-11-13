@@ -26,6 +26,7 @@ export type {
   PatchRowsOperation,
   PayloadOperation,
   RowChange,
+  UpdateGlobalOperation,
   UploadOperation,
 } from "./payload-operations";
 

@@ -333,12 +333,86 @@ const patchRowsOperationSchema = z
   })
   .superRefine(rowChangeRules);
 
+interface GlobalChanges {
+  changes?: RowChange[] | undefined;
+  fields?: Record<string, JsonValue> | undefined;
+  publish?: true | undefined;
+}
+
+// The top-level fields a row path starts in, without taking the path apart.
+const rowsFields = (changes: RowChange[]): string[] =>
+  [
+    ...new Set(
+      changes.map(
+        (change) =>
+          /^[A-Za-z0-9_]+/u.exec(
+            "path" in change ? change.path : change.field
+          )?.[0] ?? ""
+      )
+    ),
+  ].toSorted();
+
+const globalRules = (operation: GlobalChanges, ctx: z.RefinementCtx): void => {
+  const changes = operation.changes ?? [];
+  const fields = Object.keys(draftFields(operation));
+
+  rowChangeRules({ changes }, ctx);
+
+  if (fields.length === 0 && changes.length === 0 && !operation.publish) {
+    ctx.addIssue({
+      code: "custom",
+      message: "operation must change at least one field or row, or publish",
+    });
+  }
+
+  for (const [index, change] of changes.entries()) {
+    // Payload's Markdown tools convert for a collection's fields only.
+    if (change.op === "set_markdown") {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Markdown is not converted for a global; set the field as Payload stores it",
+        path: ["changes", index],
+      });
+    }
+  }
+
+  for (const field of rowsFields(changes)) {
+    if (fields.includes(field)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${field} is in both fields and changes`,
+        path: ["fields", field],
+      });
+    }
+  }
+};
+
+// A global is one document of its own kind (site settings, a footer). Its
+// top-level fields are set as Payload stores them, and rows of its array and
+// blocks fields are changed as `patch_rows` changes them.
+const updateGlobalOperationSchema = z
+  .strictObject({
+    changes: z.array(rowChangeSchema).min(1).max(MAX_ROW_CHANGES).optional(),
+    // Required: a global without drafts is live the moment it is saved, so
+    // it is never written against a state the model did not just read.
+    expected_updated_at: z.string().min(1).max(64),
+    fields: z.record(fieldNameSchema, z.json()).optional(),
+    global: slugSchema,
+    kind: z.literal("update_global"),
+    // Publishes the change. A global without drafts takes no other kind of
+    // change, so there the operation has to say it.
+    publish: z.literal(true).optional(),
+  })
+  .superRefine(globalRules);
+
 const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
   uploadMediaOperationSchema,
   replaceMediaFileOperationSchema,
   patchRowsOperationSchema,
+  updateGlobalOperationSchema,
 ]);
 
 export type DraftOperation =
@@ -353,6 +427,8 @@ export type UploadOperation =
 
 export type PatchRowsOperation = z.infer<typeof patchRowsOperationSchema>;
 
+export type UpdateGlobalOperation = z.infer<typeof updateGlobalOperationSchema>;
+
 export type PayloadOperation = z.infer<typeof operationSchema>;
 
 export const isRowsOperation = (
@@ -362,27 +438,47 @@ export const isRowsOperation = (
 export const rowsTarget = (operation: PatchRowsOperation): string =>
   `${operation.collection}/${operation.id}`;
 
-// The top-level fields a row path starts in, without taking the path apart.
-const rowsFields = (operation: PatchRowsOperation): string[] =>
-  [
-    ...new Set(
-      operation.changes.map(
-        (change) =>
-          /^[A-Za-z0-9_]+/u.exec(
-            "path" in change ? change.path : change.field
-          )?.[0] ?? ""
-      )
-    ),
-  ].toSorted();
+const rowChangesPhrase = (changes: RowChange[]): string =>
+  `${changes.length} row ${changes.length === 1 ? "change" : "changes"} in ${joinPhrase(rowsFields(changes))}`;
 
 export const rowsSentence = (operation: PatchRowsOperation): string => {
-  const count = operation.changes.length;
   const document = `${operation.collection} ${operation.id}`;
-  const what = `${count} row ${count === 1 ? "change" : "changes"} in ${joinPhrase(rowsFields(operation))}`;
+  const what = rowChangesPhrase(operation.changes);
 
   return operation.publish
     ? `Save ${what} to ${document} and publish it`
     : `Save ${what} as a draft of ${document}`;
+};
+
+export const isGlobalOperation = (
+  operation: PayloadOperation
+): operation is UpdateGlobalOperation => operation.kind === "update_global";
+
+// A global has a slug and no id. No collection is called `globals` and holds
+// a document by that slug in the same batch, in any site worth thinking of.
+export const globalTarget = (operation: UpdateGlobalOperation): string =>
+  `globals/${operation.global}`;
+
+// The top-level fields the operation sets, in the order the approver sees.
+export const globalFieldPaths = (operation: UpdateGlobalOperation): string[] =>
+  Object.keys(draftFields(operation)).toSorted();
+
+export const globalSentence = (operation: UpdateGlobalOperation): string => {
+  const changes = operation.changes ?? [];
+  const global = `the ${operation.global} global`;
+
+  const what = joinPhrase([
+    ...globalFieldPaths(operation),
+    ...(changes.length > 0 ? [rowChangesPhrase(changes)] : []),
+  ]);
+
+  if (!operation.publish) {
+    return `Save ${what} as a draft of ${global}`;
+  }
+
+  return what === ""
+    ? `Publish ${global}`
+    : `Save ${what} to ${global} and publish it`;
 };
 
 export const isUploadOperation = (
@@ -453,6 +549,10 @@ export const operationTarget = (operation: PayloadOperation): string => {
     return uploadTarget(operation);
   }
 
+  if (isGlobalOperation(operation)) {
+    return globalTarget(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsTarget(operation)
     : draftTarget(operation);
@@ -461,6 +561,10 @@ export const operationTarget = (operation: PayloadOperation): string => {
 export const operationSentence = (operation: PayloadOperation): string => {
   if (isUploadOperation(operation)) {
     return uploadSentence(operation);
+  }
+
+  if (isGlobalOperation(operation)) {
+    return globalSentence(operation);
   }
 
   return isRowsOperation(operation)
@@ -473,7 +577,8 @@ export const operationSentence = (operation: PayloadOperation): string => {
 const namesExistingTarget = (operation: PayloadOperation): boolean =>
   operation.kind === "update_draft" ||
   operation.kind === "replace_media_file" ||
-  operation.kind === "patch_rows";
+  operation.kind === "patch_rows" ||
+  operation.kind === "update_global";
 
 const draftApplyInputSchema = z
   .object({

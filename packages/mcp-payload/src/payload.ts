@@ -275,6 +275,18 @@ export const payloadSiteUrl = (env: PayloadEnv, link: string): string => {
 // The admin link the approval page offers. Over a Service binding the
 // gateway knows no public origin, so the link comes from PAYLOAD_ADMIN_URL
 // and is left out when that is unset.
+// A global's page in the Payload admin.
+export const payloadGlobalAdminUrl = (
+  env: PayloadEnv,
+  slug: string
+): string => {
+  const origin = publicOrigin(env);
+
+  return origin
+    ? new URL(`/admin/globals/${encodeURIComponent(slug)}`, origin).toString()
+    : "";
+};
+
 export const payloadAdminUrl = (
   env: PayloadEnv,
   collection: string,
