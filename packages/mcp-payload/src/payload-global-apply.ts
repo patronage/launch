@@ -50,7 +50,8 @@ import { insertedRows } from "./payload-rows-apply";
 // changed as `patch_rows` changes a document's. A global with drafts is
 // saved as a draft unless the operation publishes. A global without drafts
 // is live the moment it is saved, so there the operation must say
-// `publish: true`, and the approver is told so above the change.
+// `publish: true`, and the approver is told so above the change. A global
+// another editor has open in the admin is refused.
 
 export type PayloadGlobalAdminUrl = (slug: string) => string;
 
@@ -93,6 +94,21 @@ const editableGlobal = (
       "publish_required",
       `The ${operation.global} global has no drafts, so a change there is live as soon as it is saved; send publish: true when the person asked for that`
     );
+  }
+
+  // Payload's REST endpoint for a global saves over another editor's lock
+  // and removes it, where the one for a document answers 423. So the lock
+  // is read from `getEditingInfo` first, here and again just before the
+  // write, and a locked global is left alone.
+  if (global.locked === undefined) {
+    throw new ApplyConflictError(
+      "lock_unknown",
+      `This site's Payload does not say whether another editor has the ${operation.global} global open, and Payload saves a global over an editor's lock; update the site's getEditingInfo tool`
+    );
+  }
+
+  if (global.locked) {
+    throw lockedError(globalTarget(operation));
   }
 
   return global;

@@ -128,6 +128,10 @@ const globalEditingSchema = z.object({
   canUpdate: z.boolean(),
   drafts: z.boolean(),
   localized: z.boolean().default(false),
+  // Whether another editor has the global open in the admin. Absent from a
+  // Payload whose `getEditingInfo` does not report it, and then a global is
+  // not written to: Payload itself saves a global over an editor's lock.
+  locked: z.boolean().optional(),
   relationFields: z.array(relationFieldSchema).default([]),
   richTextFields: z.array(z.string()),
   rowFields: z.array(rowsFieldSchema).default([]),

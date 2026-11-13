@@ -29,8 +29,9 @@ const READ_AT = "2026-11-13T10:00:00.000Z";
 const SAVED_AT = "2026-11-13T11:00:00.000Z";
 
 // Two globals: site settings without drafts, and a footer that keeps drafts
-// and holds a list of links.
-const INFO = {
+// and holds a list of links. `locked` names the globals another editor has
+// open, or is undefined for a Payload whose `getEditingInfo` does not say.
+const editingInfo = (locked: Set<string> | undefined) => ({
   collections: [],
   globals: [
     {
@@ -49,8 +50,10 @@ const INFO = {
       slug: "footer",
     },
     { canUpdate: false, drafts: true, richTextFields: [], slug: "legal" },
-  ],
-};
+  ].map((global) =>
+    locked ? { ...global, locked: locked.has(global.slug) } : global
+  ),
+});
 
 const globals = (): Map<string, JsonObject> =>
   new Map<string, JsonObject>(
@@ -83,8 +86,11 @@ const rowsSchema = z.array(z.record(z.string(), z.json()));
 
 // A Payload stand-in for globals. It stores what it is sent, gives new rows
 // an id, and answers a write the way Payload does: `{ message, result }`.
-const fakePayload = (options: { locked?: boolean } = {}) => {
+const fakePayload = (
+  options: { refusesSave?: boolean; reportsLocks?: boolean } = {}
+) => {
   const stored = globals();
+  const locked = new Set<string>();
   const writes: Write[] = [];
   let nextId = 100;
 
@@ -110,7 +116,12 @@ const fakePayload = (options: { locked?: boolean } = {}) => {
       return Response.json({
         id: 1,
         jsonrpc: "2.0",
-        result: { content: [], structuredContent: INFO },
+        result: {
+          content: [],
+          structuredContent: editingInfo(
+            options.reportsLocks === false ? undefined : locked
+          ),
+        },
       });
     }
 
@@ -129,7 +140,7 @@ const fakePayload = (options: { locked?: boolean } = {}) => {
       return Response.json(current ?? {}, { status: current ? 200 : 404 });
     }
 
-    if (options.locked) {
+    if (options.refusesSave) {
       return Response.json(
         { errors: [{ message: "Locked" }] },
         { status: 423 }
@@ -153,6 +164,10 @@ const fakePayload = (options: { locked?: boolean } = {}) => {
 
   return {
     handler,
+    // Another editor opens a global in the admin.
+    lock: (slug: string) => {
+      locked.add(slug);
+    },
     stored,
     // Another editor saves a global between the preview and the write.
     touch: (slug: string) => {
@@ -342,8 +357,52 @@ describe("update_global on a global without drafts", () => {
     });
   });
 
-  it("reports a global another editor has open as locked", async () => {
-    vi.stubGlobal("fetch", fakePayload({ locked: true }).handler);
+  it("refuses a global another editor has open before anyone is asked", async () => {
+    const fake = fakePayload();
+
+    fake.lock("site-settings");
+    vi.stubGlobal("fetch", fake.handler);
+
+    await expect(
+      preflight([updateGlobal("site-settings", { ...tagline, publish: true })])
+    ).rejects.toMatchObject({
+      code: "locked",
+      message:
+        "globals/site-settings is open in the Payload admin for another editor; try again once they have finished",
+    });
+    expect(fake.writes).toHaveLength(0);
+  });
+
+  it("leaves a global alone when another editor opens it after the preview", async () => {
+    const fake = fakePayload();
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    const [receipt] = await apply(
+      [updateGlobal("site-settings", { ...tagline, publish: true })],
+      () => fake.lock("site-settings")
+    );
+
+    expect(fake.writes).toHaveLength(0);
+    expect(receipt).toMatchObject({
+      error: { code: "locked" },
+      status: "conflict",
+    });
+  });
+
+  it("is refused when the site's Payload does not report editor locks", async () => {
+    const fake = fakePayload({ reportsLocks: false });
+
+    vi.stubGlobal("fetch", fake.handler);
+
+    await expect(
+      preflight([updateGlobal("site-settings", { ...tagline, publish: true })])
+    ).rejects.toMatchObject({ code: "lock_unknown" });
+    expect(fake.writes).toHaveLength(0);
+  });
+
+  it("reports a save Payload refuses as locked", async () => {
+    vi.stubGlobal("fetch", fakePayload({ refusesSave: true }).handler);
 
     const [receipt] = await apply([
       updateGlobal("site-settings", { ...tagline, publish: true }),

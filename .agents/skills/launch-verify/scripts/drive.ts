@@ -704,10 +704,11 @@ const publishedTitle = async (
  * editor is the first local admin, created here on a fresh database the way
  * apply-form does, or signed in with "Continue as".
  */
-const localAdminEmail = async (
+/** A page signed in to the local Payload admin as its one local admin. */
+const openLocalAdmin = async (
   browser: Browser,
   payloadOrigin: string
-): Promise<string> => {
+): Promise<Page> => {
   const admin = await browser.newPage({
     viewport: { height: 900, width: 1280 },
   });
@@ -731,16 +732,34 @@ const localAdminEmail = async (
     await admin.waitForLoadState("networkidle");
   }
 
+  return admin;
+};
+
+const adminEmail = async (
+  admin: Page,
+  payloadOrigin: string
+): Promise<string> => {
   const response = await admin.request.get(`${payloadOrigin}/api/users/me`);
   const me: { user?: { email?: string } } = await response.json();
-
-  await admin.close();
 
   if (!me.user?.email) {
     throw new Error("Could not sign in to the local Payload admin.");
   }
 
   return me.user.email;
+};
+
+const localAdminEmail = async (
+  browser: Browser,
+  payloadOrigin: string
+): Promise<string> => {
+  const admin = await openLocalAdmin(browser, payloadOrigin);
+
+  try {
+    return await adminEmail(admin, payloadOrigin);
+  } finally {
+    await admin.close();
+  }
 };
 
 /** The script an agent sends to retitle one post as a draft. */
@@ -2016,15 +2035,14 @@ interface SettingsSummary {
   updatedAt: string;
 }
 
-// The site settings global through the gateway, as Payload's own read tool
-// answers: a heading and one fenced JSON block.
+// The site settings global through the gateway, read as the admin opens it:
+// its newest version, whose `updatedAt` a write is checked against.
 const READ_SETTINGS = `async () => {
   const found = await payload.call({
-    tool: "findGlobal",
+    tool: "findGlobalDraft",
     arguments: { slug: "site-settings", depth: 0 },
   });
-  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
-  const doc = JSON.parse(block ? block[1] : "null");
+  const doc = found.structured && found.structured.doc;
   return doc && { siteName: doc.siteName, tagline: doc.tagline ?? null, updatedAt: doc.updatedAt };
 }`;
 
@@ -2111,6 +2129,74 @@ const refusedGlobal = async (
     `Approve offered: ${offered}; says ${request.reason}: ${preview.includes(request.reason)}`
   );
   await run.log.shot(page, request.shot);
+};
+
+const LOCK_REASON = "open in the Payload admin for another editor";
+
+/**
+ * Another editor has the site settings open: Payload keeps a lock document
+ * for them, as its admin does while a form is open. A change asked for
+ * meanwhile is refused, and their lock is still there afterwards. Payload
+ * itself would save the global and remove the lock. The second editor is
+ * made for this step and removed after it.
+ */
+const refusedWhileLocked = async (
+  run: GlobalRun,
+  page: Page,
+  options: { admin: Page; code: string; payloadOrigin: string }
+): Promise<void> => {
+  const api = `${options.payloadOrigin}/api`;
+  const { request } = options.admin;
+
+  const created = await request.post(`${api}/users`, {
+    data: { email: `${run.marker}@example.test`, password: randomUUID() },
+  });
+
+  const editor: { doc?: { id?: number | string } } = await created.json();
+  const editorId = editor.doc?.id;
+
+  if (editorId === undefined) {
+    throw new Error(`Could not add a second editor: HTTP ${created.status()}`);
+  }
+
+  try {
+    const locked = await request.post(`${api}/payload-locked-documents`, {
+      data: {
+        globalSlug: "site-settings",
+        user: { relationTo: "users", value: editorId },
+      },
+    });
+
+    const lock: { doc?: { id?: number | string } } = await locked.json();
+    const lockId = lock.doc?.id;
+
+    if (lockId === undefined) {
+      throw new Error(`Could not lock the global: HTTP ${locked.status()}`);
+    }
+
+    run.log.step(
+      "Lock the site settings for a second editor, as the admin does while they have it open",
+      `lock ${lockId} held by ${run.marker}@example.test`
+    );
+
+    await refusedGlobal(run, page, {
+      code: options.code,
+      reason: LOCK_REASON,
+      shot: "locked-refused",
+      what: "a change to a global another editor has open",
+    });
+
+    const held = await request.get(`${api}/payload-locked-documents/${lockId}`);
+
+    run.expect(held.ok(), "the other editor's lock is gone after the refusal");
+    run.log.step(
+      "Read the other editor's lock after the refusal",
+      `still held: ${held.ok()}`
+    );
+    await request.delete(`${api}/payload-locked-documents/${lockId}`);
+  } finally {
+    await request.delete(`${api}/users/${editorId}`);
+  }
 };
 
 /**
@@ -2202,7 +2288,8 @@ const mcpPayloadGlobal: Drive = async ({
   const failures: string[] = [];
 
   try {
-    const email = await localAdminEmail(browser, payloadOrigin);
+    const admin = await openLocalAdmin(browser, payloadOrigin);
+    const email = await adminEmail(admin, payloadOrigin);
     const token = signIn(email);
 
     const run: GlobalRun = {
@@ -2274,6 +2361,17 @@ const mcpPayloadGlobal: Drive = async ({
       shot: "stale-refused",
       what: "a request with a stale expected_updated_at",
     });
+    await refusedWhileLocked(run, page, {
+      admin,
+      code: globalScript({
+        expected: settings.updatedAt,
+        marker,
+        publish: true,
+        tagline,
+      }),
+      payloadOrigin,
+    });
+    await admin.close();
 
     const changedAt = await approveGlobal(run, page, {
       expected: settings.updatedAt,
