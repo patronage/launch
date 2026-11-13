@@ -99,6 +99,8 @@ try {
 
   await step("save a draft page with Lexical rich text", async () => {
     await page.goto(`${base}/admin/collections/pages/create`);
+    // Wait for the editor to hydrate, or it drops the first keystrokes.
+    await page.waitForLoadState("networkidle");
     await page.fill("#field-title", "Hello vinext");
     await page.fill("#field-slug", "hello");
     await page.locator('[data-lexical-editor="true"]').first().click();
@@ -138,7 +140,7 @@ try {
 
     await json(
       await page.request.patch(`${base}/api/pages/${id}?draft=true`, {
-        data: { hero: media.docs[0].id },
+        data: { hero: { image: media.docs[0].id, variant: "media" } },
       })
     );
     await page.goto(pageUrl);

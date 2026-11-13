@@ -4,6 +4,7 @@ import * as migration_20261030_185141_posts_preview from './20261030_185141_post
 import * as migration_20261030_191933_forms from './20261030_191933_forms';
 import * as migration_20261030_201527_heroes from './20261030_201527_heroes';
 import * as migration_20261110_222857_seo_redirects from './20261110_222857_seo_redirects';
+import * as migration_20261113_043426_payload_beta_8 from './20261113_043426_payload_beta_8';
 
 export const migrations = [
   {
@@ -34,6 +35,11 @@ export const migrations = [
   {
     up: migration_20261110_222857_seo_redirects.up,
     down: migration_20261110_222857_seo_redirects.down,
-    name: '20261110_222857_seo_redirects'
+    name: '20261110_222857_seo_redirects',
+  },
+  {
+    up: migration_20261113_043426_payload_beta_8.up,
+    down: migration_20261113_043426_payload_beta_8.down,
+    name: '20261113_043426_payload_beta_8'
   },
 ];

@@ -6,7 +6,7 @@ Locally the three parts run on one machine: the gateway on `vite dev`, the Paylo
 
 ## Sub-features
 
-- `sign-in`: a request signed by the stand-in gets in; one with no sign-in is refused with 403.
+- `sign-in`: a request signed by the stand-in gets in; one with no sign-in is refused with 403. Payload's own OAuth sign-in for MCP clients answers 404.
 - `read`: `execute` runs a script that reads through `payload.call`.
 - `approve`: `payload.apply` pauses, the approval page shows the change before and after, and Approve writes it.
 - `stale`: a request built on an old `updatedAt` gets an approval page with the reason and no Approve button.

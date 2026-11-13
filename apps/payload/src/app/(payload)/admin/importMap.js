@@ -33,6 +33,7 @@ import { LLMInstructionsDescription as LLMInstructionsDescription_3817bf644402e6
 import { LLMInstructionsCell as LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { LocalLoginLink as LocalLoginLink_877b95e060f6d07e50beb359001dbedd } from '../../../components/admin/local-login-link'
 import { AccessSignInLink as AccessSignInLink_ce49948d0f63ee257e61a705b9b86b03 } from '../../../components/admin/access-sign-in-link'
+import { MCPAuthorizeView as MCPAuthorizeView_a5859e694d23fd11a46e2dcf78fce1a2 } from '@payloadcms/plugin-mcp/rsc'
 import { WelcomeWidget as WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionQueryWidget as CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
@@ -81,6 +82,7 @@ export const importMap = {
   "@payloadcms/ui/rsc#LLMInstructionsCell": LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a,
   "/components/admin/local-login-link#LocalLoginLink": LocalLoginLink_877b95e060f6d07e50beb359001dbedd,
   "/components/admin/access-sign-in-link#AccessSignInLink": AccessSignInLink_ce49948d0f63ee257e61a705b9b86b03,
+  "@payloadcms/plugin-mcp/rsc#MCPAuthorizeView": MCPAuthorizeView_a5859e694d23fd11a46e2dcf78fce1a2,
   "@payloadcms/ui/rsc#WelcomeWidget": WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionQueryWidget": CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a,
