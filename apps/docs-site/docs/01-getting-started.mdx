@@ -3,7 +3,21 @@ title: Getting started
 description: Install the workspace, run the checks, and start a reference site locally.
 ---
 
-Launch is a plain pnpm workspace. You need Node 24 (the version is in `.nvmrc`) and the pnpm version pinned in the root `package.json`.
+Launch is a plain pnpm workspace.
+
+## Prerequisites
+
+| Tool | Version | Used for |
+| --- | --- | --- |
+| Node | 24.22.1 or later, the floor Payload 4 sets; `.nvmrc` names the major version | Everything |
+| pnpm | The version in the root `package.json`'s `packageManager`; `corepack enable` installs it | Everything |
+| Git and Bash | Any recent version | `pnpm verify` runs the WordPress deploy kit's shell tests |
+| PHP | 8.1 or later on the command line, with the OpenSSL extension | `pnpm verify` lints and tests the WordPress plugins and themes |
+| Docker | A running Docker-compatible engine | Only to run the WordPress references, which install WordPress and Composer packages in containers |
+
+Deploying needs a Cloudflare account and the `cf` CLI as well. See [Deploying to Workers](/deploy).
+
+## Install and check
 
 ```bash
 git clone https://github.com/patronage/launch.git
@@ -12,7 +26,7 @@ pnpm install
 pnpm verify
 ```
 
-`pnpm verify` is the full gate: a frozen install, then lint, typecheck and tests across the workspace. Run it before you open a pull request. There are no GitHub Actions; Cloudflare Workers Builds runs the same command before it deploys.
+`pnpm verify` is the full gate: a frozen install, then lint, typecheck and tests across the workspace. Run it before you open a pull request. There are no GitHub Actions. Cloudflare Workers Builds runs only part of it before a deploy: the frozen install and lint for the whole repo, then typecheck and tests for the app being deployed and its packages, and none of the PHP checks, because its build image has no PHP. See [Workers Builds](/deploy/workers-builds).
 
 ## Run a reference site
 
@@ -65,7 +79,7 @@ Dependencies that most packages share, such as React, Vite, Vitest and `@types/n
 
 ## Rules for contributors
 
-The repo is public, so everything in it must be fit to publish. The short version, from `AGENTS.md`:
+The repo is public, so everything in it must be fit to publish. How to report a vulnerability privately is in [`SECURITY.md`](https://github.com/patronage/launch/blob/main/SECURITY.md). The short version of the rules, from `AGENTS.md`:
 
 - No third-party plugin or vendor code. WordPress plugins and themes come in through Composer; only Patronage's own `patronage-*` code is committed.
 - No client references, anywhere. Demo content is invented.
