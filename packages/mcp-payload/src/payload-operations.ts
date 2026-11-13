@@ -417,6 +417,39 @@ const unpublishOperationSchema = z.strictObject({
   kind: z.literal("unpublish"),
 });
 
+// As long as a version id may be: Payload's are numbers or short strings.
+const versionIdSchema = z.union([
+  z.number().int().positive(),
+  z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/u),
+]);
+
+// Brings back an earlier version of a document, as a new draft unless the
+// operation publishes.
+const restoreVersionOperationSchema = z.strictObject({
+  collection: slugSchema,
+  // Required: a restore replaces every field, so it is never made over a
+  // draft the model did not just read.
+  expected_updated_at: z.string().min(1).max(64),
+  id: documentIdSchema,
+  kind: z.literal("restore_version"),
+  publish: z.literal(true).optional(),
+  version_id: versionIdSchema,
+});
+
+// The same for a global. One without drafts is live the moment it is
+// restored, so there the operation has to say `publish: true`.
+const restoreGlobalVersionOperationSchema = z.strictObject({
+  expected_updated_at: z.string().min(1).max(64),
+  global: slugSchema,
+  kind: z.literal("restore_global_version"),
+  publish: z.literal(true).optional(),
+  version_id: versionIdSchema,
+});
+
 const operationSchema = z.discriminatedUnion("kind", [
   updateDraftOperationSchema,
   createDraftOperationSchema,
@@ -425,6 +458,8 @@ const operationSchema = z.discriminatedUnion("kind", [
   patchRowsOperationSchema,
   updateGlobalOperationSchema,
   unpublishOperationSchema,
+  restoreVersionOperationSchema,
+  restoreGlobalVersionOperationSchema,
 ]);
 
 export type DraftOperation =
@@ -442,6 +477,10 @@ export type PatchRowsOperation = z.infer<typeof patchRowsOperationSchema>;
 export type UpdateGlobalOperation = z.infer<typeof updateGlobalOperationSchema>;
 
 export type UnpublishOperation = z.infer<typeof unpublishOperationSchema>;
+
+export type RestoreOperation =
+  | z.infer<typeof restoreGlobalVersionOperationSchema>
+  | z.infer<typeof restoreVersionOperationSchema>;
 
 export type PayloadOperation = z.infer<typeof operationSchema>;
 
@@ -473,6 +512,28 @@ export const unpublishTarget = (operation: UnpublishOperation): string =>
 
 export const unpublishSentence = (operation: UnpublishOperation): string =>
   `Unpublish ${operation.collection} ${operation.id}`;
+
+export const isRestoreOperation = (
+  operation: PayloadOperation
+): operation is RestoreOperation =>
+  operation.kind === "restore_version" ||
+  operation.kind === "restore_global_version";
+
+export const restoreTarget = (operation: RestoreOperation): string =>
+  operation.kind === "restore_version"
+    ? `${operation.collection}/${operation.id}`
+    : `globals/${operation.global}`;
+
+export const restoreSentence = (operation: RestoreOperation): string => {
+  const what =
+    operation.kind === "restore_version"
+      ? `${operation.collection} ${operation.id}`
+      : `the ${operation.global} global`;
+
+  return operation.publish
+    ? `Restore ${what} to version ${operation.version_id} and publish it`
+    : `Restore ${what} to version ${operation.version_id} as a draft`;
+};
 
 export const isGlobalOperation = (
   operation: PayloadOperation
@@ -581,6 +642,10 @@ export const operationTarget = (operation: PayloadOperation): string => {
     return unpublishTarget(operation);
   }
 
+  if (isRestoreOperation(operation)) {
+    return restoreTarget(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsTarget(operation)
     : draftTarget(operation);
@@ -599,6 +664,10 @@ export const operationSentence = (operation: PayloadOperation): string => {
     return unpublishSentence(operation);
   }
 
+  if (isRestoreOperation(operation)) {
+    return restoreSentence(operation);
+  }
+
   return isRowsOperation(operation)
     ? rowsSentence(operation)
     : draftSentence(operation);
@@ -611,7 +680,9 @@ const namesExistingTarget = (operation: PayloadOperation): boolean =>
   operation.kind === "replace_media_file" ||
   operation.kind === "patch_rows" ||
   operation.kind === "update_global" ||
-  operation.kind === "unpublish";
+  operation.kind === "unpublish" ||
+  operation.kind === "restore_version" ||
+  operation.kind === "restore_global_version";
 
 const draftApplyInputSchema = z
   .object({

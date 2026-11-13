@@ -11,6 +11,7 @@ import type { PayloadToolResult } from "./payload";
 
 // The read-only tools apps/payload adds to Payload's MCP server
 // (apps/payload/src/mcp-tools.ts).
+export const DOCUMENT_LOCK_TOOL = "getDocumentLock";
 export const EDITING_INFO_TOOL = "getEditingInfo";
 export const MARKDOWN_TO_RICH_TEXT_TOOL = "markdownToRichText";
 export const PREVIEW_URL_TOOL = "getPreviewUrl";
@@ -240,4 +241,35 @@ export const readPreviewUrl = async (
   const address = await readDocumentAddress(client, collection, id, telemetry);
 
   return address.url;
+};
+
+const documentLockSchema = z.object({ locked: z.boolean() });
+
+// Whether another editor has the document open in the admin. Payload makes
+// this check itself before an ordinary save, and answers 423; a write it
+// makes regardless (restoring a version) is asked about here first.
+// Undefined when the site's Payload has no such tool or it fails: then the
+// caller cannot tell, and does not write.
+export const readDocumentLock = async (
+  client: UpstreamClient,
+  collection: string,
+  id: number | string,
+  telemetry: UpstreamTelemetry
+): Promise<boolean | undefined> => {
+  try {
+    const result = toPayloadToolResult(
+      await payloadMcpRequest(
+        client,
+        "tools/call",
+        { arguments: { id, slug: collection }, name: DOCUMENT_LOCK_TOOL },
+        telemetry
+      )
+    );
+
+    const parsed = documentLockSchema.safeParse(result.structured);
+
+    return !result.isError && parsed.success ? parsed.data.locked : undefined;
+  } catch {
+    return undefined;
+  }
 };

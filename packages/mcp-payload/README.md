@@ -8,6 +8,7 @@ The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field by row id, without resending the field.
 - An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.
 - An `unpublish` operation takes a published document off the public site and keeps its content as a draft.
+- `restore_version` and `restore_global_version` operations bring back an earlier version of a document or a global, as a new draft unless the operation publishes.
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway for a later `upload_media` or `replace_media_file` operation in the same script. It writes nothing to Payload.
 
 ## Rows
@@ -109,6 +110,36 @@ await payload.apply({
 - A document that is not published is refused (`already_draft`), as is a collection without drafts. Whether a document is published is read from the document itself, not from its newest version, which is a draft whenever someone has saved one since it was published.
 - After the write the gateway reads the document back as the public would get it. A document Payload still serves is reported as failed (`still_published`). The receipt lists `_status` in `changed_paths`, with `updated_at`, `version_id` and `details.preview_url`.
 - To publish again, send `update_draft` with `publish: true` and no fields: it publishes the draft as it stands.
+
+## Versions
+
+`restore_version` brings back an earlier version of a document, and `restore_global_version` of a global:
+
+```js
+await payload.apply({
+  intent: "Bring back the post as it was published",
+  operations: [
+    {
+      kind: "restore_version",
+      collection: "posts",
+      id: 4,
+      version_id: 32,
+      expected_updated_at: post.updatedAt,
+    },
+  ],
+});
+```
+
+- **The whole version comes back**, every field, through Payload's own restore route: `POST /api/{collection}/versions/{version_id}` (or `/api/globals/{slug}/versions/{version_id}`), as the approver. Find a document's versions with `findVersions` (`where: { parent: { equals: id } }`); a global's with `findGlobalVersions`, where the site's Payload offers it. A receipt's `version_id` is a version id too.
+- **It is saved as a new draft, and what is published stays as it is.** The gateway always sends the restore with `draft=true` where the target keeps drafts. Without that flag Payload gives the document the status the version had, so restoring a version that was a draft would take a published document off the site.
+- **`publish: true` publishes what was restored**, in a second write: the restore lands as a draft, then that draft is published the way `update_draft` with `publish: true` and no fields publishes one. It publishes only while the restored draft is still the newest save. If someone saved the document in between, or the second write fails, the receipt says `not_published` and the restored draft is still there.
+- A global without drafts is live the moment it is restored, so there the operation is refused (`publish_required`) unless it says `publish: true`, and its approval carries the same warning as `update_global`. A collection without drafts is refused, as it is for every write.
+- **The approval names the version** (its id, when it was saved, and whether it was published) **and shows each top-level field the restore changes**, before and after: rich text as Markdown, relationships by title, and an array or blocks field as a count of its rows with how many the restore adds, removes and changes. A version that holds what the document already holds is refused (`nothing_to_restore`).
+- **`expected_updated_at` is required**, read with `draft: true` (a global with `findGlobalDraft`). A version of another document is refused (`version_of_another_document`), as is one that does not exist (`unknown_version`).
+- **A document another editor has open is left alone** (`locked`). Payload's restore route does not look at editor locks, so the gateway asks the site's `getDocumentLock` tool when the approval is drawn and again just before it restores; a global's lock comes with `getEditingInfo`, as for `update_global`. A site without that tool gets no document restores (`lock_unknown`).
+- On a site with locales, Payload restores every locale of the version. The approval says so, and shows the fields in one locale.
+- A version of a file (an upload collection) cannot be restored (`not_supported`): replace the file with `replace_media_file`.
+- The receipt lists the fields that changed, with `updated_at`, the `version_id` of the version the write made, `details.restored_version_id` and, for a document with a preview, `details.preview_url`.
 
 ## Files
 

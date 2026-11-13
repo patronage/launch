@@ -18,6 +18,7 @@ import type {
   RichTextField,
   SanitizedCollectionConfig,
   SanitizedGlobalConfig,
+  Where,
 } from "payload";
 import { z } from "zod";
 
@@ -33,8 +34,9 @@ import { publicPathOf } from "./lib/preview";
 // gateway which collections keep drafts. None of them reads or writes a
 // document: the gateway saves changes through its approval step.
 // `getPreviewUrl` reads one document, as the editor, to give the link the
-// admin's Preview button opens, and `findGlobalDraft` reads a global's
-// newest version, which Payload's own `findGlobal` tool cannot ask for.
+// admin's Preview button opens, `findGlobalDraft` reads a global's newest
+// version, which Payload's own `findGlobal` tool cannot ask for, and
+// `getDocumentLock` says whether another editor has a document open.
 
 const MAX_MARKDOWN_LENGTH = 200_000;
 
@@ -345,6 +347,38 @@ export const getPreviewUrl = defineCollectionTool({
   };
 });
 
+// Payload refuses to save a document another editor has open, but restores
+// a version of it regardless and removes their lock. The gateway asks here
+// before it restores one.
+export const getDocumentLock = defineCollectionTool({
+  access: readPermission,
+  annotations: {
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+    readOnlyHint: true,
+    title: "Get document lock",
+  },
+  description:
+    "Whether another editor has one document open in the admin right now (`locked`). Reads nothing of the document and writes nothing.",
+  input: z.object({ id: documentId }),
+}).handler(async ({ input, req, slug }) => {
+  const locked = await lockedByAnother(req, {
+    setting: req.payload.collections[slug]?.config.lockDocuments,
+    where: {
+      and: [
+        { "document.relationTo": { equals: slug } },
+        { "document.value": { equals: input.id } },
+      ],
+    },
+  });
+
+  return {
+    ...textResult(locked ? "locked" : "not locked"),
+    structuredContent: { locked },
+  };
+});
+
 const MAX_DEPTH = 3;
 
 // Payload's own `findGlobal` tool reads the published global only. Where a
@@ -500,16 +534,17 @@ const collectionInfo = (
 
 const LOCKS = "payload-locked-documents";
 
-// Whether another editor has the global open in the admin. Payload makes
-// this check itself before it saves a collection document, but not before
-// it saves a global, so the gateway asks here first. The lock documents are
-// read past access control, as Payload reads them, and only this one fact
-// about them is reported.
+// Whether another editor has a document or a global open in the admin, from
+// Payload's own lock documents. They are read past access control, as
+// Payload reads them, and only this one fact about them is reported.
 const lockedByAnother = async (
   req: PayloadRequest,
-  config: SanitizedGlobalConfig
+  lock: {
+    setting: SanitizedGlobalConfig["lockDocuments"];
+    where: Where;
+  }
 ): Promise<boolean> => {
-  if (config.lockDocuments === false || !req.payload.collections[LOCKS]) {
+  if (lock.setting === false || !req.payload.collections[LOCKS]) {
     return false;
   }
 
@@ -521,15 +556,15 @@ const lockedByAnother = async (
     pagination: false,
     req,
     sort: "-updatedAt",
-    where: { globalSlug: { equals: config.slug } },
+    where: lock.where,
   });
 
-  const [lock] = found.docs;
+  const [held] = found.docs;
 
-  return lock
-    ? heldByAnother(lock, {
+  return held
+    ? heldByAnother(held, {
         now: Date.now(),
-        seconds: config.lockDocuments?.duration ?? DEFAULT_LOCK_SECONDS,
+        seconds: lock.setting?.duration ?? DEFAULT_LOCK_SECONDS,
         userId: req.user?.id,
       })
     : false;
@@ -560,8 +595,13 @@ const globalInfo = async (
       canUpdate: Boolean(permissions.update),
       drafts: Boolean(config.versions && config.versions.drafts),
       localized: fields.localized,
-      // True while another editor has the global open in the admin.
-      locked: await lockedByAnother(req, config),
+      // True while another editor has the global open in the admin. Payload
+      // makes this check itself before it saves a collection document, but
+      // not before it saves a global, so the gateway asks here first.
+      locked: await lockedByAnother(req, {
+        setting: config.lockDocuments,
+        where: { globalSlug: { equals: config.slug } },
+      }),
       relationFields: fields.relationFields,
       // Top-level only, as for a collection: the fields Markdown can fill.
       richTextFields: fields.richTextFields.filter(

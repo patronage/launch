@@ -69,9 +69,15 @@ export interface GlobalPreflightContext extends GlobalContext {
 export const NO_DRAFTS_WARNING =
   "This global has no drafts: the change is live as soon as you approve.";
 
-const editableGlobal = (
+// A write to a global, of any kind: which one, and whether it publishes.
+export interface GlobalWrite {
+  global: string;
+  publish?: true | undefined;
+}
+
+export const editableGlobal = (
   info: EditingInfo,
-  operation: UpdateGlobalOperation
+  operation: GlobalWrite
 ): GlobalEditing => {
   const global = info.globals.find((entry) => entry.slug === operation.global);
 
@@ -108,7 +114,7 @@ const editableGlobal = (
   }
 
   if (global.locked) {
-    throw lockedError(globalTarget(operation));
+    throw lockedError(`globals/${operation.global}`);
   }
 
   return global;
