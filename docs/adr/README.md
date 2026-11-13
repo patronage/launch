@@ -25,4 +25,5 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0015](0015-shared-wordpress-fields.md) | Field groups, post types and seed in `wordpress-shared/patronage-fields`, shared by both WordPress installs |
 | [0016](0016-logs-to-r2-through-logpush.md) | Each site's logs in its own R2 bucket: Logpush for Workers and Cloudflare, Basin only for WordPress hosts; off unless configured |
 | [0017](0017-wordpress-plugins-through-composer.md) | Patronage mu-plugins ship as `patronage/launch-*` from Launch's Composer repository: `pnpm wp:release` in the PR, `--publish` after merge |
+| [0018](0018-payload-connector-writes.md) | Payload connector writes through REST as the approver; staged uploads, row patches, globals, unpublish, version restore, trash, locales; no permanent delete |
 | [0019](0019-local-pulls-copy-content-only.md) | `pnpm db:pull` copies a PlanetScale Postgres branch's content tables only, through a temporary read-only role, into a local Postgres; users never leave PlanetScale |
