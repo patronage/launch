@@ -12,6 +12,7 @@ import {
   SCHEMA_PATTERN,
   checkSchemaName,
   decide,
+  migrateEnv,
   schemaForBranch,
   schemaUrl,
 } from "./preview-schema.mjs";
@@ -91,4 +92,20 @@ test("the migration URL sets search_path to the schema", () => {
 
   assert.equal(url.searchParams.get("options"), `-c search_path=${schema}`);
   assert.equal(url.searchParams.get("sslmode"), "verify-full");
+});
+
+test("migrations get a throwaway secret when the build has none", () => {
+  const args = {
+    schema: schemaForBranch("feature"),
+    url: "postgres://u:p@host:5432/postgres",
+  };
+
+  const without = migrateEnv({ ...args, env: { PATH: "/bin" } });
+
+  assert.match(without.PAYLOAD_SECRET, /^[0-9a-f]{64}$/u);
+  assert.equal(without.PAYLOAD_DB_SCHEMA, args.schema);
+  assert.equal(
+    migrateEnv({ ...args, env: { PAYLOAD_SECRET: "set" } }).PAYLOAD_SECRET,
+    "set"
+  );
 });

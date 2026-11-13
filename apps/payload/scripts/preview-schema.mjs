@@ -15,7 +15,7 @@
 // the Worker should be built with, or nothing for `public`, and writes it to
 // --out when given.
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -288,7 +288,9 @@ export const copySchema = async ({ client, log, target }) => {
   const plan = copyPlan(sourceTables);
   const counts = new Map();
 
-  await client.query("begin");
+  // One snapshot for every table, so an editor's change to public during the
+  // copy cannot leave a child row whose parent was copied before it existed.
+  await client.query("begin isolation level repeatable read");
 
   try {
     for (const table of plan) {
@@ -374,19 +376,25 @@ export const schemaUrl = (url, schema) => {
  * them or only `only`. The committed migrations name no schema, so search_path
  * decides where they land.
  */
+export const migrateEnv = ({ env = process.env, only, schema, url }) => ({
+  ...env,
+  PAYLOAD_DB: "postgres",
+  PAYLOAD_DB_SCHEMA: schema,
+  // Payload will not start without a secret, and a Workers Builds build has
+  // none: the Previews' own lives in Previews Base. Migrations sign and
+  // encrypt nothing, so a throwaway one serves.
+  PAYLOAD_SECRET: env.PAYLOAD_SECRET || randomBytes(32).toString("hex"),
+  POSTGRES_URL: schemaUrl(url, schema),
+  PREVIEW_MIGRATE_ONLY: only ? JSON.stringify(only) : "",
+});
+
 const migrateSchema = ({ only, schema, url }) => {
   const result = spawnSync(
     "pnpm",
     ["payload", "run", "scripts/preview-migrate.ts"],
     {
       cwd: path.resolve(import.meta.dirname, ".."),
-      env: {
-        ...process.env,
-        PAYLOAD_DB: "postgres",
-        PAYLOAD_DB_SCHEMA: schema,
-        POSTGRES_URL: schemaUrl(url, schema),
-        PREVIEW_MIGRATE_ONLY: only ? JSON.stringify(only) : "",
-      },
+      env: migrateEnv({ only, schema, url }),
       stdio: "inherit",
     }
   );
@@ -558,17 +566,51 @@ export const sweep = async ({ client, days, dryRun = false, log }) => {
     [days]
   );
 
+  const dropped = [];
+
   for (const row of rows) {
-    log(
-      `${dryRun ? "Would drop" : "Dropping"} ${row.schema_name} (${row.branch}, last prepared ${row.last_used.toISOString()}).`
+    const lock = `${META}:${row.schema_name}`;
+
+    // prepare holds this lock while it builds; skip a schema being built.
+    const { rows: locked } = await client.query(
+      "select pg_try_advisory_lock(hashtext($1)) as ok",
+      [lock]
     );
 
-    if (!dryRun) {
-      await dropSchema(client, row.schema_name);
+    if (!locked[0].ok) {
+      log(
+        `Skipping ${row.schema_name} (${row.branch}): a build is preparing it.`
+      );
+      continue;
+    }
+
+    try {
+      // It may have been prepared between the list and the lock.
+      const { rows: still } = await client.query(
+        `select 1 from ${META}.schemas
+          where schema_name = $1 and last_used < now() - make_interval(days => $2)`,
+        [row.schema_name, days]
+      );
+
+      if (still.length === 0) {
+        continue;
+      }
+
+      log(
+        `${dryRun ? "Would drop" : "Dropping"} ${row.schema_name} (${row.branch}, last prepared ${row.last_used.toISOString()}).`
+      );
+
+      if (!dryRun) {
+        await dropSchema(client, row.schema_name);
+      }
+
+      dropped.push(row.schema_name);
+    } finally {
+      await client.query("select pg_advisory_unlock(hashtext($1))", [lock]);
     }
   }
 
-  return rows.map((row) => row.schema_name);
+  return dropped;
 };
 
 export const init = async ({ client, log }) => {

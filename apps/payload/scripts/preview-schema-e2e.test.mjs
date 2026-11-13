@@ -31,6 +31,8 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { Client } from "pg";
+
 import { schemaForBranch } from "./preview-schema.mjs";
 
 const APP_DIR = path.join(import.meta.dirname, "..");
@@ -361,7 +363,12 @@ test(
       `insert into launch_preview.schemas values ('${SCHEMA}', '${FEATURE}', '{}', now())`
     );
 
-    const run = preview(["prepare", "--branch", FEATURE], withBranchMigration);
+    // As in Workers Builds, where the build has no PAYLOAD_SECRET.
+    const run = preview(["prepare", "--branch", FEATURE], {
+      ...withBranchMigration,
+      PAYLOAD_SECRET: "",
+    });
+
     assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
     assert.match(run.stdout, /an earlier run did not finish it/u);
     assert.equal(
@@ -374,8 +381,42 @@ test(
       ),
       "t"
     );
+  }
+);
 
-    const drop = preview(["drop", "--branch", FEATURE]);
-    assert.equal(drop.status, 0, drop.stderr);
+test(
+  "sweep skips a schema a build is preparing, and drops it once free",
+  { skip: !enabled && "set PREVIEW_SCHEMA_E2E=1", timeout: SUITE_TIMEOUT_MS },
+  async () => {
+    psql(
+      `update launch_preview.schemas set last_used = now() - interval '30 days' where schema_name = '${SCHEMA}'`
+    );
+
+    const holder = new Client({ connectionString: url });
+    await holder.connect();
+
+    try {
+      await holder.query("select pg_advisory_lock(hashtext($1))", [
+        `launch_preview:${SCHEMA}`,
+      ]);
+
+      const busy = preview(["sweep", "--days", "7"]);
+      assert.equal(busy.status, 0, busy.stderr);
+      assert.match(busy.stdout, /a build is preparing it/u);
+      assert.equal(
+        psql(`select count(*) from pg_namespace where nspname = '${SCHEMA}'`),
+        "1"
+      );
+    } finally {
+      await holder.end();
+    }
+
+    const free = preview(["sweep", "--days", "7"]);
+    assert.equal(free.status, 0, free.stderr);
+    assert.match(free.stdout, new RegExp(`Dropping ${SCHEMA}`, "u"));
+    assert.equal(
+      psql(`select count(*) from pg_namespace where nspname = '${SCHEMA}'`),
+      "0"
+    );
   }
 );
