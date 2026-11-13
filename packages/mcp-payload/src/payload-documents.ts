@@ -13,6 +13,8 @@ import type {
 import { z } from "zod";
 
 import { payloadErrorMessage, payloadRest } from "./payload";
+import { readPreviewUrl } from "./payload-editing";
+import type { CollectionEditing, EditingInfo } from "./payload-editing";
 
 // Reading and naming Payload documents, shared by every operation kind:
 // where a document lives in REST, when it was last updated, which version a
@@ -216,4 +218,84 @@ export const classifyReadback = (
   }
 
   return { changed, missed, normalized };
+};
+
+// Only a collection with drafts keeps the published version apart from the
+// one being written. Without drafts, `?draft=true` is ignored and the write
+// would go live, so such a collection is refused before anything is shown.
+export const draftCollection = (
+  info: EditingInfo,
+  slug: string
+): CollectionEditing => {
+  const collection = info.collections.find((entry) => entry.slug === slug);
+
+  if (!collection) {
+    throw new ApplyConflictError(
+      "unknown_collection",
+      `${slug} is not a collection this editor can read`
+    );
+  }
+
+  if (!collection.drafts) {
+    throw new ApplyConflictError(
+      "drafts_not_enabled",
+      `${slug} has no drafts, so a change there would publish at once`
+    );
+  }
+
+  return collection;
+};
+
+// The same check on the document itself: a draft-enabled collection always
+// stores `_status`, so a document without one is refused too.
+export const assertDraftDocument = (
+  record: JsonObject,
+  collection: string
+): void => {
+  if (!("_status" in record)) {
+    throw new ApplyConflictError(
+      "drafts_not_enabled",
+      `${collection} has no drafts, so a change there would publish at once`
+    );
+  }
+};
+
+export const requireStamp = (record: JsonObject, target: string): string => {
+  const stamp = updatedAt(record);
+
+  if (stamp === undefined) {
+    throw new ApplyConflictError(
+      "unreadable_updated_at",
+      `Payload did not report when ${target} was last updated`
+    );
+  }
+
+  return stamp;
+};
+
+interface PreviewContext {
+  client: UpstreamClient;
+  siteUrl: PayloadSiteUrl;
+  telemetry: UpstreamTelemetry;
+}
+
+// The front end's draft preview of the document as it is now, where its
+// collection has one. A new document has no address until it is saved.
+export const previewLink = async (
+  context: PreviewContext,
+  collection: Pick<CollectionEditing, "preview" | "slug">,
+  id: number | string
+): Promise<string> => {
+  if (!collection.preview) {
+    return "";
+  }
+
+  const link = await readPreviewUrl(
+    context.client,
+    collection.slug,
+    id,
+    context.telemetry
+  );
+
+  return link === undefined ? "" : context.siteUrl(link);
 };

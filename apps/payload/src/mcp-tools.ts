@@ -16,7 +16,7 @@ import type {
 } from "payload";
 import { z } from "zod";
 
-import { describeDocumentFields } from "./lib/editing-info";
+import { describeDocumentFields, findFieldByPath } from "./lib/editing-info";
 import type { BlockLookup } from "./lib/editing-info";
 
 // Read-only tools for the MCP gateway (apps/mcp). Two convert rich text, so
@@ -36,9 +36,21 @@ const fieldName = z
   .max(64)
   .describe("The name of a top-level rich text field in the collection.");
 
+const MAX_SCHEMA_PATH = 16;
+
+const schemaPath = z
+  .array(z.string().min(1).max(64))
+  .min(1)
+  .max(MAX_SCHEMA_PATH)
+  .optional()
+  .describe(
+    'For a rich text field inside a row or a group: the field names from the document down to it, with a block\'s slug after each blocks field, such as ["layout", "content", "body"]. Leave out for a top-level field.'
+  );
+
 const markdownInputSchema = z.object({
   field: fieldName,
   markdown: z.string().max(MAX_MARKDOWN_LENGTH),
+  path: schemaPath,
 });
 
 const lexicalTreeNode = z.object({
@@ -50,6 +62,7 @@ const lexicalNode = z.object({ type: z.string(), version: z.number() }).loose();
 
 const richTextInputSchema = z.object({
   field: fieldName,
+  path: schemaPath,
   value: z
     .object({
       root: z
@@ -109,12 +122,36 @@ const richTextFields = (
     isRichText
   );
 
+// Blocks a field names by slug live in the config's own `blocks` list.
+const blockLookup = (req: PayloadRequest): BlockLookup => {
+  const blocks = new Map<string, FlattenedBlock>(
+    Object.entries(req.payload.blocks)
+  );
+
+  return (slug) => blocks.get(slug);
+};
+
+// The field a conversion is for: a top-level one by name, or one inside a
+// row or a group by its schema path. Each has its own editor features.
 const richTextField = (
   req: PayloadRequest,
   slug: CollectionSlug,
-  name: string
-): RichTextField | undefined =>
-  richTextFields(req, slug).find((field) => field.name === name);
+  target: { field: string; path?: string[] | undefined }
+): RichTextField | undefined => {
+  if (!target.path) {
+    return richTextFields(req, slug).find(
+      (field) => field.name === target.field
+    );
+  }
+
+  const found = findFieldByPath(
+    req.payload.collections[slug]?.config.flattenedFields ?? [],
+    target.path,
+    blockLookup(req)
+  );
+
+  return found && isRichText(found) ? found : undefined;
+};
 
 const readPermission = ({
   permissions,
@@ -139,7 +176,7 @@ export const markdownToRichText = defineCollectionTool({
     "Convert Markdown into the Lexical JSON a rich text field stores, using that field's editor features. Reads and writes nothing.",
   input: markdownInputSchema,
 }).handler(({ input, req, slug }) => {
-  const field = richTextField(req, slug, input.field);
+  const field = richTextField(req, slug, input);
 
   if (!field) {
     return errorResult(`No rich text field by that name in ${slug}`);
@@ -169,7 +206,7 @@ export const richTextToMarkdown = defineCollectionTool({
     "Convert a rich text field's Lexical JSON into Markdown, using that field's editor features. `lost` names node types (blocks, uploads) that Markdown cannot carry back. Reads and writes nothing.",
   input: richTextInputSchema,
 }).handler(({ input, req, slug }) => {
-  const field = richTextField(req, slug, input.field);
+  const field = richTextField(req, slug, input);
 
   if (!field) {
     return errorResult(`No rich text field by that name in ${slug}`);
@@ -253,15 +290,6 @@ export const getPreviewUrl = defineCollectionTool({
     structuredContent: { url },
   };
 });
-
-// Blocks a field names by slug live in the config's own `blocks` list.
-const blockLookup = (req: PayloadRequest): BlockLookup => {
-  const blocks = new Map<string, FlattenedBlock>(
-    Object.entries(req.payload.blocks)
-  );
-
-  return (slug) => blocks.get(slug);
-};
 
 // A draft setting is `false` or an options object; only whether it is on
 // matters to the gateway.

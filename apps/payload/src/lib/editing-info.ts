@@ -228,3 +228,60 @@ export const describeDocumentFields = (
   fields: readonly FlattenedField[],
   lookup: BlockLookup
 ): FieldsInfo => describeFields(fields, { depth: 0, lookup, prefix: "" });
+
+const blockBySlug = (
+  field: Extract<FlattenedField, { type: "blocks" }>,
+  slug: string | undefined,
+  lookup: BlockLookup
+): FlattenedBlock | undefined => {
+  for (const entry of field.blocks) {
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Payload's own config type
+    const block = typeof entry === "string" ? lookup(entry) : entry;
+
+    if (block?.slug === slug) {
+      return block;
+    }
+  }
+
+  return undefined;
+};
+
+/**
+ * Finds a field by its schema path: the field names from the top down to
+ * it, with a block's slug after each blocks field, such as
+ * `["layout", "content", "body"]`. Groups, named tabs and arrays are stepped
+ * into by name alone. Undefined for a path that leads nowhere.
+ */
+export const findFieldByPath = (
+  fields: readonly FlattenedField[],
+  path: readonly string[],
+  lookup: BlockLookup
+): FlattenedField | undefined => {
+  const [name, ...rest] = path;
+  const field = fields.find((entry) => entry.name === name);
+
+  if (!field || rest.length === 0) {
+    return field;
+  }
+
+  switch (field.type) {
+    case "array":
+    case "group":
+    case "tab": {
+      return findFieldByPath(field.flattenedFields, rest, lookup);
+    }
+
+    case "blocks": {
+      const [slug, ...inBlock] = rest;
+      const block = blockBySlug(field, slug, lookup);
+
+      return block && inBlock.length > 0
+        ? findFieldByPath(block.flattenedFields, inBlock, lookup)
+        : undefined;
+    }
+
+    default: {
+      return undefined;
+    }
+  }
+};
