@@ -48,6 +48,8 @@ DeepSec setup, containment and review limits are in [.deepsec/README.md](.deepse
 
 Run from the repo root: `pnpm verify` is the full gate (frozen install, lint, typecheck, test). `pnpm lint` and `pnpm fix` use ultracite (oxlint + oxfmt). Dependencies only install versions older than `minimumReleaseAge` in `pnpm-workspace.yaml` (3 hours for now, moving to 72); update them with the `deps:*` scripts, whose taze reads the same window. Versions are pinned exactly (`savePrefix` in `pnpm-workspace.yaml`). Shared dependencies (React, Vite, Vitest, `@types/node`) come from the `catalog` in `pnpm-workspace.yaml`: list them as `"catalog:"`, never a version.
 
+The weekly minor/patch update of npm and Composer dependencies, with its holds and checks, is in [Dependency updates](docs/agents/dependency-updates.md).
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project. Do not repeat what the codebase already shows; point to the authoritative file or command instead. Prefer rewriting or pruning existing entries over appending new ones.

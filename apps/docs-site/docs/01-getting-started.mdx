@@ -59,7 +59,7 @@ pnpm --filter docs-site build   # static site in apps/docs-site/dist
 
 ## Dependencies
 
-Versions are pinned exactly, and pnpm only installs versions older than the `minimumReleaseAge` in `pnpm-workspace.yaml`. Update them with the `deps:*` scripts in the root `package.json`, which read the same window.
+Versions are pinned exactly, and pnpm only installs versions older than the `minimumReleaseAge` in `pnpm-workspace.yaml`. Update them with the `deps:*` scripts in the root `package.json`, which read the same window. Once a week the npm and Composer dependencies move to their latest minor and patch releases, following `docs/agents/dependency-updates.md` in the repo; majors get their own PRs.
 
 Dependencies that most packages share, such as React, Vite, Vitest and `@types/node`, have one version for the whole workspace in the `catalog` in `pnpm-workspace.yaml`. A package lists them as `"catalog:"` instead of a version, so they can't drift apart. `@types/node` follows the Node major the repo runs on.
 
