@@ -29,8 +29,9 @@ test("no Postgres migration names the public schema", () => {
       )
     );
 
-  // `pnpm payload migrate:create` writes "public"."name"; delete the prefix
-  // (see the README), so the migration lands in whatever search_path names.
+  // Payload's migrate:create writes "public"."name"; `pnpm migrate:create`
+  // deletes the prefix (see the README), so the migration lands in whatever
+  // search_path names.
   assert.deepEqual(qualified, []);
 });
 
