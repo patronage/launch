@@ -129,7 +129,7 @@ try {
   assert.equal(state.ExitCode, 0, "DeepSec scan failed; inspect scan.log.");
   writeFileSync(
     nodePath.join(run, "result.json"),
-    `${JSON.stringify({ commit: manifest.commit, deepsec: "2.3.10", exitCode: state.ExitCode, image, modelAnalysis: false, phase: "scan" }, null, 2)}\n`
+    `${JSON.stringify({ commit: manifest.commit, deepsec: "2.3.12", exitCode: state.ExitCode, image, modelAnalysis: false, phase: "scan" }, null, 2)}\n`
   );
   console.log(
     "Candidate discovery only: these are review leads, not findings. See .deepsec/README.md."

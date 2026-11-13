@@ -6,10 +6,10 @@
   "require": {
     "php": ">=8.2",
     "composer/installers": "2.3.0",
-    "wp-graphql/wp-graphql": "2.25.0",
-    "wp-graphql/wp-graphql-acf": "3.0.0",
-    "wordpress/secure-custom-fields": "6.9.7",
-    "wp-graphql/wp-graphql-smart-cache": "2.3.4",
+    "wp-graphql/wp-graphql": "2.28.0",
+    "wp-graphql/wp-graphql-acf": "3.2.1",
+    "wordpress/secure-custom-fields": "6.9.8",
+    "wp-graphql/wp-graphql-smart-cache": "2.4.1",
     "vinkla/extended-acf": "14.6.2",
     "johnbillion/extended-cpts": "5.1.0",
     "wordpress-plugin/formidable": "7.0"
@@ -19,11 +19,11 @@
       "type": "package",
       "package": {
         "name": "wp-graphql/wp-graphql",
-        "version": "2.25.0",
+        "version": "2.28.0",
         "type": "wordpress-plugin",
         "dist": {
           "type": "zip",
-          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql%2Fv2.25.0/wp-graphql.zip"
+          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql%2Fv2.28.0/wp-graphql.zip"
         },
         "require": {
           "composer/installers": "^2.2"
@@ -34,11 +34,11 @@
       "type": "package",
       "package": {
         "name": "wp-graphql/wp-graphql-acf",
-        "version": "3.0.0",
+        "version": "3.2.1",
         "type": "wordpress-plugin",
         "dist": {
           "type": "zip",
-          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-acf%2Fv3.0.0/wp-graphql-acf.zip"
+          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-acf%2Fv3.2.1/wp-graphql-acf.zip"
         },
         "require": {
           "composer/installers": "^2.2"
@@ -49,11 +49,11 @@
       "type": "package",
       "package": {
         "name": "wp-graphql/wp-graphql-smart-cache",
-        "version": "2.3.4",
+        "version": "2.4.1",
         "type": "wordpress-plugin",
         "dist": {
           "type": "zip",
-          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-smart-cache%2Fv2.3.4/wp-graphql-smart-cache.zip"
+          "url": "https://github.com/wp-graphql/wp-graphql/releases/download/wp-graphql-smart-cache%2Fv2.4.1/wp-graphql-smart-cache.zip"
         },
         "require": {
           "composer/installers": "^2.2"
@@ -64,11 +64,11 @@
       "type": "package",
       "package": {
         "name": "wordpress/secure-custom-fields",
-        "version": "6.9.7",
+        "version": "6.9.8",
         "type": "wordpress-plugin",
         "dist": {
           "type": "zip",
-          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.8/secure-custom-fields.zip"
         },
         "require": {
           "composer/installers": "^2.2"
