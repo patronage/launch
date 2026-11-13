@@ -44,7 +44,7 @@ pnpm --filter cms-wordpress-timber run setup   # http://localhost:8090
 
 ## Check a change in the browser
 
-`pnpm verify` checks dependencies, lint, types and tests, not that a page looks right. Before you open a pull request that changes pages, sections, forms or the admin, drive the change in a real browser and keep the screenshots. The repo's `launch-verify` agent skill does this for the Payload app and the headless WordPress front-end:
+`pnpm verify` checks dependencies, lint, types and tests, not that a page looks right. Before you open a pull request that changes pages, sections, forms or the admin, drive the change in a real browser and keep the screenshots. The repo's `launch-verify` agent skill does this for the Payload app and the headless WordPress front-end. It also runs the MCP gateway against the local Payload, with a local stand-in for Cloudflare Access, and takes a write through a real approval:
 
 ```bash
 node .agents/skills/launch-verify/scripts/verify.ts --help

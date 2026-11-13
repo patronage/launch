@@ -11,12 +11,16 @@ import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-import type { BrowserType, Page } from "playwright";
+import type { Browser, BrowserType, Page } from "playwright";
 
 export interface DriveContext {
   origin: string;
   dir: string;
   repoRoot: string;
+  /** The origin of each surface this checkout runs, by surface name. */
+  peers: Record<string, string | undefined>;
+  /** Signs an Access JWT for a synthetic editor with the local stand-in. */
+  signIn: (email: string) => string;
 }
 
 export type Drive = (context: DriveContext) => Promise<void>;
@@ -512,7 +516,465 @@ const pagesSmoke =
     }
   };
 
+// --- MCP gateway -------------------------------------------------------------
+
+/** What READ_POST returns for one post. */
+interface PostSummary {
+  id: number;
+  status: string;
+  title: string;
+  updatedAt: string;
+}
+
+/** The parts of the gateway's structured tool results this drive reads. */
+interface StructuredContent {
+  approvalUrl?: string;
+  executionId?: string;
+  result?: PostSummary | null;
+  status?: string;
+}
+
+/** The parts of an MCP JSON-RPC result this drive reads. */
+interface RpcResult {
+  content?: { text?: string; type: string }[];
+  structuredContent?: StructuredContent;
+  tools?: { name: string }[];
+}
+
+/** The two gateway tools this drive calls. */
+type ToolArguments = { code: string } | { executionId: string };
+
+interface ToolCall {
+  arguments: ToolArguments;
+  name: string;
+}
+
+interface ToolResult {
+  structuredContent: StructuredContent;
+  text: string;
+}
+
+/**
+ * One MCP request to the local gateway, as a client that is not a browser
+ * sends it: JSON-RPC over Streamable HTTP, answered as JSON or as one event.
+ */
+const mcpRequest = async (
+  origin: string,
+  token: string | null,
+  method: "tools/call" | "tools/list",
+  params?: ToolCall
+): Promise<{ result?: RpcResult; status: number }> => {
+  const headers = new Headers({
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  });
+
+  if (token) {
+    headers.set("cf-access-jwt-assertion", token);
+  }
+
+  const response = await fetch(`${origin}/mcp`, {
+    body: JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method,
+      params: params ?? {},
+    }),
+    headers,
+    method: "POST",
+    signal: AbortSignal.timeout(180_000),
+  });
+
+  const body = await response.text();
+
+  const json = body.startsWith("{")
+    ? body
+    : (body
+        .split("\n")
+        .findLast((line) => line.startsWith("data: "))
+        ?.slice(6) ?? "");
+
+  try {
+    const parsed: { result?: RpcResult } = JSON.parse(json);
+
+    return { result: parsed.result, status: response.status };
+  } catch {
+    return { status: response.status };
+  }
+};
+
+const callTool = async (
+  origin: string,
+  token: string,
+  name: string,
+  args: ToolArguments
+): Promise<ToolResult> => {
+  const { result, status } = await mcpRequest(origin, token, "tools/call", {
+    arguments: args,
+    name,
+  });
+
+  if (!result) {
+    throw new Error(`${name} answered ${status} with no result`);
+  }
+
+  return {
+    structuredContent: result.structuredContent ?? {},
+    text: (result.content ?? []).map((block) => block.text ?? "").join("\n"),
+  };
+};
+
+/** Runs one script through the gateway's `execute` tool. */
+const execute = (origin: string, token: string, code: string) =>
+  callTool(origin, token, "execute", { code });
+
+// A findDocuments answer is a heading and one fenced JSON block, holding one
+// document or a list of them.
+const READ_POST = (where: string) => `async () => {
+  const found = await payload.call({
+    tool: "findDocuments",
+    arguments: { slug: "posts", draft: true, depth: 0, limit: 1, ${where} },
+  });
+  const block = /\`\`\`json\\n([\\s\\S]*?)\\n\`\`\`/.exec(found.text);
+  const doc = [].concat(JSON.parse(block ? block[1] : "null"))[0];
+  return doc ? { id: doc.id, title: doc.title, updatedAt: doc.updatedAt, status: doc._status } : null;
+}`;
+
+const MARKER = / \(verify-[0-9a-f]{8}\)$/u;
+
+/** The visible text of a gateway page, on one line. */
+const mainText = async (page: Page): Promise<string> => {
+  const text = await page.locator("main").textContent();
+
+  return (text ?? "").replaceAll(/\s+/gu, " ").trim();
+};
+
+/**
+ * The first published post by title, as an anonymous visitor's API read
+ * returns it. Every run edits this one post, so runs don't use the seed up.
+ */
+const firstPublishedPost = async (
+  payloadOrigin: string
+): Promise<{ id: number; title: string } | undefined> => {
+  const response = await fetch(
+    `${payloadOrigin}/api/posts?depth=0&limit=1&sort=title`
+  );
+
+  const found: { docs?: { id: number; title: string }[] } =
+    await response.json();
+
+  return found.docs?.[0];
+};
+
+/** A post's title as an anonymous visitor's API read returns it. */
+const publishedTitle = async (
+  payloadOrigin: string,
+  id: number
+): Promise<string | undefined> => {
+  const response = await fetch(`${payloadOrigin}/api/posts/${id}?depth=0`);
+  const post: { title?: string } = await response.json();
+
+  return post.title;
+};
+
+/**
+ * Signs in to the local Payload admin and returns the editor's email. The
+ * editor is the first local admin, created here on a fresh database the way
+ * apply-form does, or signed in with "Continue as".
+ */
+const localAdminEmail = async (
+  browser: Browser,
+  payloadOrigin: string
+): Promise<string> => {
+  const admin = await browser.newPage({
+    viewport: { height: 900, width: 1280 },
+  });
+
+  await admin.goto(`${payloadOrigin}/admin`, { waitUntil: "networkidle" });
+
+  const continueAs = admin.getByRole("button", { name: /^Continue as /u });
+
+  if (await admin.locator("#field-confirm-password").isVisible()) {
+    const password = randomUUID();
+
+    await admin.fill("#field-email", "verify@example.test");
+    await admin.fill("#field-password", password);
+    await admin.fill("#field-confirm-password", password);
+    await admin.click("button[type=submit]");
+    await admin.waitForURL(
+      (url) => !url.pathname.includes("create-first-user")
+    );
+  } else if (await continueAs.isVisible()) {
+    await continueAs.click();
+    await admin.waitForLoadState("networkidle");
+  }
+
+  const response = await admin.request.get(`${payloadOrigin}/api/users/me`);
+  const me: { user?: { email?: string } } = await response.json();
+
+  await admin.close();
+
+  if (!me.user?.email) {
+    throw new Error("Could not sign in to the local Payload admin.");
+  }
+
+  return me.user.email;
+};
+
+/** The script an agent sends to retitle one post as a draft. */
+const retitleScript = (options: {
+  expected: string;
+  id: number;
+  marker: string;
+  title: string;
+}) => `async () => payload.apply({
+  intent: "Retitle a post for launch-verify run ${options.marker}",
+  operations: [{
+    kind: "update_draft",
+    collection: "posts",
+    id: ${options.id},
+    fields: { title: ${JSON.stringify(options.title)} },
+    expected_updated_at: ${JSON.stringify(options.expected)},
+  }],
+})`;
+
+/**
+ * MCP gateway: an editor's agent reads a post through the gateway, asks to
+ * retitle it, a stale request is refused, the editor approves the real one on
+ * the approval page, and Payload holds the change as a draft while the
+ * published post stays as it was.
+ */
+const mcpPayloadDraft: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const payloadOrigin = peers.payload;
+
+  if (!payloadOrigin) {
+    throw new Error("No owned payload server; launch mcp first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  const expect = (pass: boolean, what: string) => {
+    if (!pass) {
+      failures.push(what);
+    }
+  };
+
+  try {
+    const email = await localAdminEmail(browser, payloadOrigin);
+    const token = signIn(email);
+
+    log.step(
+      "Sign in to the gateway as the local admin",
+      `${email}, with a JWT signed by the local Access stand-in`
+    );
+
+    const anonymous = await mcpRequest(origin, null, "tools/list");
+
+    expect(
+      [401, 403].includes(anonymous.status),
+      "a request with no sign-in was not refused"
+    );
+    log.step("POST /mcp tools/list with no sign-in", `${anonymous.status}`);
+
+    const listed = await mcpRequest(origin, token, "tools/list");
+    const tools = (listed.result?.tools ?? []).map((tool) => tool.name);
+
+    expect(tools.includes("execute"), "the gateway lists no execute tool");
+    log.step("POST /mcp tools/list, signed in", tools.join(", "));
+
+    const live = await firstPublishedPost(payloadOrigin);
+
+    if (!live) {
+      throw new Error("No published post to edit: seed Payload first.");
+    }
+
+    const read = await execute(
+      origin,
+      token,
+      READ_POST(`where: { id: { equals: ${live.id} } }`)
+    );
+
+    const post = read.structuredContent.result;
+
+    if (!post) {
+      throw new Error(
+        `The gateway could not read posts/${live.id}: ${read.text.slice(0, 200)}`
+      );
+    }
+
+    const before = live.title;
+    const title = `${post.title.replace(MARKER, "")} (${marker})`;
+    const request = { id: post.id, marker, title };
+
+    log.step(
+      "execute: read a published post's newest draft through payload.call",
+      `posts/${post.id} "${post.title}" (${post.status}), updated ${post.updatedAt}; published as "${before}"`
+    );
+
+    const paused = await execute(
+      origin,
+      token,
+      retitleScript({ ...request, expected: post.updatedAt })
+    );
+
+    const { approvalUrl = "", executionId = "" } = paused.structuredContent;
+
+    expect(
+      paused.structuredContent.status === "paused",
+      `payload.apply did not pause for approval: ${paused.text.slice(0, 200)}`
+    );
+    expect(
+      approvalUrl.startsWith(`${origin}/mcp/approvals/`),
+      `the approval link is not on the local gateway: ${approvalUrl}`
+    );
+    log.step(
+      "execute: payload.apply with the current updatedAt",
+      `${paused.structuredContent.status}; ${paused.text.slice(0, 160)}`
+    );
+
+    if (failures.length > 0) {
+      throw new Error("the run never reached approval");
+    }
+
+    // The approver is the same editor, in a browser that Access has signed
+    // in: locally, the stand-in's JWT on every request.
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "cf-access-jwt-assertion": token },
+      viewport: { height: 900, width: 1280 },
+    });
+
+    const page = await context.newPage();
+    const errors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+
+    // A request built on an old read pauses like any other; its preview is
+    // where the gateway finds the document has moved on and offers no
+    // Approve button.
+    const stale = await execute(
+      origin,
+      token,
+      retitleScript({ ...request, expected: "2000-01-01T00:00:00.000Z" })
+    );
+
+    const staleUrl = stale.structuredContent.approvalUrl ?? "";
+
+    expect(
+      staleUrl.startsWith(`${origin}/mcp/approvals/`),
+      `the stale request has no local approval link: ${stale.text.slice(0, 200)}`
+    );
+
+    if (failures.length > 0) {
+      throw new Error("the stale request never reached its approval page");
+    }
+
+    await page.goto(staleUrl, { waitUntil: "networkidle" });
+
+    const refusal = await mainText(page);
+
+    const offered = await page
+      .getByRole("button", { name: "Approve" })
+      .isVisible();
+
+    expect(!offered, "a stale expected_updated_at was offered for approval");
+    expect(
+      refusal.includes("stale_expected_updated_at"),
+      "the stale request's page does not say why it was refused"
+    );
+    log.step(
+      "Open the approval page of a request with a stale expected_updated_at",
+      `Approve offered: ${offered}; page says: ${refusal.slice(0, 200)}`
+    );
+    await log.shot(page, "stale-refused");
+
+    await page.goto(approvalUrl, { waitUntil: "networkidle" });
+
+    const preview = await mainText(page);
+
+    expect(
+      preview.includes(marker),
+      "the approval page does not show the new title"
+    );
+    log.step(
+      "Open the approval page",
+      `shows the new title: ${preview.includes(marker)}; shows the old title: ${preview.includes(post.title)}`
+    );
+    await log.shot(page, "approval");
+
+    await page.getByRole("button", { name: "Approve" }).click();
+    await page.waitForLoadState("networkidle");
+
+    const outcome = await mainText(page);
+
+    log.step("Click Approve", outcome.slice(0, 200));
+    await log.shot(page, "approved");
+
+    const run = await callTool(origin, token, "get_run", { executionId });
+    const receipt = JSON.stringify(run.structuredContent);
+
+    writeFileSync(
+      path.join(dir, "run.json"),
+      `${JSON.stringify(run.structuredContent, null, 2)}\n`
+    );
+    expect(
+      receipt.includes('"status":"succeeded"') &&
+        receipt.includes('"status":"changed"'),
+      "get_run reports no successful change"
+    );
+    log.step(
+      "get_run for the approved run",
+      `succeeded: ${receipt.includes('"status":"succeeded"')}; title changed: ${receipt.includes('"changed_paths":["title"]')} (run.json)`
+    );
+
+    const after = await execute(
+      origin,
+      token,
+      READ_POST(`where: { id: { equals: ${post.id} } }`)
+    );
+
+    const draft = after.structuredContent.result;
+    const published = await publishedTitle(payloadOrigin, post.id);
+
+    expect(draft?.title === title, "the draft does not hold the new title");
+    expect(
+      published === before,
+      "the published post changed; the edit should be a draft"
+    );
+    log.step(
+      "Read the post again: the newest draft, then the public API",
+      `draft "${draft?.title}" (${draft?.status}); published "${published}"`
+    );
+
+    log.step(
+      "Browser console errors on the approval page",
+      errors.length ? errors.join(" | ") : "none"
+    );
+    await context.close();
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`payload-draft failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
+  ["mcp", new Map([["payload-draft", mcpPayloadDraft]])],
   [
     "payload",
     new Map([

@@ -2,8 +2,15 @@
 //   node --test .agents/skills/launch-verify/scripts/verify.test.ts
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createPublicKey, createVerify } from "node:crypto";
 import { once } from "node:events";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -13,6 +20,11 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import {
+  mintAccessJwt,
+  STANDIN_AUDIENCE,
+  standinIssuer,
+} from "./access-standin.ts";
 import {
   cleanup,
   isLocalUrl,
@@ -107,7 +119,191 @@ describe("environment safety", () => {
   });
 });
 
+describe("gateway environment safety", () => {
+  const secrets = new Map([
+    ["APPROVAL_CSRF_SECRET", "a"],
+    ["PAYLOAD_ACCESS_PROOF_SECRET", "b"],
+  ]);
+
+  it("needs both secrets in the gateway's own .dev.vars", () => {
+    assert.deepEqual(unsafeEnvironment("mcp", [secrets], {}), []);
+    assert.equal(unsafeEnvironment("mcp", [], {}).length, 2);
+    // A secret in the shell doesn't count: a local Worker with a .dev.vars
+    // file reads secrets from that file only.
+    assert.equal(
+      unsafeEnvironment("mcp", [], {
+        APPROVAL_CSRF_SECRET: "a",
+        PAYLOAD_ACCESS_PROOF_SECRET: "b",
+      }).length,
+      2
+    );
+  });
+
+  it("refuses a hosted Payload, WordPress or Access team", () => {
+    for (const name of [
+      "ACCESS_TEAM_DOMAIN",
+      "PAYLOAD_ADMIN_URL",
+      "PAYLOAD_API_URL",
+      "WORDPRESS_API_URL",
+    ]) {
+      assert.equal(
+        unsafeEnvironment("mcp", [secrets], {
+          [name]: "https://cms.example.org",
+        }).length,
+        1,
+        name
+      );
+      assert.equal(
+        unsafeEnvironment(
+          "mcp",
+          [secrets, new Map([[name, "https://cms.example.org"]])],
+          {}
+        ).length,
+        1,
+        name
+      );
+    }
+  });
+
+  it("refuses service tokens and a Worker binding to Payload", () => {
+    for (const name of [
+      "PAYLOAD_ACCESS_CLIENT_ID",
+      "PAYLOAD_ACCESS_CLIENT_SECRET",
+      "PAYLOAD_WORKER",
+      "WORDPRESS_ACCESS_CLIENT_ID",
+      "WORDPRESS_ACCESS_CLIENT_SECRET",
+    ]) {
+      assert.equal(
+        unsafeEnvironment("mcp", [secrets], { [name]: "x" }).length,
+        1,
+        name
+      );
+    }
+  });
+});
+
+const decodeJwtPart = (part: string) =>
+  JSON.parse(Buffer.from(part, "base64url").toString("utf-8"));
+
+describe("Access stand-in", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "launch-verify-access-"));
+  const keyFile = path.join(dir, "key.json");
+  let port = 0;
+  let child: ReturnType<typeof spawn> | undefined;
+
+  const certs = async () => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/cdn-cgi/access/certs`
+    );
+
+    return response;
+  };
+
+  before(async () => {
+    const probeServer = createServer();
+
+    probeServer.listen(0, "127.0.0.1");
+    await once(probeServer, "listening");
+    // SAFETY: a server listening on TCP reports an AddressInfo, never a pipe name.
+    ({ port } = probeServer.address() as AddressInfo);
+    probeServer.close();
+    await once(probeServer, "close");
+
+    child = spawn(
+      process.execPath,
+      [
+        path.join(import.meta.dirname, "access-standin.ts"),
+        String(port),
+        keyFile,
+      ],
+      { stdio: "ignore" }
+    );
+
+    /* oxlint-disable no-await-in-loop -- one attempt at a time, until it listens. */
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      try {
+        const response = await certs();
+
+        if (response.ok) {
+          return;
+        }
+      } catch {
+        // Not listening yet.
+      }
+
+      await sleep(100);
+    }
+    /* oxlint-enable no-await-in-loop */
+
+    throw new Error("The Access stand-in never served its keys.");
+  });
+
+  after(() => {
+    child?.kill("SIGKILL");
+    rmSync(dir, { force: true, recursive: true });
+  });
+
+  it("signs a JWT its served key verifies", async () => {
+    const token = mintAccessJwt({
+      email: "editor@example.test",
+      keyFile,
+      port,
+    });
+
+    const [header = "", claims = "", signature = ""] = token.split(".");
+    const response = await certs();
+    const { keys } = await response.json();
+    const [jwk] = keys;
+
+    assert.equal(keys.length, 1);
+    assert.equal(decodeJwtPart(header).kid, jwk.kid);
+    assert.equal(decodeJwtPart(header).alg, "RS256");
+    assert.ok(!("d" in jwk), "the served key has no private half");
+
+    assert.ok(
+      createVerify("RSA-SHA256")
+        .update(`${header}.${claims}`)
+        .verify(
+          createPublicKey({ format: "jwk", key: jwk }),
+          Buffer.from(signature, "base64url")
+        )
+    );
+
+    const payload = decodeJwtPart(claims);
+
+    assert.deepEqual(payload.aud, [STANDIN_AUDIENCE]);
+    assert.equal(payload.email, "editor@example.test");
+    assert.equal(payload.iss, standinIssuer(port));
+    assert.ok(payload.exp > Date.now() / 1000);
+  });
+
+  it("serves nothing else", async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/`);
+
+    assert.equal(response.status, 404);
+  });
+});
+
 describe("receipts", () => {
+  it("keeps the Access issuer a server was started against", () => {
+    const receipt: Receipt = {
+      accessIssuer: "http://127.0.0.1:8799",
+      appDir: "/tmp/app",
+      command: ["pnpm", "dev"],
+      log: "/tmp/app/server.log",
+      pid: 1,
+      port: 8787,
+      startedAt: new Date().toISOString(),
+      surface: "mcp",
+      token: "t",
+    };
+
+    assert.equal(
+      parseReceipt(JSON.stringify(receipt))?.accessIssuer,
+      "http://127.0.0.1:8799"
+    );
+  });
+
   it("rejects malformed or foreign-surface receipts", () => {
     assert.equal(parseReceipt("not json"), null);
     assert.equal(

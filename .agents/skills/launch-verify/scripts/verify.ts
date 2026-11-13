@@ -31,13 +31,18 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import type { BrowserType } from "playwright";
 
+import {
+  mintAccessJwt,
+  STANDIN_AUDIENCE,
+  standinIssuer,
+} from "./access-standin.ts";
 import { DRIVES } from "./drive.ts";
 
 export const SKILL_DIR = path.resolve(import.meta.dirname, "..");
 
 export const REPO_ROOT = path.resolve(SKILL_DIR, "../../..");
 
-export type SurfaceName = "payload" | "web-wordpress";
+export type SurfaceName = "access" | "mcp" | "payload" | "web-wordpress";
 
 export interface Surface {
   /** The app directory, relative to the repo root. */
@@ -56,6 +61,41 @@ export interface Surface {
 }
 
 export const SURFACES: Record<SurfaceName, Surface> = {
+  // The stand-in for a Cloudflare Access team domain that `launch mcp`
+  // starts, so the gateway and Payload verify a JWT signed on this machine.
+  access: {
+    app: ".agents/skills/launch-verify/scripts",
+    defaultPort: 8799,
+    envFiles: [],
+    health: ["/cdn-cgi/access/certs"],
+    prepare: () => [],
+    requiredFiles: [],
+    start: (port) => [
+      process.execPath,
+      "access-standin.ts",
+      String(port),
+      accessKeyFile(),
+    ],
+  },
+  // The MCP gateway on `vite dev`, signed in through the stand-in and
+  // reaching the local Payload by URL. `launch mcp` starts all three.
+  mcp: {
+    app: "apps/mcp",
+    defaultPort: 8787,
+    envFiles: [
+      ".env",
+      ".env.local",
+      ".env.development",
+      ".env.development.local",
+      ".dev.vars",
+      ".dev.vars.development",
+    ],
+    // Every path outside /mcp is a 404 by design; Doctor signs in instead.
+    health: [],
+    prepare: () => [],
+    requiredFiles: [".dev.vars"],
+    start: (port) => ["pnpm", "dev", "--port", String(port), "--strictPort"],
+  },
   payload: {
     app: "apps/payload",
     defaultPort: 4173,
@@ -111,7 +151,10 @@ export const SURFACES: Record<SurfaceName, Surface> = {
 };
 
 export const isSurfaceName = (value: string): value is SurfaceName =>
-  value === "payload" || value === "web-wordpress";
+  value === "access" ||
+  value === "mcp" ||
+  value === "payload" ||
+  value === "web-wordpress";
 
 export interface Receipt {
   surface: SurfaceName;
@@ -123,6 +166,11 @@ export interface Receipt {
   token: string;
   startedAt: string;
   log: string;
+  /**
+   * The Access stand-in origin this server was built to trust, when it was
+   * started for the MCP gateway. Absent on a plain launch.
+   */
+  accessIssuer?: string;
 }
 
 export const stateDir = (surface: SurfaceName): string =>
@@ -136,6 +184,13 @@ export const evidenceRoot = (): string =>
 
 const receiptPath = (surface: SurfaceName): string =>
   path.join(stateDir(surface), "run.json");
+
+/** Where the Access stand-in keeps the key a drive signs with. */
+export const accessKeyFile = (): string =>
+  path.join(stateDir("access"), "key.json");
+
+/** The synthetic editor Doctor signs in as; no such person exists. */
+const DOCTOR_EMAIL = "doctor@example.test";
 
 // The receipt is this helper's own JSON file; this is its parse boundary.
 /* oxlint-disable anti-slop/no-runtime-typeof */
@@ -239,6 +294,42 @@ export const unsafeEnvironment = (
     ]) {
       if (values(name).length > 0) {
         problems.push(`${name} is set; local WordPress runs without Access`);
+      }
+    }
+  }
+
+  if (surface === "mcp") {
+    for (const name of [
+      "ACCESS_TEAM_DOMAIN",
+      "PAYLOAD_ADMIN_URL",
+      "PAYLOAD_API_URL",
+      "WORDPRESS_API_URL",
+    ]) {
+      for (const url of values(name).filter((entry) => !isLocalUrl(entry))) {
+        problems.push(`${name} must be local, not ${url}`);
+      }
+    }
+
+    for (const name of [
+      "PAYLOAD_ACCESS_CLIENT_ID",
+      "PAYLOAD_ACCESS_CLIENT_SECRET",
+      "PAYLOAD_WORKER",
+      "WORDPRESS_ACCESS_CLIENT_ID",
+      "WORDPRESS_ACCESS_CLIENT_SECRET",
+    ]) {
+      if (values(name).length > 0) {
+        problems.push(
+          `${name} is set; the local gateway reaches the local Payload by URL, with no service token`
+        );
+      }
+    }
+
+    for (const name of [
+      "APPROVAL_CSRF_SECRET",
+      "PAYLOAD_ACCESS_PROOF_SECRET",
+    ]) {
+      if (!files.some((file) => file.get(name))) {
+        problems.push(`${name} is missing from apps/mcp/.dev.vars`);
       }
     }
   }
@@ -400,7 +491,12 @@ const origin = (port: number) => `http://localhost:${port}`;
 
 const log = (...parts: unknown[]) => console.log(...parts);
 
-const runStep = (command: string[], cwd: string, logFile: string): void => {
+const runStep = (
+  command: string[],
+  cwd: string,
+  logFile: string,
+  env: NodeJS.ProcessEnv
+): void => {
   const [file, ...args] = command;
   const fd = openSync(logFile, "a");
 
@@ -408,7 +504,7 @@ const runStep = (command: string[], cwd: string, logFile: string): void => {
 
   const result = spawnSync(file ?? "", args, {
     cwd,
-    env: process.env,
+    env,
     stdio: ["ignore", fd, fd],
   });
 
@@ -435,6 +531,110 @@ const waitForReady = async (port: number, pid: number): Promise<boolean> => {
   }
 
   return false;
+};
+
+/** One MCP `initialize` against the local gateway, signed or not. */
+const initializeStatus = async (
+  port: number,
+  token: string | null
+): Promise<number> => {
+  const headers = new Headers({
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  });
+
+  if (token) {
+    headers.set("cf-access-jwt-assertion", token);
+  }
+
+  const response = await fetch(`${origin(port)}/mcp`, {
+    body: JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        capabilities: {},
+        clientInfo: { name: "launch-verify", version: "0" },
+        protocolVersion: "2025-06-18",
+      },
+    }),
+    headers,
+    method: "POST",
+    signal: AbortSignal.timeout(120_000),
+  });
+
+  await response.body?.cancel();
+
+  return response.status;
+};
+
+/**
+ * What Doctor checks on the gateway beyond its own process: the stand-in and
+ * the Payload it was started against are this checkout's, a request signed by
+ * the stand-in gets in, and one with no sign-in does not.
+ */
+const gatewayChecks = async (
+  port: number
+): Promise<{ pass: boolean; text: string }[]> => {
+  const lines: { pass: boolean; text: string }[] = [];
+  const access = readReceipt("access");
+  const payload = readReceipt("payload");
+  const accessUp = Boolean(access && ownsProcess(access));
+
+  lines.push({
+    pass: accessUp,
+    text: accessUp
+      ? `Access stand-in runs on port ${access?.port}`
+      : "Access stand-in is not running: launch mcp starts it",
+  });
+
+  const payloadUp = Boolean(
+    payload &&
+    ownsProcess(payload) &&
+    access &&
+    payload.accessIssuer === standinIssuer(access.port)
+  );
+
+  lines.push({
+    pass: payloadUp,
+    text: payloadUp
+      ? `Payload on port ${payload?.port} trusts the stand-in`
+      : "Payload is not running against the stand-in: cleanup payload, then launch mcp",
+  });
+
+  if (!(access && accessUp)) {
+    return lines;
+  }
+
+  try {
+    const signed = await initializeStatus(
+      port,
+      mintAccessJwt({
+        email: DOCTOR_EMAIL,
+        keyFile: accessKeyFile(),
+        port: access.port,
+      })
+    );
+
+    lines.push({
+      pass: signed === 200,
+      text: `POST /mcp initialize, signed by the stand-in -> ${signed}`,
+    });
+
+    const unsigned = await initializeStatus(port, null);
+
+    lines.push({
+      pass: unsigned === 401 || unsigned === 403,
+      text: `POST /mcp initialize with no sign-in -> ${unsigned}`,
+    });
+  } catch (error) {
+    lines.push({
+      pass: false,
+      text: `POST /mcp: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+
+  return lines;
 };
 
 export const doctor = async (
@@ -510,6 +710,12 @@ export const doctor = async (
     }
   }
 
+  if (surface === "mcp") {
+    for (const line of await gatewayChecks(target)) {
+      check(line.pass, line.text);
+    }
+  }
+
   for (const pathname of SURFACES[surface].health) {
     try {
       const result = await probe(origin(target), pathname);
@@ -536,9 +742,53 @@ export const doctor = async (
   return ok;
 };
 
+export interface LaunchOptions {
+  /** The Access stand-in origin the server must trust (`launch mcp`). */
+  accessIssuer?: string;
+  /** The local Payload origin the gateway reaches. */
+  payloadOrigin?: string;
+}
+
+/**
+ * The settings a server gets on top of the shell's, so the gateway and
+ * Payload trust the Access stand-in and nothing hosted.
+ */
+const launchEnv = (
+  surface: SurfaceName,
+  options: LaunchOptions
+): NodeJS.ProcessEnv => {
+  if (!options.accessIssuer) {
+    return process.env;
+  }
+
+  if (surface === "payload") {
+    return {
+      ...process.env,
+      ACCESS_GATEWAY_AUD: STANDIN_AUDIENCE,
+      ACCESS_TEAM_DOMAIN: options.accessIssuer,
+    };
+  }
+
+  if (surface === "mcp") {
+    return {
+      ...process.env,
+      ACCESS_AUD: STANDIN_AUDIENCE,
+      ACCESS_TEAM_DOMAIN: options.accessIssuer,
+      DEPLOYMENT_ENVIRONMENT: "development",
+      PAYLOAD_ADMIN_URL: options.payloadOrigin ?? "",
+      PAYLOAD_API_URL: options.payloadOrigin ?? "",
+      // The MCP endpoint answers only on hostnames it is told are its own.
+      WORKER_DOMAIN: "localhost",
+    };
+  }
+
+  return process.env;
+};
+
 export const launch = async (
   surface: SurfaceName,
-  port: number
+  port: number,
+  options: LaunchOptions = {}
 ): Promise<void> => {
   const spec = SURFACES[surface];
   const appDir = realpathSync(path.join(REPO_ROOT, spec.app));
@@ -548,6 +798,16 @@ export const launch = async (
     if (existing.port !== port) {
       throw new Error(
         `This checkout already runs ${surface} on port ${existing.port}; clean it up first.`
+      );
+    }
+
+    if (
+      options.accessIssuer &&
+      surface !== "access" &&
+      existing.accessIssuer !== options.accessIssuer
+    ) {
+      throw new Error(
+        `This checkout's ${surface} server was not started against the Access stand-in at ${options.accessIssuer}. Run cleanup ${surface}, then launch mcp again.`
       );
     }
 
@@ -589,9 +849,11 @@ export const launch = async (
 
   writeFileSync(logFile, "");
 
+  const env = launchEnv(surface, options);
+
   for (const step of spec.prepare(port)) {
     log(`$ ${step.join(" ")}`);
-    runStep(step, appDir, logFile);
+    runStep(step, appDir, logFile, env);
   }
 
   const command = spec.start(port);
@@ -601,7 +863,7 @@ export const launch = async (
   const child = spawn(file ?? "", args, {
     cwd: appDir,
     detached: true,
-    env: process.env,
+    env,
     stdio: ["ignore", fd, fd],
   });
 
@@ -622,6 +884,10 @@ export const launch = async (
     token: randomUUID(),
   };
 
+  if (options.accessIssuer && surface !== "access") {
+    receipt.accessIssuer = options.accessIssuer;
+  }
+
   writeFileSync(receiptPath(surface), `${JSON.stringify(receipt, null, 2)}\n`);
   child.unref();
 
@@ -640,6 +906,54 @@ export const launch = async (
       `Doctor failed; the server is still running. Fix it, or run cleanup ${surface}.`
     );
   }
+};
+
+/** The port a surface already runs on in this checkout, or its default. */
+const portFor = (surface: SurfaceName): number => {
+  const receipt = readReceipt(surface);
+
+  return receipt && ownsProcess(receipt)
+    ? receipt.port
+    : SURFACES[surface].defaultPort;
+};
+
+/** A secret as an app's env files give it: the last file that sets it wins. */
+const secretIn = (surface: SurfaceName, name: string): string =>
+  readEnvFiles(surface)
+    .map((file) => file.get(name) ?? "")
+    .findLast(Boolean) ?? "";
+
+/**
+ * `launch mcp`: the Access stand-in, then Payload built to trust it, then the
+ * gateway pointed at both. The proof secret the two apps share has to be in
+ * their own `.dev.vars`, because that is the only place a local Worker reads
+ * a secret from.
+ */
+export const launchGateway = async (port: number): Promise<void> => {
+  const proof = secretIn("payload", "ACCESS_GATEWAY_PROOF_SECRET");
+
+  if (!proof) {
+    throw new Error(
+      "ACCESS_GATEWAY_PROOF_SECRET is missing from apps/payload/.dev.vars; see the MCP gateway section of SKILL.md."
+    );
+  }
+
+  if (secretIn("mcp", "PAYLOAD_ACCESS_PROOF_SECRET") !== proof) {
+    throw new Error(
+      "PAYLOAD_ACCESS_PROOF_SECRET in apps/mcp/.dev.vars must equal ACCESS_GATEWAY_PROOF_SECRET in apps/payload/.dev.vars; see the MCP gateway section of SKILL.md."
+    );
+  }
+
+  const accessPort = portFor("access");
+  const accessIssuer = standinIssuer(accessPort);
+  const payloadPort = portFor("payload");
+
+  await launch("access", accessPort);
+  await launch("payload", payloadPort, { accessIssuer });
+  await launch("mcp", port, {
+    accessIssuer,
+    payloadOrigin: origin(payloadPort),
+  });
 };
 
 const newEvidenceDir = (surface: SurfaceName, name: string): string => {
@@ -773,6 +1087,23 @@ export const capture = async (
   return dir;
 };
 
+/** The origin of every surface this checkout runs, for drives that span them. */
+const peerOrigins = (): Partial<Record<SurfaceName, string>> => {
+  const peers: Partial<Record<SurfaceName, string>> = {};
+
+  for (const name of Object.keys(SURFACES)) {
+    if (isSurfaceName(name)) {
+      const receipt = readReceipt(name);
+
+      if (receipt && ownsProcess(receipt)) {
+        peers[name] = origin(receipt.port);
+      }
+    }
+  }
+
+  return peers;
+};
+
 export const drive = async (
   surface: SurfaceName,
   feature: string
@@ -795,7 +1126,25 @@ export const drive = async (
   let failure: Error | null = null;
 
   try {
-    await run({ dir, origin: origin(receipt.port), repoRoot: REPO_ROOT });
+    await run({
+      dir,
+      origin: origin(receipt.port),
+      peers: peerOrigins(),
+      repoRoot: REPO_ROOT,
+      signIn: (email) => {
+        const access = readReceipt("access");
+
+        if (!(access && ownsProcess(access))) {
+          throw new Error("No owned Access stand-in; launch mcp first.");
+        }
+
+        return mintAccessJwt({
+          email,
+          keyFile: accessKeyFile(),
+          port: access.port,
+        });
+      },
+    });
   } catch (error) {
     failure = error instanceof Error ? error : new Error(String(error));
   }
@@ -855,13 +1204,15 @@ export const cleanup = async (surface: SurfaceName): Promise<void> => {
 
 const HELP = `Usage: node .agents/skills/launch-verify/scripts/verify.ts <command> <surface> [options]
 
-Surfaces: payload (apps/payload, port 4173), web-wordpress (apps/web-wordpress, port 3000)
+Surfaces: payload (apps/payload, port 4173), web-wordpress (apps/web-wordpress, port 3000),
+          mcp (apps/mcp, port 8787; launch also starts payload and the Access stand-in),
+          access (the local Access stand-in, port 8799)
 
 Commands:
   launch <surface> [--port N]      Prepare and start a server this run owns, then run doctor
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
-  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages)
+  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft)
   cleanup <surface>                Stop only the process group in this surface's receipt
   status                           Show each surface's receipt
 
@@ -908,7 +1259,9 @@ const COMMANDS = new Map<string, Command>([
   [
     "launch",
     async (surface, rest) => {
-      await launch(surface, parsePort(rest) ?? SURFACES[surface].defaultPort);
+      const port = parsePort(rest) ?? SURFACES[surface].defaultPort;
+
+      await (surface === "mcp" ? launchGateway(port) : launch(surface, port));
 
       return 0;
     },
