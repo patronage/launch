@@ -26,12 +26,12 @@ Every choice the rest of the repo must follow is an architecture decision record
 | Shared UI | Plain props from a CMS-neutral content model, on shadcn/ui and Tailwind 4. Each CMS has an adapter; rich text stays CMS-specific. See [ADR 0008](https://github.com/patronage/launch/blob/main/docs/adr/0008-cms-neutral-content-model.md), [ADR 0009](https://github.com/patronage/launch/blob/main/docs/adr/0009-shadcn-ui-package.md) and [Shared UI](/references/ui). |
 | Access | Every CMS admin and API is behind Cloudflare Access. Front-ends read with a service token, which can only read. See [ADR 0011](https://github.com/patronage/launch/blob/main/docs/adr/0011-cms-behind-cloudflare-access.md). |
 | MCP | One MCP gateway Worker per site, behind Access, with a WordPress and a Payload connector. Every write waits for a person to approve it. The packages are published to npm and versioned with Changesets. See [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md) and [MCP server](/references/mcp). |
+| MCP writes to Payload | The Payload connector writes through Payload's REST API as the person who approved, and Payload's own MCP server stays read-only. Planned beyond drafts: media uploads, single rows of blocks and arrays, globals, unpublishing, version restores, the trash and locales. It never deletes permanently. See [ADR 0018](https://github.com/patronage/launch/blob/main/docs/adr/0018-payload-connector-writes.md). |
 | Logging | Each site's logs are files in one R2 bucket: Workers through Logpush, WordPress through a Basin Pipelines stream. Optional and off until configured. Reading and acting on the logs is outside Launch. See [ADR 0016](https://github.com/patronage/launch/blob/main/docs/adr/0016-logs-to-r2-through-logpush.md) and [Logging](/references/logging). |
 | Docs | This site, built with Blume, for readers of Launch. Engineering docs, including the decision records, stay in the repo's `docs/` folder; the research notes publish here from `docs/spikes`. |
 
 ## Open
 
-- How far the MCP gateway's Payload connector writes beyond drafts: media uploads, single rows of blocks and arrays, globals, unpublishing, version restores, the trash and locales, with no permanent delete. Proposed in [ADR 0018](https://github.com/patronage/launch/blob/main/docs/adr/0018-payload-connector-writes.md).
 - D1 against Postgres through Hyperdrive, measured on deployed Workers.
 - KV against Workers Cache for page caching, measured on a real zone.
 - Getting `vite dev` working for the Payload app.
