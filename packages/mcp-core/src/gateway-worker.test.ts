@@ -1,6 +1,6 @@
 import { generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { BatchReceipt } from "./apply";
 import type { CallerContext } from "./caller";
@@ -1131,6 +1131,13 @@ describe("Approval route", () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, token, worker } = await openApproval();
 
+    // The stream polls for progress every 1.5 s; fake timers let the test
+    // move one poll forward instead of waiting for it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
     const held = new AbortController();
     approveGate = delay(60_000, held.signal);
 
@@ -1170,16 +1177,21 @@ describe("Approval route", () => {
     let streamed = "";
 
     // Read until the first progress line arrives, then let the write finish.
-    while (!streamed.includes("</li>")) {
-      // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
-      const chunk = await reader?.read();
+    const firstProgress = (async () => {
+      while (!streamed.includes("</li>")) {
+        // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
+        const chunk = await reader?.read();
 
-      if (!chunk || chunk.done) {
-        break;
+        if (!chunk || chunk.done) {
+          break;
+        }
+
+        streamed += decoder.decode(chunk.value);
       }
+    })();
 
-      streamed += decoder.decode(chunk.value);
-    }
+    await vi.advanceTimersByTimeAsync(1500);
+    await firstProgress;
 
     expect(streamed).toContain("Applying the change");
     expect(streamed).toContain("1 of 2: <code>pages/&lt;42&gt;</code>");
