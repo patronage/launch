@@ -103,6 +103,10 @@ describe(toExecuteResult, () => {
       summary:
         "Paused for approval: Fix the launch page headline (1 operation).",
     });
+    // No approval URL was attached, so the summary names none.
+    expect(executeSummaryText(result)).toBe(
+      "Paused for approval: Fix the launch page headline (1 operation)."
+    );
   });
 
   it("summarizes unparsable pending arguments without throwing", () => {
@@ -209,18 +213,6 @@ describe(invalidPendingApply, () => {
 });
 
 describe(executeSummaryText, () => {
-  it("summarizes a paused run without exposing an approval URL", () => {
-    const paused = toExecuteResult(parse, {
-      executionId: "exec_2",
-      pending: [{ args: applyArgs, connector: "wp", method: "apply", seq: 3 }],
-      status: "paused",
-    });
-
-    expect(executeSummaryText(paused)).toBe(
-      "Paused for approval: Fix the launch page headline (1 operation)."
-    );
-  });
-
   it("summarizes a result that needs no approval", () => {
     const complete = toExecuteResult(parse, {
       calls: [{ connector: "wp", method: "get", seq: 1, state: "applied" }],

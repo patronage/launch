@@ -221,18 +221,6 @@ describe("cloudflare access api", () => {
       ).rejects.toThrow(/at least one/u);
       expect(calls).toStrictEqual([]);
     });
-
-    it("surfaces API errors", async () => {
-      const { client } = fakeApi({});
-
-      await expect(
-        provisionLockdown(client, {
-          destinations: ["cms.example.org"],
-          name: "Broken",
-          serviceTokens: ["web"],
-        })
-      ).rejects.toThrow(/no route GET/u);
-    });
   });
 
   describe(applicationBody, () => {

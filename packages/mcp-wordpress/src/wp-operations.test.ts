@@ -137,10 +137,9 @@ describe(parseApplyInput, () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual(["content"]);
@@ -211,10 +210,9 @@ describe("summaries", () => {
   it("names the target and lists the changed paths in a sentence", () => {
     const parsed = parseApplyInput({ intent: "Fix", operations: [operation] });
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(operationTarget(first)).toBe("pages/42");
@@ -248,10 +246,9 @@ describe("summaries", () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual([
@@ -281,10 +278,9 @@ describe("post meta", () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual([

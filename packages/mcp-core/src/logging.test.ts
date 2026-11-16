@@ -374,22 +374,7 @@ describe("code-mode wide-event fields", () => {
     expect(SERVICE_VERSION).toBe(manifest.version);
   });
 
-  it("records the approval decision with an opaque approver", () => {
-    const log = requestLogger();
-    recordApprovalDecision(log, {
-      approverOpaque: "approver00000000",
-      decision: "approve",
-      executionId: "exec_1",
-    });
-    expect(log.getContext().approval).toMatchObject({
-      approverOpaque: "approver00000000",
-      decision: "approve",
-      executionId: "exec_1",
-      outcome: "approved",
-    });
-  });
-
-  it("records receipt counts and never the operation payloads", () => {
+  it("records the approval decision and receipt counts, never the operation payloads", () => {
     const log = requestLogger();
     recordApprovalDecision(log, {
       approverOpaque: "approver00000000",
@@ -443,6 +428,7 @@ describe("code-mode wide-event fields", () => {
         approverOpaque: "approver00000000",
         decision: "approve",
         executionId: "exec_1",
+        outcome: "approved",
         targets: ["pages/42", "pages/9"],
         upstreamActor: { id: 42, slug: "editor" },
       },

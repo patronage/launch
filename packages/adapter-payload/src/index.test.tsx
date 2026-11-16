@@ -288,15 +288,6 @@ describe("rich-text blocks", () => {
       )
     ).toBe("");
   });
-});
-
-const withHero = (hero: PayloadHero) =>
-  adapter.toPage({ ...payloadHomeFixture, hero }).hero;
-
-describe("heroes", () => {
-  it("has no hero without a variant", () => {
-    expect(withHero({ title: "Kept" })).toBeUndefined();
-  });
 
   it("adds a srcset from the rewritten URL and original width", () => {
     const responsive = createPayloadAdapter({
@@ -320,6 +311,15 @@ describe("heroes", () => {
       },
       type: "image",
     });
+  });
+});
+
+const withHero = (hero: PayloadHero) =>
+  adapter.toPage({ ...payloadHomeFixture, hero }).hero;
+
+describe("heroes", () => {
+  it("has no hero without a variant", () => {
+    expect(withHero({ title: "Kept" })).toBeUndefined();
   });
 
   it("maps the hero, defaulting the title to the page's", () => {
