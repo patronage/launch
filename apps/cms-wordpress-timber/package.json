@@ -14,7 +14,7 @@
     "build:css": "tailwindcss -i wp-content/themes/patronage-timber/assets/main.css -o wp-content/themes/patronage-timber/dist/main.css --minify",
     "dev:css": "tailwindcss -i wp-content/themes/patronage-timber/assets/main.css -o wp-content/themes/patronage-timber/dist/main.css --watch",
     "deploy": "bash _build/deploy.sh",
-    "test": "bin/lint-php.sh"
+    "test": "bin/lint-php.sh && php tests/content.test.php && php tests/rich-text.test.php"
   },
   "devDependencies": {
     "@launch/ui": "workspace:*",

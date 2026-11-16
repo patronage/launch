@@ -3,6 +3,7 @@ import type { CollectionConfig } from "payload";
 import { demoLocalized } from "../demo-locales";
 import { postPath } from "../lib/posts";
 import { previewable } from "../lib/preview";
+import { publishedUnlessSignedIn } from "../lib/read-access";
 
 const preview = previewable(postPath);
 
@@ -10,7 +11,7 @@ const preview = previewable(postPath);
 export const Posts: CollectionConfig = {
   access: {
     // Anonymous readers only see published posts.
-    read: ({ req }) => (req.user ? true : { _status: { equals: "published" } }),
+    read: publishedUnlessSignedIn,
   },
   admin: {
     ...preview.admin,
