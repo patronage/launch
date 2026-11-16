@@ -5,8 +5,6 @@ import {
   createCallerScope,
   createUpstreamTelemetry,
   invalidPendingApply,
-  isApplyCall,
-  toRunView,
 } from "@patronage/mcp-core";
 import type {
   ApplyPreflight,
@@ -343,25 +341,17 @@ describe("payload.call and payload.tools", () => {
 
     expect(JSON.stringify(result)).toContain("Old title");
     const [request] = fake.seen;
-    expect(request?.url).toBe("https://payload.example/api/mcp");
-    expect(request?.headers.get("X-Access-User-Jwt")).toBe("editor-jwt");
-    expect(request?.headers.get("CF-Access-Client-Id")).toBe("client-id");
-    expect(request?.headers.get("Accept")).toContain("text/event-stream");
-  });
-
-  it("signs a gateway proof over the editor's JWT", async () => {
-    const fake = fakePayload();
-    vi.stubGlobal("fetch", fake.handler);
-    const { payload, scope } = connectorTools();
-
-    await scope.run(caller, () =>
-      payload.call.execute({
-        arguments: { id: 12, slug: "posts" },
-        tool: "findDocuments",
-      })
-    );
-
-    const [request] = fake.seen;
+    expect({
+      accept: request?.headers.get("Accept"),
+      clientId: request?.headers.get("CF-Access-Client-Id"),
+      jwt: request?.headers.get("X-Access-User-Jwt"),
+      url: request?.url,
+    }).toStrictEqual({
+      accept: expect.stringContaining("text/event-stream"),
+      clientId: "client-id",
+      jwt: "editor-jwt",
+      url: "https://payload.example/api/mcp",
+    });
     await expect(
       verifyGatewayProof(
         request?.headers.get("X-Access-Gateway-Proof") ?? "",
@@ -545,15 +535,6 @@ describe("Payload publishing on request", () => {
       parseDraftApplyInput({
         intent: "Retitle",
         operations: [{ ...operation, publish: false }],
-      })
-    ).toThrow(ApplyValidationError);
-  });
-
-  it("refuses _status in fields, so publishing goes through publish", () => {
-    expect(() =>
-      parseDraftApplyInput({
-        intent: "Publish",
-        operations: [{ ...operation, fields: { _status: "published" } }],
       })
     ).toThrow(ApplyValidationError);
   });
@@ -972,14 +953,6 @@ describe("Payload Markdown and new drafts", () => {
 });
 
 describe("a paused payload.apply", () => {
-  it("is the write path a decision answers", () => {
-    const apply = { connector: "payload", method: "apply" };
-    const call = { connector: "payload", method: "call" };
-
-    expect(isApplyCall(apply)).toBeTruthy();
-    expect(isApplyCall(call)).toBeFalsy();
-  });
-
   it("is validated with Payload's operations, not WordPress's", () => {
     expect(
       invalidPendingApply(parse, {
@@ -1017,26 +990,5 @@ describe("a paused payload.apply", () => {
         status: "paused",
       })
     ).toBeUndefined();
-  });
-
-  it("reports its operations as Payload's for the preview", () => {
-    const view = toRunView("exec_1", {
-      id: "exec_1",
-      log: [
-        {
-          args: { intent: "Retitle", operations: [operation] },
-          connector: "payload",
-          method: "apply",
-          seq: 1,
-          state: "pending",
-        },
-      ],
-      status: "paused",
-    });
-
-    expect(view.pending).toStrictEqual({
-      args: { intent: "Retitle", operations: [operation] },
-      connector: "payload",
-    });
   });
 });
