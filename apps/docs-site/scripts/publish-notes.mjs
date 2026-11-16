@@ -22,16 +22,16 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-import { root } from "./worker-config.mjs";
-
-const repoRoot = path.resolve(root, "../..");
 const githubTree = "https://github.com/patronage/launch/tree/main";
 
-const sections = [
+// The site folder, and the repo it sits in two levels down.
+const defaultSiteRoot = path.resolve(import.meta.dirname, "..");
+
+const sectionsFor = (repoRoot, siteRoot) => [
   {
     label: "research notes",
     notesDir: path.join(repoRoot, "docs/spikes"),
-    outDir: path.join(root, "docs/research"),
+    outDir: path.join(siteRoot, "docs/research"),
     route: "/research",
     title: (heading) => heading.replace(/^Spike(?: \d+)?:\s*/u, ""),
   },
@@ -45,7 +45,7 @@ const isNote = (file) => /^\d+-.*\.md$/u.test(file);
 const pageRoute = (section, file) =>
   `${section.route}/${path.basename(file, ".md").replace(/^\d+-/u, "")}`;
 
-const rewriteLink = (from, target) => {
+const rewriteLink = (repoRoot, sections, from, target) => {
   if (/^[a-z]+:|^#|^\//u.test(target)) {
     return target;
   }
@@ -77,7 +77,7 @@ const rewriteLink = (from, target) => {
   return `${githubTree}/${path.relative(repoRoot, resolved)}${anchor}`;
 };
 
-const toPage = (section, source, order) => {
+const toPage = (repoRoot, sections, section, source, order) => {
   const [first = "", ...rest] = source.split("\n");
   const title = section.title(first.replace(/^#\s+/u, ""));
 
@@ -85,36 +85,54 @@ const toPage = (section, source, order) => {
     .join("\n")
     .replaceAll(
       /\]\((?<target>[^)\s]+)\)/gu,
-      (_, target) => `](${rewriteLink(section, target)})`
+      (_, target) => `](${rewriteLink(repoRoot, sections, section, target)})`
     )
     .trim();
 
   return `---\ntitle: ${JSON.stringify(title)}\nsidebar:\n  order: ${order}\n---\n\n${body}\n`;
 };
 
-for (const section of sections) {
-  mkdirSync(section.outDir, { recursive: true });
+/**
+ * Publish every section's notes from `repoRoot` into `siteRoot`. Tests pass
+ * temp folders; the script itself uses this repo and this site.
+ */
+export const publishNotes = ({
+  siteRoot = defaultSiteRoot,
+  repoRoot = path.resolve(siteRoot, "../.."),
+  log = console.log,
+} = {}) => {
+  const sections = sectionsFor(repoRoot, siteRoot);
 
-  for (const file of readdirSync(section.outDir)) {
-    if (isNote(file)) {
-      rmSync(path.join(section.outDir, file));
+  for (const section of sections) {
+    mkdirSync(section.outDir, { recursive: true });
+
+    for (const file of readdirSync(section.outDir)) {
+      if (isNote(file)) {
+        rmSync(path.join(section.outDir, file));
+      }
     }
-  }
 
-  const notes = readdirSync(section.notesDir).filter(isNote).toSorted();
+    const notes = readdirSync(section.notesDir).filter(isNote).toSorted();
 
-  for (const [index, file] of notes.entries()) {
-    writeFileSync(
-      path.join(section.outDir, file),
-      toPage(
-        section,
-        readFileSync(path.join(section.notesDir, file), "utf-8"),
-        index + 1
-      )
+    for (const [index, file] of notes.entries()) {
+      writeFileSync(
+        path.join(section.outDir, file),
+        toPage(
+          repoRoot,
+          sections,
+          section,
+          readFileSync(path.join(section.notesDir, file), "utf-8"),
+          index + 1
+        )
+      );
+    }
+
+    log(
+      `Published ${notes.length} ${section.label} to ${path.relative(siteRoot, section.outDir)}/`
     );
   }
+};
 
-  console.log(
-    `Published ${notes.length} ${section.label} to ${path.relative(root, section.outDir)}/`
-  );
+if (process.argv[1] === import.meta.filename) {
+  publishNotes();
 }

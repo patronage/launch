@@ -54,7 +54,7 @@ const HIDDEN_COLLECTION = {
   },
 } as const;
 
-const collections: MCPPluginConfig["collections"] = {
+export const collections: MCPPluginConfig["collections"] = {
   authors: READ_ONLY_COLLECTION,
   categories: READ_ONLY_COLLECTION,
   // Submissions hold what visitors typed into forms.
