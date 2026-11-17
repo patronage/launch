@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -93,5 +97,18 @@ describe("worker config", () => {
     expect(() => readBuiltWorkerConfig("/nonexistent")).toThrow(
       "Could not read .cloudflare/output/v0/workers/default/worker.config.json. Build the app first."
     );
+  });
+
+  it("reads Build Output v1 when there is no v0", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "worker-config-"));
+    const dir = path.join(root, ".cloudflare/output/v1/workers/default");
+
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, "worker.config.json"),
+      JSON.stringify({ name: "cms" })
+    );
+
+    expect(readBuiltWorkerConfig(root).name).toBe("cms");
   });
 });

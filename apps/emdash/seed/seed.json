@@ -1,0 +1,1463 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "blockTypes": [
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "Heading, rich text and buttons",
+      "label": "Content",
+      "slug": "content",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Eyebrow",
+              "slug": "eyebrow",
+              "type": "string"
+            },
+            {
+              "label": "Heading",
+              "slug": "heading",
+              "type": "string"
+            },
+            {
+              "label": "Body",
+              "slug": "body",
+              "type": "portableText"
+            },
+            {
+              "label": "Buttons",
+              "slug": "links",
+              "type": "repeater",
+              "validation": {
+                "maxItems": 3,
+                "subFields": [
+                  {
+                    "label": "Label",
+                    "slug": "label",
+                    "type": "string",
+                    "required": true
+                  },
+                  {
+                    "label": "URL",
+                    "slug": "url",
+                    "type": "string",
+                    "required": true,
+                    "validation": {
+                      "pattern": "^(?:https?://|mailto:|tel:|/(?!/)|#).+$"
+                    }
+                  },
+                  {
+                    "label": "Style",
+                    "slug": "variant",
+                    "type": "select",
+                    "options": ["primary", "secondary", "text"]
+                  },
+                  {
+                    "label": "Open in a new tab",
+                    "slug": "new_tab",
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            {
+              "label": "Alignment",
+              "slug": "align",
+              "type": "select",
+              "validation": {
+                "options": ["start", "center"]
+              }
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "Text beside an image",
+      "label": "Content and media",
+      "slug": "content_media",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Eyebrow",
+              "slug": "eyebrow",
+              "type": "string"
+            },
+            {
+              "label": "Heading",
+              "slug": "heading",
+              "type": "string"
+            },
+            {
+              "label": "Body",
+              "slug": "body",
+              "type": "portableText"
+            },
+            {
+              "label": "Buttons",
+              "slug": "links",
+              "type": "repeater",
+              "validation": {
+                "maxItems": 3,
+                "subFields": [
+                  {
+                    "label": "Label",
+                    "slug": "label",
+                    "type": "string",
+                    "required": true
+                  },
+                  {
+                    "label": "URL",
+                    "slug": "url",
+                    "type": "string",
+                    "required": true,
+                    "validation": {
+                      "pattern": "^(?:https?://|mailto:|tel:|/(?!/)|#).+$"
+                    }
+                  },
+                  {
+                    "label": "Style",
+                    "slug": "variant",
+                    "type": "select",
+                    "options": ["primary", "secondary", "text"]
+                  },
+                  {
+                    "label": "Open in a new tab",
+                    "slug": "new_tab",
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            {
+              "label": "Image",
+              "slug": "image",
+              "type": "image",
+              "required": true
+            },
+            {
+              "label": "Caption",
+              "slug": "caption",
+              "type": "text"
+            },
+            {
+              "label": "Image side",
+              "slug": "media_position",
+              "type": "select",
+              "validation": {
+                "options": ["start", "end"]
+              }
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "A single image",
+      "label": "Media",
+      "slug": "media",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Image",
+              "slug": "image",
+              "type": "image",
+              "required": true
+            },
+            {
+              "label": "Caption",
+              "slug": "caption",
+              "type": "text"
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "A heading and a grid of cards",
+      "label": "Card grid",
+      "slug": "card_grid",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Heading",
+              "slug": "heading",
+              "type": "string"
+            },
+            {
+              "label": "Columns",
+              "slug": "columns",
+              "type": "select",
+              "validation": {
+                "options": ["2", "3", "4"]
+              }
+            },
+            {
+              "label": "Cards",
+              "slug": "cards",
+              "type": "repeater",
+              "required": true,
+              "validation": {
+                "maxItems": 12,
+                "minItems": 1,
+                "subFields": [
+                  {
+                    "label": "Title",
+                    "slug": "title",
+                    "type": "string",
+                    "required": true
+                  },
+                  {
+                    "label": "Text",
+                    "slug": "text",
+                    "type": "text"
+                  },
+                  {
+                    "label": "Image",
+                    "slug": "image",
+                    "type": "image"
+                  },
+                  {
+                    "label": "Link label",
+                    "slug": "link_label",
+                    "type": "string"
+                  },
+                  {
+                    "label": "Link URL",
+                    "slug": "link_url",
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "A quote with its attribution",
+      "label": "Blockquote",
+      "slug": "blockquote",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Quote",
+              "slug": "quote",
+              "type": "text",
+              "required": true
+            },
+            {
+              "label": "Attribution",
+              "slug": "attribution",
+              "type": "string"
+            },
+            {
+              "label": "Role",
+              "slug": "role",
+              "type": "string"
+            },
+            {
+              "label": "Portrait",
+              "slug": "image",
+              "type": "image"
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "A heading, a line of text and buttons",
+      "label": "Call to action",
+      "slug": "call_to_action",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Heading",
+              "slug": "heading",
+              "type": "string",
+              "required": true
+            },
+            {
+              "label": "Body",
+              "slug": "body",
+              "type": "portableText"
+            },
+            {
+              "label": "Buttons",
+              "slug": "links",
+              "type": "repeater",
+              "validation": {
+                "maxItems": 3,
+                "subFields": [
+                  {
+                    "label": "Label",
+                    "slug": "label",
+                    "type": "string",
+                    "required": true
+                  },
+                  {
+                    "label": "URL",
+                    "slug": "url",
+                    "type": "string",
+                    "required": true,
+                    "validation": {
+                      "pattern": "^(?:https?://|mailto:|tel:|/(?!/)|#).+$"
+                    }
+                  },
+                  {
+                    "label": "Style",
+                    "slug": "variant",
+                    "type": "select",
+                    "options": ["primary", "secondary", "text"]
+                  },
+                  {
+                    "label": "Open in a new tab",
+                    "slug": "new_tab",
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
+    }
+  ],
+  "collections": [
+    {
+      "fields": [
+        {
+          "label": "Title",
+          "slug": "title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "label": "Hero",
+          "slug": "hero_variant",
+          "type": "select",
+          "validation": {
+            "options": ["none", "home", "split", "media", "simple", "freeform"]
+          }
+        },
+        {
+          "label": "Hero eyebrow",
+          "slug": "hero_eyebrow",
+          "type": "string"
+        },
+        {
+          "label": "Hero title (defaults to the page title)",
+          "slug": "hero_title",
+          "type": "string"
+        },
+        {
+          "label": "Hero subhead",
+          "slug": "hero_subhead",
+          "type": "text"
+        },
+        {
+          "label": "Hero image",
+          "slug": "hero_image",
+          "type": "image"
+        },
+        {
+          "label": "Hero buttons",
+          "slug": "hero_links",
+          "type": "repeater",
+          "validation": {
+            "maxItems": 3,
+            "subFields": [
+              {
+                "label": "Label",
+                "slug": "label",
+                "type": "string",
+                "required": true
+              },
+              {
+                "label": "URL",
+                "slug": "url",
+                "type": "string",
+                "required": true,
+                "validation": {
+                  "pattern": "^(?:https?://|mailto:|tel:|/(?!/)|#).+$"
+                }
+              },
+              {
+                "label": "Style",
+                "slug": "variant",
+                "type": "select",
+                "options": ["primary", "secondary", "text"]
+              },
+              {
+                "label": "Open in a new tab",
+                "slug": "new_tab",
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        {
+          "label": "Hero skin",
+          "slug": "hero_skin",
+          "type": "select",
+          "validation": {
+            "options": ["light", "dark", "accent"]
+          }
+        },
+        {
+          "label": "Hero alignment",
+          "slug": "hero_align",
+          "type": "select",
+          "validation": {
+            "options": ["start", "center"]
+          }
+        },
+        {
+          "label": "Hero body (free-form heroes)",
+          "slug": "hero_body",
+          "type": "portableText"
+        },
+        {
+          "label": "Sections",
+          "slug": "sections",
+          "type": "blocks",
+          "validation": {
+            "allowedTypes": [
+              "content",
+              "content_media",
+              "media",
+              "card_grid",
+              "blockquote",
+              "call_to_action"
+            ],
+            "maxItems": 30
+          }
+        }
+      ],
+      "label": "Pages",
+      "labelSingular": "Page",
+      "slug": "pages",
+      "supports": ["drafts", "revisions", "preview", "search", "seo"],
+      "urlPattern": "/{slug}"
+    }
+  ],
+  "content": {
+    "pages": [
+      {
+        "data": {
+          "hero_variant": "none",
+          "title": "Home",
+          "sections": [
+            {
+              "_key": "k5",
+              "_type": "content",
+              "_version": 1,
+              "align": "center",
+              "body": [
+                {
+                  "_key": "k4",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k1",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "We help neighbors turn empty lots into "
+                    },
+                    {
+                      "_key": "k2",
+                      "_type": "span",
+                      "marks": ["strong"],
+                      "text": "shared gardens"
+                    },
+                    {
+                      "_key": "k3",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "eyebrow": "Neighborhood Growers",
+              "heading": "Grow food together",
+              "links": [
+                {
+                  "label": "Get involved",
+                  "new_tab": false,
+                  "url": "/get-involved",
+                  "variant": "primary"
+                },
+                {
+                  "label": "Garden map",
+                  "new_tab": true,
+                  "url": "https://maps.example.org/gardens",
+                  "variant": "secondary"
+                }
+              ],
+              "section_hidden": false,
+              "section_padding_bottom": "lg",
+              "section_padding_top": "lg",
+              "section_skin": "accent",
+              "section_width": "narrow",
+              "section_anchor": "intro"
+            },
+            {
+              "_key": "k17",
+              "_type": "content_media",
+              "_version": 1,
+              "body": [
+                {
+                  "_key": "k7",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k6",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Find a lot"
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal",
+                  "level": 1,
+                  "listItem": "bullet"
+                },
+                {
+                  "_key": "k11",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k8",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Gather "
+                    },
+                    {
+                      "_key": "k9",
+                      "_type": "span",
+                      "marks": ["em"],
+                      "text": "five"
+                    },
+                    {
+                      "_key": "k10",
+                      "_type": "span",
+                      "marks": [],
+                      "text": " neighbors"
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal",
+                  "level": 1,
+                  "listItem": "bullet"
+                },
+                {
+                  "_key": "k16",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k12",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Read "
+                    },
+                    {
+                      "_key": "k14",
+                      "_type": "span",
+                      "marks": ["k13"],
+                      "text": "the starter guide"
+                    },
+                    {
+                      "_key": "k15",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "."
+                    }
+                  ],
+                  "markDefs": [
+                    {
+                      "_key": "k13",
+                      "_type": "link",
+                      "href": "/guide"
+                    }
+                  ],
+                  "style": "normal"
+                }
+              ],
+              "heading": "How a garden starts",
+              "image": {
+                "$media": {
+                  "alt": "Raised garden beds in a city lot",
+                  "filename": "raised-beds.jpg",
+                  "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/raised-beds.jpg"
+                }
+              },
+              "links": [],
+              "media_position": "end",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "wide"
+            },
+            {
+              "_key": "k18",
+              "_type": "card_grid",
+              "_version": 1,
+              "cards": [
+                {
+                  "image": {
+                    "$media": {
+                      "alt": "Paper seed packets",
+                      "filename": "seeds.jpg",
+                      "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/seeds.jpg"
+                    }
+                  },
+                  "link_label": "Browse seeds",
+                  "link_url": "/seed-library",
+                  "text": "Borrow seeds in spring, return saved seeds in fall.",
+                  "title": "Seed library"
+                },
+                {
+                  "image": {
+                    "$media": {
+                      "alt": "Garden tools hanging on a wall",
+                      "filename": "tools.jpg",
+                      "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/tools.jpg"
+                    }
+                  },
+                  "link_label": "Reserve a tool",
+                  "link_url": "/tool-share",
+                  "text": "Shovels, wheelbarrows and hoses for every member garden.",
+                  "title": "Tool share"
+                },
+                {
+                  "text": "After-school planting and harvest days.",
+                  "title": "Youth growers"
+                }
+              ],
+              "columns": "3",
+              "heading": "Programs",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "none",
+              "section_skin": "light",
+              "section_width": "default",
+              "section_anchor": "programs"
+            },
+            {
+              "_key": "k19",
+              "_type": "blockquote",
+              "_version": 1,
+              "attribution": "Rosa Delgado",
+              "image": {
+                "$media": {
+                  "alt": "Portrait of Rosa",
+                  "filename": "portrait.jpg",
+                  "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/portrait.jpg"
+                }
+              },
+              "quote": "The garden is the first place on our block where everyone knows each other's names.",
+              "role": "Garden lead",
+              "section_hidden": false,
+              "section_padding_bottom": "lg",
+              "section_padding_top": "lg",
+              "section_skin": "dark",
+              "section_width": "narrow"
+            },
+            {
+              "_key": "k20",
+              "_type": "media",
+              "_version": 1,
+              "caption": "Fall harvest day",
+              "image": {
+                "$media": {
+                  "alt": "Volunteers sorting a harvest",
+                  "filename": "harvest.jpg",
+                  "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/harvest.jpg"
+                }
+              },
+              "section_hidden": false,
+              "section_padding_bottom": "none",
+              "section_padding_top": "none",
+              "section_skin": "light",
+              "section_width": "full"
+            },
+            {
+              "_key": "k23",
+              "_type": "call_to_action",
+              "_version": 1,
+              "body": [
+                {
+                  "_key": "k22",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k21",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "We bring soil, seeds and a mentor for the first season."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "Start a garden on your block",
+              "links": [
+                {
+                  "label": "Apply now",
+                  "new_tab": false,
+                  "url": "/apply",
+                  "variant": "primary"
+                }
+              ],
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "accent",
+              "section_width": "narrow",
+              "section_anchor": "join"
+            },
+            {
+              "_key": "k24",
+              "_type": "call_to_action",
+              "_version": 1,
+              "heading": "Winter volunteer drive",
+              "links": [],
+              "section_hidden": true,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            }
+          ]
+        },
+        "id": "page-home",
+        "slug": "home",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "split",
+          "title": "Get involved",
+          "hero_eyebrow": "Volunteer",
+          "hero_image": {
+            "$media": {
+              "alt": "Volunteers sorting a harvest",
+              "filename": "harvest.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/harvest.jpg"
+            }
+          },
+          "hero_links": [
+            {
+              "label": "Apply for a garden",
+              "new_tab": false,
+              "url": "/apply",
+              "variant": "primary"
+            }
+          ],
+          "hero_subhead": "Volunteer on a harvest day, mentor a new garden or join the seed library.",
+          "sections": [
+            {
+              "_key": "k27",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k26",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k25",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Harvest days run every other Saturday from June to October. Mentors meet a new garden once a week in its first season."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "Volunteer with us",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            },
+            {
+              "_key": "k28",
+              "_type": "call_to_action",
+              "_version": 1,
+              "heading": "Ready to start?",
+              "links": [
+                {
+                  "label": "Apply now",
+                  "new_tab": false,
+                  "url": "/apply",
+                  "variant": "primary"
+                }
+              ],
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "accent",
+              "section_width": "narrow"
+            }
+          ]
+        },
+        "id": "page-get-involved",
+        "slug": "get-involved",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "simple",
+          "title": "Apply now",
+          "hero_eyebrow": "Garden applications",
+          "hero_subhead": "Tell us about the lot and the neighbors who want to grow there. We reply within two weeks.",
+          "hero_title": "Apply for a garden",
+          "sections": [
+            {
+              "_key": "k31",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k30",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k29",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "The lot's address, who owns it if you know, and the names of five neighbors who will help. Email apply@example.org and we will set up a visit."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "What we ask",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            }
+          ]
+        },
+        "id": "page-apply",
+        "slug": "apply",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "freeform",
+          "title": "Starter guide",
+          "hero_align": "center",
+          "hero_body": [
+            {
+              "_key": "k35",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k32",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Everything a new garden needs in its first season, from a "
+                },
+                {
+                  "_key": "k33",
+                  "_type": "span",
+                  "marks": ["strong"],
+                  "text": "soil test"
+                },
+                {
+                  "_key": "k34",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " to a watering rota."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "hero_eyebrow": "Starter guide",
+          "hero_title": "Your first season",
+          "sections": [
+            {
+              "_key": "k42",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k37",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k36",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                },
+                {
+                  "_key": "k39",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k38",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Raised beds"
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "h3"
+                },
+                {
+                  "_key": "k41",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k40",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Raised beds fix almost anything the test finds. Once they are built, set a watering rota before the first hot week."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "Test the soil first",
+              "links": [
+                {
+                  "label": "Find a mentor",
+                  "new_tab": false,
+                  "url": "/get-involved",
+                  "variant": "text"
+                }
+              ],
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "narrow"
+            }
+          ]
+        },
+        "id": "page-guide",
+        "slug": "guide",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "media",
+          "title": "Programs",
+          "hero_image": {
+            "$media": {
+              "alt": "Garden tools hanging on a wall",
+              "filename": "tools.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/tools.jpg"
+            }
+          },
+          "hero_subhead": "Shared resources for every member garden, run by volunteers.",
+          "sections": [
+            {
+              "_key": "k43",
+              "_type": "card_grid",
+              "_version": 1,
+              "cards": [
+                {
+                  "image": {
+                    "$media": {
+                      "alt": "Paper seed packets",
+                      "filename": "seeds.jpg",
+                      "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/seeds.jpg"
+                    }
+                  },
+                  "link_label": "Browse seeds",
+                  "link_url": "/seed-library",
+                  "text": "Borrow seeds in spring, return saved seeds in fall.",
+                  "title": "Seed library"
+                },
+                {
+                  "image": {
+                    "$media": {
+                      "alt": "Garden tools hanging on a wall",
+                      "filename": "tools.jpg",
+                      "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/tools.jpg"
+                    }
+                  },
+                  "link_label": "Reserve a tool",
+                  "link_url": "/tool-share",
+                  "text": "Shovels, wheelbarrows and hoses for every member garden.",
+                  "title": "Tool share"
+                }
+              ],
+              "columns": "2",
+              "heading": "Share what we have",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            }
+          ]
+        },
+        "id": "page-programs",
+        "slug": "programs",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "home",
+          "title": "Seed library",
+          "hero_eyebrow": "Programs",
+          "hero_image": {
+            "$media": {
+              "alt": "Paper seed packets",
+              "filename": "seeds.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/seeds.jpg"
+            }
+          },
+          "hero_links": [
+            {
+              "label": "Start a garden",
+              "new_tab": false,
+              "url": "/apply",
+              "variant": "primary"
+            }
+          ],
+          "hero_skin": "dark",
+          "hero_subhead": "Borrow seeds in spring and return saved seeds in fall, so the library grows every year.",
+          "sections": [
+            {
+              "_key": "k46",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k45",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k44",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Pick up to five packets each spring. In the fall, bring back seed saved from your best plants, labeled with the crop, variety and garden."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "How the library works",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            },
+            {
+              "_key": "k49",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k48",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k47",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "The library lives in the shed at the Elm Street garden, open Saturday mornings from April to October."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "Where to find it",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            }
+          ]
+        },
+        "id": "page-seed-library",
+        "slug": "seed-library",
+        "status": "published"
+      },
+      {
+        "data": {
+          "hero_variant": "none",
+          "title": "Tool share",
+          "sections": [
+            {
+              "_key": "k52",
+              "_type": "content",
+              "_version": 1,
+              "align": "start",
+              "body": [
+                {
+                  "_key": "k51",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k50",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Reserve shovels, wheelbarrows and hoses for a work day. Pick up and return at the garden shed."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "heading": "Tool share",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            }
+          ]
+        },
+        "id": "page-tool-share",
+        "slug": "tool-share",
+        "status": "published"
+      }
+    ]
+  },
+  "menus": [
+    {
+      "items": [
+        {
+          "label": "Programs",
+          "type": "custom",
+          "url": "/programs"
+        },
+        {
+          "label": "Starter guide",
+          "type": "custom",
+          "url": "/guide"
+        },
+        {
+          "label": "Get involved",
+          "type": "custom",
+          "url": "/get-involved"
+        },
+        {
+          "label": "Apply",
+          "type": "custom",
+          "url": "/apply"
+        }
+      ],
+      "label": "Primary navigation",
+      "name": "primary"
+    }
+  ],
+  "meta": {
+    "author": "Patronage",
+    "description": "The Launch demo site on EmDash",
+    "name": "Launch EmDash"
+  },
+  "settings": {
+    "tagline": "Shared gardens on every block",
+    "title": "Neighborhood Growers"
+  },
+  "version": "1"
+}

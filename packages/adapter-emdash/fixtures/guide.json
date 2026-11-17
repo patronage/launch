@@ -1,0 +1,130 @@
+{
+  "item": {
+    "id": "01M7NM4MS09CRFK023WYH1DFMB",
+    "type": "pages",
+    "slug": "guide",
+    "status": "published",
+    "data": {
+      "title": "Starter guide",
+      "hero_variant": "freeform",
+      "hero_eyebrow": "Starter guide",
+      "hero_title": "Your first season",
+      "hero_align": "center",
+      "hero_body": [
+        {
+          "_key": "k35",
+          "_type": "block",
+          "children": [
+            {
+              "_key": "k32",
+              "_type": "span",
+              "marks": [],
+              "text": "Everything a new garden needs in its first season, from a "
+            },
+            {
+              "_key": "k33",
+              "_type": "span",
+              "marks": ["strong"],
+              "text": "soil test"
+            },
+            {
+              "_key": "k34",
+              "_type": "span",
+              "marks": [],
+              "text": " to a watering rota."
+            }
+          ],
+          "markDefs": [],
+          "style": "normal"
+        }
+      ],
+      "sections": [
+        {
+          "_key": "k42",
+          "_type": "content",
+          "_version": 1,
+          "align": "start",
+          "body": [
+            {
+              "_key": "k37",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k36",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k39",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k38",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Raised beds"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "k41",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k40",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Raised beds fix almost anything the test finds. Once they are built, set a watering rota before the first hot week."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "heading": "Test the soil first",
+          "links": [
+            {
+              "label": "Find a mentor",
+              "new_tab": false,
+              "url": "/get-involved",
+              "variant": "text"
+            }
+          ],
+          "section_hidden": false,
+          "section_padding_bottom": "md",
+          "section_padding_top": "md",
+          "section_skin": "light",
+          "section_width": "narrow"
+        }
+      ]
+    },
+    "authorId": null,
+    "primaryBylineId": null,
+    "createdAt": "2026-11-17T20:45:54.848Z",
+    "updatedAt": "2026-11-17T20:45:54.850Z",
+    "publishedAt": "2026-11-17T20:45:54.848Z",
+    "scheduledAt": null,
+    "liveRevisionId": "01M7NM4MRZWR6T7PXZS9GY0PE9",
+    "draftRevisionId": null,
+    "version": 2,
+    "locale": "en",
+    "translationGroup": "01M7NM4MS09CRFK023WYH1DFMB",
+    "seo": {
+      "title": null,
+      "description": null,
+      "image": null,
+      "canonical": null,
+      "noIndex": false
+    },
+    "bylines": [],
+    "byline": null,
+    "references": {}
+  }
+}

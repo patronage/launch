@@ -33,3 +33,8 @@ allowBuilds:
   core-js-pure: false
   esbuild: false
   workerd: true
+
+# EmDash lists libSQL as an optional dependency; Launch runs it on D1. Without
+# this, the hoisted @libsql/client changes the database types Payload resolves.
+overrides:
+  "emdash>@libsql/kysely-libsql": "-"

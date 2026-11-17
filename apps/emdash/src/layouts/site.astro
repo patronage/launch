@@ -1,0 +1,54 @@
+---
+/**
+ * The document around every page: fonts, the shared stylesheet, and the site
+ * title, tagline and `primary` menu from EmDash.
+ */
+import { FontLinks } from "@launch/ui";
+import { getMenu, getSiteSettings } from "emdash";
+
+import { SiteChrome } from "../components/site-chrome";
+import type { NavItem } from "../components/site-chrome";
+import "../styles/global.css";
+
+interface Props {
+  title?: string | undefined;
+  description?: string | undefined;
+  noIndex?: boolean | undefined;
+}
+
+const { title, description, noIndex } = Astro.props;
+
+const [settings, primary] = await Promise.all([
+  getSiteSettings(),
+  getMenu("primary"),
+]);
+
+const siteTitle = settings.title || "Launch";
+const tagline = settings.tagline || undefined;
+
+const menu: NavItem[] = (primary?.items ?? []).map((item) => ({
+  href: item.url,
+  id: item.id,
+  label: item.label,
+  newTab: item.target === "_blank",
+}));
+
+const pageTitle = title ? `${title} | ${siteTitle}` : siteTitle;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description ?? tagline ?? ""} />
+    {noIndex ? <meta name="robots" content="noindex" /> : null}
+    <FontLinks />
+  </head>
+  <body class="flex min-h-svh flex-col">
+    <SiteChrome siteTitle={siteTitle} tagline={tagline} menu={menu}>
+      <slot />
+    </SiteChrome>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "name": "@launch/emdash",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "deploy": "node scripts/deploy.mjs",
+    "dev": "node scripts/predev.ts && astro dev --port 4321",
+    "preview": "astro preview --port 4321",
+    "secrets": "node scripts/secrets.mjs",
+    "seed:write": "node seed/build.ts",
+    "setup": "node scripts/setup.ts",
+    "test": "node seed/build.ts --check",
+    "typecheck": "cf workers types && astro sync && tsc --noEmit"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "15.0.0-beta.6",
+    "@astrojs/react": "7.1.9",
+    "@emdash-cms/cloudflare": "1.5.0",
+    "@launch/adapter-emdash": "workspace:*",
+    "@launch/ui": "workspace:*",
+    "astro": "7.4.12",
+    "emdash": "1.5.0",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@launch/worker-scripts": "workspace:*",
+    "@tailwindcss/vite": "4.3.5",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "cf": "1.0.0-rc.1"
+  },
+  "emdash": {
+    "seed": "seed/seed.json"
+  }
+}
