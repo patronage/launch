@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "deepsec": "2.3.10"
+    "deepsec": "2.3.12"
   },
   "packageManager": "pnpm@12.16.1"
 }

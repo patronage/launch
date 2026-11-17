@@ -41,7 +41,7 @@ Each adapter renders its own rich text and passes the result in as `body`. Two t
 - **WordPress returns an HTML string.** React can only mount it with `dangerouslySetInnerHTML` on an element, so the adapter wraps it in `<div class="l-rich-raw">`, which is `display: contents` in `sections.css`. wpautop also leaves newlines between block tags. The parity test strips the wrapper and inter-tag whitespace before comparing.
 - **Payload returns Lexical JSON.** The adapter ships a renderer of about 160 lines for paragraphs, headings, lists, quotes, links, line breaks and text formats. Payload's own `@payloadcms/richtext-lexical/react` converter is fuller, but it pulls Payload packages into the front-end; the adapter accepts it through `renderRichText` if an app wants it.
 
-The WordPress HTML is trusted, because only signed-in editors can write it. If that changes (comments, user submissions), sanitize in the adapter's `renderHtml`, not in the UI.
+The WordPress HTML is trusted, because only signed-in editors can write it. If that changes (comments, user submissions), sanitize in the adapter's `renderHtml`, not in the UI. Since this spike, WordPress filters rich-text fields itself: `wordpress-shared/patronage-fields/field-values.php` runs them through `wp_kses_post()` when they load.
 
 ### Internal links and paths
 
@@ -74,5 +74,5 @@ The WPGraphQL types are hand-written for the spike. The headless WordPress spike
 
 ## Open questions
 
-- Should WordPress rich text be sanitized anyway, as defense in depth, at the cost of a sanitizer in the Worker bundle?
+- Should WordPress rich text be sanitized anyway, as defense in depth, at the cost of a sanitizer in the Worker bundle? (Answered in WordPress, not the Worker: the fields plugin filters rich-text fields when they load.)
 - Do we want the adapter packages named `adapter-wordpress` and `adapter-payload`, or folded into the per-CMS packages (`mcp-wordpress` and the like) later?

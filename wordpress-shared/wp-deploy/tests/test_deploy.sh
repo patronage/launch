@@ -257,10 +257,14 @@ ln -sfn kept.php "$WEBROOT/wp-content/plugins/kept/alias.php"
 
 # Verification of a large changeset, run as the deploy runs it (set -e, pipefail).
 # Regression: an early-exiting reader in a pipe raised SIGPIPE and killed the deploy.
+# The bug needs the stream to outgrow the pipe buffer (64 KB), not many files: a few
+# hundred files with long paths do it, and each file costs a hash on the fake server.
+MANY=300
+LONG_DIR="includes/some/deeply/nested/directory/with-a-folder-name-long-enough-that-a-few-hundred-listed-paths-outgrow-the-sixty-four-kilobyte-pipe-buffer-without-needing-thousands-of-files"
 big_prev="$(git -C "$SRC" rev-parse HEAD)"
-mkdir -p "$SRC/wordpress/wp-content/plugins/big-plugin/includes/some/deeply/nested/directory"
-for i in $(seq 1 1500); do
-  echo "$i" >"$SRC/wordpress/wp-content/plugins/big-plugin/includes/some/deeply/nested/directory/file-with-a-long-name-$i.php"
+mkdir -p "$SRC/wordpress/wp-content/plugins/big-plugin/$LONG_DIR"
+for i in $(seq 1 "$MANY"); do
+  echo "$i" >"$SRC/wordpress/wp-content/plugins/big-plugin/$LONG_DIR/file-with-a-long-name-$i.php"
 done
 git -C "$SRC" add -A
 git -C "$SRC" commit -qm big
@@ -276,11 +280,12 @@ verify_big() {
     echo VERIFY-FINISHED' _ "$BUILD_DIR/deploy.sh" 2>&1)
 }
 out="$(verify_big)" || true
-check "verification of 1500 changed files completes" grep -q "Verified 1500 changed paths" <<<"$out"
+check "verification of $MANY changed files completes" grep -q "Verified $MANY changed paths" <<<"$out"
 check "verification of a large changeset returns to the caller" grep -q VERIFY-FINISHED <<<"$out"
-echo tampered >"$WEBROOT/wp-content/plugins/big-plugin/includes/some/deeply/nested/directory/file-with-a-long-name-1499.php"
+check "the large changeset's server listing outgrows the pipe buffer" [ "$(wc -c <"$WORK/verify.server")" -gt 65536 ]
+echo tampered >"$WEBROOT/wp-content/plugins/big-plugin/$LONG_DIR/file-with-a-long-name-$((MANY - 1)).php"
 out="$(verify_big)" || true
-check "large verification still catches a mismatch" grep -q "file-with-a-long-name-1499.php (server:" <<<"$out"
+check "large verification still catches a mismatch" grep -q "file-with-a-long-name-$((MANY - 1)).php (server:" <<<"$out"
 git -C "$SRC" reset -q --hard "$big_prev"
 git -C "$SRC" push -q --force "$BARE" HEAD:refs/heads/master >/dev/null 2>&1
 
@@ -331,14 +336,15 @@ check "the audit names no source for an older split commit" [ -z "$(cd "$SRC" &&
 
 # Stale-file removal of more than 20 files, run as the deploy runs it (set -e, pipefail).
 # Regression: printing the list through `head -n 20` raised SIGPIPE in sed and aborted before deletion.
-# remove_stale_files reads the stale list from verify.bad, so feed it 1500 entries directly.
+# remove_stale_files reads the stale list from verify.bad, so feed it $MANY entries directly.
 # The list has to outgrow the pipe buffer (64 KB) for head's early exit to break sed's write.
 : >"$WORK/verify.bad"
-mkdir -p "$WEBROOT/wp-content/plugins/removed/includes/some/deeply/nested/directory"
-for i in $(seq 1 1500); do
-  echo "$i" >"$WEBROOT/wp-content/plugins/removed/includes/some/deeply/nested/directory/file-with-a-long-name-$i.php"
-  printf 'stale\twp-content/plugins/removed/includes/some/deeply/nested/directory/file-with-a-long-name-%s.php\n' "$i" >>"$WORK/verify.bad"
+mkdir -p "$WEBROOT/wp-content/plugins/removed/$LONG_DIR"
+for i in $(seq 1 "$MANY"); do
+  echo "$i" >"$WEBROOT/wp-content/plugins/removed/$LONG_DIR/file-with-a-long-name-$i.php"
+  printf 'stale\twp-content/plugins/removed/%s/file-with-a-long-name-%s.php\n' "$LONG_DIR" "$i" >>"$WORK/verify.bad"
 done
+check "the stale list outgrows the pipe buffer" [ "$(wc -c <"$WORK/verify.bad")" -gt 65536 ]
 remove_many() {
   (cd "$SRC/wordpress" && WEBROOT="$WEBROOT" TMP="$WORK" bash -c '
     set -euo pipefail
@@ -349,9 +355,9 @@ remove_many() {
     echo REMOVE-FINISHED' _ "$BUILD_DIR/deploy.sh" 2>&1)
 }
 out="$(remove_many)" || true
-check "removal of more than 20 stale files lists the count" grep -q "Removing 1500 file(s)" <<<"$out"
+check "removal of more than 20 stale files lists the count" grep -q "Removing $MANY file(s)" <<<"$out"
 check "removal of more than 20 stale files returns to the caller" grep -q REMOVE-FINISHED <<<"$out"
-check "all of the many stale files are removed" [ ! -e "$WEBROOT/wp-content/plugins/removed/includes/some/deeply/nested/directory/file-with-a-long-name-1500.php" ]
+check "all of the many stale files are removed" [ ! -e "$WEBROOT/wp-content/plugins/removed/$LONG_DIR/file-with-a-long-name-$MANY.php" ]
 
 # Audit against a fixture exclude list, so the result does not depend on a site's list.
 write "$WEBROOT/wp-content/plugins/removed/removed.php"
@@ -1056,15 +1062,29 @@ run_case() {
   unset -f deploy
 }
 
-for host in cloudways wpengine kinsta; do
-  for layout in root subfolder; do
-    run_case "$host" "$layout"
-  done
+# Each case builds its own repository and fake server under $WORK/case-<host>-<layout>,
+# so the cases run in parallel. Each writes its output and its counts to files, which
+# are read back in order once all have finished.
+matrix="cloudways/root cloudways/subfolder wpengine/root wpengine/subfolder kinsta/root kinsta/subfolder
+kinsta/detached cloudways/detached cloudways/nested wpengine/nested kinsta/nested"
+for case_name in $matrix; do
+  (
+    passes=0 failures=0 matrix_cases=0 matrix_passed=0
+    run_case "${case_name%/*}" "${case_name#*/}" >"$WORK/matrix-${case_name/\//-}.log" 2>&1
+    echo "$passes $failures $matrix_passed" >"$WORK/matrix-${case_name/\//-}.counts"
+  ) &
 done
-run_case kinsta detached
-run_case cloudways detached
-for host in cloudways wpengine kinsta; do
-  run_case "$host" nested
+wait
+for case_name in $matrix; do
+  cat "$WORK/matrix-${case_name/\//-}.log"
+  matrix_cases=$((matrix_cases + 1))
+  if read -r case_passes case_failures case_matrix_passed 2>/dev/null <"$WORK/matrix-${case_name/\//-}.counts"; then
+    passes=$((passes + case_passes))
+    failures=$((failures + case_failures))
+    matrix_passed=$((matrix_passed + case_matrix_passed))
+  else
+    fail "$case_name: the case finished"
+  fi
 done
 
 # Kinsta failure modes: a push the hook ignores, a bad remote, a rejected push.

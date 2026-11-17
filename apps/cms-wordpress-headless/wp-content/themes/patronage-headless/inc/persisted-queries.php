@@ -29,7 +29,11 @@ const PATRONAGE_HEADLESS_DOCUMENTS_LOCK = 'patronage_headless_graphql_documents_
 add_filter(
   'graphql_get_setting_section_fields',
   function ($fields, string $section) {
-    if ($section === 'graphql_persisted_queries_section' && is_array($fields)) {
+    if ($section === 'graphql_persisted_queries_section') {
+      // The stored section is not always an array: WPGraphQL creates the
+      // option as an empty string the first time wp-admin loads, and it only
+      // becomes an array when someone saves the settings tab.
+      $fields = is_array($fields) ? $fields : [];
       $fields['grant_mode'] = 'only_allowed';
       $fields['apq_auto_persist_mode'] = 'off';
     }

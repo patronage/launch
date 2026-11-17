@@ -1,0 +1,4 @@
+.astro/
+.cloudflare/
+.emdash/
+emdash-env.d.ts

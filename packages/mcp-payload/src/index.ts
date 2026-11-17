@@ -5,12 +5,33 @@ export { createPayloadClient, payloadConfigured } from "./payload";
 export {
   applyDraftOperations,
   preflightDraftOperations,
-  readEditingInfo,
 } from "./payload-apply";
+
+export { readEditingInfo } from "./payload-editing";
+
+export type {
+  BlockRows,
+  CollectionEditing,
+  EditingInfo,
+  GlobalEditing,
+  RowsField,
+  UploadEditing,
+} from "./payload-editing";
 
 export { payloadConnector } from "./payload-gateway";
 
-export type { DraftApplyInput, DraftOperation } from "./payload-operations";
+export type {
+  DraftApplyInput,
+  DraftOperation,
+  PatchRowsOperation,
+  PayloadOperation,
+  RestoreOperation,
+  RowChange,
+  TrashOperation,
+  UnpublishOperation,
+  UpdateGlobalOperation,
+  UploadOperation,
+} from "./payload-operations";
 
 export { parseDraftApplyInput } from "./payload-operations";
 

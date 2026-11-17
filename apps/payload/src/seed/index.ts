@@ -5,7 +5,7 @@ import images from "@launch/demo-content/images.json" with { type: "json" };
 import type { Payload } from "payload";
 
 import type { ImageFile, PageSlug } from "./content";
-import { heroes, layouts, PAGES } from "./content";
+import { heroes, layouts, pageMeta, PAGES, REDIRECTS } from "./content";
 import type { FormTitle } from "./forms";
 import { formData, FORMS } from "./forms";
 import type { AuthorName, CategorySlug } from "./posts";
@@ -126,6 +126,49 @@ const seedPage = async (
       });
 
   return [page.slug, doc.id];
+};
+
+/** Creates or updates the demo redirects, matched by their old path. */
+const seedRedirects = async (
+  payload: Payload,
+  page: (slug: PageSlug) => number
+): Promise<void> => {
+  await inSequence(
+    REDIRECTS.map(({ from, to }) => async () => {
+      const {
+        docs: [existing],
+      } = await payload.find({
+        collection: "redirects",
+        limit: 1,
+        overrideAccess: true,
+        where: { from: { equals: from } },
+      });
+
+      const data = {
+        from,
+        to: {
+          reference: { relationTo: "pages" as const, value: page(to) },
+          type: "reference" as const,
+        },
+        type: "308" as const,
+      };
+
+      await (existing
+        ? payload.update({
+            collection: "redirects",
+            data,
+            id: existing.id,
+            overrideAccess: true,
+          })
+        : payload.create({
+            collection: "redirects",
+            data,
+            overrideAccess: true,
+          }));
+    })
+  );
+
+  payload.logger.info(`Seeded ${REDIRECTS.length} redirects`);
 };
 
 /** The id of the author or category whose field equals a value, if any. */
@@ -344,6 +387,7 @@ export const seed = async (payload: Payload): Promise<void> => {
           // A page without a seeded hero has its hero cleared.
           hero: pageHeroes[page.slug] ?? { variant: null },
           layout: content[page.slug],
+          meta: pageMeta[page.slug] ?? {},
         },
         id: pageId(page.slug),
         overrideAccess: true,
@@ -351,6 +395,8 @@ export const seed = async (payload: Payload): Promise<void> => {
     })
   );
   payload.logger.info(`Seeded ${PAGES.length} pages`);
+
+  await seedRedirects(payload, pageId);
 
   await seedNews(payload, {
     image: lookup<ImageFile>(imageIds, "image"),

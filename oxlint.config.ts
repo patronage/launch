@@ -9,6 +9,8 @@ const payloadGenerated = [
   "apps/payload/src/app/(payload)/**",
   "apps/payload/src/migrations/**",
   "apps/payload/src/payload-types.ts",
+  // Test migrations, named and shaped like the ones the CLI writes.
+  "apps/payload/scripts/fixtures/migrations/**",
 ];
 
 export default defineConfig({

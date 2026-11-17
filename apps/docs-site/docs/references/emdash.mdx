@@ -1,0 +1,31 @@
+---
+title: EmDash
+description: EmDash, Cloudflare's CMS, rendering a Launch site in Astro with the shared sections, on one Worker with D1 and R2.
+---
+
+[`apps/emdash`](https://github.com/patronage/launch/tree/main/apps/emdash) is one Astro app on one Worker. It renders the site with the same sections as the WordPress and Payload sites and serves EmDash's admin and API. See [ADR 0022](https://github.com/patronage/launch/blob/main/docs/adr/0022-emdash-renders-the-site-in-astro.md).
+
+## How it fits together
+
+| Concern | How |
+| --- | --- |
+| Content | `getEmDashEntry` reads D1; `@launch/adapter-emdash` maps pages to the content model |
+| Rendering | `PageSections` and the site chrome from `@launch/ui`, rendered on the server; nothing hydrates |
+| Storage | D1 for content, R2 for media, served at `/_emdash/api/media/file/*` |
+| Publishing | Edits show once published; a cron trigger publishes scheduled entries |
+| Preview | EmDash's signed `_preview` link shows that one entry's draft, uncached |
+| Sign-in | Cloudflare Access on `/_emdash/*`, through EmDash's `access()` auth; the site stays public |
+
+## Editing
+
+- **Hero**, on pages, in the same variants as WordPress and Payload.
+- **Sections**: a blocks field with content, content and media, media, card grid, blockquote and call to action blocks, each with the shared Section options.
+- **Rich text** is EmDash's Portable Text. The adapter renders paragraphs, headings, quotes, lists, marks, safe links and images.
+- **Menus and settings**: the site title, tagline and `primary` menu feed the header and footer.
+
+The schema and demo pages are code (`apps/emdash/seed/build.ts`), applied when a database is new.
+
+## Not yet covered
+
+- Forms, pull quotes, embeds and buttons inside rich text.
+- Page caching with EmDash's cache hints.

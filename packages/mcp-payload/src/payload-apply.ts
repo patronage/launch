@@ -1,204 +1,106 @@
 import {
   ApplyConflictError,
-  UpstreamRequestError,
   batchStatus,
-  deepEqual,
   previewValue,
+  receiptDetails,
 } from "@patronage/mcp-core";
 import type {
   ApplyPreflight,
   BatchReceipt,
   FieldSnapshot,
   JsonObject,
-  JsonValue,
   OperationPreflight,
   OperationReceipt,
   ReceiptError,
   UpstreamClient,
-  UpstreamFetchResult,
   UpstreamTelemetry,
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
+import { inLocale, payloadErrorMessage, payloadRest } from "./payload";
 import {
-  payloadErrorMessage,
-  payloadMcpRequest,
-  payloadRest,
-  toPayloadToolResult,
-} from "./payload";
-import type { PayloadToolResult } from "./payload";
+  assertDraftDocument,
+  classifyReadback,
+  CONFLICT_CODES,
+  documentPath,
+  draftCollection,
+  draftQuery,
+  LOCKED_STATUS,
+  lockedError,
+  missedPathsMessage,
+  previewLink,
+  readDocument,
+  requireStamp,
+  toReceiptError,
+  updatedAt,
+  writtenStamp,
+  writtenVersionId,
+} from "./payload-documents";
+import type { PayloadAdminUrl, PayloadSiteUrl } from "./payload-documents";
+import { readEditingInfo } from "./payload-editing";
+import type { CollectionEditing, EditingInfo } from "./payload-editing";
+import { applyGlobal, preflightGlobal } from "./payload-global-apply";
+import type { PayloadGlobalAdminUrl } from "./payload-global-apply";
+import {
+  inScope,
+  localeScope,
+  namedLocale,
+  publishLocalesQuery,
+} from "./payload-locale";
+import type { LocaleScope } from "./payload-locale";
+import {
+  confirmEveryLocale,
+  readLocaleStatuses,
+  withLocaleStatuses,
+} from "./payload-locale-status";
 import {
   draftChangedPaths,
   draftFields,
   draftMarkdown,
   draftSentence,
   draftTarget,
+  isGlobalOperation,
+  isRestoreOperation,
+  isRowsOperation,
+  isTrashOperation,
+  isUnpublishOperation,
+  isUploadOperation,
+  operationTarget,
   STATUS_FIELD,
 } from "./payload-operations";
 import type {
   DraftOperation,
+  PayloadOperation,
   UpdateDraftOperation,
 } from "./payload-operations";
+import { createTitleLookup, fieldSnapshot } from "./payload-relations";
+import type { TitleLookup } from "./payload-relations";
+import { applyRestore, preflightRestore } from "./payload-restore-apply";
+import { toMarkdown, toRichText } from "./payload-rich-text";
+import { applyRows, preflightRows } from "./payload-rows-apply";
+import {
+  applyTrashOperation,
+  preflightTrashOperation,
+} from "./payload-trash-apply";
+import { applyUnpublish, preflightUnpublish } from "./payload-unpublish-apply";
+import { applyUpload, preflightUpload } from "./payload-upload-apply";
+import type { UploadFiles } from "./payload-upload-apply";
 
-const MISSED_PATH_LIMIT = 5;
-
-// The read-only tools apps/payload adds to Payload's MCP server
-// (apps/payload/src/mcp-tools.ts).
-export const EDITING_INFO_TOOL = "getEditingInfo";
-export const MARKDOWN_TO_RICH_TEXT_TOOL = "markdownToRichText";
-export const RICH_TEXT_TO_MARKDOWN_TOOL = "richTextToMarkdown";
-
-const recordSchema = z.record(z.string(), z.json());
 const stringSchema = z.string();
 const documentIdSchema = z.union([z.number(), z.string()]);
 const createdSchema = z.object({ doc: z.object({ id: documentIdSchema }) });
 
-const markdownResultSchema = z.object({
-  lost: z.array(z.string()).default([]),
-  markdown: z.string(),
-});
-
-const richTextResultSchema = z.object({ value: recordSchema });
-
-const collectionEditingSchema = z.object({
-  canCreate: z.boolean(),
-  canUpdate: z.boolean(),
-  drafts: z.boolean(),
-  richTextFields: z.array(z.string()),
-  slug: z.string(),
-});
-
-const editingInfoSchema = z.object({
-  collections: z.array(collectionEditingSchema),
-});
-
-export type CollectionEditing = z.infer<typeof collectionEditingSchema>;
-
-export type PayloadAdminUrl = (
-  collection: string,
-  id: number | string
-) => string;
-
-// Every read names the draft, so it returns the newest version, draft or
-// published. A write names it too, saving a new draft version and leaving
-// the published one as it is, unless the operation publishes: then the write
-// goes without `draft=true` and sets `_status` to published.
-const draftQuery = (draft: boolean): string =>
-  draft ? "?draft=true&depth=0" : "?depth=0";
-
-const documentPath = (
-  collection: string,
-  id: number | string,
-  draft = true
-): string =>
-  `/api/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}${draftQuery(draft)}`;
-
 const operationPath = (operation: UpdateDraftOperation): string =>
-  documentPath(operation.collection, operation.id, !operation.publish);
+  `${documentPath(operation.collection, operation.id, !operation.publish)}${publishLocalesQuery(operation)}`;
 
 const createPath = (operation: DraftOperation): string =>
   `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
 
-const updatedAt = (record: JsonObject): string | undefined => {
-  const value = stringSchema.safeParse(record.updatedAt);
-
-  return value.success ? value.data : undefined;
-};
-
-const failed = (
-  result: UpstreamFetchResult,
-  fallback: string
-): ApplyConflictError =>
-  new ApplyConflictError(
-    result.status === 404 ? "not_found" : "read_failed",
-    result.status === 404 ? fallback : payloadErrorMessage(result)
-  );
-
-const readDocument = async (
-  client: UpstreamClient,
-  collection: string,
-  id: number | string,
-  telemetry: UpstreamTelemetry
-): Promise<JsonObject> => {
-  const result = await payloadRest(
-    client,
-    documentPath(collection, id),
-    telemetry
-  );
-
-  const parsed = recordSchema.safeParse(result.json);
-
-  if (result.status < 200 || result.status >= 300 || !parsed.success) {
-    throw failed(result, `${collection}/${id} was not found`);
-  }
-
-  return parsed.data;
-};
-
-// One call to a Payload MCP tool whose failure stops the operation: an
-// unknown field, a conversion Payload refused, a tool the editor lacks.
-const callTool = async (
-  client: UpstreamClient,
-  name: string,
-  args: JsonObject,
-  telemetry: UpstreamTelemetry
-): Promise<PayloadToolResult> => {
-  const result = toPayloadToolResult(
-    await payloadMcpRequest(
-      client,
-      "tools/call",
-      { arguments: args, name },
-      telemetry
-    )
-  );
-
-  if (result.isError) {
-    throw new ApplyConflictError(
-      "payload_tool_failed",
-      `Payload ${name}: ${result.text.slice(0, 200)}`
-    );
-  }
-
-  return result;
-};
-
-// Which collections keep drafts and take Markdown, as this editor sees them.
-export const readEditingInfo = async (
-  client: UpstreamClient,
-  telemetry: UpstreamTelemetry
-): Promise<CollectionEditing[]> => {
-  const result = await callTool(client, EDITING_INFO_TOOL, {}, telemetry);
-  const parsed = editingInfoSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError("Payload returned invalid editing info");
-  }
-
-  return parsed.data.collections;
-};
-
-// Only a collection with drafts keeps the published version apart from the
-// one being written. Without drafts, `?draft=true` is ignored and the write
-// would go live, so such a collection is refused before anything is shown.
 const assertEditable = (
-  info: CollectionEditing[],
+  info: EditingInfo,
   operation: DraftOperation
-): void => {
-  const collection = info.find((entry) => entry.slug === operation.collection);
-
-  if (!collection) {
-    throw new ApplyConflictError(
-      "unknown_collection",
-      `${operation.collection} is not a collection this editor can read`
-    );
-  }
-
-  if (!collection.drafts) {
-    throw new ApplyConflictError(
-      "drafts_not_enabled",
-      `${operation.collection} has no drafts, so a change there would publish at once`
-    );
-  }
+): CollectionEditing => {
+  const collection = draftCollection(info, operation.collection);
 
   const allowed =
     operation.kind === "create_draft"
@@ -222,93 +124,8 @@ const assertEditable = (
       `${notRichText.join(", ")} in ${operation.collection} does not take Markdown`
     );
   }
-};
 
-// The same check on the document itself: a draft-enabled collection always
-// stores `_status`, so a document without one is refused too.
-const assertDrafts = (record: JsonObject, operation: DraftOperation): void => {
-  if (!("_status" in record)) {
-    throw new ApplyConflictError(
-      "drafts_not_enabled",
-      `${operation.collection} has no drafts, so a change there would publish at once`
-    );
-  }
-};
-
-const readStamp = (record: JsonObject, operation: DraftOperation): string => {
-  const stamp = updatedAt(record);
-
-  if (stamp === undefined) {
-    throw new ApplyConflictError(
-      "unreadable_updated_at",
-      `Payload did not report when ${draftTarget(operation)} was last updated`
-    );
-  }
-
-  return stamp;
-};
-
-const toRichText = async (
-  client: UpstreamClient,
-  collection: string,
-  field: string,
-  markdown: string,
-  telemetry: UpstreamTelemetry
-): Promise<JsonObject> => {
-  const result = await callTool(
-    client,
-    MARKDOWN_TO_RICH_TEXT_TOOL,
-    { field, markdown, slug: collection },
-    telemetry
-  );
-
-  const parsed = richTextResultSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError(
-      `Payload returned no rich text for ${field}`
-    );
-  }
-
-  return parsed.data.value;
-};
-
-const toMarkdown = async (
-  client: UpstreamClient,
-  collection: string,
-  field: string,
-  value: JsonValue | undefined,
-  telemetry: UpstreamTelemetry
-): Promise<string> => {
-  const stored = recordSchema.safeParse(value);
-
-  if (!stored.success) {
-    return "";
-  }
-
-  const result = await callTool(
-    client,
-    RICH_TEXT_TO_MARKDOWN_TOOL,
-    { field, slug: collection, value: stored.data },
-    telemetry
-  );
-
-  const parsed = markdownResultSchema.safeParse(result.structured);
-
-  if (!parsed.success) {
-    throw new UpstreamRequestError(`Payload returned no Markdown for ${field}`);
-  }
-
-  // Writing Markdown back would turn these nodes into plain text, deleting
-  // them while the Markdown preview hides what they held.
-  if (parsed.data.lost.length > 0) {
-    throw new ApplyConflictError(
-      "markdown_would_lose_content",
-      `${collection} ${field} holds ${parsed.data.lost.join(", ")} nodes that Markdown cannot carry; change it in fields as Lexical JSON, or in the Payload admin`
-    );
-  }
-
-  return parsed.data.markdown;
+  return collection;
 };
 
 // What Payload is sent: the stored values as given, and each Markdown field
@@ -328,8 +145,7 @@ const resolveBody = async (
           field,
           await toRichText(
             client,
-            operation.collection,
-            field,
+            { collection: operation.collection, field },
             text,
             telemetry
           ),
@@ -361,8 +177,15 @@ const resolveBody = async (
 interface PreflightContext {
   adminUrl: PayloadAdminUrl;
   client: UpstreamClient;
-  info: CollectionEditing[];
+  globalAdminUrl: PayloadGlobalAdminUrl;
+  // Where a staged file is read from. Without it, an upload has no file.
+  files?: UploadFiles | undefined;
+  info: EditingInfo;
+  // The locale the operation works in, where its target has any.
+  locale?: LocaleScope | undefined;
+  siteUrl: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
+  titles: TitleLookup;
 }
 
 // A Markdown field is previewed as Markdown on both sides, so the approver
@@ -370,6 +193,7 @@ interface PreflightContext {
 const snapshotField = async (
   context: PreflightContext,
   operation: DraftOperation,
+  collection: CollectionEditing,
   record: JsonObject,
   path: string
 ): Promise<FieldSnapshot> => {
@@ -387,21 +211,20 @@ const snapshotField = async (
   const markdown = draftMarkdown(operation)[path];
 
   if (markdown === undefined) {
-    const before = record[path];
-    const after = draftFields(operation)[path];
-
-    return {
-      after: previewValue(after),
-      before: previewValue(before),
-      changed: !deepEqual(before, after),
+    return await fieldSnapshot(
+      context.titles,
+      collection.relationFields,
       path,
-    };
+      {
+        after: draftFields(operation)[path],
+        before: record[path],
+      }
+    );
   }
 
   const before = await toMarkdown(
     context.client,
-    operation.collection,
-    path,
+    { collection: operation.collection, field: path },
     record[path],
     context.telemetry
   );
@@ -431,8 +254,9 @@ const currentRecord = async (
     context.telemetry
   );
 
-  assertDrafts(record, operation);
-  const stamp = readStamp(record, operation);
+  assertDraftDocument(record, operation.collection);
+
+  const stamp = requireStamp(record, draftTarget(operation));
 
   if (
     operation.expected_updated_at !== undefined &&
@@ -460,7 +284,7 @@ const preflightOne = async (
   operation: DraftOperation,
   index: number
 ): Promise<OperationPreflight> => {
-  assertEditable(context.info, operation);
+  const collection = assertEditable(context.info, operation);
   const { record, stamp } = await currentRecord(context, operation);
 
   // Converting now proves Payload accepts the Markdown before anyone is asked
@@ -469,11 +293,16 @@ const preflightOne = async (
 
   const fields = await Promise.all(
     draftChangedPaths(operation).map((path) =>
-      snapshotField(context, operation, record, path)
+      snapshotField(context, operation, collection, record, path)
     )
   );
 
-  return {
+  const previewUrl =
+    operation.kind === "create_draft"
+      ? ""
+      : await previewLink(context, collection, operation.id);
+
+  const preview: OperationPreflight = {
     editUrl:
       operation.kind === "create_draft"
         ? ""
@@ -486,11 +315,86 @@ const preflightOne = async (
     slug: previewSlug(operation, record),
     target: draftTarget(operation),
   };
+
+  if (previewUrl) {
+    preview.previewUrl = previewUrl;
+  }
+
+  return preview;
+};
+
+const preflightKind = (
+  context: PreflightContext,
+  operation: PayloadOperation,
+  index: number
+): Promise<OperationPreflight> => {
+  if (isUploadOperation(operation)) {
+    return preflightUpload(context, operation, index);
+  }
+
+  if (isGlobalOperation(operation)) {
+    return preflightGlobal(context, operation, index);
+  }
+
+  if (isUnpublishOperation(operation)) {
+    return preflightUnpublish(context, operation, index);
+  }
+
+  if (isRestoreOperation(operation)) {
+    return preflightRestore(context, operation, index);
+  }
+
+  if (isTrashOperation(operation)) {
+    return preflightTrashOperation(context, operation, index);
+  }
+
+  return isRowsOperation(operation)
+    ? preflightRows(context, operation, index)
+    : preflightOne(context, operation, index);
+};
+
+// On a target with localized fields an operation works in one locale: the
+// one it names, or the site's default. A named locale is put on every
+// request the operation makes; the default is what Payload reads and
+// writes anyway. Either way the preview says which, and marks each field
+// as that locale's or as shared by all.
+const preflightAs = async (
+  context: PreflightContext,
+  operation: PayloadOperation,
+  index: number
+): Promise<OperationPreflight> => {
+  const locale = localeScope(context.info, operation);
+
+  if (!locale) {
+    return await preflightKind(context, operation, index);
+  }
+
+  const preview = await preflightKind(
+    {
+      ...context,
+      client: locale.named
+        ? inLocale(context.client, locale.code)
+        : context.client,
+      locale,
+    },
+    operation,
+    index
+  );
+
+  // Read apart from the operation's own locale, with a client bound to none.
+  const statuses = await readLocaleStatuses(
+    context.client,
+    operation,
+    locale,
+    context.telemetry
+  );
+
+  return withLocaleStatuses(inScope(preview, locale, operation), statuses);
 };
 
 const preflightFrom = async (
   context: PreflightContext,
-  operations: DraftOperation[],
+  operations: PayloadOperation[],
   index: number
 ): Promise<OperationPreflight[]> => {
   const operation = operations.at(index);
@@ -499,84 +403,51 @@ const preflightFrom = async (
     return [];
   }
 
-  const first = await preflightOne(context, operation, index);
+  const first = await preflightAs(context, operation, index);
 
   return [first, ...(await preflightFrom(context, operations, index + 1))];
 };
 
+const noSiteUrl: PayloadSiteUrl = () => "";
+const noGlobalAdminUrl: PayloadGlobalAdminUrl = () => "";
+
+export interface DraftPreflightOptions {
+  // The run's staged files, for an upload's preview.
+  files?: UploadFiles | undefined;
+  // Makes the link to a global in the admin. Without it, none is offered.
+  globalAdminUrl?: PayloadGlobalAdminUrl | undefined;
+  // Makes the draft preview link a preview offers. Without it, none is.
+  siteUrl?: PayloadSiteUrl | undefined;
+}
+
 export const preflightDraftOperations = async (
   client: UpstreamClient,
   intent: string,
-  operations: DraftOperation[],
+  operations: PayloadOperation[],
   adminUrl: PayloadAdminUrl,
-  telemetry: UpstreamTelemetry
+  telemetry: UpstreamTelemetry,
+  options: DraftPreflightOptions = {}
 ): Promise<ApplyPreflight> => {
   const info = await readEditingInfo(client, telemetry);
 
   // One at a time, in order, as the WordPress preview does: each read is
   // bounded and a failure names the first document that could not be shown.
   const results = await preflightFrom(
-    { adminUrl, client, info, telemetry },
+    {
+      adminUrl,
+      client,
+      files: options.files,
+      globalAdminUrl: options.globalAdminUrl ?? noGlobalAdminUrl,
+      info,
+      siteUrl: options.siteUrl ?? noSiteUrl,
+      telemetry,
+      titles: createTitleLookup(client, info, telemetry),
+    },
     operations,
     0
   );
 
   return { intent, operations: results };
-};
-
-const toReceiptError = <E>(error: E): ReceiptError => {
-  if (error instanceof ApplyConflictError) {
-    return { code: error.code, message: error.message };
-  }
-
-  if (error instanceof UpstreamRequestError) {
-    return { code: "payload_request_failed", message: error.message };
-  }
-
-  return { code: "unexpected_error", message: "The operation failed" };
-};
-
-const missedPathsMessage = (missed: string[]): string => {
-  const listed = missed.slice(0, MISSED_PATH_LIMIT);
-  const extra = missed.length - listed.length;
-
-  return `Payload did not store ${listed.join(", ")}${extra > 0 ? ` and ${extra} more` : ""}`;
-};
-
-// The same reading as `wp.apply`'s readback: a stored value equal to the one
-// asked for is a change, one still equal to the value before is a miss, and
-// anything else is Payload rewriting what it stored (a hook, a sanitiser, or
-// Lexical filling in node defaults).
-const classifyReadback = (
-  body: JsonObject,
-  before: JsonObject,
-  after: JsonObject
-) => {
-  const changed: string[] = [];
-  const missed: string[] = [];
-  const normalized: string[] = [];
-
-  for (const path of Object.keys(body).toSorted()) {
-    const requested = body[path];
-    const previous = before[path];
-
-    if (deepEqual(previous, requested)) {
-      continue;
-    }
-
-    const stored = after[path];
-
-    if (deepEqual(stored, requested)) {
-      changed.push(path);
-    } else if (deepEqual(stored, previous)) {
-      missed.push(path);
-    } else {
-      changed.push(path);
-      normalized.push(path);
-    }
-  }
-
-  return { changed, missed, normalized };
 };
 
 // Markdown is compared as Markdown: Lexical from a fresh conversion seldom
@@ -618,6 +489,14 @@ class CreatedReadbackError extends Error {
 interface WriteResult {
   after: JsonObject;
   before: JsonObject;
+  // Set when the write made the document, so its receipt can name the id.
+  created?: true;
+  id: number | string;
+  // False when nothing was sent, because nothing the operation named differs.
+  sent: boolean;
+  // The document's `updatedAt` in the write's own response, which ties the
+  // version the write made to it. Absent when nothing was sent.
+  stamp?: string | undefined;
   target: string;
 }
 
@@ -635,7 +514,7 @@ const writeUpdate = async (
     telemetry
   );
 
-  assertDrafts(before, operation);
+  assertDraftDocument(before, operation.collection);
 
   if (updatedAt(before) !== snapshot.modifiedGmt) {
     throw new ApplyConflictError(
@@ -646,7 +525,13 @@ const writeUpdate = async (
 
   // Nothing left to send: no new draft version for a change that is none.
   if (Object.keys(body).length === 0) {
-    return { after: before, before, target: snapshot.target };
+    return {
+      after: before,
+      before,
+      id: operation.id,
+      sent: false,
+      target: snapshot.target,
+    };
   }
 
   const write = await payloadRest(client, operationPath(operation), telemetry, {
@@ -654,6 +539,10 @@ const writeUpdate = async (
     headers: { "Content-Type": "application/json" },
     method: "PATCH",
   });
+
+  if (write.status === LOCKED_STATUS) {
+    throw lockedError(snapshot.target);
+  }
 
   if (write.status < 200 || write.status >= 300) {
     throw new ApplyConflictError("write_failed", payloadErrorMessage(write));
@@ -667,6 +556,9 @@ const writeUpdate = async (
       telemetry
     ),
     before,
+    id: operation.id,
+    sent: true,
+    stamp: writtenStamp(write),
     target: snapshot.target,
   };
 };
@@ -698,6 +590,10 @@ const writeCreate = async (
     return {
       after: await readDocument(client, collection, id, telemetry),
       before: {},
+      created: true,
+      id,
+      sent: true,
+      stamp: writtenStamp(write),
       target,
     };
   } catch (error) {
@@ -707,12 +603,70 @@ const writeCreate = async (
   }
 };
 
+interface ApplyContext {
+  client: UpstreamClient;
+  files?: UploadFiles | undefined;
+  siteUrl: PayloadSiteUrl;
+  telemetry: UpstreamTelemetry;
+}
+
+type LandedFacts = Pick<
+  OperationReceipt,
+  "details" | "updated_at" | "version_id"
+>;
+
+// What a caller needs after a write to carry on from it: when the document
+// was last updated, for the next write's `expected_updated_at`; the version
+// the write made; a new document's id; and the link to preview the draft.
+const landedFacts = async (
+  context: ApplyContext,
+  collection: CollectionEditing,
+  written: WriteResult
+): Promise<LandedFacts> => {
+  const facts: LandedFacts = {};
+  const stamp = updatedAt(written.after);
+
+  if (stamp !== undefined) {
+    facts.updated_at = stamp;
+  }
+
+  if (!written.sent) {
+    return facts;
+  }
+
+  const [versionId, preview] = await Promise.all([
+    writtenVersionId(
+      context.client,
+      collection.slug,
+      written,
+      context.telemetry
+    ),
+    previewLink(context, collection, written.id),
+  ]);
+
+  if (versionId !== undefined) {
+    facts.version_id = versionId;
+  }
+
+  const details = receiptDetails({
+    id: written.created ? written.id : undefined,
+    preview_url: preview,
+  });
+
+  if (details) {
+    facts.details = details;
+  }
+
+  return facts;
+};
+
 const applyOne = async (
-  client: UpstreamClient,
+  context: ApplyContext,
   operation: DraftOperation,
-  snapshot: OperationPreflight,
-  telemetry: UpstreamTelemetry
+  snapshot: OperationPreflight
 ): Promise<OperationReceipt> => {
+  const { client, telemetry } = context;
+
   const failure = (
     error: ReceiptError,
     target = snapshot.target
@@ -722,7 +676,7 @@ const applyOne = async (
     kind: operation.kind,
     normalized_paths: [],
     operation_index: snapshot.operationIndex,
-    status: error.code === "modified_since_preflight" ? "conflict" : "failed",
+    status: CONFLICT_CODES.has(error.code) ? "conflict" : "failed",
     target,
   });
 
@@ -738,7 +692,10 @@ const applyOne = async (
   try {
     // Checked again at write time: a collection's drafts or this editor's
     // permissions may have changed since the preview.
-    assertEditable(await readEditingInfo(client, telemetry), operation);
+    const collection = assertEditable(
+      await readEditingInfo(client, telemetry),
+      operation
+    );
 
     const body = withoutUnchangedMarkdown(
       await resolveBody(client, operation, telemetry),
@@ -752,11 +709,13 @@ const applyOne = async (
         : await writeUpdate(client, operation, snapshot, body, telemetry);
 
     const readback = classifyReadback(body, written.before, written.after);
+    const landed = await landedFacts(context, collection, written);
 
     // A hook or field access can keep `_status` a draft, which readback
     // would count as normalised. A requested publish must have landed.
     if (operation.publish && written.after[STATUS_FIELD] !== "published") {
       return {
+        ...landed,
         changed_paths: readback.changed.filter((path) => path !== STATUS_FIELD),
         error: {
           code: "not_published",
@@ -772,6 +731,7 @@ const applyOne = async (
 
     if (readback.missed.length > 0) {
       return {
+        ...landed,
         changed_paths: readback.changed,
         error: {
           code: "readback_mismatch",
@@ -786,6 +746,7 @@ const applyOne = async (
     }
 
     return {
+      ...landed,
       changed_paths: readback.changed,
       kind: operation.kind,
       normalized_paths: readback.normalized,
@@ -808,17 +769,125 @@ const applyOne = async (
   }
 };
 
+const applyKind = (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  if (isUploadOperation(operation)) {
+    return applyUpload(context, operation, snapshot);
+  }
+
+  if (isGlobalOperation(operation)) {
+    return applyGlobal(context, operation, snapshot);
+  }
+
+  if (isUnpublishOperation(operation)) {
+    return applyUnpublish(context, operation, snapshot);
+  }
+
+  if (isRestoreOperation(operation)) {
+    return applyRestore(context, operation, snapshot);
+  }
+
+  if (isTrashOperation(operation)) {
+    return applyTrashOperation(context, operation, snapshot);
+  }
+
+  return isRowsOperation(operation)
+    ? applyRows(context, operation, snapshot)
+    : applyOne(context, operation, snapshot);
+};
+
+// What an operation that works in a locale adds around its write. A named
+// locale is checked against the site again before anything is written in
+// it: Payload writes the default locale for a code it does not know, so an
+// operation whose locale has gone is refused, not sent. One that publishes
+// every locale is read back in all of them.
+const applyInLocale = async (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  const named = namedLocale(operation);
+
+  const scope = localeScope(
+    await readEditingInfo(context.client, context.telemetry),
+    operation
+  );
+
+  const statuses = () =>
+    readLocaleStatuses(context.client, operation, scope, context.telemetry);
+
+  const before = await statuses();
+
+  const written = await applyKind(
+    named === undefined
+      ? context
+      : { ...context, client: inLocale(context.client, named) },
+    operation,
+    snapshot
+  );
+
+  const receipt = confirmEveryLocale(
+    written,
+    before,
+    before && (await statuses())
+  );
+
+  // The locale leads, so the cap on a receipt's details never drops it.
+  const details = receiptDetails({ locale: named, ...receipt.details });
+
+  return details ? { ...receipt, details } : receipt;
+};
+
+const applyAs = async (
+  context: ApplyContext,
+  operation: PayloadOperation,
+  snapshot: OperationPreflight
+): Promise<OperationReceipt> => {
+  const inLocaleOrAll =
+    namedLocale(operation) !== undefined ||
+    ("publish_all_locales" in operation &&
+      operation.publish_all_locales === true);
+
+  if (!inLocaleOrAll) {
+    return await applyKind(context, operation, snapshot);
+  }
+
+  try {
+    return await applyInLocale(context, operation, snapshot);
+  } catch (error) {
+    const receiptError = toReceiptError(error);
+
+    return {
+      changed_paths: [],
+      error: receiptError,
+      kind: operation.kind,
+      normalized_paths: [],
+      operation_index: snapshot.operationIndex,
+      status: CONFLICT_CODES.has(receiptError.code) ? "conflict" : "failed",
+      target: snapshot.target,
+    };
+  }
+};
+
 interface DraftApplyOptions {
   approverOpaque: string;
   client: UpstreamClient;
   executionId: string;
+  // Where this run's staged files are read from, and what measures them.
+  // Without it, an upload reports that its file was never staged.
+  files?: Omit<UploadFiles, "executionId"> | undefined;
   // Hears each receipt as its operation settles, so a run that stops part
   // way still has a record of what landed (a created draft above all). A
   // failure to record progress never fails the write it describes.
   onProgress?: (receipt: OperationReceipt) => Promise<void>;
-  operations: DraftOperation[];
+  operations: PayloadOperation[];
   preflight: ApplyPreflight;
   requesterOpaque: string;
+  // Makes the draft preview link a receipt offers. Without it, none is.
+  siteUrl?: PayloadSiteUrl;
   telemetry: UpstreamTelemetry;
 }
 
@@ -834,8 +903,18 @@ const applyFrom = async (
 
   const snapshot = options.preflight.operations.at(index);
 
+  const context: ApplyContext = {
+    client: options.client,
+    files: options.files && {
+      ...options.files,
+      executionId: options.executionId,
+    },
+    siteUrl: options.siteUrl ?? noSiteUrl,
+    telemetry: options.telemetry,
+  };
+
   const receipt: OperationReceipt = snapshot
-    ? await applyOne(options.client, operation, snapshot, options.telemetry)
+    ? await applyAs(context, operation, snapshot)
     : {
         changed_paths: [],
         error: {
@@ -846,7 +925,7 @@ const applyFrom = async (
         normalized_paths: [],
         operation_index: index,
         status: "failed",
-        target: draftTarget(operation),
+        target: operationTarget(operation),
       };
 
   try {

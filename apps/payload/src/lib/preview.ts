@@ -6,6 +6,22 @@ type EditedDoc = Parameters<GeneratePreviewURL>[0];
 /** The route that turns on draft mode for a logged-in editor, then redirects. */
 export const PREVIEW_ROUTE = "/next/preview";
 
+/**
+ * The public path a preview link opens: the document's own address on the
+ * site. Null for a link this app did not make.
+ */
+export const publicPathOf = (previewUrl: string | null): string | null => {
+  if (!previewUrl?.startsWith(`${PREVIEW_ROUTE}?`)) {
+    return null;
+  }
+
+  const path = new URLSearchParams(
+    previewUrl.slice(PREVIEW_ROUTE.length + 1)
+  ).get("path");
+
+  return path?.startsWith("/") ? path : null;
+};
+
 /** How long autosave waits after a change, which paces Live Preview. */
 const AUTOSAVE_INTERVAL_MS = 375;
 

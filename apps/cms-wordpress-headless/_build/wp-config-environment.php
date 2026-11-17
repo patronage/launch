@@ -44,6 +44,9 @@ $site_env_config = [
     // 'PATRONAGE_ACCESS_AUD' => 'gateway (preview) application AUD',
     // 'PATRONAGE_ACCESS_REQUIRE_ORIGIN_JWT' => true,
     // 'PATRONAGE_ACCESS_ORIGIN_AUD' => 'CMS application AUD',
+    // Signs editors in to wp-admin from their Access login, and after logout
+    // offers "Sign in with Access as <email>" (patronage-access 1.1.0+).
+    // 'PATRONAGE_ACCESS_BROWSER_LOGIN' => true,
     // 'PATRONAGE_ACCESS_PROOF_SECRET' => 'same value as the Worker secret',
     // Logging (mu-plugins/patronage-logging.php, from wordpress-shared). Off
     // unless both are set; packages/logging's provision script prints them.

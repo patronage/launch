@@ -35,9 +35,18 @@ add_action('init', function (): void {
 
 const PATRONAGE_FIELDS_RICH_TEXT_BLOCKS = ['launch_button', 'launch_image', 'launch_pullquote', 'launch_embed'];
 
+/**
+ * A shortcode attribute as plain text. Rich text arrives HTML-encoded: the
+ * editor and the filter on load (field-values.php) write "&" as "&amp;", so a
+ * URL's query or a label would otherwise keep the entity.
+ */
+function patronage_fields_attribute(mixed $value): string {
+  return trim(html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
 /** Trimmed text, or null when empty. */
 function patronage_fields_text(mixed $value): ?string {
-  $text = trim(wp_strip_all_tags((string) $value));
+  $text = patronage_fields_attribute(wp_strip_all_tags((string) $value));
   return $text === '' ? null : $text;
 }
 
@@ -69,7 +78,7 @@ function patronage_fields_rich_text_block(string $tag, array $atts, ?string $con
     case 'launch_button':
       // esc_url_raw drops protocols WordPress does not allow, such as
       // javascript:, which an author without unfiltered_html could type here.
-      $url = esc_url_raw(trim((string) ($atts['url'] ?? '')));
+      $url = esc_url_raw(patronage_fields_attribute($atts['url'] ?? ''));
       $label = patronage_fields_text($atts['label'] ?? '');
       if ($url === '' || $label === null) {
         return null;
@@ -108,7 +117,7 @@ function patronage_fields_rich_text_block(string $tag, array $atts, ?string $con
       ]);
 
     case 'launch_embed':
-      $url = trim((string) ($atts['url'] ?? ''));
+      $url = patronage_fields_attribute($atts['url'] ?? '');
       // A syntax check only: wp_http_validate_url() resolves the host, which
       // costs a DNS lookup on every render and fails wherever DNS is blocked.
       // The UI decides what to frame from the URL itself.

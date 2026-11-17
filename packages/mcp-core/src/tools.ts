@@ -1009,7 +1009,7 @@ const registerFeedbackTools = (
 
 // `support` is what the client said it can render; see `ClientAppSupport` for
 // what each answer buys. A client that positively advertised without the
-// extension gets three ordinary tools, no card resource, no app-only tools,
+// extension gets ordinary tools, no card resource, no app-only tools,
 // and no `_meta` on a paused result: it answers approvals on the standalone
 // page, whose URL every paused result then names.
 export const registerTools = (

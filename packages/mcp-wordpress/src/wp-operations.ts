@@ -5,7 +5,20 @@ import {
 } from "@patronage/mcp-core";
 import { z } from "zod";
 
-const FIELD_ORDER = ["title", "content", "excerpt", "slug", "status"] as const;
+const FIELD_ORDER = [
+  "title",
+  "content",
+  "excerpt",
+  "slug",
+  "status",
+  "alt_text",
+] as const;
+
+// Matches the approval preview's limit, so an approver always sees the whole
+// value. Longer alt text would be cut off in the preview they approve.
+export const ALT_TEXT_LIMIT = 400;
+
+export const ALT_TEXT_PATH = "alt_text";
 
 const restBaseSchema = z
   .string()
@@ -15,6 +28,7 @@ const restBaseSchema = z
   .regex(/^[a-z0-9_-]+$/u);
 
 const updatePostFieldsSchema = z.strictObject({
+  alt_text: z.string().max(ALT_TEXT_LIMIT).optional(),
   content: z.string().max(500_000).optional(),
   excerpt: z.string().max(50_000).optional(),
   slug: z.string().trim().min(1).max(200).optional(),
@@ -52,6 +66,12 @@ const updatePostOperationSchema = z
     meta: z.record(z.string().min(1).max(META_KEY_LIMIT), z.json()).optional(),
     rest_base: restBaseSchema,
   })
+  .refine(
+    (operation) =>
+      operation.fields?.alt_text === undefined ||
+      operation.rest_base === "media",
+    { message: "alt_text is only supported on the media REST resource" }
+  )
   .refine(
     (operation) =>
       changedFieldKeys(operation.fields).length > 0 ||

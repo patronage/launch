@@ -32,6 +32,9 @@ export const MAX_OPEN_PER_SUBMITTER = 20;
 export const CLOSED_RETENTION_MS = 30 * 86_400_000;
 const MAX_LISTED = 50;
 
+// Durable Object storage accepts at most 128 keys per delete.
+const DELETE_BATCH = 128;
+
 export const feedbackCategories = [
   "bug",
   "confusing_error",
@@ -164,6 +167,37 @@ export interface FeedbackStore {
   put: (key: string, record: FeedbackRecord) => Promise<void>;
 }
 
+// Serialize queue mutations so concurrent submissions count the reports that
+// earlier submissions actually stored. The runtime keeps one store per object.
+const mutations = new WeakMap<FeedbackStore, Promise<unknown>>();
+
+const inTurn = async <T>(
+  store: FeedbackStore,
+  task: () => Promise<T>
+): Promise<T> => {
+  const before = mutations.get(store);
+
+  const work = (async () => {
+    await before;
+
+    return await task();
+  })();
+
+  const settled = work.catch(() => {
+    // The caller receives the failure; a later mutation can still proceed.
+  });
+
+  mutations.set(store, settled);
+
+  try {
+    return await work;
+  } finally {
+    if (mutations.get(store) === settled) {
+      mutations.delete(store);
+    }
+  }
+};
+
 export class FeedbackLimitError extends Error {
   constructor() {
     super(
@@ -205,44 +239,45 @@ const overflow = (records: FeedbackRecord[]): string[] => {
     .map((record) => feedbackKey(record.id));
 };
 
-export const submitFeedback = async (
+export const submitFeedback = (
   store: FeedbackStore,
   submission: FeedbackSubmission,
   submitterOpaque: string,
   now: Date = new Date()
-): Promise<FeedbackView> => {
-  const records = await allFeedback(store);
+): Promise<FeedbackView> =>
+  inTurn(store, async () => {
+    const records = await allFeedback(store);
 
-  const openForSubmitter = records.filter(
-    (record) =>
-      record.submitterOpaque === submitterOpaque && !isClosed(record.status)
-  ).length;
+    const openForSubmitter = records.filter(
+      (record) =>
+        record.submitterOpaque === submitterOpaque && !isClosed(record.status)
+    ).length;
 
-  if (openForSubmitter >= MAX_OPEN_PER_SUBMITTER) {
-    throw new FeedbackLimitError();
-  }
+    if (openForSubmitter >= MAX_OPEN_PER_SUBMITTER) {
+      throw new FeedbackLimitError();
+    }
 
-  const dropped = overflow(records);
+    const dropped = overflow(records);
 
-  if (dropped.length > 0) {
-    await store.delete(dropped);
-  }
+    if (dropped.length > 0) {
+      await store.delete(dropped);
+    }
 
-  const at = now.toISOString();
+    const at = now.toISOString();
 
-  const record: FeedbackRecord = {
-    ...submission,
-    id: mintFeedbackId(),
-    status: "open",
-    submittedAt: at,
-    submitterOpaque,
-    updatedAt: at,
-  };
+    const record: FeedbackRecord = {
+      ...submission,
+      id: mintFeedbackId(),
+      status: "open",
+      submittedAt: at,
+      submitterOpaque,
+      updatedAt: at,
+    };
 
-  await store.put(feedbackKey(record.id), record);
+    await store.put(feedbackKey(record.id), record);
 
-  return toFeedbackView(record);
-};
+    return toFeedbackView(record);
+  });
 
 export const readFeedback = (
   store: FeedbackStore,
@@ -293,71 +328,79 @@ export const listFeedbackQueue = async (
     );
 };
 
-export const updateFeedback = async (
+export const updateFeedback = (
   store: FeedbackStore,
   feedbackId: string,
   update: FeedbackUpdate,
   now: Date = new Date()
-): Promise<FeedbackRecord | undefined> => {
-  const current = await readFeedback(store, feedbackId);
+): Promise<FeedbackRecord | undefined> =>
+  inTurn(store, async () => {
+    const current = await readFeedback(store, feedbackId);
 
-  if (!current) {
-    return undefined;
-  }
-
-  const at = now.toISOString();
-  // Every answer replaces the last one. A report moved back to `open` or to
-  // `acknowledged` with nothing to say carries no resolution at all, so a
-  // reopened report never shows the note of the fix that did not hold.
-  const { resolution: _previous, ...rest } = current;
-
-  const next: FeedbackRecord = {
-    ...rest,
-    status: update.status,
-    updatedAt: at,
-  };
-
-  if (update.note || update.version || isClosed(update.status)) {
-    const resolution: FeedbackResolution = { at };
-
-    if (update.note) {
-      resolution.note = update.note;
+    if (!current) {
+      return;
     }
 
-    if (update.version) {
-      resolution.version = update.version;
+    const at = now.toISOString();
+    // Every answer replaces the last one. A report moved back to `open` or to
+    // `acknowledged` with nothing to say carries no resolution at all, so a
+    // reopened report never shows the note of the fix that did not hold.
+    const { resolution: _previous, ...rest } = current;
+
+    const next: FeedbackRecord = {
+      ...rest,
+      status: update.status,
+      updatedAt: at,
+    };
+
+    if (update.note || update.version || isClosed(update.status)) {
+      const resolution: FeedbackResolution = { at };
+
+      if (update.note) {
+        resolution.note = update.note;
+      }
+
+      if (update.version) {
+        resolution.version = update.version;
+      }
+
+      next.resolution = resolution;
     }
 
-    next.resolution = resolution;
-  }
+    await store.put(feedbackKey(feedbackId), next);
 
-  await store.put(feedbackKey(feedbackId), next);
-
-  return next;
-};
+    return next;
+  });
 
 // Run by the Durable Object's daily alarm: closed reports leave the queue
 // `CLOSED_RETENTION_MS` after they closed.
-export const pruneFeedback = async (
+export const pruneFeedback = (
   store: FeedbackStore,
   now: Date = new Date()
-): Promise<number> => {
-  const cutoff = now.getTime() - CLOSED_RETENTION_MS;
-  const records = await allFeedback(store);
+): Promise<number> =>
+  inTurn(store, async () => {
+    const cutoff = now.getTime() - CLOSED_RETENTION_MS;
+    const records = await allFeedback(store);
 
-  const expired = records
-    .filter(
-      (record) =>
-        isClosed(record.status) && Date.parse(record.updatedAt) < cutoff
-    )
-    .map((record) => feedbackKey(record.id));
+    const expired = records
+      .filter(
+        (record) =>
+          isClosed(record.status) && Date.parse(record.updatedAt) < cutoff
+      )
+      .map((record) => feedbackKey(record.id));
 
-  if (expired.length > 0) {
-    await store.delete(expired);
-  }
+    await Promise.all(
+      Array.from(
+        { length: Math.ceil(expired.length / DELETE_BATCH) },
+        (_, index) =>
+          store.delete(
+            expired.slice(index * DELETE_BATCH, (index + 1) * DELETE_BATCH)
+          )
+      )
+    );
 
-  return expired.length;
-};
+    return expired.length;
+  });
 
 // The maintainer routes sit behind the same Access application as every other
 // route, and additionally require this deployment's maintainer token, because

@@ -17,8 +17,15 @@ if (D1) {
   bindings.D1 = D1;
 }
 
+// PAYLOAD_LOCAL_STATE moves the local state elsewhere, for tests that need a
+// throwaway D1 (scripts/d1-to-postgres-e2e.test.mjs). The demo's locales
+// (src/demo-locales.ts) keep theirs apart too, where vite.config.ts puts it.
+const defaultState = process.env.PAYLOAD_DEMO_LOCALES
+  ? ".demo-locales/state/v3"
+  : ".cloudflare/state/v3";
+
 const mf = new Miniflare({
-  resourcePersistencePath: ".cloudflare/state/v3",
+  resourcePersistencePath: process.env.PAYLOAD_LOCAL_STATE ?? defaultState,
   workers: [
     {
       config: {

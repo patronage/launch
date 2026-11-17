@@ -13,9 +13,11 @@ import { cache } from "react";
 
 import { LivePreviewRefresh } from "@/components/live-preview-refresh";
 import { PayloadRichText } from "@/components/rich-text";
+import { followRedirect } from "@/lib/follow-redirect";
 import { PAGE_QUERY } from "@/lib/page-query";
-import { getFrontendPayload } from "@/lib/payload";
+import { getFrontendPayload, getSiteSettings } from "@/lib/payload";
 import { payloadAdapter, toImage } from "@/lib/sections";
+import { documentMetadata, siteOrigin } from "@/lib/seo";
 import type { Page as PayloadPage } from "@/payload-types";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +96,22 @@ const pageFor = async (params: Props["params"]) => {
 export const generateMetadata = async ({ params }: Props) => {
   const { page } = await pageFor(params);
 
-  return page ? { title: page.title } : {};
+  if (!page) {
+    return {};
+  }
+
+  const { siteName } = await getSiteSettings();
+
+  return documentMetadata({
+    fallbackImage: toImage(page.hero?.image),
+    image: toImage(page.meta?.image),
+    meta: page.meta,
+    origin: await siteOrigin(),
+    path: payloadAdapter.pagePath(page) ?? "/",
+    siteName,
+    title: page.title,
+    type: "website",
+  });
 };
 
 /** The page's rich text, for pages without sections. */
@@ -154,6 +171,7 @@ const Page = async ({ params }: Props) => {
       return <PageIndex />;
     }
 
+    await followRedirect(`/${slug.join("/")}`);
     notFound();
   }
 

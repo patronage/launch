@@ -8,7 +8,8 @@
  * acf/init; post types are in post-types.php, written with Extended CPTs.
  * Field JSON is neither loaded nor saved, so editing fields in wp-admin
  * changes nothing. rich-text-blocks.php registers the rich-text shortcodes,
- * and forms.php reads Formidable forms and saves their entries.
+ * forms.php reads Formidable forms and saves their entries, and
+ * field-values.php keeps the stored field values behind the field editor.
  *
  * WordPress loads only top-level mu-plugin files: each install commits a
  * one-line wp-content/mu-plugins/patronage-fields.php that requires this
@@ -30,6 +31,7 @@ if (is_readable($patronage_fields_autoload)) {
 require_once __DIR__ . '/post-types.php';
 require_once __DIR__ . '/rich-text-blocks.php';
 require_once __DIR__ . '/forms.php';
+require_once __DIR__ . '/field-values.php';
 
 add_filter('acf/settings/load_json', '__return_empty_array');
 add_filter('acf/settings/save_json', '__return_false');

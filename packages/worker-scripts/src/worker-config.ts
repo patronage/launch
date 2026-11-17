@@ -3,7 +3,7 @@
  * `vite build` resolves it into Build Output, and the scripts read it from
  * there so names and bindings are never repeated.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod";
@@ -12,6 +12,17 @@ import { ScriptError } from "./script.ts";
 
 export const BUILT_WORKER_CONFIG =
   ".cloudflare/output/v0/workers/default/worker.config.json";
+
+/** Build Output v1, which cf 1.0 release candidates read (Astro's adapter writes it). */
+const BUILT_WORKER_CONFIG_V1 =
+  ".cloudflare/output/v1/workers/default/worker.config.json";
+
+/** The built config's path: v0 when present, else v1. */
+const builtConfigPath = (root: string): string =>
+  existsSync(path.join(root, BUILT_WORKER_CONFIG)) ||
+  !existsSync(path.join(root, BUILT_WORKER_CONFIG_V1))
+    ? BUILT_WORKER_CONFIG
+    : BUILT_WORKER_CONFIG_V1;
 
 const workerConfigSchema = z
   .object({
@@ -31,20 +42,19 @@ export interface WorkerSummary {
 }
 
 export const readBuiltWorkerConfig = (root: string): WorkerConfig => {
+  const file = builtConfigPath(root);
   let text: string;
 
   try {
-    text = readFileSync(path.join(root, BUILT_WORKER_CONFIG), "utf-8");
+    text = readFileSync(path.join(root, file), "utf-8");
   } catch {
-    throw new ScriptError(
-      `Could not read ${BUILT_WORKER_CONFIG}. Build the app first.`
-    );
+    throw new ScriptError(`Could not read ${file}. Build the app first.`);
   }
 
   const parsed = workerConfigSchema.safeParse(JSON.parse(text));
 
   if (!parsed.success) {
-    throw new ScriptError(`${BUILT_WORKER_CONFIG} has no Worker name.`);
+    throw new ScriptError(`${file} has no Worker name.`);
   }
 
   return parsed.data;

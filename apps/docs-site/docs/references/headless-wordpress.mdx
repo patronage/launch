@@ -22,7 +22,7 @@ The fields live in PHP and are shared with the [Timber install](/references/timb
 
 - **Hero**, on pages and posts, in the same five variants as Payload.
 - **Page Builder**, on pages: one flexible content layout per section in the content model, each with a Section options tab. Pages hide the block editor; their content is their sections.
-- **Rich text** takes the content model's blocks as shortcodes, such as `[launch_button]` and `[launch_embed]`.
+- **Rich text** takes the content model's blocks as shortcodes, such as `[launch_button]` and `[launch_embed]`. The shared fields plugin filters it with `wp_kses_post()` when it loads, so it cannot carry script.
 - **Forms** are [Formidable Forms](https://wordpress.org/plugins/formidable/) (free). A form section exposes its form to WPGraphQL, and the front-end posts submissions to a REST route that only it can call. WordPress checks each value and saves the entry.
 
 ## What the research settled

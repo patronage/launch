@@ -2,6 +2,14 @@ import { App } from "@modelcontextprotocol/ext-apps";
 import { z } from "zod";
 
 import { delay } from "../concurrency";
+import {
+  hostErrorSchema,
+  parseHostError,
+  reasonOf,
+  resultReason,
+  safeLink,
+} from "./reasons";
+import type { ToolAnswer } from "./reasons";
 
 // The browser half of the inline approval card. It runs in the host's app
 // frame, not in the Worker, so it is compiled apart from the rest of `src`
@@ -42,10 +50,6 @@ const USE_LINK = "You can still approve or deny it on the approval page.";
 
 const NO_LINK = "Ask for the approval link to answer it instead.";
 
-// The longest reason shown in small print, so a verbose host error cannot push
-// the approval link out of view.
-const MAX_REASON = 200;
-
 // The two halves of what a paused tool result hands this card: the state in
 // `_meta`, which carries the one-time approval token, and the server-rendered
 // fragment in `structuredContent`. Both are parsed rather than trusted.
@@ -79,10 +83,6 @@ const progressViewSchema = cardViewSchema.extend({ running: z.boolean() });
 
 type PendingApproval = z.infer<typeof pendingApprovalSchema>;
 
-// The shape `ontoolresult` is handed, named off the client rather than
-// imported from the SDK's internals.
-type ToolAnswer = Parameters<NonNullable<App["ontoolresult"]>>[0];
-
 const app = new App(
   { name: "launch-mcp approval", version: "1.0.0" },
   { tools: {} }
@@ -109,61 +109,6 @@ const setActions = (canApprove: boolean, canDeny: boolean): void => {
 // The approval page for the run this card shows, kept from the last state
 // that named one so a failure after it can still offer the page.
 let link: string | undefined;
-
-// Only an https page (or a local one, in development) is offered: the URL came
-// from the server, but the card opens nothing it has not checked.
-const safeLink = (value: string | undefined): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(value);
-    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-
-    return url.protocol === "https:" || (local && url.protocol === "http:")
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-// What the card reads off a failed call: a JSON-RPC error carries a numeric
-// code and a message, and anything else thrown is described by its message
-// alone. The host, not this card, decides what it throws, so it is parsed.
-const hostErrorSchema = z.object({
-  code: z.number().optional(),
-  message: z.string().optional(),
-});
-
-type HostError = z.infer<typeof hostErrorSchema>;
-
-const parseHostError = (
-  parsed: ReturnType<typeof hostErrorSchema.safeParse>
-): HostError | undefined => (parsed.success ? parsed.data : undefined);
-
-const reasonOf = (error: HostError | undefined): string | undefined => {
-  const text = error?.message?.trim() ?? "";
-  const prefix = error?.code === undefined ? "" : `Error ${error.code}`;
-  const reason = [prefix, text].filter(Boolean).join(": ");
-
-  if (!reason) {
-    return undefined;
-  }
-
-  return reason.length > MAX_REASON
-    ? `${reason.slice(0, MAX_REASON)}…`
-    : reason;
-};
-
-// A tool result that came back as an error, rather than a thrown call: its
-// first text block is the reason.
-const resultReason = (result: ToolAnswer): string | undefined => {
-  const [first] = Array.isArray(result?.content) ? result.content : [];
-
-  return first?.type === "text" ? reasonOf({ message: first.text }) : undefined;
-};
 
 // Best effort: the host may surface it in its own logs. The gateway sees
 // nothing of a call that never left the host.

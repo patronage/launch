@@ -34,6 +34,50 @@ const thrownBy = (fn: () => void): Error | undefined => {
 };
 
 describe(parseApplyInput, () => {
+  it("accepts bounded media alt text and refuses it elsewhere", () => {
+    const media = {
+      fields: { alt_text: "A redwood forest" },
+      id: 7,
+      kind: "update_post",
+      rest_base: "media",
+    };
+
+    expect(
+      parseApplyInput({ intent: "Add alt text", operations: [media] })
+        .operations[0]
+    ).toMatchObject({ fields: { alt_text: "A redwood forest" } });
+    expect(() =>
+      parseApplyInput({
+        intent: "Wrong resource",
+        operations: [{ ...media, rest_base: "pages" }],
+      })
+    ).toThrow(ApplyValidationError);
+    expect(() =>
+      parseApplyInput({
+        intent: "Too long",
+        operations: [{ ...media, fields: { alt_text: "x".repeat(401) } }],
+      })
+    ).toThrow(ApplyValidationError);
+  });
+
+  it("accepts an empty alt text as a real change", () => {
+    const parsed = parseApplyInput({
+      intent: "Mark the image decorative",
+      operations: [
+        {
+          fields: { alt_text: "" },
+          id: 7,
+          kind: "update_post",
+          rest_base: "media",
+        },
+      ],
+    });
+
+    expect(parsed.operations.map((item) => changedPaths(item))).toStrictEqual([
+      ["alt_text"],
+    ]);
+  });
+
   it("accepts a batch of update_post operations", () => {
     const parsed = parseApplyInput({
       intent: "Fix the launch page headline",
@@ -93,10 +137,9 @@ describe(parseApplyInput, () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual(["content"]);
@@ -167,10 +210,9 @@ describe("summaries", () => {
   it("names the target and lists the changed paths in a sentence", () => {
     const parsed = parseApplyInput({ intent: "Fix", operations: [operation] });
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(operationTarget(first)).toBe("pages/42");
@@ -204,10 +246,9 @@ describe("summaries", () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual([
@@ -237,10 +278,9 @@ describe("post meta", () => {
     });
 
     const [first] = parsed.operations;
-    expect(first).toBeDefined();
 
     if (!first) {
-      return;
+      throw new TypeError("expected parseApplyInput to return an operation");
     }
 
     expect(changedPaths(first)).toStrictEqual([

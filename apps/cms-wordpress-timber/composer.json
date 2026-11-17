@@ -7,7 +7,7 @@
     "php": ">=8.2",
     "composer/installers": "2.3.0",
     "timber/timber": "2.5.1",
-    "wordpress/secure-custom-fields": "6.9.7",
+    "wordpress/secure-custom-fields": "6.9.8",
     "vinkla/extended-acf": "14.6.2",
     "johnbillion/extended-cpts": "5.1.0",
     "wordpress-plugin/formidable": "7.0"
@@ -17,11 +17,11 @@
       "type": "package",
       "package": {
         "name": "wordpress/secure-custom-fields",
-        "version": "6.9.7",
+        "version": "6.9.8",
         "type": "wordpress-plugin",
         "dist": {
           "type": "zip",
-          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+          "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.8/secure-custom-fields.zip"
         },
         "require": {
           "composer/installers": "^2.2"

@@ -7,6 +7,83 @@
  */
 
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "UploadTransforms".
+ */
+export type UploadTransforms = {
+  /**
+   * Time range on the original, in milliseconds. Start inclusive, end exclusive.
+   */
+  clip?: {
+    endMs: number;
+    startMs: number;
+  };
+  /**
+   * Rectangle in original-file pixels, applied before resize and encoding.
+   */
+  crop?: {
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+  };
+  /**
+   * Encoding settings for the output format. Does not select the format.
+   */
+  encoding?: {
+    [k: string]: unknown;
+  };
+  /**
+   * Mirror the image on one or both axes.
+   */
+  flip?: {
+    horizontal?: boolean;
+    vertical?: boolean;
+  };
+  /**
+   * Preferred point as percentages of the original, from 0 to 100.
+   */
+  focalPoint?: {
+    x: number;
+    y: number;
+  };
+  /**
+   * Keep or remove metadata embedded in the output file.
+   */
+  metadataPolicy?: {
+    mode: 'preserve' | 'strip';
+  };
+  /**
+   * One-based, inclusive page range on the original document.
+   */
+  pageRange?: {
+    endPage: number;
+    startPage: number;
+  };
+  /**
+   * Video frame to use as the poster, in milliseconds on the original.
+   */
+  posterFrame?: {
+    timestampMs: number;
+  };
+  /**
+   * Target size for visual media.
+   */
+  resize?: {
+    fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
+    height?: number;
+    width?: number;
+    withoutEnlargement?: boolean;
+  };
+  /**
+   * Clockwise rotation in degrees.
+   */
+  rotate?: {
+    angle: number;
+  };
+  [k: string]: unknown;
+} | null;
+/**
  * Supported timezones in IANA format.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -78,34 +155,35 @@ export type LexicalNodes_FF751C9B =
   | SerializedHeadingNode<LexicalNodes_FF751C9B, 'h2' | 'h3'>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_BABF1D5B".
+ * via the `definition` "LexicalNodes_16C756CF".
  */
-export type LexicalNodes_BABF1D5B =
+export type LexicalNodes_16C756CF =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_BABF1D5B>
+  | SerializedParagraphNode<LexicalNodes_16C756CF>
   | SerializedBlockNode<RichTextImage | RichTextPullquote | RichTextEmbed>
   | SerializedInlineBlockNode<RichTextButton>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_BABF1D5B>
+  | SerializedQuoteNode<LexicalNodes_16C756CF>
   | SerializedRelationshipNode<
       | 'users'
       | 'pages'
       | 'posts'
       | 'authors'
       | 'categories'
+      | 'redirects'
       | 'payload-kv'
       | 'payload-locked-documents'
       | 'payload-preferences'
       | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_BABF1D5B, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_BABF1D5B, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_BABF1D5B>
-  | SerializedListItemNode<LexicalNodes_BABF1D5B>
-  | SerializedHeadingNode<LexicalNodes_BABF1D5B>;
+  | SerializedAutoLinkNode<LexicalNodes_16C756CF, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_16C756CF, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_16C756CF>
+  | SerializedListItemNode<LexicalNodes_16C756CF>
+  | SerializedHeadingNode<LexicalNodes_16C756CF>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_34AB5352".
@@ -151,6 +229,7 @@ export interface Config {
     media: Media;
     forms: Form;
     'form-submissions': FormSubmission;
+    redirects: Redirect;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -167,6 +246,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
+    redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -244,6 +324,8 @@ export interface User {
         id: string;
         createdAt?: string | null;
         expiresAt: string;
+        refreshCount?: number | null;
+        refreshedAt?: string | null;
       }[]
     | null;
   password?: string | null;
@@ -258,7 +340,7 @@ export interface Page {
   title: string;
   slug: string;
   hero?: PageHero;
-  content?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
+  content?: LexicalRichText<LexicalNodes_16C756CF> | null;
   /**
    * Page sections, rendered in order.
    */
@@ -282,6 +364,7 @@ export interface Page {
         id?: string | null;
       }[]
     | null;
+  meta?: SeoMeta;
   createdBy?: {
     relationTo: 'users';
     value: number | User;
@@ -292,6 +375,7 @@ export interface Page {
   } | null;
   updatedAt: string;
   createdAt: string;
+  deletedAt?: string | null;
   _status?: ('draft' | 'published') | null;
 }
 /**
@@ -350,6 +434,8 @@ export interface Media {
   filesize?: number | null;
   width?: number | null;
   height?: number | null;
+  _stored?: boolean | null;
+  _transforms?: UploadTransforms;
   original?: {
     filename?: string | null;
     url?: string | null;
@@ -359,6 +445,7 @@ export interface Media {
     height?: number | null;
     prefix?: string | null;
     _objectKey?: string | null;
+    _stored?: boolean | null;
   };
 }
 /**
@@ -556,7 +643,7 @@ export interface Form {
         replyTo?: string | null;
         emailFrom?: string | null;
         subject: string;
-        message?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
+        message?: LexicalRichText<LexicalNodes_16C756CF> | null;
         id?: string | null;
       }[]
     | null;
@@ -603,7 +690,7 @@ export interface Email {
  * via the `definition` "Message".
  */
 export interface Message {
-  message?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
+  message?: LexicalRichText<LexicalNodes_16C756CF> | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'message';
@@ -674,6 +761,22 @@ export interface Textarea {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SeoMeta".
+ */
+export interface SeoMeta {
+  title?: string | null;
+  description?: string | null;
+  /**
+   * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+   */
+  image?: (number | null) | Media;
+  /**
+   * Tells search engines not to index this page and leaves it out of the sitemap.
+   */
+  noindex?: boolean | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts".
  */
 export interface Post {
@@ -688,7 +791,7 @@ export interface Post {
    */
   excerpt?: string | null;
   hero?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_BABF1D5B> | null;
+  content?: LexicalRichText<LexicalNodes_16C756CF> | null;
   publishedAt: string;
   authors?: (number | Author)[] | null;
   categories?: (number | Category)[] | null;
@@ -696,6 +799,7 @@ export interface Post {
    * Featured posts lead the news listing.
    */
   featured?: boolean | null;
+  meta?: SeoMeta;
   createdBy?: {
     relationTo: 'users';
     value: number | User;
@@ -706,6 +810,7 @@ export interface Post {
   } | null;
   updatedAt: string;
   createdAt: string;
+  deletedAt?: string | null;
   _status?: ('draft' | 'published') | null;
 }
 /**
@@ -778,6 +883,41 @@ export interface FormSubmission {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "redirects".
+ */
+export interface Redirect {
+  id: number;
+  /**
+   * The old path, such as /old-page. It applies only when no page or post is published there.
+   */
+  from: string;
+  to?: {
+    type?: ('reference' | 'custom') | null;
+    reference?:
+      | ({
+          relationTo: 'pages';
+          value: number | Page;
+        } | null)
+      | ({
+          relationTo: 'posts';
+          value: number | Post;
+        } | null);
+    url?: string | null;
+  };
+  type: '307' | '308';
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -831,6 +971,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'form-submissions';
         value: number | FormSubmission;
+      } | null)
+    | ({
+        relationTo: 'redirects';
+        value: number | Redirect;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -919,6 +1063,8 @@ export interface UsersSelect<T extends boolean = true> {
         id?: T;
         createdAt?: T;
         expiresAt?: T;
+        refreshCount?: T;
+        refreshedAt?: T;
       };
 }
 /**
@@ -950,10 +1096,12 @@ export interface PagesSelect<T extends boolean = true> {
         label?: T;
         id?: T;
       };
+  meta?: T | SeoMetaSelect<T>;
   createdBy?: T;
   updatedBy?: T;
   updatedAt?: T;
   createdAt?: T;
+  deletedAt?: T;
   _status?: T;
 }
 /**
@@ -1124,6 +1272,16 @@ export interface FormSectionSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SeoMeta_select".
+ */
+export interface SeoMetaSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  image?: T;
+  noindex?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts_select".
  */
 export interface PostsSelect<T extends boolean = true> {
@@ -1136,10 +1294,12 @@ export interface PostsSelect<T extends boolean = true> {
   authors?: T;
   categories?: T;
   featured?: T;
+  meta?: T | SeoMetaSelect<T>;
   createdBy?: T;
   updatedBy?: T;
   updatedAt?: T;
   createdAt?: T;
+  deletedAt?: T;
   _status?: T;
 }
 /**
@@ -1188,6 +1348,8 @@ export interface MediaSelect<T extends boolean = true> {
   filesize?: T;
   width?: T;
   height?: T;
+  _stored?: T;
+  _transforms?: T;
   original?:
     | T
     | {
@@ -1199,6 +1361,7 @@ export interface MediaSelect<T extends boolean = true> {
         height?: T;
         prefix?: T;
         _objectKey?: T;
+        _stored?: T;
       };
 }
 /**
@@ -1338,6 +1501,25 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "redirects_select".
+ */
+export interface RedirectsSelect<T extends boolean = true> {
+  from?: T;
+  to?:
+    | T
+    | {
+        type?: T;
+        reference?: T;
+        url?: T;
+      };
+  type?: T;
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -1451,7 +1633,8 @@ export interface CollectionsWidget {
 export interface CollectionQueryWidget {
   data?: {
     title?: string | null;
-    relatedCollection: 'users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media' | 'forms' | 'form-submissions';
+    relatedCollection:
+      'users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media' | 'forms' | 'form-submissions' | 'redirects';
     where?:
       | {
           [k: string]: unknown;
@@ -1474,7 +1657,10 @@ export interface CollectionQueryWidget {
 export interface ActivityWidget {
   data?: {
     excludedCollections?:
-      ('users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media' | 'forms' | 'form-submissions')[] | null;
+      | (
+          'users' | 'pages' | 'posts' | 'authors' | 'categories' | 'media' | 'forms' | 'form-submissions' | 'redirects'
+        )[]
+      | null;
   };
   width: 'small' | 'medium' | 'large' | 'x-large' | 'full';
 }

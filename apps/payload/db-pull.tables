@@ -1,0 +1,100 @@
+# How `pnpm db:pull` treats each table of the Postgres schema (see
+# packages/db-pull/pull-postgres.sh). "content": rows are copied from
+# PlanetScale. "excluded": rows stay in PlanetScale, and the local copy has the
+# table, empty. A table on neither list is left out too, with a warning.
+#
+# A table is content only when it holds nothing about a visitor or a user.
+# scripts/db-pull-tables.test.mjs fails when the latest migration's schema has
+# a table on neither list, on both, or a listed table it does not have.
+
+content _authors_v
+content _authors_v_rels
+content _categories_v
+content _categories_v_rels
+excluded _form_submissions_v  # versions of visitors' answers
+excluded _form_submissions_v_rels  # links of those versions
+excluded _form_submissions_v_version_submission_data  # visitors' answers in those versions
+content _forms_v
+content _forms_v_blocks_checkbox
+content _forms_v_blocks_email
+content _forms_v_blocks_message
+content _forms_v_blocks_number
+content _forms_v_blocks_select
+content _forms_v_blocks_select_options
+content _forms_v_blocks_text
+content _forms_v_blocks_textarea
+content _forms_v_rels
+excluded _forms_v_version_emails  # the same, in a form's versions
+content _media_v
+content _media_v_rels
+content _pages_v
+content _pages_v_blocks_blockquote
+content _pages_v_blocks_call_to_action
+content _pages_v_blocks_call_to_action_links
+content _pages_v_blocks_card_grid
+content _pages_v_blocks_card_grid_cards
+content _pages_v_blocks_content
+content _pages_v_blocks_content_links
+content _pages_v_blocks_content_media
+content _pages_v_blocks_content_media_links
+content _pages_v_blocks_form
+content _pages_v_blocks_media
+content _pages_v_rels
+content _pages_v_version_breadcrumbs
+content _pages_v_version_hero_links
+content _posts_v
+content _posts_v_rels
+content _site_settings_v
+content _site_settings_v_rels
+content authors
+content authors_rels
+content categories
+content categories_rels
+excluded form_submissions  # visitors' answers, names and emails
+excluded form_submissions_rels  # links of visitors' answers
+excluded form_submissions_submission_data  # visitors' answers, field by field
+content forms
+content forms_blocks_checkbox
+content forms_blocks_email
+content forms_blocks_message
+content forms_blocks_number
+content forms_blocks_select
+content forms_blocks_select_options
+content forms_blocks_text
+content forms_blocks_textarea
+excluded forms_emails  # a form's notification recipients and templates: a local submission must not email them
+content forms_rels
+content media
+content media_rels
+content pages
+content pages_blocks_blockquote
+content pages_blocks_call_to_action
+content pages_blocks_call_to_action_links
+content pages_blocks_card_grid
+content pages_blocks_card_grid_cards
+content pages_blocks_content
+content pages_blocks_content_links
+content pages_blocks_content_media
+content pages_blocks_content_media_links
+content pages_blocks_form
+content pages_blocks_media
+content pages_breadcrumbs
+content pages_hero_links
+content pages_rels
+excluded payload_kv  # Payload's key-value store: state, not content
+content payload_llm_instructions
+content payload_llm_instructions_rels
+excluded payload_locked_documents  # which user is editing what
+excluded payload_locked_documents_rels  # links of those locks to users
+content payload_migrations
+excluded payload_preferences  # each user's admin preferences
+excluded payload_preferences_rels  # links of those preferences to users
+content posts
+content posts_rels
+content redirects
+content redirects_rels
+content site_settings
+content site_settings_rels
+excluded users  # password hashes, salts, API keys, reset tokens
+excluded users_rels  # links of users
+excluded users_sessions  # sessions

@@ -27,7 +27,7 @@
     "@launch/ui": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "graphql": "17.0.2",
+    "graphql": "17.1.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "7.0.2",

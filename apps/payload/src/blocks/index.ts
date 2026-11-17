@@ -19,6 +19,7 @@ import {
 } from "@payloadcms/richtext-lexical";
 import type { Block, Field } from "payload";
 
+import { demoLocalized } from "../demo-locales";
 import { link, links } from "../fields/link";
 import { sectionOptions } from "../fields/section-options";
 import { richTextBlocks } from "../rich-text/blocks";
@@ -44,7 +45,7 @@ const tabbed = (fields: Field[]): Field[] => [
 ];
 
 const eyebrow = { name: "eyebrow", type: "text" } as const;
-const heading = { name: "heading", type: "text" } as const;
+const heading = { ...demoLocalized, name: "heading", type: "text" } as const;
 
 /**
  * Section bodies offer only what @launch/adapter-payload's Lexical renderer

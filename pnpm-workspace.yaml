@@ -20,8 +20,8 @@ catalog:
   "@types/react-dom": 19.3.0
   react: 19.3.1
   react-dom: 19.3.1
-  vite: 8.3.5
-  vitest: 5.0.5
+  vite: 8.3.8
+  vitest: 5.1.0
 
 # Dependencies allowed (true) or refused (false) to run install scripts.
 # workerd downloads its runtime binary. esbuild's postinstall only verifies its
@@ -33,3 +33,8 @@ allowBuilds:
   core-js-pure: false
   esbuild: false
   workerd: true
+
+# EmDash lists libSQL as an optional dependency; Launch runs it on D1. Without
+# this, the hoisted @libsql/client changes the database types Payload resolves.
+overrides:
+  "emdash>@libsql/kysely-libsql": "-"

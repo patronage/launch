@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "05720cf12f251c75111264b22f503aba",
+    "content-hash": "5ed9ada4f6f5eb905ee7e9a371221370",
     "packages": [
         {
             "name": "composer/installers",
@@ -150,7 +150,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-06-24T20:46:46+00:00"
+            "time": "2024-06-24T20:46:46+00:00",
+            "published-time": "2024-06-24T21:01:36+00:00"
         },
         {
             "name": "johnbillion/args",
@@ -519,7 +520,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-24T01:01:56+00:00"
+            "time": "2026-08-24T01:01:56+00:00",
+            "published-time": "2026-08-24T01:02:44+00:00"
         },
         {
             "name": "johnbillion/extended-cpts",
@@ -583,20 +585,21 @@
                 "issues": "https://github.com/johnbillion/extended-cpts/issues",
                 "source": "https://github.com/johnbillion/extended-cpts/tree/5.1.0"
             },
-            "time": "2025-06-18T21:18:03+00:00"
+            "time": "2025-06-18T21:18:03+00:00",
+            "published-time": "2025-06-18T21:18:20+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
-            "version": "v3.7.1",
+            "version": "v3.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/deprecation-contracts.git",
-                "reference": "f3202fa1b5097b0af062dc978b32ecf63404e31d"
+                "reference": "feb1edf4e546af3b85c5caebe8359a20db230ca3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/deprecation-contracts/zipball/f3202fa1b5097b0af062dc978b32ecf63404e31d",
-                "reference": "f3202fa1b5097b0af062dc978b32ecf63404e31d",
+                "url": "https://api.github.com/repos/symfony/deprecation-contracts/zipball/feb1edf4e546af3b85c5caebe8359a20db230ca3",
+                "reference": "feb1edf4e546af3b85c5caebe8359a20db230ca3",
                 "shasum": ""
             },
             "require": {
@@ -609,7 +612,7 @@
                     "name": "symfony/contracts"
                 },
                 "branch-alias": {
-                    "dev-main": "3.7-dev"
+                    "dev-main": "3.8-dev"
                 }
             },
             "autoload": {
@@ -634,7 +637,7 @@
             "description": "A generic function and convention to trigger deprecation notices",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/deprecation-contracts/tree/v3.7.1"
+                "source": "https://github.com/symfony/deprecation-contracts/tree/v3.8.1"
             },
             "funding": [
                 {
@@ -654,7 +657,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-06-05T06:23:12+00:00"
+            "time": "2026-09-16T14:15:10+00:00",
+            "published-time": "2026-11-04T11:25:34+00:00"
         },
         {
             "name": "symfony/polyfill-ctype",
@@ -737,7 +741,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-04-10T16:19:22+00:00"
+            "time": "2026-04-10T16:19:22+00:00",
+            "published-time": "2026-04-26T14:44:50+00:00"
         },
         {
             "name": "symfony/polyfill-mbstring",
@@ -822,7 +827,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-28T09:35:49+00:00"
+            "time": "2026-10-28T09:35:49+00:00",
+            "published-time": "2026-10-28T10:07:45+00:00"
         },
         {
             "name": "timber/timber",
@@ -939,7 +945,8 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2026-05-29T14:43:04+00:00"
+            "time": "2026-05-29T14:43:04+00:00",
+            "published-time": "2026-05-29T14:45:02+00:00"
         },
         {
             "name": "twig/twig",
@@ -1019,7 +1026,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-09-25T13:20:01+00:00"
+            "time": "2026-09-25T13:20:01+00:00",
+            "published-time": "2026-09-25T13:20:14+00:00"
         },
         {
             "name": "vinkla/extended-acf",
@@ -1082,7 +1090,8 @@
                 "issues": "https://github.com/vinkla/extended-acf/issues",
                 "source": "https://github.com/vinkla/extended-acf/tree/14.6.2"
             },
-            "time": "2026-01-22T13:29:00+00:00"
+            "time": "2026-01-22T13:29:00+00:00",
+            "published-time": "2026-01-22T13:29:30+00:00"
         },
         {
             "name": "wordpress-plugin/formidable",
@@ -1098,10 +1107,10 @@
         },
         {
             "name": "wordpress/secure-custom-fields",
-            "version": "6.9.7",
+            "version": "6.9.8",
             "dist": {
                 "type": "zip",
-                "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.7/secure-custom-fields.zip"
+                "url": "https://github.com/WordPress/secure-custom-fields/releases/download/6.9.8/secure-custom-fields.zip"
             },
             "require": {
                 "composer/installers": "^2.2"
@@ -1122,5 +1131,5 @@
     "platform-overrides": {
         "php": "8.3"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.11.0"
 }

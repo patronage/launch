@@ -27,6 +27,10 @@ const memoryStore = (): FeedbackStore & { size: () => number } => {
 
   return {
     delete: (keys) => {
+      if (keys.length > 128) {
+        throw new Error("Durable Object delete accepts at most 128 keys");
+      }
+
       for (const key of keys) {
         records.delete(key);
       }
@@ -173,6 +177,61 @@ describe("feedback queue", () => {
 
     expect(store.size()).toBe(MAX_FEEDBACK);
     await expect(store.get(feedbackKey(closed.id))).resolves.toBeUndefined();
+  });
+
+  it("enforces the caller cap across concurrent submissions and keeps accepting other callers", async () => {
+    const store = memoryStore();
+
+    const results = await Promise.allSettled(
+      Array.from({ length: MAX_OPEN_PER_SUBMITTER + 1 }, () =>
+        submitFeedback(store, report, "agent-a")
+      )
+    );
+
+    expect(
+      results.filter((result) => result.status === "fulfilled")
+    ).toHaveLength(MAX_OPEN_PER_SUBMITTER);
+    expect(
+      results.filter((result) => result.status === "rejected")
+    ).toMatchObject([{ reason: expect.any(FeedbackLimitError) }]);
+    await expect(
+      submitFeedback(store, report, "agent-b")
+    ).resolves.toMatchObject({ status: "open" });
+  });
+
+  it("enforces the queue cap across concurrent submissions", async () => {
+    const store = memoryStore();
+    await Promise.all(
+      Array.from({ length: MAX_FEEDBACK + 1 }, (_, index) =>
+        submitFeedback(store, report, `agent-${index}`, at(index))
+      )
+    );
+
+    expect(store.size()).toBe(MAX_FEEDBACK);
+    const queue = await listFeedbackQueue(store);
+    expect(queue[0]?.submittedAt).toBe(at(1).toISOString());
+    expect(queue.at(-1)?.submittedAt).toBe(at(MAX_FEEDBACK).toISOString());
+  });
+
+  it("prunes a full closed queue within the storage delete batch limit", async () => {
+    const store = memoryStore();
+
+    const filed = await Promise.all(
+      Array.from({ length: MAX_FEEDBACK }, (_, index) =>
+        submitFeedback(store, report, `agent-${index}`, at(1))
+      )
+    );
+
+    await Promise.all(
+      filed.map(({ id }) =>
+        updateFeedback(store, id, { status: "resolved" }, at(2))
+      )
+    );
+
+    await expect(
+      pruneFeedback(store, new Date(at(2).getTime() + CLOSED_RETENTION_MS + 1))
+    ).resolves.toBe(MAX_FEEDBACK);
+    expect(store.size()).toBe(0);
   });
 
   it("prunes closed reports once their retention has passed", async () => {

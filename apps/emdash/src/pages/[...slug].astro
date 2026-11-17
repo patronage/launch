@@ -1,0 +1,55 @@
+---
+/**
+ * Every page, by slug: `/` is the `home` page, other pages are `/{slug}`.
+ * EmDash serves published values, or the draft when the URL carries a valid
+ * `_preview` token from the admin.
+ */
+import type { EmDashPageData } from "@launch/adapter-emdash";
+import { getEmDashEntry } from "emdash";
+
+import { PageView } from "../components/page-view";
+import Site from "../layouts/site.astro";
+
+const segments = Astro.params.slug?.split("/") ?? [];
+const slug = segments.length === 0 ? "home" : segments[0];
+
+// `/home` would duplicate `/`. EmDash links the home page's preview there, so
+// keep the query string, and don't let browsers keep a redirect that has one.
+if (segments.length === 1 && slug === "home") {
+  return Astro.redirect(`/${Astro.url.search}`, Astro.url.search ? 302 : 301);
+}
+
+// Pages have no nested paths.
+if (!slug || segments.length > 1) {
+  return Astro.rewrite("/404");
+}
+
+const { entry, isPreview } = await getEmDashEntry<"pages", EmDashPageData>(
+  "pages",
+  slug
+);
+
+if (!entry) {
+  return Astro.rewrite("/404");
+}
+
+if (isPreview) {
+  Astro.response.headers.set("Cache-Control", "private, no-store");
+}
+
+const { data } = entry;
+const { seo } = data;
+---
+
+<Site
+  title={slug === "home" ? undefined : seo?.title || data.title}
+  description={seo?.description || undefined}
+  noIndex={seo?.noIndex}
+>
+  {isPreview ? (
+    <p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+      Preview: you are seeing unpublished changes.
+    </p>
+  ) : null}
+  <PageView slug={slug} data={data} />
+</Site>
