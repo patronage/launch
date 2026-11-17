@@ -22,7 +22,7 @@ export class GatewayRuntime extends BaseGatewayRuntime<Env> {
 export default createWorker<Env>({ connectors });
 ```
 
-The Worker needs the bindings in `GatewayEnv` (`src/env.ts`): `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` for the Access application in front of it, `GATEWAY_RUNTIME` bound to the `GatewayRuntime` class above, a `LOADER` Worker Loader (Dynamic Workers), and `APPROVAL_CSRF_SECRET`. Each connector adds its own. [`apps/mcp`](../../apps/mcp) is the reference deployment.
+The Worker needs the bindings in `GatewayEnv` (`src/env.ts`): `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` for the Access application in front of it, `GATEWAY_RUNTIME` bound to the `GatewayRuntime` class above, a `LOADER` Worker Loader (Dynamic Workers), and `APPROVAL_CSRF_SECRET`. `FEEDBACK_MAINTAINER_TOKEN` is optional and turns on the `/mcp/feedback` routes. Each connector adds its own. [`apps/mcp`](../../apps/mcp) is the reference deployment.
 
 The Durable Object's class name belongs to the deployment. A gateway that already runs with another class name (such as `WordPressRuntime`, from the template this came from) should keep that name for its subclass, because Cloudflare keys a Durable Object namespace's stored runs and pending approvals to the class. Renaming it needs an explicit rename migration.
 

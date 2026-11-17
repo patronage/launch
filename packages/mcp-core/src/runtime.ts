@@ -11,6 +11,23 @@ import type { CallerContext } from "./caller";
 import { settleWithin } from "./concurrency";
 import type { ConnectorToolMap, RuntimeStore } from "./connector";
 import type { GatewayEnv } from "./env";
+import {
+  listFeedbackQueue,
+  listOwnFeedback,
+  pruneFeedback,
+  readFeedback,
+  readOwnFeedback,
+  submitFeedback,
+  updateFeedback,
+} from "./feedback";
+import type {
+  FeedbackRecord,
+  FeedbackStatus,
+  FeedbackStore,
+  FeedbackSubmission,
+  FeedbackUpdate,
+  FeedbackView,
+} from "./feedback";
 import type { GatewayConnector } from "./gateway-connector";
 import { ApplyValidationError } from "./operations";
 import { canonicalArgs, guardApprovalReplay } from "./replay-guard";
@@ -120,8 +137,8 @@ const toRuntimeOutcome = <TValue>(
 // token of its own: each RPC takes the `CallerContext` for that call alone and
 // runs the work inside `scope.run`, which the connector tools read back with
 // `scope.require()`. Nothing this class writes to storage carries a JWT, an
-// email, or a request body — only intents, opaque subjects, the approval
-// preview, and the site description.
+// email, or a complete request body — only intents, opaque subjects, the approval
+// preview, the site description, and agent feedback reports.
 //
 // It names no CMS. A deployment subclasses it and lists its connectors:
 //
@@ -183,6 +200,23 @@ export abstract class BaseGatewayRuntime<
 
     return connector.parseApply(args);
   };
+
+  #feedbackStorage: FeedbackStore | undefined;
+
+  #feedback(): FeedbackStore {
+    const { storage } = this.ctx;
+
+    this.#feedbackStorage ??= {
+      delete: async (keys) => {
+        await storage.delete(keys);
+      },
+      get: (key) => storage.get<FeedbackRecord>(key),
+      list: (prefix) => storage.list<FeedbackRecord>({ prefix }),
+      put: (key, record) => storage.put(key, record),
+    };
+
+    return this.#feedbackStorage;
+  }
 
   #blobStorage: BlobStorage | undefined;
 
@@ -856,6 +890,44 @@ export abstract class BaseGatewayRuntime<
     return toRuntimeOutcome(value, telemetry);
   }
 
+  // The agent feedback queue. None of these reach a CMS, so each answers with
+  // a bare value and no request log, like the nonce RPCs.
+  async submitFeedback(
+    submission: FeedbackSubmission,
+    submitterOpaque: string
+  ): Promise<FeedbackView> {
+    await this.#armAlarm();
+
+    return await submitFeedback(this.#feedback(), submission, submitterOpaque);
+  }
+
+  getFeedback(
+    feedbackId: string,
+    submitterOpaque: string
+  ): Promise<FeedbackView | undefined> {
+    return readOwnFeedback(this.#feedback(), feedbackId, submitterOpaque);
+  }
+
+  listOwnFeedback(submitterOpaque: string): Promise<FeedbackView[]> {
+    return listOwnFeedback(this.#feedback(), submitterOpaque);
+  }
+
+  // Maintainer-only: `gateway-worker.ts` checks the maintainer token first.
+  readFeedbackRecord(feedbackId: string): Promise<FeedbackRecord | undefined> {
+    return readFeedback(this.#feedback(), feedbackId);
+  }
+
+  listFeedbackQueue(status?: FeedbackStatus): Promise<FeedbackRecord[]> {
+    return listFeedbackQueue(this.#feedback(), status);
+  }
+
+  updateFeedback(
+    feedbackId: string,
+    update: FeedbackUpdate
+  ): Promise<FeedbackRecord | undefined> {
+    return updateFeedback(this.#feedback(), feedbackId, update);
+  }
+
   // Progress outlives its run only when the write never returned a receipt,
   // as that run's record of what landed. A day later it is dropped, on the
   // same clock as an unanswered approval.
@@ -886,6 +958,7 @@ export abstract class BaseGatewayRuntime<
 
     await Promise.all(expired.map((id) => this.#forget(id)));
     await this.#pruneProgress();
+    await pruneFeedback(this.#feedback());
     // A file whose run never reached an ending this object saw (it restarted
     // mid-run) is dropped on the same clock as an unanswered approval. A run
     // still waiting on an approval has a requester on record until it is

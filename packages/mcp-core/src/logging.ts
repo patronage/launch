@@ -117,6 +117,15 @@ export interface McpWideEvent {
   deployment: {
     environment: string;
   };
+  // The agent feedback channel. Ids, enums and statuses only: the report's own
+  // text never reaches the wide event.
+  feedback?: {
+    action: "list" | "queue" | "read" | "submit" | "update";
+    category?: string;
+    id?: string;
+    status?: string;
+    tool?: string;
+  };
   http: {
     outcome: "client_error" | "server_error" | "success";
     status: number;
