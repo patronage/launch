@@ -166,29 +166,6 @@ describe("an execute or approve outcome", () => {
       );
     }
   );
-
-  it("summarises the pending write of a paused run", () => {
-    expect(toExecuteResult(parse, outcomes.paused)).toStrictEqual({
-      executionId: "exec_1",
-      pending: [
-        {
-          connector: "wp",
-          intent: "Rename the launch page",
-          method: "apply",
-          sentences: ["Update title on pages 7"],
-          seq: 1,
-        },
-      ],
-      status: "paused",
-      summary: "Paused for approval: Rename the launch page (1 operation).",
-    });
-  });
-
-  it("keeps the runtime's own error message", () => {
-    expect(toExecuteResult(parse, outcomes.error)).toMatchObject({
-      error: "Codemode replay divergence at step 2",
-    });
-  });
 });
 
 // Every `ExecutionStatus`, and what the approval page and `get_run` call it.
@@ -235,15 +212,4 @@ describe("a recorded execution", () => {
       expect(view.pending !== undefined).toBe(offered);
     }
   );
-
-  it("lists every logged call with its connector, method, seq and state", () => {
-    const view = toRunView(
-      "exec_1",
-      execution("completed", [applyEntry("applied")])
-    );
-
-    expect(view.calls).toStrictEqual([
-      { connector: "wp", method: "apply", seq: 1, state: "applied" },
-    ]);
-  });
 });

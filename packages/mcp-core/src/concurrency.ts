@@ -45,6 +45,14 @@ export const mapWithConcurrency = async <T, R>(
 export const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
   // oxlint-disable-next-line promise/avoid-new -- wraps setTimeout, which has no promise form in every runtime this runs in.
   new Promise((resolve) => {
+    // An already-aborted signal never fires "abort" again, so without this
+    // check the wait would run its full length.
+    if (signal?.aborted) {
+      resolve();
+
+      return;
+    }
+
     const timer = setTimeout(resolve, ms);
 
     signal?.addEventListener(

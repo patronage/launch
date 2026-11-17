@@ -7,7 +7,7 @@
     "dev": "node scripts/publish-notes.mjs && blume dev",
     "build": "node scripts/publish-notes.mjs && blume build",
     "start": "blume preview",
-    "test": "node scripts/publish-notes.mjs && blume validate --strict",
+    "test": "node --test scripts/*.test.mjs && node scripts/publish-notes.mjs && blume validate --strict",
     "typecheck": "tsc --noEmit",
     "deploy": "node scripts/deploy.mjs",
     "builds:configure": "node scripts/workers-builds.mjs"
