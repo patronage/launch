@@ -2,12 +2,14 @@ import {
   UpstreamRequestError,
   assertSafeApiUrl,
   upstreamFetch,
+  upstreamFetchBytes,
 } from "@patronage/mcp-core";
 import type {
   AccessResult,
   JsonObject,
   JsonValue,
   UpstreamAuth,
+  UpstreamBytesResult,
   UpstreamClient,
   UpstreamFetchResult,
   UpstreamTelemetry,
@@ -130,13 +132,83 @@ export const payloadErrorMessage = (result: UpstreamFetchResult): string => {
   return `Payload returned HTTP ${result.status}`;
 };
 
+// A client can be bound to one locale of a site that has several: see
+// payload-locale.ts for what that means for an operation.
+const localeClientSchema = z.object({ payloadLocale: z.string().min(1) });
+
+interface LocaleClient extends UpstreamClient {
+  payloadLocale: string;
+}
+
+/**
+ * The same client, with every REST request it makes naming `code` as its
+ * locale and no fallback: a field with no value in that locale reads as
+ * empty, never as another locale's text.
+ */
+export const inLocale = (
+  client: UpstreamClient,
+  code: string
+): LocaleClient => ({ ...client, payloadLocale: code });
+
+/** The locale a client was bound to with `inLocale`, if it was. */
+export const clientLocale = (client: UpstreamClient): string | undefined => {
+  const parsed = localeClientSchema.safeParse(client);
+
+  return parsed.success ? parsed.data.payloadLocale : undefined;
+};
+
+// The path a locale-bound client asks for. Payload's MCP endpoint is left
+// alone: its tools take a locale as an argument where they read one.
+const localized = (client: UpstreamClient, path: string): string => {
+  const locale = clientLocale(client);
+
+  if (locale === undefined || path.startsWith(MCP_PATH)) {
+    return path;
+  }
+
+  return `${path}${path.includes("?") ? "&" : "?"}locale=${encodeURIComponent(locale)}&fallback-locale=none`;
+};
+
 export const payloadRest = (
   client: UpstreamClient,
   path: string,
   telemetry: UpstreamTelemetry,
   init: RequestInit = {}
 ): Promise<UpstreamFetchResult> =>
-  upstreamFetch(client, payloadUrl(client, path), telemetry, init);
+  upstreamFetch(
+    client,
+    payloadUrl(client, localized(client, path)),
+    telemetry,
+    init
+  );
+
+// A file Payload serves, read as the editor: the `url` of an upload
+// document. Only its path is used, so wherever Payload says its public
+// origin is, the read goes to the Payload this gateway is bound to.
+export const payloadFile = async (
+  client: UpstreamClient,
+  link: string,
+  telemetry: UpstreamTelemetry,
+  maxBytes: number
+): Promise<UpstreamBytesResult> => {
+  const base = assertSafeApiUrl(client.apiUrl);
+  let path = "";
+
+  try {
+    const url = new URL(link, base);
+
+    path = `${url.pathname}${url.search}`;
+  } catch {
+    throw new UpstreamRequestError("Payload returned an unreadable file URL");
+  }
+
+  return await upstreamFetchBytes(
+    client,
+    payloadUrl(client, path),
+    telemetry,
+    maxBytes
+  );
+};
 
 export interface PayloadToolResult {
   isError: boolean;
@@ -208,26 +280,66 @@ export const toPayloadToolResult = (value: JsonValue): PayloadToolResult => {
   return result;
 };
 
+const publicOrigin = (env: PayloadEnv): URL | undefined => {
+  const origin = env.PAYLOAD_ADMIN_URL?.trim() || env.PAYLOAD_API_URL?.trim();
+
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return assertSafeApiUrl(origin);
+  } catch {
+    return undefined;
+  }
+};
+
+// A link Payload made to its own site, such as a draft preview path, as an
+// absolute URL. Payload usually answers with a path; an absolute URL is kept
+// only when it stays on the site's own origin, so nothing Payload returns can
+// send an approver somewhere else.
+export const payloadSiteUrl = (env: PayloadEnv, link: string): string => {
+  const origin = publicOrigin(env);
+
+  if (!(origin && link)) {
+    return "";
+  }
+
+  try {
+    const url = new URL(link, origin);
+
+    return url.origin === origin.origin ? url.toString() : "";
+  } catch {
+    return "";
+  }
+};
+
 // The admin link the approval page offers. Over a Service binding the
 // gateway knows no public origin, so the link comes from PAYLOAD_ADMIN_URL
 // and is left out when that is unset.
+// A global's page in the Payload admin.
+export const payloadGlobalAdminUrl = (
+  env: PayloadEnv,
+  slug: string
+): string => {
+  const origin = publicOrigin(env);
+
+  return origin
+    ? new URL(`/admin/globals/${encodeURIComponent(slug)}`, origin).toString()
+    : "";
+};
+
 export const payloadAdminUrl = (
   env: PayloadEnv,
   collection: string,
   id: number | string
 ): string => {
-  const origin = env.PAYLOAD_ADMIN_URL?.trim() || env.PAYLOAD_API_URL?.trim();
+  const origin = publicOrigin(env);
 
-  if (!origin) {
-    return "";
-  }
-
-  try {
-    return new URL(
-      `/admin/collections/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
-      assertSafeApiUrl(origin)
-    ).toString();
-  } catch {
-    return "";
-  }
+  return origin
+    ? new URL(
+        `/admin/collections/${encodeURIComponent(collection)}/${encodeURIComponent(String(id))}`,
+        origin
+      ).toString()
+    : "";
 };

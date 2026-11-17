@@ -4,7 +4,13 @@ export {
   ApplyConflictError,
   batchStatus,
   deepEqual,
+  isThumbnailSrc,
+  NEW_ROW,
   previewValue,
+  receiptDetails,
+  REMOVED_ROW,
+  THUMBNAIL_MAX_BYTES,
+  THUMBNAIL_MAX_PIXELS,
 } from "./apply";
 
 export type {
@@ -14,6 +20,7 @@ export type {
   OperationPreflight,
   OperationReceipt,
   ReceiptError,
+  SnapshotImage,
 } from "./apply";
 
 export { createCallerScope } from "./caller";
@@ -39,7 +46,7 @@ export type {
 
 export type { GatewayEnv } from "./env";
 
-export type { GatewayConnector } from "./gateway-connector";
+export type { GatewayConnector, PreflightContext } from "./gateway-connector";
 
 export { createWorker } from "./gateway-worker";
 
@@ -85,19 +92,42 @@ export type {
 } from "./run";
 
 export {
+  MAX_BLOB_BYTES,
+  MAX_RUN_BLOB_BYTES,
+  sha256Hex,
+  StagedBlobError,
+} from "./staged-blobs";
+
+export type { StagedBlob, StagedBlobFacts } from "./staged-blobs";
+
+export {
+  extensionsFor,
+  sniffFileType,
+  SVG_TYPE,
+  typeAllowed,
+} from "./file-type";
+
+export { describeImage } from "./thumbnail";
+
+export type { ImageFacts, ThumbnailImages } from "./thumbnail";
+
+export {
   MAX_LOGGED_UPSTREAM_REQUESTS,
   UpstreamRequestError,
   assertSafeApiUrl,
   createUpstreamTelemetry,
   numericHeader,
+  readBoundedBody,
   upstreamAuthHeaders,
   upstreamFetch,
+  upstreamFetchBytes,
 } from "./upstream";
 
 export type {
   JsonObject,
   JsonValue,
   UpstreamAuth,
+  UpstreamBytesResult,
   UpstreamClient,
   UpstreamFetchResult,
   UpstreamResponseInfo,

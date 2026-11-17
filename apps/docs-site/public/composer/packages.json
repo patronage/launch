@@ -93,6 +93,37 @@
         "extra": {
           "installer-name": "patronage-access"
         }
+      },
+      "1.1.0": {
+        "dist": {
+          "shasum": "7e557f33d976f128de42fee9a8370114f841878d",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-access/1.1.0.zip"
+        },
+        "name": "patronage/launch-access",
+        "version": "1.1.0",
+        "description": "Locks WordPress behind Cloudflare Access and authenticates REST and WPGraphQL requests from Access JWTs.",
+        "type": "wordpress-muplugin",
+        "license": "MIT",
+        "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+        "authors": [
+          {
+            "name": "Patronage",
+            "homepage": "https://patronage.org"
+          }
+        ],
+        "support": {
+          "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-access",
+          "docs": "https://launch.patronage.com/references/wordpress-plugins"
+        },
+        "require": {
+          "php": ">=8.0",
+          "composer/installers": "^2.2",
+          "ext-openssl": "*"
+        },
+        "extra": {
+          "installer-name": "patronage-access"
+        }
       }
     },
     "patronage/launch-fleet": {

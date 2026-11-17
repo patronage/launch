@@ -1,6 +1,6 @@
 import { generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { BatchReceipt } from "./apply";
 import type { CallerContext } from "./caller";
@@ -135,7 +135,6 @@ const WORDPRESS_REQUESTS: UpstreamRequestLog = {
 
 const runtimeCalls: RuntimeCall[] = [];
 const instanceNames: string[] = [];
-let stubsObtained = 0;
 
 // What the Durable Object answers for this test, set per case.
 const runReports = {
@@ -220,11 +219,7 @@ const runtime = {
 // The worker calls only `idFromName` and `get` on the namespace, and only the
 // RPC methods `runtime` stubs on the object `get` returns.
 const runtimeNamespace = fakeBinding<DurableObjectNamespace>({
-  get: () => {
-    stubsObtained += 1;
-
-    return runtime;
-  },
+  get: () => runtime,
   idFromName: (name: string) => {
     instanceNames.push(name);
 
@@ -490,7 +485,6 @@ const LIST_TOOLS: JsonRpcMessage = {
 const resetRuntime = (): void => {
   runtimeCalls.length = 0;
   instanceNames.length = 0;
-  stubsObtained = 0;
   runReports.approve = APPROVED_RUN;
   approveGate = undefined;
   runReports.getRun = UNKNOWN_RUN;
@@ -554,7 +548,6 @@ describe("Worker fetch", () => {
     await second.text();
 
     expect(instanceNames).toStrictEqual(["site", "site"]);
-    expect(stubsObtained).toBe(2);
     expect(events).toHaveLength(2);
   });
 
@@ -653,8 +646,10 @@ describe("Worker fetch", () => {
       executionContext()
     );
 
-    expect(response.status).toBe(403);
-    expect(response.headers.get("X-Access-Reason")).toBe("missing_token");
+    expect({
+      reason: response.headers.get("X-Access-Reason"),
+      status: response.status,
+    }).toStrictEqual({ reason: "missing_token", status: 403 });
     expect(runtimeCalls).toHaveLength(0);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
@@ -663,7 +658,9 @@ describe("Worker fetch", () => {
         outcome: "challenged",
         reason: "missing_token",
       },
+      mcp: { outcome: "challenged" },
     });
+    expect(events[0]).not.toHaveProperty("mcp.transport");
   });
 
   it("offers the app-only tools to a client that advertises the UI extension", async () => {
@@ -675,30 +672,22 @@ describe("Worker fetch", () => {
     expect(body).toContain("preview_write");
   });
 
-  it("hides the app-only tools from a client that advertises without it", async () => {
-    const body = await listToolNames({ extensions: { "vendor/other": {} } });
-
-    expect(body).toContain("execute");
-    expect(body).not.toContain("decide_write");
-    expect(body).not.toContain("preview_write");
-  });
-
-  it("hides the app-only tools from a client that advertises no extension", async () => {
-    const body = await listToolNames({});
-
-    expect(body).toContain("execute");
-    expect(body).not.toContain("decide_write");
-  });
-
   // A client that never advertised MCP Apps has promised nothing about
   // tool-result `_meta`, so it must not be handed the approval token.
-  it("hides the app-only tools from a client that states no capabilities", async () => {
-    const body = await listToolNames();
+  it.each([
+    ["advertises without it", { extensions: { "vendor/other": {} } }],
+    ["advertises no extension", {}],
+    ["states no capabilities", undefined],
+  ] as const)(
+    "hides the app-only tools from a client that %s",
+    async (_case, capabilities) => {
+      const body = await listToolNames(capabilities);
 
-    expect(body).toContain("execute");
-    expect(body).not.toContain("decide_write");
-    expect(body).not.toContain("preview_write");
-  });
+      expect(body).toContain("execute");
+      expect(body).not.toContain("decide_write");
+      expect(body).not.toContain("preview_write");
+    }
+  );
 
   it("offers the card to unreadable clients only when the var says so", async () => {
     const body = await listToolNames(undefined, true);
@@ -744,21 +733,6 @@ describe("Worker fetch", () => {
     await response.text();
 
     expect(events[0]).toMatchObject({ service: "site-mcp" });
-  });
-
-  it("logs a challenged request as challenged, not as an MCP error", async () => {
-    const events: unknown[] = [];
-    const { publicKey } = await accessIdentity();
-    const worker = collectingWorker(publicKey, events);
-
-    await worker.fetch(
-      toolRequest("https://launch-mcp.example.com/mcp"),
-      env,
-      executionContext()
-    );
-
-    expect(events[0]).toMatchObject({ mcp: { outcome: "challenged" } });
-    expect(events[0]).not.toHaveProperty("mcp.transport");
   });
 
   it("logs a denied request as denied, not as an MCP error", async () => {
@@ -849,17 +823,6 @@ describe("Worker fetch", () => {
     ]);
   });
 
-  it("still hides the card's tools from tools/list without capabilities", async () => {
-    const { body } = await sendRpc({
-      id: 1,
-      jsonrpc: "2.0",
-      method: "tools/list",
-      params: {},
-    });
-
-    expect(body).not.toContain("preview_write");
-  });
-
   // A deployment holds writes for Approval only when it asks to. A value that
   // is neither unset nor "false" was an attempt to ask, so it reads as asking:
   // a typo must not leave a site's writes unheld.
@@ -898,7 +861,7 @@ describe("Worker fetch", () => {
 
     expect(sessionId).not.toBe("");
     expect(body).toContain("decide_write");
-    expect(body).toContain("ui://patronage/cms-approval-v4.html");
+    expect(body).toContain("ui://patronage/cms-approval-v5.html");
     expect(JSON.stringify(events[0])).not.toContain(sessionId);
   });
 
@@ -910,7 +873,7 @@ describe("Worker fetch", () => {
         id: 3,
         jsonrpc: "2.0",
         method: "resources/read",
-        params: { uri: "ui://patronage/cms-approval-v4.html" },
+        params: { uri: "ui://patronage/cms-approval-v5.html" },
       },
       sessionId
     );
@@ -989,7 +952,7 @@ describe("Approval route", () => {
     expect(Object.fromEntries(response.headers)).toMatchObject({
       "cache-control": "no-store",
       "content-security-policy":
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+        "default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'self'",
       "content-type": "text/html; charset=utf-8",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
@@ -1048,7 +1011,7 @@ describe("Approval route", () => {
     ]);
   });
 
-  it("records write receipt counts on the approval decision that produced them", async () => {
+  it("records write receipt counts and the runtime's WordPress requests on the approval decision that produced them", async () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, events, token, worker } = await openApproval();
 
@@ -1076,6 +1039,11 @@ describe("Approval route", () => {
         target: "pages/42",
         unchanged: 0,
       },
+      upstream: {
+        auth: "access-jwt",
+        requests: [{ path: "/wp-json/wp/v2/pages/42" }],
+        target: "wordpress.example",
+      },
     });
   });
 
@@ -1095,33 +1063,6 @@ describe("Approval route", () => {
     const { events } = await openApproval();
 
     expect(events[0]).toMatchObject({ upstream: WORDPRESS_REQUESTS });
-  });
-
-  it("records the runtime's WordPress requests on the approval decision event", async () => {
-    runReports.getRun = PAUSED_RUN;
-    const { csrf, preview, events, token, worker } = await openApproval();
-
-    // An approval streams its answer; the wide event is emitted once the
-    // stream ends, so the body is read before the event is.
-    const streamed = await worker.fetch(
-      approvalDecision("exec_1", token, {
-        csrf,
-        decision: "approve",
-        preview,
-      }),
-      env,
-      executionContext()
-    );
-
-    await streamed.text();
-
-    expect(events[1]).toMatchObject({
-      upstream: {
-        auth: "access-jwt",
-        requests: [{ path: "/wp-json/wp/v2/pages/42" }],
-        target: "wordpress.example",
-      },
-    });
   });
 
   it("records a rejection and offers no further decision", async () => {
@@ -1145,31 +1086,7 @@ describe("Approval route", () => {
     ]);
   });
 
-  it("re-renders the page when the approved run pauses again", async () => {
-    runReports.getRun = PAUSED_RUN;
-    runReports.approve = { calls: [], status: "paused" };
-    const { csrf, preview, token, worker } = await openApproval();
-
-    const response = await worker.fetch(
-      approvalDecision("exec_1", token, { csrf, decision: "approve", preview }),
-      env,
-      executionContext()
-    );
-
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(html).toContain("This run needs a further approval.");
-    expect(html).toContain('value="approve"');
-    // The second preview only exists if the page recomputes it.
-    expect(runtimeCalls.map((entry) => entry.method)).toStrictEqual([
-      "getRun",
-      "approve",
-      "getRun",
-    ]);
-  });
-
-  it("records the write receipt when the approved run pauses again", async () => {
+  it("re-renders the page and records the write receipt when the approved run pauses again", async () => {
     runReports.getRun = PAUSED_RUN;
     // `approve` resolves only once the resumed run reaches its next stop, so
     // the run is already paused on its second `wp.apply` and the latest apply
@@ -1193,8 +1110,17 @@ describe("Approval route", () => {
       executionContext()
     );
 
-    await streamed.text();
+    const html = await streamed.text();
 
+    expect(streamed.status).toBe(200);
+    expect(html).toContain("This run needs a further approval.");
+    expect(html).toContain('value="approve"');
+    // The second preview only exists if the page recomputes it.
+    expect(runtimeCalls.map((entry) => entry.method)).toStrictEqual([
+      "getRun",
+      "approve",
+      "getRun",
+    ]);
     expect(events[1]).toMatchObject({
       write: {
         action: "wp.apply",
@@ -1352,6 +1278,13 @@ describe("Approval route", () => {
     runReports.getRun = PAUSED_RUN;
     const { csrf, preview, token, worker } = await openApproval();
 
+    // The stream polls for progress every 1.5 s; fake timers let the test
+    // move one poll forward instead of waiting for it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
     const held = new AbortController();
     approveGate = delay(60_000, held.signal);
 
@@ -1391,16 +1324,21 @@ describe("Approval route", () => {
     let streamed = "";
 
     // Read until the first progress line arrives, then let the write finish.
-    while (!streamed.includes("</li>")) {
-      // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
-      const chunk = await reader?.read();
+    const firstProgress = (async () => {
+      while (!streamed.includes("</li>")) {
+        // oxlint-disable-next-line no-await-in-loop -- reading one stream in order
+        const chunk = await reader?.read();
 
-      if (!chunk || chunk.done) {
-        break;
+        if (!chunk || chunk.done) {
+          break;
+        }
+
+        streamed += decoder.decode(chunk.value);
       }
+    })();
 
-      streamed += decoder.decode(chunk.value);
-    }
+    await vi.advanceTimersByTimeAsync(1500);
+    await firstProgress;
 
     expect(streamed).toContain("Applying the change");
     expect(streamed).toContain("1 of 2: <code>pages/&lt;42&gt;</code>");

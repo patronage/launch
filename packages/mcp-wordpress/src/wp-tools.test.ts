@@ -249,45 +249,30 @@ describe("wp connector tools", () => {
     ).resolves.toStrictEqual({ data: { page: null } });
   });
 
-  it("rejects wp.get on a 403 WordPress error without leaking the response body", async () => {
-    vi.stubGlobal("fetch", () =>
-      Response.json(
-        { code: "rest_forbidden", message: "raw upstream message" },
-        { status: 403 }
-      )
-    );
-    const { scope, wp } = tools();
+  it.each([
+    [403, { code: "rest_forbidden", message: "raw upstream message" }],
+    [404, { code: "rest_post_invalid_id", message: "raw upstream message" }],
+  ])(
+    "rejects wp.get on a %i WordPress error without leaking the response body",
+    async (status, body) => {
+      vi.stubGlobal("fetch", () => Response.json(body, { status }));
+      const { scope, wp } = tools();
 
-    const error = await scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
-      rejectedWith(() => wp.get.execute({ path: "/wp-json/wp/v2/pages/7" }))
-    );
-
-    expect(error).toBeInstanceOf(UpstreamRequestError);
-
-    if (!(error instanceof UpstreamRequestError)) {
-      throw new TypeError(
-        "expected wp.get to reject with UpstreamRequestError"
+      const error = await scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
+        rejectedWith(() => wp.get.execute({ path: "/wp-json/wp/v2/pages/7" }))
       );
+
+      expect(error).toBeInstanceOf(UpstreamRequestError);
+
+      if (!(error instanceof UpstreamRequestError)) {
+        throw new TypeError(
+          "expected wp.get to reject with UpstreamRequestError"
+        );
+      }
+
+      expect(error.message).not.toContain("raw upstream message");
     }
-
-    expect(error.message).not.toContain("raw upstream message");
-  });
-
-  it("rejects wp.get on a 404 WordPress response", async () => {
-    vi.stubGlobal("fetch", () =>
-      Response.json(
-        { code: "rest_post_invalid_id", message: "Invalid post ID." },
-        { status: 404 }
-      )
-    );
-    const { scope, wp } = tools();
-
-    const error = await scope.run({ subjectOpaque: "aaaa", token: "t" }, () =>
-      rejectedWith(() => wp.get.execute({ path: "/wp-json/wp/v2/pages/999" }))
-    );
-
-    expect(error).toBeInstanceOf(UpstreamRequestError);
-  });
+  );
 
   it("collects a bounded record of every WordPress request the tools made", async () => {
     vi.stubGlobal("fetch", () => Response.json({ ok: true }));

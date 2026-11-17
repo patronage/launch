@@ -1,0 +1,104 @@
+{
+  "item": {
+    "id": "01M7NM4MRRKPRFZ3N0D5Q7JCBH",
+    "type": "pages",
+    "slug": "get-involved",
+    "status": "published",
+    "data": {
+      "title": "Get involved",
+      "hero_variant": "split",
+      "hero_eyebrow": "Volunteer",
+      "hero_subhead": "Volunteer on a harvest day, mentor a new garden or join the seed library.",
+      "hero_image": {
+        "provider": "local",
+        "id": "01M7NM4MQM2SWEVKP3N5ZWB546",
+        "alt": "Volunteers sorting a harvest",
+        "width": 2400,
+        "height": 1200,
+        "mimeType": "image/jpeg",
+        "filename": "harvest.jpg",
+        "meta": {
+          "storageKey": "01M7NM4MQJGX2WA6EJ0NJDP2EX.jpg"
+        }
+      },
+      "hero_links": [
+        {
+          "label": "Apply for a garden",
+          "new_tab": false,
+          "url": "/apply",
+          "variant": "primary"
+        }
+      ],
+      "sections": [
+        {
+          "_key": "k27",
+          "_type": "content",
+          "_version": 1,
+          "align": "start",
+          "body": [
+            {
+              "_key": "k26",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k25",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Harvest days run every other Saturday from June to October. Mentors meet a new garden once a week in its first season."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "heading": "Volunteer with us",
+          "section_hidden": false,
+          "section_padding_bottom": "md",
+          "section_padding_top": "md",
+          "section_skin": "light",
+          "section_width": "default"
+        },
+        {
+          "_key": "k28",
+          "_type": "call_to_action",
+          "_version": 1,
+          "heading": "Ready to start?",
+          "links": [
+            {
+              "label": "Apply now",
+              "new_tab": false,
+              "url": "/apply",
+              "variant": "primary"
+            }
+          ],
+          "section_hidden": false,
+          "section_padding_bottom": "md",
+          "section_padding_top": "md",
+          "section_skin": "accent",
+          "section_width": "narrow"
+        }
+      ]
+    },
+    "authorId": null,
+    "primaryBylineId": null,
+    "createdAt": "2026-11-17T20:45:54.840Z",
+    "updatedAt": "2026-11-17T20:45:54.841Z",
+    "publishedAt": "2026-11-17T20:45:54.840Z",
+    "scheduledAt": null,
+    "liveRevisionId": "01M7NM4MRQSVS04X21NVD6V99T",
+    "draftRevisionId": null,
+    "version": 2,
+    "locale": "en",
+    "translationGroup": "01M7NM4MRRKPRFZ3N0D5Q7JCBH",
+    "seo": {
+      "title": null,
+      "description": null,
+      "image": null,
+      "canonical": null,
+      "noIndex": false
+    },
+    "bylines": [],
+    "byline": null,
+    "references": {}
+  }
+}

@@ -1,6 +1,6 @@
 # Launch security review
 
-DeepSec 2.3.10 supplies an on-demand source-security review alongside `pnpm verify`. A candidate scan is not an AI investigation or a security pass. The scanner has its own exact dependency pin and lockfile; it is not installed into the apps or run during deployment.
+DeepSec 2.3.12 supplies an on-demand source-security review alongside `pnpm verify`. A candidate scan is not an AI investigation or a security pass. The scanner has its own exact dependency pin and lockfile; it is not installed into the apps or run during deployment.
 
 ## Handling results
 

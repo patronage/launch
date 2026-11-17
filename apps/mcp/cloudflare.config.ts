@@ -23,7 +23,7 @@ const wordpressOn = Boolean(wordpressUrl);
 // APPROVAL_REQUIRED=true at build time makes this site hold every write for a
 // person to approve, on the card or the approval page. Without it a write is
 // applied as soon as the model's code calls apply, as the signed-in person
-// (ADR 0018). Anything but unset, empty or "false" asks for approval.
+// (ADR 0023). Anything but unset, empty or "false" asks for approval.
 const approvalRequired = !["", "false"].includes(
   process.env.APPROVAL_REQUIRED ?? ""
 );
@@ -57,6 +57,9 @@ export default defineConfig({
         exportName: "GatewayRuntime",
         worker: name,
       }),
+      // Measures an uploaded picture and makes the small thumbnail an
+      // approval shows beside it. Only the Payload connector uploads files.
+      IMAGES: payloadOn && bindings.images(),
       LOADER: bindings.workerLoader(),
       MCP_ALLOWED_HOSTNAMES: bindings.text(domain ?? ""),
       // Payload, when this site has it: a Service binding to its Worker, or

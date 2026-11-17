@@ -1,27 +1,54 @@
 ---
 title: Payload
-description: Payload as one vinext app on Workers, with D1 as its database by default and Postgres through Hyperdrive kept as an option.
+description: Payload as one vinext app on Workers, on D1 or on Postgres on PlanetScale through Hyperdrive. The demo is moving to Postgres; D1 is the default for local work.
 ---
 
 The Payload reference is a single app: the Payload admin, plus front-end pages that read content through Payload's Local API in the same Worker. There is no separate API call between the front-end and the CMS. It runs Payload 4 (beta) under vinext on Cloudflare Workers, with media in R2.
 
-## Database: D1 by default
+## Database: D1 or Postgres
 
-**Decision (2026-10-29):** the Payload app uses Cloudflare D1. Postgres through Hyperdrive stays available behind `PAYLOAD_DB=postgres`, and the two still need comparing on real Workers. See [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
+Launch supports both databases, chosen per site with `PAYLOAD_DB`: `d1` (the default) or `postgres`, which reaches Postgres on PlanetScale through Hyperdrive. Pick D1 for a small site that wants no other service. Pick Postgres for a larger site, for local copies of production content (`pnpm db:pull`), or for branch previews that can run their own migrations. The same collections, migrations and tests cover both.
+
+**Launch's own demo (2026-11-13):** production Payload runs on the PlanetScale Postgres database `launch-payload` through Hyperdrive, because that is how most Launch sites will run. Until the move is done, the live demo still runs on D1, the 2026-10-29 choice. D1 stays the default for local work, since it needs no Docker. See [ADR 0020](https://github.com/patronage/launch/blob/main/docs/adr/0020-payload-production-on-planetscale.md), which replaces the database part of [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
 
 |  | D1 | Postgres through Hyperdrive |
 | --- | --- | --- |
-| Status | Default | Option, `PAYLOAD_DB=postgres` |
+| Status | Supported; the default, and the demo's production until the move | Supported, `PAYLOAD_DB=postgres`; the demo's production after the move |
 | Admin, uploads, drafts, REST and GraphQL | Pass | Pass |
 | Migrations on boot and the Payload CLI | Pass | Pass |
 | Extra work needed | None | A request-scoped connection pool (below) |
-| Measured on real Workers | Not yet | Not yet |
 
-Why D1 for now: both databases passed the same end-to-end browser test in local workerd, and D1 needs nothing extra. Postgres needs a connection pool that opens a connection per request, because workerd ties a socket to the request that opened it. Hyperdrive does the real pooling.
-
-No performance difference has been measured yet. Local runs say nothing about network latency, which is where the two will differ, so the comparison waits for a deploy.
+Both databases passed the same end-to-end browser test in local workerd, and their migrations build the same tables and columns. Postgres needs a connection pool that opens a connection per request, because workerd ties a socket to the request that opened it. Hyperdrive does the real pooling, through its managed PlanetScale integration, with query caching off so the admin always reads what it has just written.
 
 `PAYLOAD_DB` is replaced at build time, so the unused adapter is left out of the bundle and `cloudflare.config.ts` declares only the matching binding.
+
+After changing a collection or field, `pnpm migrate:create <name>` writes the migration for both databases. Postgres migrations name no schema, so a branch preview can run them into its own; the command deletes the `"public".` that Payload's own `migrate:create` writes, and the app's tests fail if a migration still has it.
+
+### Moving from D1
+
+`pnpm run hyperdrive:configure` creates the Hyperdrive configuration (or finds it) and prints its id. `pnpm d1:copy --target <postgres-url>` copies the D1 database into a freshly migrated Postgres with the same ids, reading D1 only, in one transaction that commits only when every table's row count matches. Sessions, document locks and the key-value cache aren't copied, so editors sign in again. Then `PAYLOAD_DB=postgres` and `HYPERDRIVE_ID` are added to the existing Workers Builds trigger (see [Workers Builds](/deploy/workers-builds)) and production is rebuilt. D1 is left as it was, so setting `PAYLOAD_DB` back to `d1` and rebuilding goes back. The app's README has the step-by-step switch.
+
+## Pull content from PlanetScale
+
+`pnpm db:pull` replaces the local Postgres with a copy of the content in the app's PlanetScale database, for working against real pages and posts. It needs Docker and the `pscale` CLI, signed in (`pscale auth login`) as someone who may manage roles on the database. From `apps/payload`:
+
+```bash
+pnpm db                        # start the local Postgres 17 (docker-compose.yml)
+pnpm db:pull                   # copy PlanetScale's main branch
+pnpm db:pull --branch staging  # or another branch
+pnpm db:pull --migrate         # then run this checkout's pending migrations on the copy
+pnpm db:pull --dry-run         # print the plan and contact nothing
+```
+
+Stop the preview server first, because the pull replaces the database it has open.
+
+- **Read-only.** The pull creates a temporary PlanetScale role that can only read and expires after 30 minutes, dumps through it, and deletes it as soon as the dump ends, even when the run fails or is interrupted.
+- **Content only.** `db-pull.tables` lists each table as `content`, whose rows are copied, or `excluded`. Users, sessions, admin preferences, form submissions and forms' notification emails are excluded and arrive empty, and so does any table the list doesn't name. The app's tests fail when a migration adds a table the list doesn't classify.
+- **Checked before the swap.** The copy is restored into a scratch database and checked, then swapped in. A failed run leaves the local database as it was and says where everything is.
+- **No users.** Open the admin on `localhost` and create the first user, which the local one-click sign-in then uses.
+- **Migrations.** The run compares the copy's migrations with this checkout and with `origin/main`, and fails when the copy has run one this checkout lacks.
+
+Media is not copied; it stays in R2. `pnpm db:recreate` deletes the local copy. The shared script is `packages/db-pull`, and its [README](https://github.com/patronage/launch/blob/main/packages/db-pull/README.md) covers the settings another app needs. See [ADR 0019](https://github.com/patronage/launch/blob/main/docs/adr/0019-local-pulls-copy-content-only.md).
 
 ## The demo
 
@@ -37,6 +64,8 @@ No performance difference has been measured yet. Local runs say nothing about ne
 
 On `localhost` only, the login page offers a one-click sign-in as the first user. It is hidden through a tunnel and on a deployed Worker.
 
+On the deployed Worker, Cloudflare Access signs editors in: an editor who passes Access lands in the admin as the Payload user with the same email. **Log out** works as it does in the WordPress admin: it ends the CMS session but not the Access session, and shows the login form. From there the editor signs in with a password, or chooses **Sign in with Access as …** to go straight back in. For an hour after logging out, the admin keeps showing the form instead of signing the editor in automatically. WordPress's `patronage-access` plugin does the same from version 1.1.0. To end the Access session itself, visit `/cdn-cgi/access/logout`; Access ends it for every Access-protected app.
+
 ## Search and redirects
 
 Editors control how a page or post appears to search engines, and where old addresses go.
@@ -51,7 +80,16 @@ Metadata renders in `<head>` for every visitor. Next and vinext normally stream 
 
 ## Deployed
 
-The app runs as the Worker `launch-payload`, with its D1 database and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default, because they would share production's bindings. The app's README covers the deploy, secrets and Workers Builds setup.
+The app runs as the Worker `launch-payload`, with its database (D1 until the move to PlanetScale) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default. On D1 they need their own D1 database. On Postgres they read the PlanetScale branch `preview` through its own Hyperdrive configuration: a branch that adds no migrations reads the shared copy in `public`, and one that adds migrations gets its own schema with that copy and its migrations (see [Branch previews on Postgres](#branch-previews-on-postgres)). The app's README covers the deploy, secrets and Workers Builds setup.
+
+### Branch previews on Postgres
+
+Every PR can get a preview URL on content that resembles the live site, without a database per PR. All previews share the PlanetScale branch `preview` and one Hyperdrive configuration. Its `public` schema holds the shared preview copy: production's content plus preview editors.
+
+- A branch that adds no Payload migrations reads `public` and costs nothing beyond its Worker Preview.
+- A branch that adds migrations gets a schema of its own, named after a hash of the branch. Before the build, `scripts/preview-schema.mjs prepare` copies `public` into it and runs the branch's migrations on top, so the shared copy is untouched. The Worker is built with that schema and reads it through the same Hyperdrive configuration.
+
+Committed migrations name no schema for this to work, and a test enforces it. Stale schemas are dropped with `preview-schema.mjs sweep`. See [ADR 0021](https://github.com/patronage/launch/blob/main/docs/adr/0021-payload-previews-on-one-preview-database.md).
 
 ## What else the research found
 

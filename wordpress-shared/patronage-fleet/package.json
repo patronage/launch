@@ -5,6 +5,6 @@
   "description": "WordPress mu-plugin that reports a Patronage site's WordPress, plugin and theme versions to Patronage Fleet.",
   "license": "MIT",
   "scripts": {
-    "test": "php -l patronage-fleet.php"
+    "test": "php -l patronage-fleet.php >/dev/null && php -l tests/fleet.test.php >/dev/null && php tests/fleet.test.php"
   }
 }

@@ -54,6 +54,12 @@ Access and WordPress keep separate sessions, so without this an editor passes Ac
 
 Anything else shows the login form as usual and logs a reason (never the token or email) to the PHP error log: no assertion, a service token, an unknown email, a user without the capability, a browser that refused the guard cookie, or a browser WordPress sent straight back after a sign-in (so a rejected auth cookie cannot loop). Logout (`?loggedout=true`), other actions, POSTs, the session-expired modal and signed-in users are never touched, and `wp-login.php?patronage_access_login=off` shows the form once to sign in as someone else. The Access email must match the editor's WordPress email.
 
+### Logging out
+
+Logging out ends the WordPress session but not the Access session. So logout also sets a one-hour `patronage_access_off` cookie (HttpOnly, SameSite=Lax), and while the browser holds it browser login steps aside: visiting wp-admin shows the login form instead of signing the editor straight back in. The cookie can only make browser login step aside, never sign anyone in. Any sign-in clears it, and when it expires Access signs the editor in again on the next visit.
+
+Whenever the login form shows and the request carries an Access assertion that browser login would accept, the form offers **Sign in with Access as &lt;email&gt;**. The email comes only from the verified assertion. The button posts to `wp-login.php?action=patronage_access_sign_in`. If the post came from this site (Fetch Metadata `Sec-Fetch-Site: same-origin`, else a matching `Origin`, else a matching `Referer`), the plugin clears the opt-out cookie and starts the two steps above, keeping `redirect_to`. A post from another site, or with none of those headers, just shows the form. Payload's admin works the same way (`apps/payload/src/lib/access-opt-out.ts`). To end the Access session itself, visit `/cdn-cgi/access/logout`.
+
 Filters: `patronage_access_browser_login_capability` (default `edit_posts`) and `patronage_access_browser_login_allowed` (receives the decision, the `WP_User` and the claims).
 
 It works whether Access protects the whole hostname or only `/wp-admin` and `/wp-login.php`, and needs no origin guard.

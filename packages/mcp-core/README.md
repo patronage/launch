@@ -1,6 +1,6 @@
 # @patronage/mcp-core
 
-An MCP gateway for Cloudflare Workers. People sign in through Cloudflare Access, and the model reads and changes the CMS as that person through code mode. A deployment that needs it holds every write until a person approves a before-and-after ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md), [ADR 0018](../../docs/adr/0018-approval-is-opt-in.md)).
+An MCP gateway for Cloudflare Workers. People sign in through Cloudflare Access, and the model reads and changes the CMS as that person through code mode. A deployment that needs it holds every write until a person approves a before-and-after ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md), [ADR 0023](../../docs/adr/0023-approval-is-opt-in.md)).
 
 Core names no CMS. Each backend is a connector, such as [`@patronage/mcp-wordpress`](../mcp-wordpress) or [`@patronage/mcp-payload`](../mcp-payload), and a deployment lists the ones it has.
 
@@ -31,6 +31,18 @@ The Durable Object's class name belongs to the deployment. A gateway that alread
 An approved write gets 5 minutes in the sandbox and an ordinary run gets 60 seconds (`approvalTimeoutMs` and `executionTimeoutMs` on `BaseGatewayRuntime`). The approval waits for the write itself, not only for the sandbox, so a script that times out after its write still reports the write's receipt. A connector's `apply` should call `store.recordProgress` as each operation settles: that drives the progress on the approval page and card, and is the record of what landed if a write is cut off. `mapWithConcurrency` and `APPLY_CONCURRENCY` run a batch's operations two at a time.
 
 A connector implements `GatewayConnector` (`src/gateway-connector.ts`): its sandbox name, a paragraph for the `execute` tool description, its tools, and for writes `parseApply` (validate and summarise) and `preflight` (the before-and-after the approver sees). `src/upstream.ts` has the shared fetch client, which forwards the caller's Access JWT with a gateway proof and records each request on the wide event.
+
+What a preview and a receipt can carry, all optional (`src/apply.ts`):
+
+- **A thumbnail** beside a value: `beforeImage` and `afterImage` on a `FieldSnapshot`, with the file's type, size, dimensions and hash. Both surfaces draw the picture only when `src` is a WebP `data:` URL of at most 24 KB (`isThumbnailSrc`); anything else shows the facts alone. Neither surface ever loads an image from a URL.
+- **A label** for a row path, so `layout[id=…].cards[id=…].title` reads as "Sections › Card grid (row 3) › Cards › row 2 › Title". `NEW_ROW` and `REMOVED_ROW` fill the side of a snapshot where the row does not exist.
+- **A warning** on an operation that changes what the public sees as soon as it is approved.
+- **A preview link**: `previewUrl` on an operation, where the CMS can show the target as it is now on the front end, drafts included. The approval page offers it beside the edit link, over HTTPS only.
+- **Receipt facts**: `version_id`, `updated_at`, and up to eight bounded `details` (build them with `receiptDetails`), such as a new document's id or a file's URL. Never a field value.
+
+A file a write needs is staged, never passed to `apply`: tool arguments go into the durable log, where one value holds at most 2 MB. A read-phase tool calls `store.stageBlob(executionId, bytes, facts)` and returns the SHA-256 it gets back; `apply` names that hash and reads the bytes with `store.readBlob`, and `preflight` reads the facts with `store.readBlobMeta` from its `context`. Only the run that staged a file can read it. One file may be 10 MB and one run 25 MB (`maxBlobBytes` and `maxRunBlobBytes` on `BaseGatewayRuntime` lower them), and a run's files are deleted when it ends, is rejected or expires.
+
+For a connector that takes files, `sniffFileType` reads a file's type from its first bytes (PNG, JPEG, GIF, WebP, AVIF, PDF, and SVG so that it can be refused by name), `extensionsFor` and `typeAllowed` check a name and a list of accepted types against it, and `describeImage` measures a picture and makes the thumbnail both surfaces will draw, with the Cloudflare Images binding (`IMAGES` on `GatewayEnv`, optional). `upstreamFetchBytes` reads a file from the CMS as the editor, bounded, for the "before" side of a replacement, and `readBoundedBody` bounds any other response.
 
 ## Commands
 

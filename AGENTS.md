@@ -1,6 +1,6 @@
 # Project agent memory
 
-Launch is Patronage's public, open-source monorepo of reference sites: vinext front-ends on Cloudflare Workers, powered by WordPress (headless over WPGraphQL, and a separate Timber install) and Payload, each with the CMS locked behind Cloudflare Access. Everything committed, and every issue, PR and commit message, must be fit to publish.
+Launch is Patronage's public, open-source monorepo of reference sites on Cloudflare Workers, powered by WordPress (headless over WPGraphQL behind a vinext front-end, and a separate Timber install), Payload (on vinext) and EmDash (on Astro), each with the CMS locked behind Cloudflare Access. Everything committed, and every issue, PR and commit message, must be fit to publish.
 
 ## Rules
 
@@ -9,7 +9,7 @@ Launch is Patronage's public, open-source monorepo of reference sites: vinext fr
 - **Security findings stay private until approved.** Report suspected or confirmed vulnerabilities to Cameron in this chat and keep evidence in ignored local storage. Read [Handling security findings](docs/agents/security-findings.md) before publishing a finding or remediation.
 - **No Wrangler config files.** Do not add `wrangler.json`, `wrangler.jsonc` or `wrangler.toml` (they are gitignored). Workers, bindings, secrets, Access applications and service tokens are created through the Cloudflare CLI and API by scripts in the repo.
 - **No GitHub Actions.** Do not add workflows under `.github/`. Verification runs locally with `pnpm verify` before a PR is opened.
-- **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress or Payload. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
+- **Shared UI takes plain props.** `packages/ui` knows nothing about WordPress, Payload or EmDash. Each CMS has an adapter that maps its data to `packages/content-model`. Rich text and editor field definitions stay CMS-specific: adapters render rich text and pass it in as children. The Timber install shares design tokens only, not components.
 - **Front-end UI is shadcn/ui on Tailwind 4, in `packages/ui`.** Build pages from its `Section`, `Container` and `Typography` primitives and shadcn components rather than app-local CSS; add new shadcn components to the package (see `packages/ui/README.md`).
 - **Published packages need a changeset.** A PR that changes `src/` or `package.json` in `@patronage/access` or an `@patronage/mcp-*` package adds one with `pnpm changeset`; `pnpm verify` fails without it. See [.changeset/README.md](.changeset/README.md).
 - **Update the public docs in the same PR.** If a PR changes what a reader of the docs site (`apps/docs-site`, live at launch.patronage.com) would run, deploy, configure or decide, such as a new app, package, command, deploy step or decision, update the affected pages under `apps/docs-site/docs` in that PR. Spike notes publish themselves; ADRs and READMEs don't, so summarize a new decision on the site's Decisions page. Run `pnpm --filter docs-site test` to check links.
@@ -47,6 +47,8 @@ DeepSec setup, containment and review limits are in [.deepsec/README.md](.deepse
 ## Commands
 
 Run from the repo root: `pnpm verify` is the full gate (frozen install, lint, typecheck, test). `pnpm lint` and `pnpm fix` use ultracite (oxlint + oxfmt). Dependencies only install versions older than `minimumReleaseAge` in `pnpm-workspace.yaml` (3 hours for now, moving to 72); update them with the `deps:*` scripts, whose taze reads the same window. Versions are pinned exactly (`savePrefix` in `pnpm-workspace.yaml`). Shared dependencies (React, Vite, Vitest, `@types/node`) come from the `catalog` in `pnpm-workspace.yaml`: list them as `"catalog:"`, never a version.
+
+The weekly minor/patch update of npm and Composer dependencies, with its holds and checks, is in [Dependency updates](docs/agents/dependency-updates.md).
 
 ## Maintaining this file
 

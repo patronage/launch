@@ -5,6 +5,7 @@ export default defineMeta({
   pages: [
     "headless-wordpress",
     "payload",
+    "emdash",
     "timber-wordpress",
     "wordpress-plugins",
     "ui",

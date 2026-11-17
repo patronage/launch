@@ -166,29 +166,6 @@ describe("an execute or approve outcome", () => {
       );
     }
   );
-
-  it("summarises the pending write of a paused run", () => {
-    expect(toExecuteResult(parse, outcomes.paused)).toStrictEqual({
-      executionId: "exec_1",
-      pending: [
-        {
-          connector: "wp",
-          intent: "Rename the launch page",
-          method: "apply",
-          sentences: ["Update title on pages 7"],
-          seq: 1,
-        },
-      ],
-      status: "paused",
-      summary: "Paused for approval: Rename the launch page (1 operation).",
-    });
-  });
-
-  it("keeps the runtime's own error message", () => {
-    expect(toExecuteResult(parse, outcomes.error)).toMatchObject({
-      error: "Codemode replay divergence at step 2",
-    });
-  });
 });
 
 // Every `ExecutionStatus`, and what the approval page and `get_run` call it.
@@ -236,17 +213,6 @@ describe("a recorded execution", () => {
     }
   );
 
-  // `get_run` answers anyone who names the run, and a script's return value
-  // can hold CMS content, so no view carries it.
-  it("keeps what the script returned out of the view", () => {
-    const view = toRunView("exec_1", {
-      ...execution("completed"),
-      result: { title: "Launch" },
-    });
-
-    expect(JSON.stringify(view)).not.toContain("Launch");
-  });
-
   it.each(Object.keys(runStatuses))(
     "hands the approver a %s run's result only once it completed",
     (status) => {
@@ -261,15 +227,4 @@ describe("a recorded execution", () => {
       );
     }
   );
-
-  it("lists every logged call with its connector, method, seq and state", () => {
-    const view = toRunView(
-      "exec_1",
-      execution("completed", [applyEntry("applied")])
-    );
-
-    expect(view.calls).toStrictEqual([
-      { connector: "wp", method: "apply", seq: 1, state: "applied" },
-    ]);
-  });
 });

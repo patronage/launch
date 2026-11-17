@@ -183,7 +183,7 @@ assert_same(
 
 // ---------------------------------------------------------------------------
 // Gateway proof verification. The known-answer vector is shared verbatim with
-// the Worker suite (worker/src/wordpress.test.ts) so the two implementations
+// packages/access/src/gateway-proof.test.ts so the two implementations
 // cannot drift: secret "proof-test-secret", jwt "aaa.bbb.ccc", t=1700000000.
 // ---------------------------------------------------------------------------
 

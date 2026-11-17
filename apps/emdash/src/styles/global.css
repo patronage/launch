@@ -1,0 +1,6 @@
+/* Tailwind entry: @launch/ui's tokens, theme and components, plus this app's files. */
+@import "@launch/ui/styles.css";
+
+@source "../components";
+@source "../layouts";
+@source "../pages";

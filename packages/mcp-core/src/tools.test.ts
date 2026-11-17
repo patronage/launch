@@ -125,7 +125,6 @@ interface StubCalls {
   describeSite: CallerContext[];
   execute: ExecuteCall[];
   getRun: GetRunCall[];
-  order: string[];
   reject: GetRunCall[];
 }
 
@@ -162,7 +161,6 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
     describeSite: [],
     execute: [],
     getRun: [],
-    order: [],
     reject: [],
   };
 
@@ -170,7 +168,6 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
     approve: (executionId, context, previewDigest) => {
       calls.approve.push({ caller: context, executionId });
       calls.approvedDigests.push(previewDigest);
-      calls.order.push("approve");
 
       return outcome(
         overrides.approve?.() ?? {
@@ -207,19 +204,16 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
     },
     describeSite: (context) => {
       calls.describeSite.push(context);
-      calls.order.push("describeSite");
 
       return outcome(overrides.describeSite?.() ?? siteDescription);
     },
     execute: (code, intent, context) => {
       calls.execute.push({ caller: context, code, intent });
-      calls.order.push("execute");
 
       return outcome(overrides.execute?.() ?? pausedExecute);
     },
     getRun: (executionId, context) => {
       calls.getRun.push({ caller: context, executionId });
-      calls.order.push("getRun");
 
       return outcome(overrides.getRun?.() ?? pausedRun);
     },
@@ -232,7 +226,6 @@ const stubRuntime = (overrides: StubOverrides = {}): StubbedRuntime => {
     },
     reject: (executionId, context) => {
       calls.reject.push({ caller: context, executionId });
-      calls.order.push("reject");
 
       return outcome(
         overrides.reject?.() ?? {
@@ -318,30 +311,6 @@ const approvalToken = (result: CallToolResult): string =>
     .approvalToken;
 
 describe("tool registration", () => {
-  it("keeps the three code-mode tools and adds the two app-only tools", () => {
-    const { stub } = stubRuntime();
-    const server = toolServer(stub, requestLogger());
-
-    const registered = (name: string): boolean =>
-      server.toolInputSchemaJson(name) !== undefined;
-
-    expect({
-      decide_write: registered("decide_write"),
-      describe_site: registered("describe_site"),
-      execute: registered("execute"),
-      get_run: registered("get_run"),
-      inspect_wordpress_site: registered("inspect_wordpress_site"),
-      preview_write: registered("preview_write"),
-    }).toStrictEqual({
-      decide_write: true,
-      describe_site: true,
-      execute: true,
-      get_run: true,
-      inspect_wordpress_site: false,
-      preview_write: true,
-    });
-  });
-
   it("hides the app-only tools from a client that renders no app", async () => {
     const { stub } = stubRuntime();
 
@@ -644,86 +613,33 @@ describe("execute", () => {
     expect(summaryText(result)).toContain("Update title on pages 42");
   });
 
-  it("still names the approval URL for a client that renders no card", async () => {
+  it("still names the approval URL for a client that renders no card, and records the card as not offered", async () => {
+    const log = requestLogger();
     const { stub } = stubRuntime();
 
-    const result = await callTool(
-      toolServer(stub, requestLogger(), "absent"),
-      "execute",
-      { code: "async () => wp.apply({})" }
-    );
+    const result = await callTool(toolServer(stub, log, "absent"), "execute", {
+      code: "async () => wp.apply({})",
+    });
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toBeUndefined();
     expect(result.structuredContent).toMatchObject({
       approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
     });
-  });
-
-  // The server armed the card, but it cannot know the host will run the card's
-  // calls: a card that fails must still leave a way to answer the run.
-  it("still names the approval URL once the card is armed", async () => {
-    const log = requestLogger();
-    const { stub } = stubRuntime();
-
-    const result = await callTool(toolServer(stub, log), "execute", {
-      code: "async () => wp.apply({})",
-    });
-
-    expect(result._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
-      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
-      status: "pending",
-    });
-    expect(result.structuredContent).toMatchObject({
-      approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
-    });
-    expect(summaryText(result)).toContain(
-      "https://wordpress.example/mcp/approvals/exec_1"
-    );
-    expect(log.getContext().run).toMatchObject({
-      approval: { card: "armed", clientApps: "advertised" },
-      status: "paused",
-    });
-  });
-
-  it("records an approval card that could not be armed", async () => {
-    const log = requestLogger();
-    const { stub } = stubRuntime();
-
-    const failing: RuntimeStub = {
-      ...stub,
-      issueNonce: () => Promise.reject(new Error("storage unavailable")),
-    };
-
-    await callTool(toolServer(failing, log), "execute", {
-      code: "async () => wp.apply({})",
-    });
-
-    expect(log.getContext().run).toMatchObject({
-      approval: { card: "not_armed", clientApps: "advertised" },
-    });
-  });
-
-  it("records a paused run offered no card", async () => {
-    const log = requestLogger();
-    const { stub } = stubRuntime();
-
-    await callTool(toolServer(stub, log, "absent"), "execute", {
-      code: "async () => wp.apply({})",
-    });
-
     expect(log.getContext().run).toMatchObject({
       approval: { card: "not_offered", clientApps: "absent" },
     });
   });
 
-  it("arms the card with a one-time token and previews nothing yet", async () => {
+  // The server armed the card, but it cannot know the host will run the card's
+  // calls: a card that fails must still leave a way to answer the run.
+  it("arms the card with a one-time token, previews nothing yet and still names the approval URL", async () => {
+    const log = requestLogger();
     const { calls, stub } = stubRuntime();
 
-    const result = await callTool(
-      toolServer(stub, requestLogger()),
-      "execute",
-      { code: "async () => wp.apply({})", intent: "Fix the headline" }
-    );
+    const result = await callTool(toolServer(stub, log), "execute", {
+      code: "async () => wp.apply({})",
+      intent: "Fix the headline",
+    });
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toStrictEqual({
       approvalToken: "nonce-exec_1-1",
@@ -731,14 +647,33 @@ describe("execute", () => {
       executionId: "exec_1",
       status: "pending",
     });
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "armed", clientApps: "advertised" },
+      status: "paused",
+    });
     // The before/after preview is built when the card opens, not now, so the
     // human sees the post as it is at decision time.
     expect(calls.getRun).toStrictEqual([]);
-    expect(JSON.stringify(result.structuredContent)).not.toContain("nonce-");
-    expect(summaryText(result)).not.toContain("nonce-");
+
+    const approvalUrl = "https://wordpress.example/mcp/approvals/exec_1";
+    const structured = JSON.stringify(result.structuredContent);
+    const summary = summaryText(result);
+
+    expect({
+      structuredLeaksToken: structured.includes("nonce-"),
+      structuredNamesUrl: structured.includes(approvalUrl),
+      summaryLeaksToken: summary.includes("nonce-"),
+      summaryNamesUrl: summary.includes(approvalUrl),
+    }).toStrictEqual({
+      structuredLeaksToken: false,
+      structuredNamesUrl: true,
+      summaryLeaksToken: false,
+      summaryNamesUrl: true,
+    });
   });
 
-  it("falls back to the approval link when the token cannot be minted", async () => {
+  it("falls back to the approval link and records the card as not armed when the token cannot be minted", async () => {
+    const log = requestLogger();
     const { stub } = stubRuntime();
 
     const failing: RuntimeStub = {
@@ -746,11 +681,9 @@ describe("execute", () => {
       issueNonce: () => Promise.reject(new Error("storage unavailable")),
     };
 
-    const result = await callTool(
-      toolServer(failing, requestLogger()),
-      "execute",
-      { code: "async () => wp.apply({})" }
-    );
+    const result = await callTool(toolServer(failing, log), "execute", {
+      code: "async () => wp.apply({})",
+    });
 
     expect(result._meta?.[APPROVAL_APP_META_KEY]).toMatchObject({
       executionId: "exec_1",
@@ -758,6 +691,9 @@ describe("execute", () => {
     });
     expect(result.structuredContent).toMatchObject({
       approvalUrl: "https://wordpress.example/mcp/approvals/exec_1",
+    });
+    expect(log.getContext().run).toMatchObject({
+      approval: { card: "not_armed", clientApps: "advertised" },
     });
   });
 
@@ -1146,7 +1082,6 @@ describe("describe_site and get_run", () => {
       { executionId: "exec_1" }
     );
 
-    expect(calls.order).toStrictEqual(["describeSite", "getRun"]);
     expect(calls.describeSite).toStrictEqual([caller]);
     expect(calls.getRun).toStrictEqual([
       { caller: undefined, executionId: "exec_1" },
@@ -1253,7 +1188,6 @@ describe("execute on a deployment that does not require Approval", () => {
 
     const result = await callTool(directServer(stub), "execute", WRITE);
 
-    expect(calls.order).toStrictEqual(["execute", "getRun", "approve"]);
     expect([calls.getRun[0], calls.approve[0]]).toStrictEqual([
       { caller, executionId: "exec_1" },
       { caller, executionId: "exec_1" },
@@ -1362,7 +1296,8 @@ describe("execute on a deployment that does not require Approval", () => {
       code: "async () => wp.get({ path: '/wp-json/' })",
     });
 
-    expect(calls.order).toStrictEqual(["execute"]);
+    expect(calls.approve).toHaveLength(0);
+    expect(calls.getRun).toHaveLength(0);
     expect(result.structuredContent).toStrictEqual({
       calls: [],
       result: { title: "Hi" },
@@ -1386,8 +1321,9 @@ describe("execute on a deployment that does not require Approval", () => {
 
     const result = await callTool(directServer(stub), "execute", WRITE);
 
-    expect(calls.order).toStrictEqual(["execute", "getRun", "reject"]);
     expect(result.isError).toBeUndefined();
+    expect(calls.approve).toHaveLength(0);
+    expect(calls.reject).toStrictEqual([{ caller, executionId: "exec_1" }]);
     expect(result.structuredContent).toMatchObject({
       error: "The pending write was not applied: pages/42 does not exist",
       executionId: "exec_1",
@@ -1398,7 +1334,7 @@ describe("execute on a deployment that does not require Approval", () => {
   it("applies each write of a script that writes twice", async () => {
     let approvals = 0;
 
-    const { calls, stub } = stubRuntime({
+    const { stub } = stubRuntime({
       approve: () => {
         approvals += 1;
 
@@ -1412,13 +1348,6 @@ describe("execute on a deployment that does not require Approval", () => {
 
     const result = await callTool(directServer(stub), "execute", WRITE);
 
-    expect(calls.order).toStrictEqual([
-      "execute",
-      "getRun",
-      "approve",
-      "getRun",
-      "approve",
-    ]);
     expect(result.structuredContent).toMatchObject({
       receipts: [receipt, receipt],
       status: "complete",

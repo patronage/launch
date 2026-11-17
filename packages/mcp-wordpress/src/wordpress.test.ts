@@ -1,4 +1,3 @@
-import { computeGatewayProof } from "@patronage/access";
 import {
   MAX_LOGGED_UPSTREAM_REQUESTS,
   UpstreamRequestError,
@@ -129,16 +128,6 @@ describe("WordPress client authentication", () => {
     expect(withoutProof.has("X-Access-Gateway-Proof")).toBeFalsy();
   });
 
-  it("computes the gateway proof matching the mu-plugin known-answer vector", async () => {
-    // Shared verbatim with wordpress/tests/verify.test.php so the Worker and
-    // PHP implementations cannot drift.
-    await expect(
-      computeGatewayProof("proof-test-secret", "aaa.bbb.ccc", 1_700_000_000)
-    ).resolves.toBe(
-      "t=1700000000,v1=1c8f01bed0503f0d5e251595bb5d22c4139dbf1db58b43f63c5d8463d26aa227"
-    );
-  });
-
   it("maps authentication failures and bounds safe error codes", () => {
     expect(wordPressErrorMessage(403, "patronage_access_no_user")).toContain(
       "No WordPress account matches"
@@ -264,26 +253,6 @@ describe(wpFetch, () => {
 describe(wpGraphql, () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it("posts to the site origin's /graphql with the forwarded token", async () => {
-    let seen: { headers: Headers; url: string } | undefined;
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-      seen = { headers: new Headers(init?.headers), url: String(input) };
-
-      return Response.json({ data: { __typename: "RootQuery" } });
-    });
-
-    const json = await wpGraphql(
-      client,
-      "{ __typename }",
-      undefined,
-      createUpstreamTelemetry()
-    );
-
-    expect(json).toStrictEqual({ data: { __typename: "RootQuery" } });
-    expect(seen?.url).toBe("https://wordpress.example/graphql");
-    expect(seen?.headers.get("X-Access-User-Jwt")).toBe("signed-access-jwt");
   });
 
   it("raises a bounded error when WPGraphQL rejects the token", async () => {

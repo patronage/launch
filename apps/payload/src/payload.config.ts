@@ -15,6 +15,11 @@ import { Pages } from "./collections/pages";
 import { Posts } from "./collections/posts";
 import { Users } from "./collections/users";
 import { database } from "./db";
+import {
+  DEMO_LOCALES_DIR,
+  demoLocalization,
+  hasDemoLocales,
+} from "./demo-locales";
 import { formOverrides } from "./forms";
 import { SiteSettings } from "./globals/site-settings";
 import { mcp } from "./mcp";
@@ -29,8 +34,12 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 export default buildConfig({
   admin: {
     components: {
-      // Local sign-in for the demo account; see lib/local-login.ts.
-      beforeLogin: ["/components/admin/local-login-link#LocalLoginLink"],
+      // Local sign-in for the demo account; see lib/local-login.ts. After a
+      // logout, "Sign in with Access" signs in again; see lib/access-opt-out.ts.
+      beforeLogin: [
+        "/components/admin/local-login-link#LocalLoginLink",
+        "/components/admin/access-sign-in-link#AccessSignInLink",
+      ],
     },
     importMap: {
       baseDir: path.resolve(dirname),
@@ -43,6 +52,8 @@ export default buildConfig({
     features: ({ defaultFeatures }) => [...defaultFeatures, richTextBlocks()],
   }),
   globals: [SiteSettings],
+  // Off unless PAYLOAD_DEMO_LOCALES is set, which is for local trials only.
+  localization: demoLocalization(),
   plugins: [
     mcp(),
     // Forms and their submissions. Field types are limited to what
@@ -77,6 +88,10 @@ export default buildConfig({
     }),
   ],
   typescript: {
-    outputFile: path.resolve(dirname, "payload-types.ts"),
+    // The CLI writes the types whenever it makes a migration. With the
+    // demo's locales on they differ, and stay out of the committed file.
+    outputFile: hasDemoLocales
+      ? path.resolve(dirname, "..", DEMO_LOCALES_DIR, "payload-types.ts")
+      : path.resolve(dirname, "payload-types.ts"),
   },
 });

@@ -1,0 +1,16 @@
+---
+import { Container, Section } from "@launch/ui";
+
+import Site from "../layouts/site.astro";
+
+Astro.response.status = 404;
+---
+
+<Site title="Not found">
+  <Section>
+    <Container>
+      <h1 class="text-3xl font-semibold">Page not found</h1>
+      <p class="mt-4"><a class="underline" href="/">Back to the home page</a></p>
+    </Container>
+  </Section>
+</Site>

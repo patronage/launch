@@ -4,7 +4,8 @@
 //
 // Previews are off unless WORKER_PREVIEWS=true. A Payload Preview never binds
 // production content (cloudflare.config.ts), so branch builds need their own
-// D1 database and media bucket, and Preview base secrets set first with
+// database (a D1, or on Postgres the preview database's Hyperdrive config) and
+// media bucket, and Preview base secrets set first with
 // `pnpm run secrets --preview-base`.
 import path from "node:path";
 
@@ -27,11 +28,17 @@ await main(root, (ctx) =>
       "ACCESS_AUD",
       "ACCESS_GATEWAY_AUD",
     ],
-    previewVariables: [
-      "PAYLOAD_PREVIEW_D1_ID",
-      "PAYLOAD_PREVIEW_D1_NAME",
-      "PAYLOAD_PREVIEW_R2_BUCKET",
-    ],
+    // A Postgres Preview also needs PREVIEW_DATABASE_URL at build time, to
+    // prepare its schema. It is a secret, so it is set on the trigger by hand
+    // (README, "Branch previews on Postgres"), never passed through here.
+    previewVariables:
+      ctx.env.PAYLOAD_DB === "postgres"
+        ? ["PAYLOAD_PREVIEW_HYPERDRIVE_ID", "PAYLOAD_PREVIEW_R2_BUCKET"]
+        : [
+            "PAYLOAD_PREVIEW_D1_ID",
+            "PAYLOAD_PREVIEW_D1_NAME",
+            "PAYLOAD_PREVIEW_R2_BUCKET",
+          ],
     previews: ctx.env.WORKER_PREVIEWS === "true",
     previewsNeedBaseSecrets: true,
   })

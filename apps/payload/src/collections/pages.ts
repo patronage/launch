@@ -3,6 +3,7 @@ import type { CollectionConfig } from "payload";
 import { sectionBlocks } from "../blocks";
 import { hero } from "../fields/hero";
 import { previewable } from "../lib/preview";
+import { publishedUnlessSignedIn } from "../lib/read-access";
 import { payloadAdapter } from "../lib/sections";
 import type { Page } from "../payload-types";
 
@@ -13,7 +14,7 @@ const preview = previewable<Page>((doc) =>
 export const Pages: CollectionConfig = {
   access: {
     // Anonymous readers only see published pages.
-    read: ({ req }) => (req.user ? true : { _status: { equals: "published" } }),
+    read: publishedUnlessSignedIn,
   },
   admin: {
     ...preview.admin,
@@ -36,5 +37,8 @@ export const Pages: CollectionConfig = {
     },
   ],
   slug: "pages",
+  // Deleting in the admin moves a document to the trash, where it can be
+  // restored, instead of removing it and its versions.
+  trash: true,
   versions: preview.versions,
 };

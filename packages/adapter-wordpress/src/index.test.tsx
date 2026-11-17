@@ -101,23 +101,7 @@ describe("WordPress adapter", () => {
     });
   });
 
-  it("applies the image URL rewrite", () => {
-    const cdn = createWordPressAdapter({
-      cmsOrigin: "https://cms.example.com",
-      imageUrl: (src) =>
-        src.replace(
-          "https://cms.example.com/wp-content/uploads/",
-          "https://img.example.com/"
-        ),
-    }).toPage(wordpressHomeFixture);
-
-    const block = cdn?.sections[4]?.block;
-    expect(block?.type === "media" && block.media.image.src).toBe(
-      "https://img.example.com/2026/10/harvest.jpg"
-    );
-  });
-
-  it("adds a srcset from the rewritten URL and original width", () => {
+  it("applies the image URL rewrite and builds the srcset from it and the original width", () => {
     const responsive = createWordPressAdapter({
       cmsOrigin: "https://cms.example.com",
       imageSrcset: (src, width) => `${src}?w=480 480w (of ${width})`,
@@ -125,6 +109,9 @@ describe("WordPress adapter", () => {
     }).toPage(wordpressHomeFixture);
 
     const block = responsive?.sections[4]?.block;
+    expect(block?.type === "media" && block.media.image.src).toBe(
+      "/wp-content/uploads/2026/10/harvest.jpg"
+    );
     expect(block?.type === "media" && block.media.image.srcset).toBe(
       "/wp-content/uploads/2026/10/harvest.jpg?w=480 480w (of 2400)"
     );

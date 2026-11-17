@@ -1,8 +1,8 @@
-# ADR 0018: Writes apply by default, and Approval is opt-in per site
+# ADR 0023: Writes apply by default, and Approval is opt-in per site
 
 ## Status
 
-Proposed, 2026-11-11. Replaces the "No unapproved writes" decision in [ADR 0014](0014-mcp-gateway-worker.md); the rest of that record stands.
+Accepted, 2026-11-17. Replaces the "No unapproved writes" decision in [ADR 0014](0014-mcp-gateway-worker.md); the rest of that record stands. It also replaces the requirement for a person to approve every write in [ADR 0018](0018-payload-connector-writes.md); the connector operations and their validation remain as written.
 
 ## Context
 

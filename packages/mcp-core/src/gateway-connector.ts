@@ -1,9 +1,20 @@
 import type { ApplyPreflight } from "./apply";
 import type { CallerContext } from "./caller";
-import type { ConnectorDeps, ConnectorToolMap } from "./connector";
+import type {
+  ConnectorDeps,
+  ConnectorToolMap,
+  RuntimeStore,
+} from "./connector";
 import type { GatewayEnv } from "./env";
 import type { PendingApplySummary } from "./run";
 import type { UpstreamTelemetry } from "./upstream";
+
+// What a preview is built with beside the caller: which run it is for, and
+// the store that run's staged files are read from.
+export interface PreflightContext {
+  executionId: string;
+  store: RuntimeStore;
+}
 
 // One backend the gateway can reach, as the runtime sees it. The runtime
 // names no CMS: a deployment passes the connectors it has, and each one
@@ -34,7 +45,8 @@ export interface GatewayConnector<E = GatewayEnv> {
     env: E,
     caller: CallerContext,
     args: T,
-    telemetry: UpstreamTelemetry
+    telemetry: UpstreamTelemetry,
+    context?: PreflightContext
   ) => Promise<ApplyPreflight>;
   tools: (deps: ConnectorDeps<E>) => ConnectorToolMap;
 }
