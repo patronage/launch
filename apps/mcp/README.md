@@ -21,6 +21,8 @@ This app is only the deployment. The gateway lives in packages, so another site 
 | `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are applied and returned as receipts, or, on a site that requires approval, staged and returned as a plan to approve. |
 | `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. On a site with Payload it also lists the collections the editor can read, which keep drafts, and which fields take Markdown. |
 | `get_run` | Reports a run's status after an approval. |
+| `submit_feedback` | Files a report when a tool got in the agent's way. It writes to the gateway's own queue and never reaches a CMS. |
+| `get_feedback` | Shows the caller's own reports, with the maintainer's answer and the version that shipped the fix. |
 
 The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. On a site that requires approval, nothing is written until someone approves.
 
@@ -52,6 +54,10 @@ The card is offered to a client that advertises MCP Apps support, either on each
 
 The approval runs as the approver, through the same Access sign-in. `APPROVAL_CSRF_SECRET` signs the approval tokens; without it every approval fails closed. The card's script is bundled at build time from `@modelcontextprotocol/ext-apps` (`pnpm generate` in `packages/mcp-core`), so no vendor code is committed.
 
+## Agent feedback
+
+Build with `FEEDBACK_MAINTAINER=true` and set the `FEEDBACK_MAINTAINER_TOKEN` secret to read and answer reports over `/mcp/feedback`. Without it those routes answer 404, and agents can still submit. The routes are described in the docs site's MCP reference, under Agent feedback.
+
 ## Signing in
 
 The Access application in front of this Worker must cover the whole MCP hostname, not just `/mcp*`. The approval page under `/mcp/approvals/` is then protected too, and scanner probes for paths like `/.env` are stopped at the edge, so they never invoke the Worker or reach its logs. Give the gateway a hostname of its own (other services, such as a docs site, go on their own hostnames). As a backstop, the Worker answers any path outside `/mcp*` with a plain 404 before it checks Access, and logs it without MCP fields. The Worker checks the `Cf-Access-Jwt-Assertion` header itself with `@patronage/access`, against `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
@@ -75,7 +81,7 @@ pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 
 The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are versioned with Changesets and published to npm from `main` with `pnpm release`. A change to a package needs a changeset (`pnpm changeset`); the steps are in the docs site's MCP reference, under Releasing the npm packages.
 
-Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
+Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, `FEEDBACK_MAINTAINER`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 

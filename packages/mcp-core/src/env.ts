@@ -18,6 +18,9 @@ export interface GatewayEnv {
   // mistyped setting never drops the Approval a site asked for.
   APPROVAL_REQUIRED?: string;
   DEPLOYMENT_ENVIRONMENT?: string;
+  // Turns on the maintainer's `/mcp/feedback` routes. Without it they answer
+  // 404, and agents can still submit feedback.
+  FEEDBACK_MAINTAINER_TOKEN?: string;
   // Bound to the deployment's `BaseGatewayRuntime` subclass.
   GATEWAY_RUNTIME: DurableObjectNamespace;
   // Cloudflare Images, for the thumbnail an approval shows beside a file.

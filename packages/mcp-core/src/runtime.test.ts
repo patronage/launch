@@ -7,6 +7,7 @@ import type { CallerContext } from "./caller";
 import { delay, mapWithConcurrency } from "./concurrency";
 import type { ConnectorToolMap } from "./connector";
 import type { GatewayEnv } from "./env";
+import { CLOSED_RETENTION_MS, MAX_OPEN_PER_SUBMITTER } from "./feedback";
 import type { GatewayConnector } from "./gateway-connector";
 import { PAUSED_MAX_AGE_MS } from "./run";
 import type { ExecutionRecord, RunReport, ToolLogRecord } from "./run";
@@ -357,10 +358,10 @@ interface Harness extends HarnessState {
 const APPROVAL_TIMEOUT_MS = 1000;
 const SETTLE_GRACE_MS = 5000;
 
-const harness = (): Harness => {
-  const { storage, values } = memoryStorage();
+const harness = (previous?: HarnessState): Harness => {
+  const { storage, values } = previous ?? memoryStorage();
 
-  const state: HarnessState = {
+  const state: HarnessState = previous ?? {
     operationMs: 0,
     preflights: 0,
     storage,
@@ -703,6 +704,70 @@ describe(BaseGatewayRuntime, () => {
         status: "running",
         total: 2,
       });
+    });
+  });
+
+  describe("feedback storage", () => {
+    const submission = {
+      category: "docs_gap",
+      summary: "Paging is undocumented",
+      tool: "execute",
+    } as const;
+
+    it("starts retention cleanup before any execute call and prunes resolved feedback after a restart", async () => {
+      const run = harness();
+      await expect(run.storage.getAlarm()).resolves.toBeNull();
+
+      const filed = await run.runtime.submitFeedback(
+        submission,
+        requester.subjectOpaque
+      );
+
+      const stillOpen = await run.runtime.submitFeedback(
+        submission,
+        requester.subjectOpaque
+      );
+
+      await expect(run.storage.getAlarm()).resolves.toBe(
+        Date.now() + PAUSED_MAX_AGE_MS
+      );
+      await run.runtime.updateFeedback(filed.id, {
+        status: "resolved",
+        note: "Documented",
+        version: "0.3.0",
+      });
+
+      // Reconstruct the runtime with the same durable storage.
+      const restarted = harness(run);
+      vi.setSystemTime(Date.now() + CLOSED_RETENTION_MS + 1);
+      await restarted.runtime.alarm();
+      await expect(
+        restarted.runtime.getFeedback(filed.id, requester.subjectOpaque)
+      ).resolves.toBeUndefined();
+      await expect(
+        restarted.runtime.getFeedback(stillOpen.id, requester.subjectOpaque)
+      ).resolves.toMatchObject({ status: "open" });
+      expect(run.writes).toHaveLength(0);
+    });
+
+    it("shares one queue across concurrent feedback RPCs", async () => {
+      const run = harness();
+
+      const results = await Promise.allSettled(
+        Array.from({ length: MAX_OPEN_PER_SUBMITTER + 1 }, () =>
+          run.runtime.submitFeedback(submission, requester.subjectOpaque)
+        )
+      );
+
+      expect(
+        results.filter((result) => result.status === "fulfilled")
+      ).toHaveLength(MAX_OPEN_PER_SUBMITTER);
+      expect(
+        results.filter((result) => result.status === "rejected")
+      ).toHaveLength(1);
+      await expect(
+        run.runtime.listOwnFeedback(requester.subjectOpaque)
+      ).resolves.toHaveLength(MAX_OPEN_PER_SUBMITTER);
     });
   });
 
