@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-11-13. Extends [ADR 0014](0014-mcp-gateway-worker.md). Tracked in [issue #113](https://github.com/patronage/launch/issues/113).
+Accepted, 2026-11-13. Extends [ADR 0014](0014-mcp-gateway-worker.md). The requirement for a person to approve every write is replaced by [ADR 0023](0023-approval-is-opt-in.md); the connector operations and their validation remain as written. Tracked in [issue #113](https://github.com/patronage/launch/issues/113).
 
 ## Context
 

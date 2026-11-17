@@ -38,11 +38,11 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Service token**: The Cloudflare Access credential a Front-end or MCP Worker uses to read from a locked CMS. It never maps to a CMS user, so it can only read. _Avoid_: API key, bot user
 
-**MCP gateway**: The one MCP Worker a site's team installs. It signs people in, lists the tools, holds writes for Approval and logs every call. _Avoid_: MCP proxy, MCP plugin (for the Worker)
+**MCP gateway**: The one MCP Worker a site's team installs. It signs people in, lists the tools, applies writes as the signed-in person and logs every call. A site that needs it has the gateway hold writes for Approval. _Avoid_: MCP proxy, MCP plugin (for the Worker)
 
 **Connector**: The object `execute` code calls to reach one backend (`wp`, `payload`) inside the MCP gateway's sandbox. _Avoid_: Backend plugin, adapter (that is the Content model mapping)
 
-**Approval**: A person accepting or rejecting a write that the MCP gateway paused, on the inline card or the browser approval page. The write then runs as the approver. _Avoid_: Confirmation, permission prompt (that is the MCP client's own)
+**Approval**: A person accepting or rejecting a write that the MCP gateway paused, on the inline card or the browser approval page. The write then runs as the approver. Off unless a site requires it; without it a write runs at once, as the person who asked. _Avoid_: Confirmation, permission prompt (that is the MCP client's own)
 
 **Tool pack**: A set of typed MCP tools for one workflow that is not CMS content, kept in a site's own repository. _Avoid_: Extension, skill
 

@@ -3,7 +3,7 @@
 The Payload connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's sandbox it is `payload`:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only read tools are allowed.
-- `payload.apply({ intent, operations })` stages `update_draft` and `create_draft` operations for approval. Approved changes are saved as drafts unless an operation sets `publish: true`, which the approval card shows as a `_status` change to `published`.
+- `payload.apply({ intent, operations })` stages `update_draft` and `create_draft` operations, held for approval where the deployment requires it. They are saved as drafts unless an operation sets `publish: true`, which the approval card shows as a `_status` change to `published`.
 - Rich text fields can be written as Markdown, converted with the field's own editor features.
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field by row id, without resending the field.
 - An `update_global` operation changes a global's top-level fields and the rows of its array and blocks fields.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-31. Supersedes [ADR 0012](0012-one-mcp-worker.md).
+Accepted, 2026-10-31. Supersedes [ADR 0012](0012-one-mcp-worker.md). "No unapproved writes" is replaced by [ADR 0023](0023-approval-is-opt-in.md).
 
 ## Context
 

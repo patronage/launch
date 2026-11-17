@@ -20,6 +20,14 @@ const payloadOn = Boolean(payloadWorker || payloadUrl);
 const wordpressUrl = process.env.WORDPRESS_API_URL ?? "";
 const wordpressOn = Boolean(wordpressUrl);
 
+// APPROVAL_REQUIRED=true at build time makes this site hold every write for a
+// person to approve, on the card or the approval page. Without it a write is
+// applied as soon as the model's code calls apply, as the signed-in person
+// (ADR 0023). Anything but unset, empty or "false" asks for approval.
+const approvalRequired = !["", "false"].includes(
+  process.env.APPROVAL_REQUIRED ?? ""
+);
+
 // Turns on the maintainer's /mcp/feedback routes, and with them the
 // FEEDBACK_MAINTAINER_TOKEN secret. Agents can submit feedback either way.
 const feedbackMaintainerOn = process.env.FEEDBACK_MAINTAINER === "true";
@@ -42,7 +50,9 @@ export default defineConfig({
       // clients that never advertised MCP Apps support (see README).
       APPROVAL_CARD_FOR_UNKNOWN_CLIENTS: bindings.text("false"),
       // Signs the approval tokens; every approval fails closed without it.
-      APPROVAL_CSRF_SECRET: bindings.secret(),
+      // Only a site that holds writes for approval has any to sign.
+      APPROVAL_CSRF_SECRET: approvalRequired && bindings.secret(),
+      APPROVAL_REQUIRED: bindings.text(approvalRequired ? "true" : "false"),
       DEPLOYMENT_ENVIRONMENT: bindings.text(
         process.env.DEPLOYMENT_ENVIRONMENT ?? "development"
       ),

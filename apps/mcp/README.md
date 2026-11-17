@@ -1,6 +1,6 @@
 # MCP gateway
 
-The Worker a site's team installs as its one MCP server ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md)). People sign in through Cloudflare Access, read the CMS as themselves, and change content only after a person approves the change.
+The Worker a site's team installs as its one MCP server ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md)). People sign in through Cloudflare Access, and read and change the CMS as themselves. A site that needs it holds every change for a person to approve ([ADR 0023](../../docs/adr/0023-approval-is-opt-in.md)).
 
 It serves `/mcp` on its custom domain only, with no `workers.dev` or preview URLs.
 
@@ -18,18 +18,18 @@ This app is only the deployment. The gateway lives in packages, so another site 
 
 | Tool | What it does |
 | --- | --- |
-| `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are staged and returned as a plan for approval. |
+| `execute` | Runs JavaScript the model writes against the `wp` connector, in a Dynamic Worker with no network of its own. Reads return at once. Writes are applied and returned as receipts, or, on a site that requires approval, staged and returned as a plan to approve. |
 | `describe_site` | Summarizes the site's content types and REST routes, so the model knows what to ask for. On a site with Payload it also lists the collections the editor can read, which keep drafts, and which fields take Markdown. |
 | `get_run` | Reports a run's status after an approval. |
 | `submit_feedback` | Files a report when a tool got in the agent's way. It writes to the gateway's own queue and never reaches a CMS. |
 | `get_feedback` | Shows the caller's own reports, with the maintainer's answer and the version that shipped the fix. |
 
-The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. Nothing is written until someone approves.
+The `wp` connector reads WordPress REST and WPGraphQL as the signed-in person, and stages `update_post` operations (core fields, ACF fields and registered post meta, with an optional `expected_modified_gmt` check) and `upsert_redirect` operations for the Redirection plugin. `wp.graphql` runs queries only, and `wp.get` refuses method overrides. On a site that requires approval, nothing is written until someone approves.
 
 On a site with Payload, the `payload` connector sits beside it:
 
 - `payload.tools()` and `payload.call({ tool, arguments })` run Payload's own read tools at `/api/mcp` as the signed-in editor. Only the read tools are allowed, whatever Payload's config says.
-- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). After approval each one is saved through Payload's REST API with `?draft=true`, so it stays a draft until someone publishes it. An operation can instead set `publish: true`. The approval card then shows `_status` changing to `published`, the write is saved as published, and Payload's own access control decides whether that editor may publish. An update with `publish: true` and no fields publishes the current draft. Collections without drafts are refused, and so are `_status` in `fields`, `id` and the timestamps.
+- `payload.apply({ intent, operations })` stages `update_draft` operations (top-level fields of one document, with an optional `expected_updated_at` check) and `create_draft` operations (a new document). Each one is saved through Payload's REST API with `?draft=true`, so it stays a draft until someone publishes it. An operation can instead set `publish: true`. The approval card then shows `_status` changing to `published`, the write is saved as published, and Payload's own access control decides whether that editor may publish. An update with `publish: true` and no fields publishes the current draft. Collections without drafts are refused, and so are `_status` in `fields`, `id` and the timestamps.
 - A `patch_rows` operation changes, inserts, removes or moves single rows of an array or blocks field (page sections, cards, links) by row id, with a required `expected_updated_at`. Only the top-level fields its changes touch are sent, with every other row as it was read, and the approval labels each change by where its row sits. See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#rows).
 - An `update_global` operation changes a global's top-level fields and rows, with a required `expected_updated_at`. A global without drafts (the demo's `site-settings`) is live as soon as it is saved, so the operation must set `publish: true` and the approval carries a warning. A global another editor has open in the admin is refused (`locked`). See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#globals).
 - An `unpublish` operation takes a published document off the public site and keeps its content as a draft, with a required `expected_updated_at`. Its approval warns that the public page goes away as soon as it is approved, and names the page's path. See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#unpublishing).
@@ -41,10 +41,16 @@ On a site with Payload, the `payload` connector sits beside it:
 
 ## Approvals
 
+By default there are none: a write is applied as soon as the model's code calls `apply`, as the signed-in person, and `execute` returns a receipt for each write. One run may make at most 10 writes.
+
+Build with `APPROVAL_REQUIRED=true` and this deployment holds every write for a person. The rest of this section is about such a deployment. Any value other than unset, empty or `false` asks for approval.
+
 Every staged write pauses with a before-and-after. The person approves it in one of two places:
 
 - an MCP Apps card inside the client, for clients that advertise MCP Apps support;
 - the browser page at `/mcp/approvals/:id`, which works everywhere.
+
+The card is offered to a client that advertises MCP Apps support, either on each request or once in `initialize`; the gateway carries the `initialize` answer on the `Mcp-Session-Id` it hands back. Any other client gets the approval link alone.
 
 The approval runs as the approver, through the same Access sign-in. `APPROVAL_CSRF_SECRET` signs the approval tokens; without it every approval fails closed. The card's script is bundled at build time from `@modelcontextprotocol/ext-apps` (`pnpm generate` in `packages/mcp-core`), so no vendor code is committed.
 
@@ -75,7 +81,7 @@ pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 
 The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are versioned with Changesets and published to npm from `main` with `pnpm release`. A change to a package needs a changeset (`pnpm changeset`); the steps are in the docs site's MCP reference, under Releasing the npm packages.
 
-Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `FEEDBACK_MAINTAINER`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
+Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, `FEEDBACK_MAINTAINER`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 

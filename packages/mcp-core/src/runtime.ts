@@ -34,6 +34,7 @@ import { canonicalArgs, guardApprovalReplay } from "./replay-guard";
 import {
   clearRunNonce,
   consumeRunNonce,
+  finishedScriptResult,
   intentKey,
   isFresh,
   invalidPendingApply,
@@ -620,10 +621,15 @@ export abstract class BaseGatewayRuntime<
       await this.ctx.storage.delete(progressKey(executionId));
     }
 
-    return toRuntimeOutcome(
-      approvedReceipt ? { ...report, approvedReceipt } : report,
-      telemetry
-    );
+    // The approver ran the rest of the script as themselves, so what it
+    // returned is theirs to read. No other report carries it.
+    const answered: RunReport = { ...report, ...finishedScriptResult(record) };
+
+    if (approvedReceipt) {
+      answered.approvedReceipt = approvedReceipt;
+    }
+
+    return toRuntimeOutcome(answered, telemetry);
   }
 
   // Opened before the resume, from the preview the approver answered, so the

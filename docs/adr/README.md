@@ -21,7 +21,7 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0011](0011-cms-behind-cloudflare-access.md) | Every CMS behind Cloudflare Access; read-only Service tokens |
 | [0012](0012-one-mcp-worker.md) | Superseded by 0014 |
 | [0013](0013-wordpress-deploy-kit.md) | The WordPress deploy kit lives in `wordpress-shared/wp-deploy` |
-| [0014](0014-mcp-gateway-worker.md) | One MCP gateway Worker per site: Access sign-in, code mode, approved writes, published to npm |
+| [0014](0014-mcp-gateway-worker.md) | One MCP gateway Worker per site: Access sign-in, code mode, published to npm (Approval: see 0023) |
 | [0015](0015-shared-wordpress-fields.md) | Field groups, post types and seed in `wordpress-shared/patronage-fields`, shared by both WordPress installs |
 | [0016](0016-logs-to-r2-through-logpush.md) | Each site's logs in its own R2 bucket: Logpush for Workers and Cloudflare, Basin only for WordPress hosts; off unless configured |
 | [0017](0017-wordpress-plugins-through-composer.md) | Patronage mu-plugins ship as `patronage/launch-*` from Launch's Composer repository: `pnpm wp:release` in the PR, `--publish` after merge |
@@ -30,3 +30,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0020](0020-payload-production-on-planetscale.md) | Payload production on Postgres through Hyperdrive and PlanetScale, moved from D1 with `pnpm d1:copy`; replaces 0007's database choice |
 | [0021](0021-payload-previews-on-one-preview-database.md) | Payload Previews share one PlanetScale `preview` branch: the shared copy in `public`, or the branch's own schema when it adds migrations; committed migrations name no schema |
 | [0022](0022-emdash-renders-the-site-in-astro.md) | EmDash renders its own site in Astro with `@launch/ui`'s sections, on one Worker; seed as code, native previews, Access for the admin, a cron for scheduled publishing |
+| [0023](0023-approval-is-opt-in.md) | The MCP gateway applies writes by default; `APPROVAL_REQUIRED=true` makes one deployment hold them for Approval |
