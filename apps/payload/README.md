@@ -2,7 +2,7 @@
 
 One Payload 4 (beta) app on Cloudflare Workers, built with [vinext](https://github.com/cloudflare/vinext) instead of Next.js. The admin, REST and GraphQL APIs and the public pages are a single Worker. The public pages read content through Payload's Local API.
 
-- Database: Postgres on PlanetScale through Hyperdrive in production (`PAYLOAD_DB=postgres`, [ADR 0020](../../docs/adr/0020-payload-production-on-planetscale.md)), once the move below is done; until then the live demo runs on D1. D1 stays the default for local work.
+- Database: D1 or Postgres, chosen with `PAYLOAD_DB` (`d1` by default, or `postgres`, through Hyperdrive). Both are supported for sites built on Launch. The demo's production moves to Postgres on PlanetScale ([ADR 0020](../../docs/adr/0020-payload-production-on-planetscale.md)) once the move below is done; until then it runs on D1. D1 stays the default for local work.
 - Media: R2. The `media` collection takes pictures only (AVIF, GIF, JPEG, PNG, WebP), which is also what the MCP gateway may upload to it. It names no hosts in `upload.pasteURL.allowList`, so the gateway takes no files for it by URL.
 - Collections: `users`, `pages` (drafts on, nested with the nested-docs plugin), `posts` with `authors` and `categories` (pages and posts keep a trash: deleting one in the admin moves it there, where it can be restored), `media`, and `forms` and `form-submissions` from the form-builder plugin; global: `site-settings`
 - Preview: pages and posts autosave drafts, and editors see them through the admin's preview button and Live Preview (see below)

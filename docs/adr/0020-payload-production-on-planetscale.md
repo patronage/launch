@@ -15,7 +15,7 @@ ADR 0007 chose D1 for the Payload app and kept Postgres through Hyperdrive as an
 - The move copies D1 into a freshly migrated PlanetScale branch with `pnpm d1:copy`: every table but sessions, document locks and the key-value cache, with the same ids, in one transaction that commits only when every table's row count matches D1. It only reads D1.
 - D1 stays as it was after the copy, so going back is setting `PAYLOAD_DB` back to `d1` on the trigger and rebuilding. The D1 database is deleted only after Postgres has run for a while, and only with Cameron's go.
 - Production only for now: no PlanetScale staging branch and no Previews. Local work uses `pnpm db:pull`. A `staging` branch with its own Hyperdrive configuration (`hyperdrive:configure --branch staging`) can be added later, seeded rather than copied from production.
-- D1 stays the default for local work and new apps until the next decision, since it needs no Docker.
+- D1 stays the default for local work and new apps until the next decision, since it needs no Docker. Both databases stay supported: a site built on Launch picks D1 or Postgres with `PAYLOAD_DB`, and this decision only moves Launch's own demo.
 
 ## Consequences
 
