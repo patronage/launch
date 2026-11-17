@@ -1,0 +1,16 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "moduleDetection": "force"
+  },
+  "include": [
+    ".astro/types.d.ts",
+    ".cloudflare/types",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mjs"
+  ],
+  "exclude": ["node_modules", ".cloudflare/output", ".cloudflare/state"]
+}

@@ -8,7 +8,7 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Demo site**: The invented site every Reference site renders. Each CMS's Seed loads the same core pages; shared images live in `packages/demo-content`. _Avoid_: Sample site, test site, client site
 
-**CMS**: The editing system behind a Reference site: WordPress (headless or Timber) or Payload. Its admin and API sit behind Cloudflare Access. _Avoid_: Backend, admin (for the whole system)
+**CMS**: The editing system behind a Reference site: WordPress (headless or Timber), Payload or EmDash. Its admin and API sit behind Cloudflare Access. _Avoid_: Backend, admin (for the whole system)
 
 **Headless WordPress**: The WordPress install that serves content over WPGraphQL to a vinext Front-end and renders no public pages itself (`apps/cms-wordpress-headless`). _Avoid_: Decoupled WordPress, WP API
 
@@ -18,7 +18,7 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Content model**: The CMS-neutral TypeScript types for pages and sections in `packages/content-model`. Every Adapter maps into it, and shared UI reads only from it. _Avoid_: Schema, CMS types
 
-**Adapter**: The package that maps one CMS's data into the Content model and renders that CMS's rich text (`packages/adapter-wordpress`, `packages/adapter-payload`). _Avoid_: Connector, transformer, mapper
+**Adapter**: The package that maps one CMS's data into the Content model and renders that CMS's rich text (`packages/adapter-wordpress`, `packages/adapter-payload`, `packages/adapter-emdash`). _Avoid_: Connector, transformer, mapper
 
 **Page**: A routable document with a title, a site-relative path, and an ordered list of Sections. _Avoid_: Post (for pages), entry
 
@@ -30,7 +30,7 @@ The domain language for Launch: reference sites that run a CMS behind Cloudflare
 
 **Skin**: A Section's colour treatment (`light`, `dark` or `accent`), mapped to `data-skin` in the UI tokens. _Avoid_: Theme, colour scheme
 
-**Page Builder**: The CMS field that holds a Page's Sections: ACF flexible content in WordPress, a blocks field in Payload. _Avoid_: Flexible content (outside WordPress code), layout builder
+**Page Builder**: The CMS field that holds a Page's Sections: ACF flexible content in WordPress, a blocks field in Payload, a `sections` field of block types in EmDash. _Avoid_: Flexible content (outside WordPress code), layout builder
 
 **Design tokens**: The Tailwind-free CSS custom properties in `packages/ui/src/tokens.css` (font families, colours, Skins, spacing) that every Reference site can load, including Timber WordPress. The type scale is Tailwind classes in the UI package, not tokens. _Avoid_: Theme variables
 
