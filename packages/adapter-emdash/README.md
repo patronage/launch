@@ -12,7 +12,7 @@ const page = entry && createEmDashAdapter().toPage({ data: entry.data, slug });
 
 - Images in R2 resolve to `{serverUrl}/_emdash/api/media/file/{storageKey}` (`serverUrl` defaults to the same origin); `imageUrl` and `imageSrcset` rewrite them, as in the other adapters.
 - Portable Text covers paragraphs, headings (capped at `h2`), quotes, lists, decorators and links with safe schemes. Images go to `renderRichTextBlock`; other blocks are dropped.
-- Unknown block types and sections missing a required field are skipped.
+- Unknown block types and sections missing a required field are skipped. So are `form` sections: the app renders the forms plugin's form itself (see `apps/emdash`), using the exported `sectionOptions` for its frame.
 
 ## Fixtures
 
@@ -22,4 +22,4 @@ const page = entry && createEmDashAdapter().toPage({ data: entry.data, slug });
 curl -s -H "Authorization: Bearer $EMDASH_READ_TOKEN" http://localhost:4321/_emdash/api/content/pages/home
 ```
 
-These fixtures are not in `@launch/sections-preview`'s parity test: the EmDash seed leaves out forms, pull quotes and embeds, so its pages do not match the WordPress and Payload ones section for section.
+These fixtures are not in `@launch/sections-preview`'s parity test: the EmDash seed leaves out pull quotes and embeds, and its forms come from a plugin, so its pages do not match the WordPress and Payload ones section for section.

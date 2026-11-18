@@ -1,22 +1,28 @@
 ---
 /**
- * The document around every page: fonts, the shared stylesheet, and the site
- * title, tagline and `primary` menu from EmDash.
+ * The document around every page: fonts, the shared stylesheet, EmDash's SEO
+ * head (meta description, robots, canonical, Open Graph, Twitter cards and
+ * JSON-LD, with the entry's SEO panel overlaid), and the site title, tagline
+ * and `primary` menu.
  */
 import { FontLinks } from "@launch/ui";
 import { getMenu, getSiteSettings } from "emdash";
+import { createPublicPageContext } from "emdash/page";
+import { EmDashBodyEnd, EmDashBodyStart, EmDashHead } from "emdash/ui";
 
 import { SiteChrome } from "../components/site-chrome";
 import type { NavItem } from "../components/site-chrome";
 import "../styles/global.css";
 
 interface Props {
+  /** The page's own title; the home page leaves it out. */
   title?: string | undefined;
   description?: string | undefined;
-  noIndex?: boolean | undefined;
+  /** The content entry this page renders, so its SEO panel applies. */
+  content?: { collection: string; id: string; slug: string } | undefined;
 }
 
-const { title, description, noIndex } = Astro.props;
+const { title, description, content } = Astro.props;
 
 const [settings, primary] = await Promise.all([
   getSiteSettings(),
@@ -33,7 +39,24 @@ const menu: NavItem[] = (primary?.items ?? []).map((item) => ({
   newTab: item.target === "_blank",
 }));
 
-const pageTitle = title ? `${title} | ${siteTitle}` : siteTitle;
+const documentTitle = title ? `${title} | ${siteTitle}` : siteTitle;
+
+// The site URL setting, else the request's origin. Query strings, preview
+// tokens included, never reach the canonical URL.
+const siteUrl = settings.url || Astro.url.origin;
+
+const page = createPublicPageContext({
+  Astro,
+  canonical: content ? new URL(Astro.url.pathname, siteUrl).href : null,
+  content,
+  description: description ?? tagline ?? null,
+  kind: content ? "content" : "custom",
+  pageTitle: title ?? siteTitle,
+  pageType: "website",
+  siteName: siteTitle,
+  siteUrl,
+  title: documentTitle,
+});
 ---
 
 <!doctype html>
@@ -41,14 +64,15 @@ const pageTitle = title ? `${title} | ${siteTitle}` : siteTitle;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{pageTitle}</title>
-    <meta name="description" content={description ?? tagline ?? ""} />
-    {noIndex ? <meta name="robots" content="noindex" /> : null}
+    <title>{documentTitle}</title>
+    <EmDashHead page={page} />
     <FontLinks />
   </head>
   <body class="flex min-h-svh flex-col">
+    <EmDashBodyStart page={page} />
     <SiteChrome siteTitle={siteTitle} tagline={tagline} menu={menu}>
       <slot />
     </SiteChrome>
+    <EmDashBodyEnd page={page} />
   </body>
 </html>

@@ -15,17 +15,21 @@ description: EmDash, Cloudflare's CMS, rendering a Launch site in Astro with the
 | Publishing | Edits show once published; a cron trigger publishes scheduled entries |
 | Preview | EmDash's signed `_preview` link shows that one entry's draft, uncached |
 | Sign-in | Cloudflare Access on `/_emdash/*`, through EmDash's `access()` auth; the site stays public |
+| Redirects | EmDash's own: exact and pattern rules, 301s on slug changes, a 404 log |
+| SEO | Each entry's SEO panel, `<EmDashHead>` meta and JSON-LD, `/sitemap.xml` and `/robots.txt` |
+| Forms | `@emdash-cms/plugin-forms`, placed with a `form` section; submissions in the admin |
 
 ## Editing
 
 - **Hero**, on pages, in the same variants as WordPress and Payload.
 - **Sections**: a blocks field with content, content and media, media, card grid, blockquote and call to action blocks, each with the shared Section options.
 - **Rich text** is EmDash's Portable Text. The adapter renders paragraphs, headings, quotes, lists, marks, safe links and images.
+- **Forms** are built under Plugins > Forms and placed on a page with a `form` section.
 - **Menus and settings**: the site title, tagline and `primary` menu feed the header and footer.
 
 The schema and demo pages are code (`apps/emdash/seed/build.ts`), applied when a database is new.
 
 ## Not yet covered
 
-- Forms, pull quotes, embeds and buttons inside rich text.
+- Pull quotes, embeds and buttons inside rich text.
 - Page caching with EmDash's cache hints.

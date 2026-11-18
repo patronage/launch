@@ -1,6 +1,21 @@
 /* Tailwind entry: @launch/ui's tokens, theme and components, plus this app's files. */
 @import "@launch/ui/styles.css";
+@import "@emdash-cms/plugin-forms/styles";
 
 @source "../components";
 @source "../layouts";
 @source "../pages";
+
+/* The forms plugin's form, in the shared UI's tokens. */
+
+.launch-form .ec-form {
+  --ec-form-field-border: 1px solid var(--color-input);
+  --ec-form-field-radius: var(--radius-md);
+  --ec-form-field-bg: var(--color-background);
+  --ec-form-error-color: var(--color-destructive);
+  --ec-form-required-color: var(--color-destructive);
+  --ec-form-help-color: var(--color-muted-foreground);
+  --ec-form-submit-bg: var(--color-primary);
+  --ec-form-submit-color: var(--color-primary-foreground);
+  --ec-form-submit-radius: var(--radius-md);
+}

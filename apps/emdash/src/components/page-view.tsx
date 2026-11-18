@@ -6,7 +6,7 @@ const MEDIA_ROUTE = "/_emdash/api/media/file/";
 
 // Media resolve to EmDash's /_emdash/api/media/file/{key}, which sits behind
 // Access with the admin; src/pages/media serves the same files publicly.
-const adapter = createEmDashAdapter({
+export const adapter = createEmDashAdapter({
   imageUrl: (src) =>
     src.startsWith(MEDIA_ROUTE)
       ? `/media/${src.slice(MEDIA_ROUTE.length)}`
@@ -17,9 +17,14 @@ const adapter = createEmDashAdapter({
 interface Props {
   slug: string;
   data: EmDashPageData;
+  /** False after the page's first run, whose hero or first heading is the title. */
+  firstHeadingIsTitle?: boolean;
 }
 
 /** A page's hero and sections, through the shared content model. */
-export const PageView = ({ slug, data }: Props) => (
-  <PageSections page={adapter.toPage({ data, slug })} />
+export const PageView = ({ slug, data, firstHeadingIsTitle }: Props) => (
+  <PageSections
+    firstHeadingIsTitle={firstHeadingIsTitle}
+    page={adapter.toPage({ data, slug })}
+  />
 );

@@ -595,6 +595,78 @@
           "version": 1
         }
       ]
+    },
+    {
+      "category": "Page sections",
+      "currentVersion": 1,
+      "description": "A heading, rich text and a form",
+      "label": "Form",
+      "slug": "form",
+      "versions": [
+        {
+          "fields": [
+            {
+              "label": "Heading",
+              "slug": "heading",
+              "type": "string"
+            },
+            {
+              "label": "Body",
+              "slug": "body",
+              "type": "portableText"
+            },
+            {
+              "label": "Form slug (from Plugins > Forms)",
+              "slug": "form",
+              "type": "string",
+              "required": true
+            },
+            {
+              "label": "Skin",
+              "slug": "section_skin",
+              "type": "select",
+              "validation": {
+                "options": ["light", "dark", "accent"]
+              }
+            },
+            {
+              "label": "Width",
+              "slug": "section_width",
+              "type": "select",
+              "validation": {
+                "options": ["narrow", "default", "wide", "full"]
+              }
+            },
+            {
+              "label": "Padding top",
+              "slug": "section_padding_top",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Padding bottom",
+              "slug": "section_padding_bottom",
+              "type": "select",
+              "validation": {
+                "options": ["none", "sm", "md", "lg"]
+              }
+            },
+            {
+              "label": "Anchor",
+              "slug": "section_anchor",
+              "type": "string"
+            },
+            {
+              "label": "Hide this section",
+              "slug": "section_hidden",
+              "type": "boolean"
+            }
+          ],
+          "version": 1
+        }
+      ]
     }
   ],
   "collections": [
@@ -703,7 +775,8 @@
               "media",
               "card_grid",
               "blockquote",
-              "call_to_action"
+              "call_to_action",
+              "form"
             ],
             "maxItems": 30
           }
@@ -1111,7 +1184,7 @@
                       "_key": "k29",
                       "_type": "span",
                       "marks": [],
-                      "text": "The lot's address, who owns it if you know, and the names of five neighbors who will help. Email apply@example.org and we will set up a visit."
+                      "text": "The lot's address, who owns it if you know, and the names of five neighbors who will help. We read every application and set up a visit."
                     }
                   ],
                   "markDefs": [],
@@ -1119,6 +1192,34 @@
                 }
               ],
               "heading": "What we ask",
+              "section_hidden": false,
+              "section_padding_bottom": "md",
+              "section_padding_top": "md",
+              "section_skin": "light",
+              "section_width": "default"
+            },
+            {
+              "_key": "k34",
+              "_type": "form",
+              "_version": 1,
+              "body": [
+                {
+                  "_key": "k33",
+                  "_type": "block",
+                  "children": [
+                    {
+                      "_key": "k32",
+                      "_type": "span",
+                      "marks": [],
+                      "text": "Fields marked * are required."
+                    }
+                  ],
+                  "markDefs": [],
+                  "style": "normal"
+                }
+              ],
+              "form": "garden-application",
+              "heading": "Your application",
               "section_hidden": false,
               "section_padding_bottom": "md",
               "section_padding_top": "md",
@@ -1138,23 +1239,23 @@
           "hero_align": "center",
           "hero_body": [
             {
-              "_key": "k35",
+              "_key": "k38",
               "_type": "block",
               "children": [
                 {
-                  "_key": "k32",
+                  "_key": "k35",
                   "_type": "span",
                   "marks": [],
                   "text": "Everything a new garden needs in its first season, from a "
                 },
                 {
-                  "_key": "k33",
+                  "_key": "k36",
                   "_type": "span",
                   "marks": ["strong"],
                   "text": "soil test"
                 },
                 {
-                  "_key": "k34",
+                  "_key": "k37",
                   "_type": "span",
                   "marks": [],
                   "text": " to a watering rota."
@@ -1168,17 +1269,17 @@
           "hero_title": "Your first season",
           "sections": [
             {
-              "_key": "k42",
+              "_key": "k45",
               "_type": "content",
               "_version": 1,
               "align": "start",
               "body": [
                 {
-                  "_key": "k37",
+                  "_key": "k40",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k36",
+                      "_key": "k39",
                       "_type": "span",
                       "marks": [],
                       "text": "Before anything goes in the ground, send a soil sample to the county extension office. City lots often hold lead from old paint and fuel."
@@ -1188,11 +1289,11 @@
                   "style": "normal"
                 },
                 {
-                  "_key": "k39",
+                  "_key": "k42",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k38",
+                      "_key": "k41",
                       "_type": "span",
                       "marks": [],
                       "text": "Raised beds"
@@ -1202,11 +1303,11 @@
                   "style": "h3"
                 },
                 {
-                  "_key": "k41",
+                  "_key": "k44",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k40",
+                      "_key": "k43",
                       "_type": "span",
                       "marks": [],
                       "text": "Raised beds fix almost anything the test finds. Once they are built, set a watering rota before the first hot week."
@@ -1251,7 +1352,7 @@
           "hero_subhead": "Shared resources for every member garden, run by volunteers.",
           "sections": [
             {
-              "_key": "k43",
+              "_key": "k46",
               "_type": "card_grid",
               "_version": 1,
               "cards": [
@@ -1320,17 +1421,17 @@
           "hero_subhead": "Borrow seeds in spring and return saved seeds in fall, so the library grows every year.",
           "sections": [
             {
-              "_key": "k46",
+              "_key": "k49",
               "_type": "content",
               "_version": 1,
               "align": "start",
               "body": [
                 {
-                  "_key": "k45",
+                  "_key": "k48",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k44",
+                      "_key": "k47",
                       "_type": "span",
                       "marks": [],
                       "text": "Pick up to five packets each spring. In the fall, bring back seed saved from your best plants, labeled with the crop, variety and garden."
@@ -1348,17 +1449,17 @@
               "section_width": "default"
             },
             {
-              "_key": "k49",
+              "_key": "k52",
               "_type": "content",
               "_version": 1,
               "align": "start",
               "body": [
                 {
-                  "_key": "k48",
+                  "_key": "k51",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k47",
+                      "_key": "k50",
                       "_type": "span",
                       "marks": [],
                       "text": "The library lives in the shed at the Elm Street garden, open Saturday mornings from April to October."
@@ -1387,17 +1488,17 @@
           "title": "Tool share",
           "sections": [
             {
-              "_key": "k52",
+              "_key": "k55",
               "_type": "content",
               "_version": 1,
               "align": "start",
               "body": [
                 {
-                  "_key": "k51",
+                  "_key": "k54",
                   "_type": "block",
                   "children": [
                     {
-                      "_key": "k50",
+                      "_key": "k53",
                       "_type": "span",
                       "marks": [],
                       "text": "Reserve shovels, wheelbarrows and hoses for a work day. Pick up and return at the garden shed."
@@ -1448,6 +1549,23 @@
       ],
       "label": "Primary navigation",
       "name": "primary"
+    }
+  ],
+  "redirects": [
+    {
+      "destination": "/programs",
+      "source": "/gardens",
+      "type": 301
+    },
+    {
+      "destination": "/get-involved",
+      "source": "/volunteer",
+      "type": 302
+    },
+    {
+      "destination": "/guide",
+      "source": "/resources/[...path]",
+      "type": 301
     }
   ],
   "meta": {
