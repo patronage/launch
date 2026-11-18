@@ -18,11 +18,11 @@
  * only starts when a file under the app, packages/ or the workspace lockfile
  * changes.
  *
- * The build variables are copied onto the Builds trigger when it is created.
- * When an app later reads a new variable at build time, add it to the trigger
- * with `cf builds triggers environment-variables upsert <trigger-uuid>` (find
- * the trigger with `cf builds triggers list --external-script-id <tag>`), or
- * every Builds deploy sets it blank.
+ * The build variables are copied onto the Worker's build configuration when it
+ * is created. When an app later reads a new variable at build time, add it with
+ * `cf builds workers edit <script-tag> --production-settings-environment-variables`
+ * (and `--previews-base-config-environment-variables`), or every Builds deploy
+ * sets it blank.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -306,6 +306,7 @@ export const configureWorkersBuilds = async (
     "builds",
     "workers",
     "create",
+    body.script_tag,
     "--body",
     JSON.stringify(body),
     ...(dryRun ? ["--dry-run"] : []),

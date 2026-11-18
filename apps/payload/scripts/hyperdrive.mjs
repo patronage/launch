@@ -151,7 +151,7 @@ export const configureHyperdrive = (ctx) => {
 
   run(ctx, "pnpm", noCache);
   ctx.log(
-    `Query caching is off. Build the Worker with PAYLOAD_DB=postgres and HYPERDRIVE_ID=${id} (on an existing Workers Builds trigger, set them with cf builds triggers environment-variables upsert and rebuild; see the README).`
+    `Query caching is off. Build the Worker with PAYLOAD_DB=postgres and HYPERDRIVE_ID=${id} (on an existing Workers Builds configuration, set them with cf builds workers edit and rebuild; see the README).`
   );
 };
 

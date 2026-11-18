@@ -15,7 +15,7 @@ const credentials = {
 };
 
 describe(setSecrets, () => {
-  it("sends the set values to cf workers secrets bulk through stdin", async () => {
+  it("sends the set values to cf workers secrets bulk-edit through stdin", async () => {
     const ctx = testContext({
       env: { API_KEY: "key-value" },
       root: fakeRepo(worker),
@@ -29,7 +29,7 @@ describe(setSecrets, () => {
       "cf",
       "workers",
       "secrets",
-      "bulk",
+      "bulk-edit",
       "--worker",
       "site",
       "--secrets",

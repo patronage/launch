@@ -189,6 +189,14 @@ describe(configureWorkersBuilds, () => {
     await configureWorkersBuilds(ctx, { buildVariables: [], previews: false });
 
     expect(createBody(ctx).script_tag).toBe("site-tag");
+    // cf 1.0 takes the script tag as the create command's positional.
+    const create = ctx.spawnCalls.find((call) => call.args.includes("create"));
+    expect(create?.args.slice(2, 6)).toStrictEqual([
+      "builds",
+      "workers",
+      "create",
+      "site-tag",
+    ]);
   });
 
   it("asks for a first deploy when the Worker does not exist", async () => {
