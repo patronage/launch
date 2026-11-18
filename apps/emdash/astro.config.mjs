@@ -1,6 +1,7 @@
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import { access, d1, r2 } from "@emdash-cms/cloudflare";
+import { formsPlugin } from "@emdash-cms/plugin-forms";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
@@ -17,6 +18,8 @@ const teamDomain = process.env.ACCESS_TEAM_DOMAIN;
 /** @type {Parameters<typeof emdash>[0]} */
 const cms = {
   database: d1({ binding: "DB", session: "auto" }),
+  // Forms built in the admin, placed on pages with the `form` section.
+  plugins: [formsPlugin()],
   storage: r2({ binding: "MEDIA" }),
 };
 

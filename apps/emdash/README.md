@@ -4,17 +4,21 @@ A Launch site on [EmDash](https://github.com/emdash-cms/emdash), Cloudflare's As
 
 ```sh
 pnpm --filter @launch/emdash dev      # http://localhost:4321, local D1, R2 and KV (runs in the background)
-pnpm --filter @launch/emdash setup    # once, with dev running: applies the seed and signs you in
+pnpm --filter @launch/emdash setup    # once, with dev running: applies the seed and creates the demo form
 pnpm exec astro dev stop              # from this folder, to stop the dev server
 ```
 
-`dev` first writes `.env.local` with a random `EMDASH_PREVIEW_SECRET` if there is none. `setup` signs in through EmDash's dev bypass (only `astro dev` has it), which applies `seed/seed.json` to a fresh database. Local data lives in `.emdash/` and `.astro/`; delete them to start over.
+`dev` first writes `.env.local` with a random `EMDASH_PREVIEW_SECRET` if there is none. `setup` signs in through EmDash's dev bypass (only `astro dev` has it), which applies `seed/seed.json` to a fresh database. `setup` then creates the demo form through the forms plugin's admin API. Local data lives in `.cloudflare/state/`; stop the server and delete it to start over.
+
+To open the admin locally, go to http://localhost:4321/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin, which signs you in on the dev server only.
 
 ## Layout
 
 - `src/pages/[...slug].astro`: every page by slug; `/` is the `home` page, and `/home` redirects there with its query string (EmDash links the home page's preview to `/home`). `getEmDashEntry` returns the published values, or the draft for a valid preview link. `src/pages/404.astro` handles the rest.
 - `src/components/page-view.tsx`: the page's hero and sections, through `@launch/adapter-emdash` to `PageSections`. React renders on the server only; nothing hydrates.
-- `src/layouts/site.astro` and `src/components/site-chrome.tsx`: fonts, the stylesheet, and the header and footer with the site title, tagline and `primary` menu.
+- `src/layouts/site.astro` and `src/components/site-chrome.tsx`: fonts, the stylesheet, EmDash's SEO head, and the header and footer with the site title, tagline and `primary` menu.
+- `src/components/form-section.astro`, `form-section-frame.tsx` and `src/lib/runs.ts`: `form` sections. The page renders in runs split at each form section, so the plugin's Astro form sits between sections the shared UI draws.
+- `src/middleware.ts`: points the home page's sitemap entry at `/`.
 - `src/styles/global.css`: `@launch/ui`'s Tailwind entry, built with `@tailwindcss/vite`.
 - `src/pages/media/[...key].ts`: public media. It rewrites to EmDash's `/_emdash/api/media/file/{key}`, which refuses backup and staging keys.
 - `src/worker.ts`: EmDash's Worker entry, plus the scheduled handler that publishes scheduled entries.
@@ -29,7 +33,30 @@ pnpm --filter @launch/emdash seed:write
 
 `pnpm test` fails while `seed.json` is stale. Seed images download from `packages/demo-content/images` on GitHub (`raw.githubusercontent.com`), because EmDash refuses to fetch media from private addresses such as `localhost`. A new image only resolves once it is on `main`.
 
-A page has a hero (a variant plus the fields each variant draws, as in the Payload and WordPress models) and a `sections` field of these blocks, each with the shared Section options: `content`, `content_media`, `media`, `card_grid`, `blockquote` and `call_to_action`. Not yet modeled: forms, pull quotes, embeds and buttons inside rich text.
+A page has a hero (a variant plus the fields each variant draws, as in the Payload and WordPress models) and a `sections` field of these blocks, each with the shared Section options: `content`, `content_media`, `media`, `card_grid`, `blockquote`, `call_to_action` and `form`. Not yet modeled: pull quotes, embeds and buttons inside rich text.
+
+The seed also adds three example redirects: `/gardens` (301 to `/programs`), `/volunteer` (302 to `/get-involved`) and `/resources/[...path]` (301 to `/guide`).
+
+## Redirects
+
+EmDash's own redirects, managed in the admin under Redirects. They run in EmDash's middleware before any page:
+
+- 301, 302, 307, 308, 410 and 451.
+- Exact paths and Astro-style patterns (`[param]`, `[...rest]`). There are no regex patterns.
+- Changing a published entry's slug adds a 301 from the old URL.
+- Missed URLs go to a 404 log in the admin, to turn into redirects.
+
+## SEO
+
+- Each page has EmDash's SEO panel: title, description, social image, canonical and noindex.
+- `<EmDashHead>` in `src/layouts/site.astro` writes the meta description, robots, canonical, Open Graph and Twitter tags and JSON-LD, with the panel's values over the page's defaults. The canonical URL comes from the site URL setting, else the request's origin, and never carries a query string.
+- EmDash serves `/sitemap.xml` (with `/sitemap-pages.xml`) and `/robots.txt`, which disallows `/_emdash/`. Set the site URL under Settings so both use the production domain.
+
+## Forms
+
+[`@emdash-cms/plugin-forms`](https://www.npmjs.com/package/@emdash-cms/plugin-forms) builds forms in the admin (Plugins > Forms), validates and stores submissions (Plugins > Submissions), sends notifications and takes honeypot or Turnstile spam protection. A `form` section places a form on a page by its slug. The plugin renders the form with its own script; `src/styles/global.css` gives it the shared UI's colors and radii.
+
+The demo form, `garden-application`, is defined in `seed/form.ts` and sits on the Apply page. Email notifications need an email provider configured in EmDash; without one, submissions still land in the inbox.
 
 ## Previews
 

@@ -1,0 +1,17 @@
+---
+/** A `form` section: the forms plugin's form inside the shared section frame. */
+import type { EmDashFormBlock } from "@launch/adapter-emdash";
+import { Form } from "@emdash-cms/plugin-forms/ui";
+
+import { FormSectionFrame } from "./form-section-frame";
+
+interface Props {
+  section: EmDashFormBlock & { form: string };
+}
+
+const { section } = Astro.props;
+---
+
+<FormSectionFrame section={section}>
+  <Form id={section.form} />
+</FormSectionFrame>

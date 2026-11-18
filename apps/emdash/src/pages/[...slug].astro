@@ -7,7 +7,9 @@
 import type { EmDashPageData } from "@launch/adapter-emdash";
 import { getEmDashEntry } from "emdash";
 
+import FormSection from "../components/form-section.astro";
 import { PageView } from "../components/page-view";
+import { toRuns } from "../lib/runs";
 import Site from "../layouts/site.astro";
 
 const segments = Astro.params.slug?.split("/") ?? [];
@@ -44,12 +46,24 @@ const { seo } = data;
 <Site
   title={slug === "home" ? undefined : seo?.title || data.title}
   description={seo?.description || undefined}
-  noIndex={seo?.noIndex}
+  content={{ collection: "pages", id: entry.id, slug }}
 >
   {isPreview ? (
     <p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
       Preview: you are seeing unpublished changes.
     </p>
   ) : null}
-  <PageView slug={slug} data={data} />
+  {
+    toRuns(data).map((run) =>
+      run.kind === "form" ? (
+        <FormSection section={{ ...run.section, form: run.section.form ?? "" }} />
+      ) : (
+        <PageView
+          slug={slug}
+          data={run.data}
+          firstHeadingIsTitle={run.first ? undefined : false}
+        />
+      )
+    )
+  }
 </Site>

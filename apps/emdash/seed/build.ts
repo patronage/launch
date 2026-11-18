@@ -155,6 +155,14 @@ const blockTypes = [
       links(),
     ]
   ),
+  // The form itself is built under Plugins > Forms; this places it on a page.
+  blockType("form", "Form", "A heading, rich text and a form", [
+    field("heading", "Heading", "string"),
+    field("body", "Body", "portableText"),
+    field("form", "Form slug (from Plugins > Forms)", "string", {
+      required: true,
+    }),
+  ]),
 ];
 
 const SECTION_TYPES = blockTypes.map((type) => type.slug);
@@ -489,8 +497,14 @@ const content = {
       sections: [
         intro(
           "What we ask",
-          "The lot's address, who owns it if you know, and the names of five neighbors who will help. Email apply@example.org and we will set up a visit."
+          "The lot's address, who owns it if you know, and the names of five neighbors who will help. We read every application and set up a visit."
         ),
+        section("form", {
+          body: paragraph("Fields marked * are required."),
+          form: "garden-application",
+          heading: "Your application",
+          ...options(),
+        }),
       ],
     }),
     page("guide", "Starter guide", {
@@ -596,6 +610,12 @@ const seed = {
       label: "Primary navigation",
       name: "primary",
     },
+  ],
+  // Examples of EmDash's built-in redirects; editors manage them in the admin.
+  redirects: [
+    { destination: "/programs", source: "/gardens", type: 301 },
+    { destination: "/get-involved", source: "/volunteer", type: 302 },
+    { destination: "/guide", source: "/resources/[...path]", type: 301 },
   ],
   meta: {
     author: "Patronage",

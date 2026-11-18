@@ -31,3 +31,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0021](0021-payload-previews-on-one-preview-database.md) | Payload Previews share one PlanetScale `preview` branch: the shared copy in `public`, or the branch's own schema when it adds migrations; committed migrations name no schema |
 | [0022](0022-emdash-renders-the-site-in-astro.md) | EmDash renders its own site in Astro with `@launch/ui`'s sections, on one Worker; seed as code, native previews, Access for the admin, a cron for scheduled publishing |
 | [0023](0023-approval-is-opt-in.md) | The MCP gateway applies writes by default; `APPROVAL_REQUIRED=true` makes one deployment hold them for Approval |
+| [0024](0024-emdash-seo-redirects-and-forms.md) | EmDash uses its built-in redirects and SEO (`<EmDashHead>`, sitemaps, robots.txt) and `@emdash-cms/plugin-forms` through a `form` section |

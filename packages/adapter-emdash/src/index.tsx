@@ -90,7 +90,8 @@ const isKnownSection = (
 const text = (value: string | null | undefined): string | undefined =>
   value?.trim() || undefined;
 
-const sectionOptions = (value: EmDashSectionOptions): SectionOptions =>
+/** A section's options in the content model, for sections an app draws itself. */
+export const sectionOptions = (value: EmDashSectionOptions): SectionOptions =>
   compact({
     hidden: value.section_hidden === true,
     paddingBottom: toSpacing(value.section_padding_bottom),

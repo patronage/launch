@@ -146,6 +146,17 @@ export interface EmDashCallToActionBlock extends BlockBase<"call_to_action"> {
   links?: EmDashLink[];
 }
 
+/**
+ * A form from the forms plugin, placed by slug. The content model's form
+ * block is built for a CMS that hands over its fields, so the adapter skips
+ * this section and the app renders the plugin's own form.
+ */
+export interface EmDashFormBlock extends BlockBase<"form"> {
+  heading?: string;
+  body?: PortableText;
+  form?: string;
+}
+
 export type EmDashSection =
   | EmDashContentBlock
   | EmDashContentMediaBlock
