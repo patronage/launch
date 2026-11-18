@@ -3,26 +3,19 @@
  * `vite build` resolves it into Build Output, and the scripts read it from
  * there so names and bindings are never repeated.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod";
 
 import { ScriptError } from "./script.ts";
 
+/**
+ * Build Output v1, the only format cf 1.0 release candidates read. cf rejects
+ * the older v0 output, so a leftover v0 directory is ignored here too.
+ */
 export const BUILT_WORKER_CONFIG =
-  ".cloudflare/output/v0/workers/default/worker.config.json";
-
-/** Build Output v1, which cf 1.0 release candidates read (Astro's adapter writes it). */
-const BUILT_WORKER_CONFIG_V1 =
   ".cloudflare/output/v1/workers/default/worker.config.json";
-
-/** The built config's path: v0 when present, else v1. */
-const builtConfigPath = (root: string): string =>
-  existsSync(path.join(root, BUILT_WORKER_CONFIG)) ||
-  !existsSync(path.join(root, BUILT_WORKER_CONFIG_V1))
-    ? BUILT_WORKER_CONFIG
-    : BUILT_WORKER_CONFIG_V1;
 
 const workerConfigSchema = z
   .object({
@@ -42,7 +35,7 @@ export interface WorkerSummary {
 }
 
 export const readBuiltWorkerConfig = (root: string): WorkerConfig => {
-  const file = builtConfigPath(root);
+  const file = BUILT_WORKER_CONFIG;
   let text: string;
 
   try {

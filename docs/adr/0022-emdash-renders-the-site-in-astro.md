@@ -16,7 +16,7 @@ EmDash is Cloudflare's CMS, an Astro integration that runs on Workers with D1 an
 - Previews are EmDash's own: its signed `_preview` link renders that entry's draft, and only that entry, with `Cache-Control: private, no-store`.
 - Editors sign in through Access with EmDash's `access()` auth, configured when `ACCESS_TEAM_DOMAIN` is set at build time. The deploy script refuses to deploy without it. The Access application covers `/_emdash/*` only, so the site stays public. Pages link media at `/media/*`, which rewrites to EmDash's public file route.
 - A cron trigger runs every minute, which is how EmDash publishes scheduled entries on Workers.
-- The app uses `@astrojs/cloudflare` 15 (beta) and cf 1.0 rc, the first versions that configure an Astro Worker from `cloudflare.config.ts` with no Wrangler file ([ADR 0003](0003-cloudflare-config-through-cf-cli.md)). `@launch/worker-scripts` reads Build Output v1 when v0 is absent.
+- The app uses `@astrojs/cloudflare` 15 (beta) and cf 1.0 rc, the first versions that configure an Astro Worker from `cloudflare.config.ts` with no Wrangler file ([ADR 0003](0003-cloudflare-config-through-cf-cli.md)). `@launch/worker-scripts` reads Build Output v1 (since every app moved to cf 1.0.0-rc.1, which rejects v0, it reads only v1).
 - No Worker Previews, since a preview would share production's D1 database and R2 bucket.
 
 ## Consequences
