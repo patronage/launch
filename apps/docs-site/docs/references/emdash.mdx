@@ -11,13 +11,14 @@ description: EmDash, Cloudflare's CMS, rendering a Launch site in Astro with the
 | --- | --- |
 | Content | `getEmDashEntry` reads D1; `@launch/adapter-emdash` maps pages to the content model |
 | Rendering | `PageSections` and the site chrome from `@launch/ui`, rendered on the server; nothing hydrates |
-| Storage | D1 for content, R2 for media, served at `/_emdash/api/media/file/*` |
+| Storage | D1 for content, R2 for media, served publicly at `/media/*` |
 | Publishing | Edits show once published; a cron trigger publishes scheduled entries |
 | Preview | EmDash's signed `_preview` link shows that one entry's draft, uncached |
 | Sign-in | Cloudflare Access on `/_emdash/*`, through EmDash's `access()` auth; the site stays public |
 | Redirects | EmDash's own: exact and pattern rules, 301s on slug changes, a 404 log |
 | SEO | Each entry's SEO panel, `<EmDashHead>` meta and JSON-LD, `/sitemap.xml` and `/robots.txt` |
-| Forms | `@emdash-cms/plugin-forms`, placed with a `form` section; submissions in the admin |
+| Forms | `@emdash-cms/plugin-forms`, placed with a `form` section; submissions in the admin, posted to the public `/forms/submit` |
+| Email | Cloudflare Email Sending through EmDash's `cloudflareEmail` plugin, on when `EMAIL_FROM` is set at deploy; the sender's domain must be onboarded for Email Sending |
 
 ## Editing
 

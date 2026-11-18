@@ -57,7 +57,7 @@ EmDash's own redirects, managed in the admin under Redirects. They run in EmDash
 
 [`@emdash-cms/plugin-forms`](https://www.npmjs.com/package/@emdash-cms/plugin-forms) builds forms in the admin (Plugins > Forms), validates and stores submissions (Plugins > Submissions), sends notifications and takes honeypot or Turnstile spam protection. A `form` section places a form on a page by its slug. The plugin renders the form with its own script; `src/styles/global.css` gives it the shared UI's colors and radii.
 
-The demo form, `garden-application`, is defined in `seed/form.ts` and sits on the Apply page. Email notifications need an email provider configured in EmDash; without one, submissions still land in the inbox.
+The demo form, `garden-application`, is defined in `seed/form.ts` and sits on the Apply page. Email notifications go through Cloudflare Email Sending when `EMAIL_FROM` is set at deploy (see Deploying); without it, submissions still land in the inbox.
 
 ## Previews
 
@@ -75,6 +75,7 @@ It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configure
 
 - `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (required): EmDash signs editors in through the Cloudflare Access application, which must cover `/_emdash/*` and nothing else, so the site stays public (ADR 0011). The deploy refuses to run without them. Pages link media at `/media/{key}`, which `src/pages/media` hands to EmDash's file route, so images load outside Access. Forms post to `/forms/submit` for the same reason.
 - `WORKER_DOMAIN`: the custom domain; without it the Worker is on workers.dev.
+- `EMAIL_FROM`: the sender address for form notifications, magic links and invites. It turns on EmDash's Cloudflare email plugin and an `EMAIL` (`send_email`) binding limited to that address. Its domain must be onboarded for Cloudflare Email Sending. Without it, forms still save submissions but nothing is emailed.
 
 There are no Worker Previews: the D1 database and R2 bucket are shared, so a preview would edit production content. The bundle is about 5 MB gzipped, so it needs the Workers Paid plan.
 
