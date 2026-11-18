@@ -72,7 +72,7 @@ export const setSecrets = async (ctx: ScriptContext) => {
       "cf",
       "workers",
       "secrets",
-      "bulk",
+      "bulk-edit",
       "--worker",
       worker.name,
       "--secrets",

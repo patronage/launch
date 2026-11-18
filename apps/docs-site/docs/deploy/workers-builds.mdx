@@ -32,19 +32,22 @@ To keep a Worker's request logs, set `WORKER_LOGPUSH=true` before running `build
 
 The same goes for the other settings an app reads at build time: `WORKER_NAME`, `WORKER_DOMAIN`, and the `ACCESS_*` values (Payload's `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` turn on its Access sign-in and let the deployed admin create its first user). Set them before running `builds:configure`, or later builds fall back to the defaults.
 
-### Build variables live on the trigger
+### Build variables live on the build configuration
 
-`builds:configure` copies the build variables onto the Worker's Builds trigger once, when it creates it. Changing your shell or `cloudflare.config.ts` afterwards does not reach the trigger. When an app starts reading a new variable at build time, add it to the trigger, or every Builds deploy sets it blank:
+`builds:configure` copies the build variables onto the Worker's Builds configuration once, when it creates it. Changing your shell or `cloudflare.config.ts` afterwards does not reach it. When an app starts reading a new variable at build time, add it to the configuration, or every Builds deploy sets it blank:
 
 ```bash
-cf workers scripts search --name <worker>          # its "id" is the script tag
-cf builds triggers list --external-script-id <tag> # the production trigger's trigger_uuid
-cf builds triggers environment-variables list --trigger-uuid <uuid>
-cf builds triggers environment-variables upsert <uuid> --body '{"NAME":{"value":"…","is_secret":false}}'
-cf builds create <uuid> --branch main               # rebuild so the Worker picks it up
+cf workers scripts search --name <worker>   # its "id" is the script tag
+cf builds workers get <tag>                 # the current production and Preview settings
+cf builds workers edit <tag> \
+  --production-settings-environment-variables '{"NAME":{"value":"…","is_secret":false}}' \
+  --previews-base-config-environment-variables '{"NAME":{"value":"…","is_secret":false}}'
+cf builds create <tag> --branch main        # rebuild so the Worker picks it up
 ```
 
-The Builds commands take the script tag, not the Worker name. A Builds deploy shows up as `cf_cli` in the Worker's deployment list, the same as a deploy from a laptop, so check `cf builds list --external-script-id <tag>` to see which deploys came from Builds.
+`edit` merges the variables you pass into the existing ones; set one to `null` to delete it. Add `--patch-existing-previews true` to change Previews that already exist too.
+
+The Builds commands take the script tag, not the Worker name. A Builds deploy shows up as `cf_cli` in the Worker's deployment list, the same as a deploy from a laptop, so check `cf builds list --worker <tag>` to see which deploys came from Builds.
 
 Preview URLs are public by default. Put them behind Cloudflare Access along with the CMS.
 
