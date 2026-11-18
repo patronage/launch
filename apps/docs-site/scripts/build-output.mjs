@@ -2,8 +2,8 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-// Turn Blume's static build (dist/) into Cloudflare Build Output in
-// .cloudflare/output/, the format `cf deploy --prebuilt` and
+// Turn Blume's static build (dist/) into Cloudflare Build Output v1 in
+// .cloudflare/output/v1/, the format `cf deploy --prebuilt` and
 // `cf previews deploy --prebuilt` upload.
 //
 //   node scripts/build-output.mjs
@@ -49,6 +49,14 @@ await writeAssets({ root, sourceDirectory: path.join(root, "dist") });
 
 await writeWorkerConfig({ config: config.worker, root });
 
-await writeRootConfig(root, config.settings, ctx);
+// Account settings sit at the top level of cloudflare.config.ts; none are set
+// today, and writeRootConfig leaves them out when they are empty.
+const { accountId, complianceRegion } = config;
+
+await writeRootConfig({
+  buildContext: ctx,
+  root,
+  settings: { accountId, complianceRegion },
+});
 
 console.log(`Wrote Build Output for ${config.worker.name}`);
