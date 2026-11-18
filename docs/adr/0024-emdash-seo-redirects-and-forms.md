@@ -22,4 +22,4 @@ The EmDash site should have working redirects, SEO and forms, as the WordPress a
 - A page with form sections renders in runs. Section padding doesn't collapse across a form section.
 - Redirect patterns are Astro route patterns; regex rules from other systems must be rewritten.
 - The middleware buffers public HTML to rewrite those paths, so pages don't stream.
-- Email notifications need an email provider configured in EmDash before deploy.
+- Email goes through Cloudflare Email Sending (`@emdash-cms/cloudflare`'s email plugin) when `EMAIL_FROM` is set at deploy, so no third-party email account is needed.
