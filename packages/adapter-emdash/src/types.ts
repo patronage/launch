@@ -183,7 +183,11 @@ export interface EmDashPageData {
   hero_align?: string;
   hero_body?: PortableText;
   sections?: (EmDashSection | EmDashUnknownSection)[];
-  /** Set by EmDash's live loader (getEmDashEntry), not stored in the entry's fields. */
+  /**
+   * Set by EmDash's live loader (getEmDashEntry), not stored in the entry's
+   * fields: the database id (the entry's own `id` is its slug) and the SEO panel.
+   */
+  id?: string;
   seo?: EmDashSeo;
 }
 

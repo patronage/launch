@@ -13,6 +13,7 @@ The EmDash site should have working redirects, SEO and forms, as the WordPress a
 - Use EmDash's built-in redirects and SEO. No SEO plugin.
 - The layout renders `<EmDashHead>`, `<EmDashBodyStart>` and `<EmDashBodyEnd>` with a page context naming the entry, so the SEO panel and plugin contributions apply. The canonical URL is the site URL (or the request origin) plus the path, never the query string.
 - Forms use `@emdash-cms/plugin-forms`. A `form` section places a form by slug, and the plugin renders it, with its validation, spam protection and submission handling, inside the shared section frame. The content model's form block is not used for EmDash, because the plugin owns rendering and submission.
+- Public pages never point at `/_emdash`, which Access covers. Middleware moves media URLs (including `og:image`) to `/media/{key}` and form actions to `/forms/submit`, and both public routes rewrite to EmDash's own handlers.
 - The seed holds example redirects. The demo form can't be seeded, so `setup` creates it through the plugin's admin API.
 
 ## Consequences
@@ -20,4 +21,5 @@ The EmDash site should have working redirects, SEO and forms, as the WordPress a
 - Form styling comes from the plugin's stylesheet with the shared UI's tokens, so forms look close to, not identical to, the other sites' forms.
 - A page with form sections renders in runs. Section padding doesn't collapse across a form section.
 - Redirect patterns are Astro route patterns; regex rules from other systems must be rewritten.
+- The middleware buffers public HTML to rewrite those paths, so pages don't stream.
 - Email notifications need an email provider configured in EmDash before deploy.

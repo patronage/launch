@@ -46,7 +46,7 @@ const { seo } = data;
 <Site
   title={slug === "home" ? undefined : seo?.title || data.title}
   description={seo?.description || undefined}
-  content={{ collection: "pages", id: entry.id, slug }}
+  content={{ collection: "pages", id: data.id ?? entry.id, slug }}
 >
   {isPreview ? (
     <p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">

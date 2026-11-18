@@ -18,7 +18,8 @@ To open the admin locally, go to http://localhost:4321/_emdash/api/setup/dev-byp
 - `src/components/page-view.tsx`: the page's hero and sections, through `@launch/adapter-emdash` to `PageSections`. React renders on the server only; nothing hydrates.
 - `src/layouts/site.astro` and `src/components/site-chrome.tsx`: fonts, the stylesheet, EmDash's SEO head, and the header and footer with the site title, tagline and `primary` menu.
 - `src/components/form-section.astro`, `form-section-frame.tsx` and `src/lib/runs.ts`: `form` sections. The page renders in runs split at each form section, so the plugin's Astro form sits between sections the shared UI draws.
-- `src/middleware.ts`: points the home page's sitemap entry at `/`.
+- `src/middleware.ts`: points the home page's sitemap entry at `/`, and points public pages and sitemaps at `/media/{key}` and `/forms/submit` instead of paths under `/_emdash`, which Access covers. This includes `og:image` and form actions.
+- `src/pages/forms/submit.ts`: public form submissions. It rewrites to the forms plugin's public submit route.
 - `src/styles/global.css`: `@launch/ui`'s Tailwind entry, built with `@tailwindcss/vite`.
 - `src/pages/media/[...key].ts`: public media. It rewrites to EmDash's `/_emdash/api/media/file/{key}`, which refuses backup and staging keys.
 - `src/worker.ts`: EmDash's Worker entry, plus the scheduled handler that publishes scheduled entries.
@@ -72,7 +73,7 @@ pnpm --filter @launch/emdash run secrets            # EMDASH_PREVIEW_SECRET from
 
 It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configured in `cloudflare.config.ts` with D1 (`DB`), R2 (`MEDIA`), KV (`SESSION`), the Images binding and a cron trigger every minute for scheduled publishing. Set at build time:
 
-- `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (required): EmDash signs editors in through the Cloudflare Access application, which must cover `/_emdash/*` and nothing else, so the site stays public (ADR 0011). The deploy refuses to run without them. Pages link media at `/media/{key}`, which `src/pages/media` hands to EmDash's file route, so images load outside Access.
+- `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (required): EmDash signs editors in through the Cloudflare Access application, which must cover `/_emdash/*` and nothing else, so the site stays public (ADR 0011). The deploy refuses to run without them. Pages link media at `/media/{key}`, which `src/pages/media` hands to EmDash's file route, so images load outside Access. Forms post to `/forms/submit` for the same reason.
 - `WORKER_DOMAIN`: the custom domain; without it the Worker is on workers.dev.
 
 There are no Worker Previews: the D1 database and R2 bucket are shared, so a preview would edit production content. The bundle is about 5 MB gzipped, so it needs the Workers Paid plan.
