@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-11-13. Replaces the database part of [ADR 0007](0007-payload-single-app-on-d1.md); the rest of 0007 stands. [ADR 0021](0021-payload-previews-on-one-preview-database.md) adds Previews on Postgres.
+Accepted, 2026-11-13. Done 2026-11-18: production runs on `launch-payload/main`, and D1 is kept for rollback. Replaces the database part of [ADR 0007](0007-payload-single-app-on-d1.md); the rest of 0007 stands. [ADR 0021](0021-payload-previews-on-one-preview-database.md) adds Previews on Postgres.
 
 ## Context
 

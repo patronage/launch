@@ -1,6 +1,6 @@
 ---
 title: Payload
-description: Payload as one vinext app on Workers, on D1 or on Postgres on PlanetScale through Hyperdrive. The demo is moving to Postgres; D1 is the default for local work.
+description: Payload as one vinext app on Workers, on D1 or on Postgres on PlanetScale through Hyperdrive. The demo runs on Postgres; D1 is the default for local work.
 ---
 
 The Payload reference is a single app: the Payload admin, plus front-end pages that read content through Payload's Local API in the same Worker. There is no separate API call between the front-end and the CMS. It runs Payload 4 (beta) under vinext on Cloudflare Workers, with media in R2.
@@ -9,11 +9,11 @@ The Payload reference is a single app: the Payload admin, plus front-end pages t
 
 Launch supports both databases, chosen per site with `PAYLOAD_DB`: `d1` (the default) or `postgres`, which reaches Postgres on PlanetScale through Hyperdrive. Pick D1 for a small site that wants no other service. Pick Postgres for a larger site, for local copies of production content (`pnpm db:pull`), or for branch previews that can run their own migrations. The same collections, migrations and tests cover both.
 
-**Launch's own demo (2026-11-13):** production Payload runs on the PlanetScale Postgres database `launch-payload` through Hyperdrive, because that is how most Launch sites will run. Until the move is done, the live demo still runs on D1, the 2026-10-29 choice. D1 stays the default for local work, since it needs no Docker. See [ADR 0020](https://github.com/patronage/launch/blob/main/docs/adr/0020-payload-production-on-planetscale.md), which replaces the database part of [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
+**Launch's own demo (2026-11-13):** production Payload runs on the PlanetScale Postgres database `launch-payload` through Hyperdrive, because that is how most Launch sites will run. The live demo moved from D1 on 2026-11-18. D1 stays the default for local work, since it needs no Docker. See [ADR 0020](https://github.com/patronage/launch/blob/main/docs/adr/0020-payload-production-on-planetscale.md), which replaces the database part of [ADR 0007](https://github.com/patronage/launch/blob/main/docs/adr/0007-payload-single-app-on-d1.md).
 
 |  | D1 | Postgres through Hyperdrive |
 | --- | --- | --- |
-| Status | Supported; the default, and the demo's production until the move | Supported, `PAYLOAD_DB=postgres`; the demo's production after the move |
+| Status | Supported; the default for local work | Supported, `PAYLOAD_DB=postgres`; the demo's production |
 | Admin, uploads, drafts, REST and GraphQL | Pass | Pass |
 | Migrations on boot and the Payload CLI | Pass | Pass |
 | Extra work needed | None | A request-scoped connection pool (below) |
@@ -80,7 +80,7 @@ Metadata renders in `<head>` for every visitor. Next and vinext normally stream 
 
 ## Deployed
 
-The app runs as the Worker `launch-payload`, with its database (D1 until the move to PlanetScale) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default. On D1 they need their own D1 database. On Postgres they read the PlanetScale branch `preview` through its own Hyperdrive configuration: a branch that adds no migrations reads the shared copy in `public`, and one that adds migrations gets its own schema with that copy and its migrations (see [Branch previews on Postgres](#branch-previews-on-postgres)). The app's README covers the deploy, secrets and Workers Builds setup.
+The app runs as the Worker `launch-payload`, with its database (Postgres on PlanetScale since 2026-11-18) and R2 bucket. The first user can only be created on `localhost` or through Cloudflare Access, signed in with the same email, so a fresh deploy reached before Access protects it can't be claimed by someone else. Branch Previews are off by default. On D1 they need their own D1 database. On Postgres they read the PlanetScale branch `preview` through its own Hyperdrive configuration: a branch that adds no migrations reads the shared copy in `public`, and one that adds migrations gets its own schema with that copy and its migrations (see [Branch previews on Postgres](#branch-previews-on-postgres)). The app's README covers the deploy, secrets and Workers Builds setup.
 
 ### Branch previews on Postgres
 
