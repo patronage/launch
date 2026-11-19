@@ -1,6 +1,6 @@
 {
   "name": "@patronage/launch-logging",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Wide-event logging for Launch Workers with evlog, and provisioning for a site's log store: R2, Logpush jobs and a Basin Pipelines stream for WordPress.",
   "license": "MIT",
   "repository": {
