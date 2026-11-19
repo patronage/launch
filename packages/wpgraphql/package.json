@@ -1,6 +1,6 @@
 {
   "name": "@patronage/launch-wpgraphql",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A framework-neutral WPGraphQL transport for headless WordPress front-ends on Workers: Access service tokens and preview identity, persisted query IDs, WPGraphQL Smart Cache tags, typed errors and upstream timing.",
   "license": "MIT",
   "repository": {
