@@ -1,18 +1,38 @@
 {
-  "name": "@launch/images",
+  "name": "@patronage/launch-images",
   "version": "0.0.0",
-  "private": true,
-  "description": "Serves CMS images through the Cloudflare Images binding, so adapters' imageUrl option can point every image at one same-origin route.",
+  "description": "Serve CMS images through the Cloudflare Images binding from one same-origin route, with srcset helpers and a rewriter for CMS-rendered HTML.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/images"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
   "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "devDependencies": {
+    "tsdown": "0.23.7",
     "typescript": "7.0.2",
     "vitest": "catalog:"
   }

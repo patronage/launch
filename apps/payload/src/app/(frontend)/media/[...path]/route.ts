@@ -1,4 +1,4 @@
-import { serveImage, sourcePath } from "@launch/images";
+import { serveImage, sourcePath } from "@patronage/launch-images";
 import { REST_GET } from "@payloadcms/next/routes";
 import { env } from "cloudflare:workers";
 

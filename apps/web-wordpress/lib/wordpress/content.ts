@@ -1,8 +1,8 @@
+import { pathTag } from "@patronage/launch-wpgraphql";
 import { cache } from "react";
 
 import type { ContentFieldsFragment } from "@/gql/graphql";
 
-import { pathTag } from "./cache-tags";
 import { wpQuery } from "./client";
 import { ContentByUriQuery, PreviewContentQuery } from "./queries";
 

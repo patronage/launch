@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pathTag, smartCacheTags } from "./cache-tags";
+import { pathTag, smartCacheTags } from "./cache-tags.ts";
 
 describe(smartCacheTags, () => {
   it("keeps node, list and skipped keys, and drops keys every response has", () => {

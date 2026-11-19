@@ -1,16 +1,39 @@
 {
-  "name": "@patronage/logging",
+  "name": "@patronage/launch-logging",
   "version": "0.0.0",
-  "private": true,
   "description": "Wide-event logging for Launch Workers with evlog, and provisioning for a site's log store: R2, Logpush jobs and a Basin Pipelines stream for WordPress.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/logging"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/worker.ts",
     "./cloudflare": "./src/cloudflare.ts"
   },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/worker.d.ts",
+        "default": "./dist/worker.js"
+      },
+      "./cloudflare": {
+        "types": "./dist/cloudflare.d.ts",
+        "default": "./dist/cloudflare.js"
+      }
+    },
+    "access": "public"
+  },
   "scripts": {
+    "build": "tsdown",
     "logging:provision": "node scripts/provision-logging.ts",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -20,6 +43,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsdown": "0.23.7",
     "vitest": "catalog:"
   },
   "engines": {

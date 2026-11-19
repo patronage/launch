@@ -13,7 +13,7 @@ Launch is public and ships the plumbing. What reads the logs and what it conclud
 ## Decision
 
 - **One R2 bucket per site** holds every log, under `logpush/<dataset>/` for Cloudflare's logs and `events/<source>/` for events sent in.
-- **Workers use Logpush only.** Each Worker emits one evlog wide event per request as a JSON console line (`@patronage/logging`'s `withRequestLog`). Workers Trace Events Logpush, switched on with `WORKER_LOGPUSH=true` at deploy, copies those lines to R2. Workers get no logging binding, no drain and no Basin.
+- **Workers use Logpush only.** Each Worker emits one evlog wide event per request as a JSON console line (`@patronage/launch-logging`'s `withRequestLog`). Workers Trace Events Logpush, switched on with `WORKER_LOGPUSH=true` at deploy, copies those lines to R2. Workers get no logging binding, no drain and no Basin.
 - **Cloudflare's own logs use Logpush jobs** into the same bucket: `workers_trace_events`, `audit_logs_v2` and `access_requests` for the account, and `http_requests` and `firewall_events` per zone where the plan allows.
 - **WordPress on a host without Logpush uses Basin Pipelines.** The `patronage-logging` mu-plugin spools security events and, optionally, the host's log files, and a cron sends them to an authenticated Basin stream with a send-only token. The stream's sink writes gzipped JSON into the same bucket.
 - **Off unless configured.** With no Logpush job, no `WORKER_LOGPUSH` and no logging constants, every piece is a no-op apart from the console line Workers Logs already keep. Tests cover the unconfigured path.

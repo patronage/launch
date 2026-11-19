@@ -19,7 +19,7 @@ Everything is gzipped JSON, one record per line. The files can be queried in pla
 
 ## Workers: one wide event per request
 
-Each vinext app wraps its entry with `withRequestLog` from `@patronage/logging`. Every request then prints one JSON line with the service, method, path (without the query string), status, duration, ray ID, colo, country and ASN. Build assets are skipped. Errors and slow requests are always kept, even when you sample the healthy traffic.
+Each vinext app wraps its entry with `withRequestLog` from `@patronage/launch-logging`. Every request then prints one JSON line with the service, method, path (without the query string), status, duration, ray ID, colo, country and ASN. Build assets are skipped. Errors and slow requests are always kept, even when you sample the healthy traffic.
 
 Two fields help with performance:
 
@@ -59,7 +59,7 @@ Requests never wait on the network. Events go to a spool file, and a server cron
 1. **Create the bucket and jobs.** Run the provision script with an API token (see its README for the permissions it needs):
 
    ```bash
-   pnpm --filter @patronage/logging logging:provision --name <site> \
+   pnpm --filter @patronage/launch-logging logging:provision --name <site> \
      [--script <worker>]... [--no-account-logs] [--wordpress] [--zone <zone id>]
    ```
 

@@ -61,12 +61,12 @@ export interface WordPressAdapterOptions {
   imageUrl?: (src: string) => string;
   /**
    * A `srcset` for an image, given its URL after `imageUrl` and its original
-   * width, e.g. @launch/images' `imageSrcset`. Without it, images have none.
+   * width, e.g. @patronage/launch-images' `imageSrcset`. Without it, images have none.
    */
   imageSrcset?: (src: string, width?: number) => string | undefined;
   /**
    * Rewrites a link to an uploaded file, e.g. a PDF, to where visitors can
-   * reach it, such as @launch/images' media route. A URL it returns
+   * reach it, such as @patronage/launch-images' media route. A URL it returns
    * unchanged is made site-relative like any other CMS link.
    */
   mediaUrl?: (url: string) => string;

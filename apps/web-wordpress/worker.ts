@@ -2,7 +2,7 @@
 // evlog wide event as a JSON console line (packages/logging). Workers Logs keep
 // it for seven days; with WORKER_LOGPUSH=true at deploy, Workers Trace Events
 // Logpush also copies it to R2. Without that, nothing else changes.
-import { withRequestLog } from "@patronage/logging";
+import { withRequestLog } from "@patronage/launch-logging";
 import entry from "vinext/server/fetch-handler";
 
 export * from "vinext/server/fetch-handler";

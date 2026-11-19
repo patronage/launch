@@ -1,6 +1,6 @@
-# @patronage/logging
+# @patronage/launch-logging
 
-Logging for Launch's Workers and the provisioning for a site's log store. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
+Logging for Launch's Workers and the provisioning for a site's log store. The Worker wrapper and the Cloudflare helpers are on npm as `@patronage/launch-logging`; the `logging:provision` command runs only inside the Launch repo. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
 
 Logging is optional. With nothing configured, each Worker prints one JSON line per request to its console, and nothing else happens. Workers Logs keeps those lines for seven days when the Worker's `cloudflare.config.ts` turns observability on, as Launch's Workers do.
 
@@ -9,13 +9,13 @@ Logging is optional. With nothing configured, each Worker prints one JSON line p
 | `withRequestLog(entry, { service })` | Wrap a Worker's fetch entry (vinext's included) so every request emits one evlog wide event as a JSON console line: method, path without the query, status, duration, `cf-ray`, colo, country and ASN, plus `cache` (vinext's page cache result: `HIT`, `STALE` or `MISS`) and `upstream` totals. Build assets are skipped. Other handlers on the entry are kept. |
 | `timeUpstream(name, work)` | Time a call to an upstream and add it to the request's `upstream.<name>` as `{ calls, errors, ms }`. Outside a wrapped request it only runs `work`. |
 | `timedD1(binding, name?)` | Wrap a D1 binding so each query counts toward `upstream.d1` (or `name`). |
-| `@patronage/logging/cloudflare` | Idempotent Cloudflare API helpers behind the provisioning script: `ensureBucket`, `ensureLogpushJob`, `ensureWordPressStream`, and token helpers. |
+| `@patronage/launch-logging/cloudflare` | Idempotent Cloudflare API helpers behind the provisioning script: `ensureBucket`, `ensureLogpushJob`, `ensureWordPressStream`, and token helpers. |
 
 ## Wide events from a Worker
 
 ```ts
 // apps/<app>/worker.ts, named as `entrypoint` in cloudflare.config.ts
-import { withRequestLog } from "@patronage/logging";
+import { withRequestLog } from "@patronage/launch-logging";
 import entry from "vinext/server/fetch-handler";
 
 export * from "vinext/server/fetch-handler";
@@ -32,7 +32,7 @@ To keep events past seven days, deploy with `WORKER_LOGPUSH=true`. `cloudflare.c
 
 ```bash
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
-  pnpm --filter @patronage/logging logging:provision \
+  pnpm --filter @patronage/launch-logging logging:provision \
   --name demo [--script <worker>]... [--no-account-logs] \
   [--zone <zone id>] [--wordpress] [--dry-run]
 ```
