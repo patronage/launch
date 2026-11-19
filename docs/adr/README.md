@@ -11,7 +11,7 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0001](0001-public-reference-monorepo.md) | One public monorepo: no vendor code, no client references |
 | [0002](0002-plain-pnpm-workspaces.md) | Plain pnpm workspaces, exact pins, `minimumReleaseAge` 3h now and 72h as the goal |
 | [0003](0003-cloudflare-config-through-cf-cli.md) | No Wrangler files; `cloudflare.config.ts` plus cf CLI and API scripts |
-| [0004](0004-local-verification-and-workers-builds.md) | No GitHub Actions; `pnpm verify` locally, deploys and previews on Workers Builds |
+| [0004](0004-local-verification-and-workers-builds.md) | Superseded by 0025 |
 | [0005](0005-vinext-front-ends-on-workers.md) | vinext 1.4.x Front-ends on Workers; KV caching for WordPress; WPGraphQL, no REST Front-end |
 | [0006](0006-separate-wordpress-installs.md) | Separate headless and Timber WordPress installs |
 | [0007](0007-payload-single-app-on-d1.md) | Payload 4 as one app on the Local API, D1 by default, Postgres via Hyperdrive as an option |
@@ -32,3 +32,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0022](0022-emdash-renders-the-site-in-astro.md) | EmDash renders its own site in Astro with `@launch/ui`'s sections, on one Worker; seed as code, native previews, Access for the admin, a cron for scheduled publishing |
 | [0023](0023-approval-is-opt-in.md) | The MCP gateway applies writes by default; `APPROVAL_REQUIRED=true` makes one deployment hold them for Approval |
 | [0024](0024-emdash-seo-redirects-and-forms.md) | EmDash uses its built-in redirects and SEO (`<EmDashHead>`, sitemaps, robots.txt) and `@emdash-cms/plugin-forms` through a `form` section |
+| [0025](0025-npm-trusted-publishing.md) | Local verification and Workers Builds, with one manual GitHub Actions workflow for three npm packages |
