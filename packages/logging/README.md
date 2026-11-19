@@ -1,6 +1,6 @@
 # @patronage/logging
 
-Logging for Launch's Workers and the provisioning for a site's log store. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
+Logging for Launch's Workers and the provisioning for a site's log store. The Worker wrapper and the Cloudflare helpers are on npm as `@patronage/logging`; the `logging:provision` command runs only inside the Launch repo. See [ADR 0016](../../docs/adr/0016-logs-to-r2-through-logpush.md) for the decision and [`docs/spikes/43-logging-logpush.md`](../../docs/spikes/43-logging-logpush.md) for the evidence.
 
 Logging is optional. With nothing configured, each Worker prints one JSON line per request to its console, and nothing else happens. Workers Logs keeps those lines for seven days when the Worker's `cloudflare.config.ts` turns observability on, as Launch's Workers do.
 

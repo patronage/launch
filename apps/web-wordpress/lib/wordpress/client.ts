@@ -1,11 +1,16 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import { ACCESS_ASSERTION_HEADER } from "@patronage/access";
+import {
+  persistedQueryBody,
+  persistedQueryId,
+  readGraphQLData,
+  smartCacheTags,
+  WORDPRESS_CACHE_TAG,
+} from "@patronage/wpgraphql";
 import type { DocumentNode } from "graphql";
 import { cacheLife, cacheTag } from "next/cache";
 import { headers as incomingHeaders } from "next/headers";
-import { z } from "zod";
 
-import { smartCacheTags, WORDPRESS_CACHE_TAG } from "./cache-tags";
 import { wordpressEnv } from "./env";
 import { wordpressFetch } from "./fetch";
 
@@ -19,32 +24,13 @@ interface FetchOptions {
   tags?: string[];
 }
 
-interface GraphQLResponse<Result> {
-  data?: Result;
-  errors?: { message: string }[];
-}
-
 /**
  * WordPress runs only registered queries (persisted queries in Smart Cache's
  * "only allowed" mode), so requests carry the query ID alone. Codegen puts
  * the SHA-256 of each operation in its document; scripts/documents.ts
  * registers the same IDs with WordPress.
  */
-const PersistedDocument = z.object({
-  __meta__: z.object({ hash: z.string() }),
-});
-
-const queryId = (document: DocumentNode): string => {
-  const parsed = PersistedDocument.safeParse(document);
-
-  if (!parsed.success) {
-    throw new TypeError(
-      "GraphQL document has no persisted query hash; run `pnpm codegen`."
-    );
-  }
-
-  return parsed.data.__meta__.hash.replace(/^sha256:/u, "");
-};
+const queryId = (document: DocumentNode): string => persistedQueryId(document);
 
 const previewAuthorization = (): string => {
   const { previewUser, previewPassword } = wordpressEnv();
@@ -56,31 +42,6 @@ const previewAuthorization = (): string => {
   }
 
   return `Basic ${btoa(`${previewUser}:${previewPassword}`)}`;
-};
-
-/** Throws on an HTTP or GraphQL error, so an error is never cached. */
-const readData = async <Result>(response: Response): Promise<Result> => {
-  if (!response.ok) {
-    throw new Error(
-      `WPGraphQL answered ${response.status} ${response.statusText}`
-    );
-  }
-
-  // SAFETY: WPGraphQL always answers {data, errors}; data matches the typed
-  // document because codegen validated it against the same schema.
-  const body = (await response.json()) as GraphQLResponse<Result>;
-
-  if (body.errors?.length) {
-    throw new Error(
-      `WPGraphQL: ${body.errors.map((error) => error.message).join("; ")}`
-    );
-  }
-
-  if (!body.data) {
-    throw new Error("WPGraphQL returned no data");
-  }
-
-  return body.data;
 };
 
 // Pages revalidate hourly as a safety net for a missed purge; so does the data.
@@ -102,13 +63,14 @@ const cachedQuery = async (
   cacheLife(WORDPRESS_CACHE_LIFE);
 
   const response = await wordpressFetch(wordpressEnv().graphqlUrl, {
-    body: `{"queryId":${JSON.stringify(id)},"variables":${variablesJson}}`,
+    body: persistedQueryBody(id, variablesJson),
     cache: "no-store",
     headers: { "content-type": "application/json" },
     method: "POST",
   });
 
-  const data = await readData(response);
+  // Throws on an HTTP or GraphQL error, so an error is never cached.
+  const data = await readGraphQLData(response);
 
   cacheTag(
     WORDPRESS_CACHE_TAG,
@@ -163,5 +125,5 @@ export const wpQuery = async <
     requestHeaders.get(ACCESS_ASSERTION_HEADER)
   );
 
-  return readData<Result>(response);
+  return readGraphQLData<Result>(response);
 };

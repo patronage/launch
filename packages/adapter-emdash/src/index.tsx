@@ -50,7 +50,7 @@ export interface EmDashAdapterOptions {
   imageUrl?: (src: string) => string;
   /**
    * A `srcset` for an image, given its URL after `imageUrl` and its original
-   * width, e.g. @launch/images' `imageSrcset`. Without it, images have none.
+   * width, e.g. @patronage/images' `imageSrcset`. Without it, images have none.
    */
   imageSrcset?: (src: string, width?: number) => string | undefined;
   /** Slug of the page served at `/`. */

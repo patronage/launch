@@ -1,12 +1,12 @@
 import { createWordPressAdapter } from "@launch/adapter-wordpress";
 import type { Page } from "@launch/content-model";
+import { RichTextBlock } from "@launch/ui";
 import {
   imagePath,
   imageSrcset,
   mediaPath,
   rewriteMediaUrls,
-} from "@launch/images";
-import { RichTextBlock } from "@launch/ui";
+} from "@patronage/images";
 import type { ReactNode } from "react";
 import { createElement } from "react";
 

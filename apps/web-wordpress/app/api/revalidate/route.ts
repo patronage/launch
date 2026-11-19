@@ -1,7 +1,7 @@
+import { pathTag } from "@patronage/wpgraphql";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
-import { pathTag } from "@/lib/wordpress/cache-tags";
 import { wordpressEnv } from "@/lib/wordpress/env";
 import { secretMatches } from "@/lib/wordpress/secret";
 
@@ -16,7 +16,7 @@ const RevalidateRequest = z.object({
  * Called by the patronage-headless-revalidate mu-plugin when content is
  * published, edited, moved, unpublished or trashed: PUT {paths, tags} with
  * the shared secret in X-Headless-Secret-Key. Tags are WPGraphQL Smart Cache
- * keys (see lib/wordpress/cache-tags.ts); each path also expires its content
+ * keys (see `smartCacheTags` in @patronage/wpgraphql); each path also expires its content
  * read, which may hold a "not found" from before the post was published.
  */
 export const PUT = async (request: Request) => {

@@ -1,7 +1,7 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
+import { WORDPRESS_CACHE_TAG } from "@patronage/wpgraphql";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WORDPRESS_CACHE_TAG } from "./cache-tags";
 import { wpQuery } from "./client";
 
 const cache = vi.hoisted(() => ({

@@ -1,0 +1,51 @@
+{
+  "name": "@patronage/wpgraphql",
+  "version": "0.0.0",
+  "description": "A framework-neutral WPGraphQL transport for headless WordPress front-ends on Workers: Access service tokens and preview identity, persisted query IDs, WPGraphQL Smart Cache tags, typed errors and upstream timing.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/wpgraphql"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@patronage/access": "workspace:*",
+    "@patronage/logging": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "graphql": "17.1.0",
+    "tsdown": "0.23.7",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "graphql": ">=16"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

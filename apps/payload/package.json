@@ -28,10 +28,10 @@
   "dependencies": {
     "@launch/adapter-payload": "workspace:*",
     "@launch/content-model": "workspace:*",
-    "@launch/images": "workspace:*",
     "@launch/ui": "workspace:*",
     "@noble/hashes": "2.4.0",
     "@patronage/access": "workspace:*",
+    "@patronage/images": "workspace:*",
     "@patronage/logging": "workspace:*",
     "@payloadcms/db-d1-sqlite": "4.0.0-beta.8",
     "@payloadcms/db-postgres": "4.0.0-beta.8",
