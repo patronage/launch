@@ -68,6 +68,12 @@ describe(sourcePath, () => {
     expect(sourcePath(["2026", ".", "a.jpg"])).toBeNull();
     expect(sourcePath(["2026", "", "a.jpg"])).toBeNull();
   });
+
+  it("rejects a separator inside a segment", () => {
+    expect(sourcePath(["../../wp-config.php"])).toBeNull();
+    expect(sourcePath(["2026", "..\\a.jpg"])).toBeNull();
+    expect(sourcePath(["2026/10", "a.jpg"])).toBeNull();
+  });
 });
 
 describe(negotiateFormat, () => {

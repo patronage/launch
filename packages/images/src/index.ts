@@ -159,13 +159,20 @@ export const rewriteMediaUrls = (html: string, prefix: string): string =>
       tag.replaceAll(HREF_ATTRIBUTE, rewriteHref(prefix))
     );
 
+/** A separator inside one decoded segment, such as an encoded `%2F`. */
+const SEPARATOR = /[/\\]/u;
+
 /**
  * Joins route segments back into a path, rejecting empty, `.` and `..`
- * segments so a request cannot climb out of the media directory.
+ * segments, and segments with a separator of their own, so a request cannot
+ * climb out of the media directory.
  */
 export const sourcePath = (segments: readonly string[]): string | null =>
   segments.length > 0 &&
-  segments.every((segment) => segment && segment !== "." && segment !== "..")
+  segments.every(
+    (segment) =>
+      segment && segment !== "." && segment !== ".." && !SEPARATOR.test(segment)
+  )
     ? segments.map(encodeURIComponent).join("/")
     : null;
 
