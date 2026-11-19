@@ -125,5 +125,11 @@ jobs:
             echo "The downloaded tarball does not match the verified build" >&2
             exit 1
           fi
-          npm --version
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+              console.error(`npm ${process.argv[1]} cannot use Trusted Publishing; it needs 11.5.1 or later`);
+              process.exit(1);
+            }
+          ' "$(npm --version)"
           npm publish "$tarball" --ignore-scripts --access public --registry=https://registry.npmjs.org/

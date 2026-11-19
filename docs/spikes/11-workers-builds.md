@@ -8,7 +8,7 @@ Live. Workers Builds builds and deploys `apps/web-wordpress`, `apps/payload` and
 
 ## How it works
 
-There are no GitHub Actions in this repo. Each deployable app is its own Worker with its own Workers Builds configuration:
+GitHub Actions plays no part in builds or deploys; its one workflow publishes three npm packages (see [ADR 0025](../adr/0025-npm-trusted-publishing.md)). Each deployable app is its own Worker with its own Workers Builds configuration:
 
 | Setting | Value |
 | --- | --- |
