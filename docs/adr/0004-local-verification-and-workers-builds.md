@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-10-29.
+Superseded by [ADR 0025](0025-npm-trusted-publishing.md).
 
 ## Context
 

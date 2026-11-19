@@ -12,7 +12,7 @@ A procedure an unattended agent can follow once a week to move Launch's npm and 
 - **pnpm stays where it is.** Don't take a `packageManager` bump (root and `.deepsec/package.json`). Workers Builds reads `PNPM_VERSION` from it only when `builds:configure` runs, which this procedure never does. Revert it after `deps:update` and keep `.deepsec/Dockerfile`'s `corepack prepare pnpm@…` matching.
 - **No WordPress plugin release.** Never change a `Version:` header or any `wordpress-shared/*/composer.json`. `pnpm wp:release --check` (inside `pnpm test`) proves it. `wordpress-shared/*/package.json` isn't in the plugin zips, so it may change.
 - **Changeset, never a release.** If `src/` or `package.json` changes in `@patronage/access` or an `@patronage/mcp-*` package, add a patch changeset. Never run `changeset version`, `changeset publish`, `pnpm release`, tag, or create a GitHub release.
-- **Never deploy.** No `pnpm run deploy`, `pnpm run secrets`, `cf deploy`, `builds:configure`. No Wrangler config files, nothing under `.github/`.
+- **Never deploy.** No `pnpm run deploy`, `pnpm run secrets`, `cf deploy`, `builds:configure`. No Wrangler config files, nothing under `.github/`. The npm publish workflow's action SHAs and `node-version` are updated by hand in their own PR, keeping Node on the `.nvmrc` major.
 - **Never commit** `vendor/`, `wp-content/plugins/`, `composer-libs/`, `.env*`, `.dev.vars`, evidence or `.state/`.
 
 ## Current holds

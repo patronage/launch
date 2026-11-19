@@ -1,0 +1,135 @@
+name: Publish a Launch npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Launch package
+        required: true
+        type: choice
+        options:
+          - launch-images
+          - launch-logging
+          - launch-wpgraphql
+      version:
+        description: Exact stable version on main
+        required: true
+        type: string
+      publish:
+        description: Publish to npm (unchecked runs a dry run)
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: npm-publish-${{ inputs.package }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'patronage/launch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.3"
+          package-manager-cache: false
+      - name: Verify Launch
+        run: |
+          corepack enable pnpm
+          pnpm verify
+      - name: Pack and check the selected release
+        id: pack
+        shell: bash
+        env:
+          PACKAGE: ${{ inputs.package }}
+          VERSION: ${{ inputs.version }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          case "$PACKAGE" in
+            launch-images) package_dir=packages/images ;;
+            launch-logging) package_dir=packages/logging ;;
+            launch-wpgraphql) package_dir=packages/wpgraphql ;;
+            *) echo "Unsupported package" >&2; exit 1 ;;
+          esac
+          export PACKAGE_DIR="$package_dir"
+          node --input-type=module <<'JS'
+          import { readFileSync } from "node:fs";
+          const expected = `@patronage/${process.env.PACKAGE}@${process.env.VERSION}`;
+          const pkg = JSON.parse(readFileSync(`${process.env.PACKAGE_DIR}/package.json`));
+          const actual = `${pkg.name}@${pkg.version}`;
+          if (expected !== actual || !/^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){2}$/.test(pkg.version) ||
+              pkg.private || pkg.publishConfig?.access !== "public") {
+            throw new Error(`Requested public release ${expected}, found ${actual}`);
+          }
+          JS
+          tarball="$RUNNER_TEMP/package.tgz"
+          pnpm --dir "$package_dir" pack --out "$tarball"
+          if [[ "$PUBLISH" == true ]]; then
+            tar -xOzf "$tarball" package/package.json | node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const pkg = JSON.parse(readFileSync(0));
+              for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
+                if (!name.startsWith("@patronage/")) continue;
+                const url = `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
+                const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+                if (!response.ok || (await response.json()).version !== version) {
+                  throw new Error(`Publish required dependency ${name}@${version} first`);
+                }
+              }
+            '
+          fi
+          npm publish "$tarball" --dry-run --ignore-scripts --access public --registry=https://registry.npmjs.org/
+          printf 'sha256=%s\n' "$(sha256sum "$tarball" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: inputs.publish
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/package.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: inputs.publish && github.repository == 'patronage/launch' && github.ref == 'refs/heads/main'
+    needs: prepare
+    runs-on: ubuntu-24.04
+    environment: npm-release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.3"
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/npm-package
+      - name: Publish the verified tarball
+        shell: bash
+        env:
+          DIGEST: ${{ needs.prepare.outputs.sha256 }}
+        run: |
+          tarball="$RUNNER_TEMP/npm-package/package.tgz"
+          actual_digest="$(sha256sum "$tarball" | cut -d ' ' -f 1)"
+          if [[ "$actual_digest" != "$DIGEST" ]]; then
+            echo "The downloaded tarball does not match the verified build" >&2
+            exit 1
+          fi
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+              console.error(`npm ${process.argv[1]} cannot use Trusted Publishing; it needs 11.5.1 or later`);
+              process.exit(1);
+            }
+          ' "$(npm --version)"
+          npm publish "$tarball" --ignore-scripts --access public --registry=https://registry.npmjs.org/
