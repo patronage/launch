@@ -6,7 +6,7 @@ import {
   readGraphQLData,
   smartCacheTags,
   WORDPRESS_CACHE_TAG,
-} from "@patronage/wpgraphql";
+} from "@patronage/launch-wpgraphql";
 import type { DocumentNode } from "graphql";
 import { cacheLife, cacheTag } from "next/cache";
 import { headers as incomingHeaders } from "next/headers";

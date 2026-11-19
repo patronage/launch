@@ -2,7 +2,7 @@ import { createPayloadAdapter } from "@launch/adapter-payload";
 import type { Image } from "@launch/content-model";
 import { compact } from "@launch/content-model";
 import { RichTextBlock } from "@launch/ui";
-import { imagePath, imageSrcset } from "@patronage/images";
+import { imagePath, imageSrcset } from "@patronage/launch-images";
 import { createElement } from "react";
 
 import type { Media } from "@/payload-types";

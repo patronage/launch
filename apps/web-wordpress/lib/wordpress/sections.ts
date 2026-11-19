@@ -6,7 +6,7 @@ import {
   imageSrcset,
   mediaPath,
   rewriteMediaUrls,
-} from "@patronage/images";
+} from "@patronage/launch-images";
 import type { ReactNode } from "react";
 import { createElement } from "react";
 

@@ -21,12 +21,12 @@ pnpm --filter web-wordpress run builds:configure   # point Workers Builds at thi
 
 ## Layout
 
-- `app/[[...slug]]/page.tsx`: every published page and post, looked up by URI. Cached (ISR) until WordPress revalidates it, with an hourly fallback. Public reads are `"use cache"` entries tagged with WPGraphQL Smart Cache keys (`lib/wordpress/client.ts`, with the tags from `@patronage/wpgraphql`), so an edit expires only the pages that used the changed post; GraphQL errors are never cached. See [Cache tags](../cms-wordpress-headless/README.md#cache-tags).
+- `app/[[...slug]]/page.tsx`: every published page and post, looked up by URI. Cached (ISR) until WordPress revalidates it, with an hourly fallback. Public reads are `"use cache"` entries tagged with WPGraphQL Smart Cache keys (`lib/wordpress/client.ts`, with the tags from `@patronage/launch-wpgraphql`), so an edit expires only the pages that used the changed post; GraphQL errors are never cached. See [Cache tags](../cms-wordpress-headless/README.md#cache-tags).
 - `app/preview/[id]/page.tsx`: drafts and unsaved changes, only in draft mode.
 - `app/api/revalidate`, `app/api/preview`, `app/api/exit-preview`: the routes WordPress calls or links to.
 - `app/forms/submit`: where form sections post `{ formId, values }`. It caps the body size, checks the shape and passes the values to the theme's Formidable route with the shared secret; WordPress checks each value against its field and saves the entry (see [Forms](../cms-wordpress-headless/README.md#forms)).
 - `lib/wordpress/`: the GraphQL client, queries and preview-token check.
-- `app/media/[...path]`: WordPress uploads, resized by the Cloudflare Images binding (`@patronage/images`). vinext's `/_next/image` only resizes files in `public/` on Workers, so the adapter's `imageUrl` points every upload here instead.
+- `app/media/[...path]`: WordPress uploads, resized by the Cloudflare Images binding (`@patronage/launch-images`). vinext's `/_next/image` only resizes files in `public/` on Workers, so the adapter's `imageUrl` points every upload here instead.
 - `lib/wordpress/sections.ts` and `components/content-view.tsx`: a page or post's hero and a page's Page Builder sections go through `@launch/adapter-wordpress` to `PageSections` from `@launch/ui`, with rich-text blocks drawn by its `RichTextBlock`. Without a hero, the title heads the page; block editor HTML follows when there are no sections.
 
 ## GraphQL types and registered queries

@@ -1,4 +1,4 @@
-import { pathTag } from "@patronage/wpgraphql";
+import { pathTag } from "@patronage/launch-wpgraphql";
 import { cache } from "react";
 
 import type { ContentFieldsFragment } from "@/gql/graphql";

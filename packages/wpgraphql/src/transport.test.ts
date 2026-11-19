@@ -1,4 +1,4 @@
-import { withRequestLog } from "@patronage/logging";
+import { withRequestLog } from "@patronage/launch-logging";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWordPressFetch } from "./transport.ts";

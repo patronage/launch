@@ -1,4 +1,4 @@
-import { sourcePath, serveImage } from "@patronage/images";
+import { sourcePath, serveImage } from "@patronage/launch-images";
 import { env } from "cloudflare:workers";
 
 import { wordpressEnv } from "@/lib/wordpress/env";

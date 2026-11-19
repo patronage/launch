@@ -1,5 +1,5 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
-import { WORDPRESS_CACHE_TAG } from "@patronage/wpgraphql";
+import { WORDPRESS_CACHE_TAG } from "@patronage/launch-wpgraphql";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { wpQuery } from "./client";

@@ -1,4 +1,4 @@
-import { timedD1 } from "@patronage/logging";
+import { timedD1 } from "@patronage/launch-logging";
 import { env } from "cloudflare:workers";
 import type { Config } from "payload";
 

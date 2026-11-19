@@ -353,10 +353,10 @@ importers:
       '@patronage/access':
         specifier: workspace:*
         version: link:../../packages/access
-      '@patronage/images':
+      '@patronage/launch-images':
         specifier: workspace:*
         version: link:../../packages/images
-      '@patronage/logging':
+      '@patronage/launch-logging':
         specifier: workspace:*
         version: link:../../packages/logging
       '@payloadcms/db-d1-sqlite':
@@ -495,13 +495,13 @@ importers:
       '@patronage/access':
         specifier: workspace:*
         version: link:../../packages/access
-      '@patronage/images':
+      '@patronage/launch-images':
         specifier: workspace:*
         version: link:../../packages/images
-      '@patronage/logging':
+      '@patronage/launch-logging':
         specifier: workspace:*
         version: link:../../packages/logging
-      '@patronage/wpgraphql':
+      '@patronage/launch-wpgraphql':
         specifier: workspace:*
         version: link:../../packages/wpgraphql
       '@vinext/cloudflare':
@@ -950,7 +950,7 @@ importers:
       '@patronage/access':
         specifier: workspace:*
         version: link:../access
-      '@patronage/logging':
+      '@patronage/launch-logging':
         specifier: workspace:*
         version: link:../logging
       zod:

@@ -4,7 +4,7 @@ import {
   verifyAccessJwt,
 } from "@patronage/access";
 import type { AccessFetchOptions } from "@patronage/access";
-import { timeUpstream } from "@patronage/logging";
+import { timeUpstream } from "@patronage/launch-logging";
 
 /** Where WordPress is and how to get past Cloudflare Access to reach it. */
 export interface WordPressTransportConfig {
@@ -49,7 +49,7 @@ const TRAILING_SLASH = /\/+$/u;
  * - For previews, verifies the editor's Access JWT and forwards it with a
  *   gateway proof (the patronage-access mu-plugin's contract).
  * - Counts each request toward `upstream.<name>` (default `wordpress`) on
- *   the request's wide event from `@patronage/logging`. A 5xx counts as an
+ *   the request's wide event from `@patronage/launch-logging`. A 5xx counts as an
  *   error; callers still check the status themselves.
  */
 export const createWordPressFetch = (

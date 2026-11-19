@@ -1,4 +1,4 @@
-# @patronage/images
+# @patronage/launch-images
 
 Serves CMS images from a front-end's own origin through the [Cloudflare Images binding](https://developers.cloudflare.com/images/transform-images/bindings/). vinext's `/_next/image` only resizes files in `public/` on Workers, so CMS media (WordPress uploads, Payload media in R2) goes through one route instead: `/media/<path below the uploads folder>?w=<width>`.
 
@@ -14,7 +14,7 @@ Serves CMS images from a front-end's own origin through the [Cloudflare Images b
 
 ```ts
 // worker.ts, before handing the request to vinext
-import { IMAGE_ROUTE, serveImage, sourcePath } from "@patronage/images";
+import { IMAGE_ROUTE, serveImage, sourcePath } from "@patronage/launch-images";
 
 if (url.pathname.startsWith(`${IMAGE_ROUTE}/`)) {
   const path = sourcePath(

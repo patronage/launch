@@ -67,7 +67,7 @@ Secure Custom Fields is the GPL fork of ACF that includes the field types the Pa
 | Concern | WordPress side | Front-end side |
 | --- | --- | --- |
 | Content | WPGraphQL at `/graphql` | `lib/wordpress/client.ts`, typed by codegen |
-| Revalidation | mu-plugin sends `PUT /api/revalidate/` with `{paths, tags}` and `X-Headless-Secret-Key`; the theme adds every key Smart Cache purges as a tag (`inc/cache-tags.php`) | reads are tagged with their `X-GraphQL-Keys` (`smartCacheTags` in `@patronage/wpgraphql`); `app/api/revalidate/route.ts` calls `revalidateTag` and `revalidatePath` |
+| Revalidation | mu-plugin sends `PUT /api/revalidate/` with `{paths, tags}` and `X-Headless-Secret-Key`; the theme adds every key Smart Cache purges as a tag (`inc/cache-tags.php`) | reads are tagged with their `X-GraphQL-Keys` (`smartCacheTags` in `@patronage/launch-wpgraphql`); `app/api/revalidate/route.ts` calls `revalidateTag` and `revalidatePath` |
 | Locked queries | Smart Cache in "only allowed" mode; the theme registers `graphql-documents.json` on the next request after it changes, or with `wp patronage-headless documents` | requests send only `{queryId, variables}`; `pnpm --filter web-wordpress documents` writes the manifest |
 | Preview | theme rewrites the Preview link to `/api/preview/?token=…`, an HMAC of the post ID and an expiry | `app/api/preview/route.ts` checks it, enables draft mode, renders `/preview/<id>/` with the application password and the `X-GraphQL-Preview` header |
 
