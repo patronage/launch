@@ -1,5 +1,11 @@
 # @patronage/launch-images
 
+## 0.1.1
+
+### Patch Changes
+
+- f1edbf7: `sourcePath` rejects a segment that contains a `/` or `\` of its own.
+
 ## 0.1.0
 
 ### Minor Changes
