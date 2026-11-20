@@ -2,11 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ImagesBinding } from ".";
 import {
+  cropSrc,
+  formatGravity,
   imagePath,
   imageSrcset,
+  imageTransform,
   negotiateFormat,
   rewriteMediaUrls,
   serveImage,
+  signedCropSrc,
   sourcePath,
 } from ".";
 
@@ -52,6 +56,140 @@ describe(imageSrcset, () => {
     expect(imageSrcset("/media/logo.svg", 300)).toBeUndefined();
     expect(imageSrcset("https://elsewhere.example/a.jpg", 300)).toBeUndefined();
     expect(imageSrcset("/api/media/file/a.jpg", 300)).toBeUndefined();
+  });
+});
+
+describe(cropSrc, () => {
+  it("adds the ratio and a canonical gravity", () => {
+    expect(
+      cropSrc("/media/beds.jpg", {
+        gravity: { x: 0.504, y: 0.3 },
+        ratio: "3:2",
+      })
+    ).toBe("/media/beds.jpg?ar=3%3A2&g=0.5x0.3");
+    expect(cropSrc("/media/beds.jpg?v=2", { ratio: "1:1" })).toBe(
+      "/media/beds.jpg?v=2&ar=1%3A1"
+    );
+  });
+});
+
+describe(formatGravity, () => {
+  it("clamps and rounds coordinates", () => {
+    expect(formatGravity({ x: -1, y: 1.4 })).toBe("0x1");
+    expect(formatGravity({ x: 0.125, y: 0.999 })).toBe("0.13x1");
+    expect(formatGravity("face")).toBe("face");
+  });
+});
+
+describe("imageSrcset for crops", () => {
+  it("offers only widths the crop fills without enlarging", () => {
+    const src = cropSrc("/media/beds.jpg", { ratio: "3:2" });
+
+    // 2000 x 800 fits a 3:2 crop 1200 wide.
+    expect(imageSrcset(src, 2000, 800)).toBe(
+      `${src}&w=480 480w, ${src}&w=768 768w, ${src}&w=1024 1024w`
+    );
+  });
+
+  it("offers the narrowest width for a small original", () => {
+    const src = cropSrc("/media/a.jpg", { ratio: "1:1" });
+
+    expect(imageSrcset(src, 300, 300)).toBe(`${src}&w=480 480w`);
+  });
+
+  it("offers every width when the original's size is unknown", () => {
+    const src = cropSrc("/media/a.jpg", { ratio: "1:1" });
+
+    expect(imageSrcset(src)?.split(", ")).toHaveLength(5);
+  });
+});
+
+const at = (query: string) =>
+  new Request(`https://site.example/media/2026/10/a.jpg${query}`);
+
+describe(imageTransform, () => {
+  it("resizes without a crop", async () => {
+    await expect(imageTransform(at("?w=768"))).resolves.toStrictEqual({
+      fit: "scale-down",
+      width: 768,
+    });
+  });
+
+  it("crops to a ratio around a point, centered in the crop", async () => {
+    await expect(
+      imageTransform(at("?w=768&ar=3:2&g=0.25x0.7"))
+    ).resolves.toStrictEqual({
+      fit: "cover",
+      gravity: { mode: "box-center", x: 0.25, y: 0.7 },
+      height: 512,
+      width: 768,
+    });
+  });
+
+  it("crops from the center or by saliency", async () => {
+    await expect(imageTransform(at("?w=480&ar=16:9"))).resolves.toStrictEqual({
+      fit: "cover",
+      height: 270,
+      width: 480,
+    });
+    await expect(
+      imageTransform(at("?w=480&ar=1:1&g=auto"))
+    ).resolves.toMatchObject({ gravity: "auto" });
+  });
+
+  it.each([
+    ["a gravity without a ratio", "?g=0.5x0.5"],
+    ["a ratio outside the set", "?ar=7:3"],
+    ["a malformed ratio", "?ar=3x2"],
+    ["a non-canonical point", "?ar=1:1&g=0.50x0.5"],
+    ["a point outside the image", "?ar=1:1&g=1.2x0.5"],
+    ["an unknown gravity", "?ar=1:1&g=entropy"],
+    ["a width outside the set", "?w=500&ar=1:1"],
+  ])("refuses %s", async (_name, query) => {
+    await expect(imageTransform(at(query))).resolves.toBeNull();
+  });
+
+  it("takes another set of ratios", async () => {
+    await expect(
+      imageTransform(at("?ar=7:3"), { ratios: ["7:3"] })
+    ).resolves.toMatchObject({ height: 686, width: 1600 });
+  });
+
+  describe("with a signing key", () => {
+    const key = "test-signing-key";
+    const crop = { gravity: { x: 0.4, y: 0.2 }, ratio: "3:2" } as const;
+
+    it("accepts a signed crop at any route width", async () => {
+      const src = await signedCropSrc("/media/2026/10/a.jpg", crop, key);
+
+      await expect(
+        imageTransform(at(`${src.slice(src.indexOf("?"))}&w=480`), {
+          signingKey: key,
+        })
+      ).resolves.toMatchObject({ fit: "cover", width: 480 });
+    });
+
+    it("refuses an unsigned, altered or foreign crop", async () => {
+      const src = await signedCropSrc("/media/2026/10/a.jpg", crop, key);
+      const query = src.slice(src.indexOf("?"));
+      const other = await signedCropSrc("/media/2026/10/b.jpg", crop, key);
+
+      const results = await Promise.all(
+        [
+          "?ar=3:2&g=0.4x0.2",
+          query.replace("0.4x0.2", "0.5x0.2"),
+          other.slice(other.indexOf("?")),
+        ].map((attempt) => imageTransform(at(attempt), { signingKey: key }))
+      );
+
+      expect(results).toStrictEqual([null, null, null]);
+    });
+
+    it("lets plain resizes through unsigned", async () => {
+      await expect(
+        imageTransform(at("?w=768"), { signingKey: key })
+      ).resolves.toMatchObject({ fit: "scale-down" });
+    });
   });
 });
 
@@ -137,6 +275,28 @@ describe(serveImage, () => {
     );
 
     expect(transform).toHaveBeenCalledWith({ fit: "scale-down", width: 768 });
+  });
+
+  it("crops through the binding", async () => {
+    const { binding, transform } = fakeImages();
+
+    const original = new Response("jpeg bytes", {
+      headers: { "content-type": "image/jpeg" },
+    });
+
+    const response = await serveImage(
+      new Request("https://site.example/media/a.jpg?w=480&ar=1:1&g=0.5x0.1"),
+      original,
+      binding
+    );
+
+    expect(response.status).toBe(200);
+    expect(transform).toHaveBeenCalledWith({
+      fit: "cover",
+      gravity: { mode: "box-center", x: 0.5, y: 0.1 },
+      height: 480,
+      width: 480,
+    });
   });
 
   it.each(["100", "768.0", "0768", "", "wide"])(

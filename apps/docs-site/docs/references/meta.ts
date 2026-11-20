@@ -9,6 +9,7 @@ export default defineMeta({
     "timber-wordpress",
     "wordpress-plugins",
     "ui",
+    "images",
     "mcp",
     "mcp-workos",
     "logging",

@@ -9,6 +9,11 @@
  * same-origin image URLs without knowing about either CMS, and
  * `imageSrcset` through `imageSrcset`, so browsers fetch only the width a
  * layout needs. SVG and PDF files pass through the same route unresized.
+ *
+ * A request can also ask for a crop: an aspect ratio (`ar`) and the point to
+ * keep (`g`). The route maps these onto the option names Cloudflare uses in
+ * every Images interface, `fit: "cover"` and `gravity`, so an editor's focal
+ * point survives any ratio or width without pre-cut crop files in the CMS.
  */
 
 /** The route each app serves images from: `/media/<source path>`. */
@@ -31,12 +36,63 @@ const ROUTE_WIDTHS: ReadonlySet<number> = new Set(IMAGE_WIDTHS);
 /** The query parameter that picks one of `IMAGE_WIDTHS`. */
 export const WIDTH_PARAM = "w";
 
+/** The query parameter that picks one of the allowed aspect ratios, as `3:2`. */
+export const RATIO_PARAM = "ar";
+
+/** The query parameter that names the point a crop keeps: `auto`, `face` or `XxY`. */
+export const GRAVITY_PARAM = "g";
+
+/** The query parameter that carries a crop's signature, when the route requires one. */
+export const SIGNATURE_PARAM = "sig";
+
+/**
+ * The aspect ratios the route crops to by default, as `width:height`. A
+ * fixed set keeps the number of distinct transforms per image bounded; pass
+ * `ratios` to `serveImage` for another set.
+ */
+export const IMAGE_RATIOS = [
+  "1:1",
+  "3:2",
+  "2:3",
+  "4:3",
+  "3:4",
+  "4:5",
+  "5:4",
+  "5:6",
+  "6:5",
+  "16:9",
+  "9:16",
+  "21:9",
+] as const;
+
 const QUALITY = 80;
+
+/**
+ * The point a crop keeps, in Cloudflare's own terms: `auto` (saliency),
+ * `face`, or coordinates from 0 (left, top) to 1 (right, bottom).
+ */
+export type Gravity = "auto" | "face" | { x: number; y: number };
+
+/** A crop: the aspect ratio, and the point to keep (the center when unset). */
+export interface Crop {
+  ratio: string;
+  gravity?: Gravity;
+}
+
+/** The transform options the route sends to the Images binding. */
+export type ImageTransformOptions =
+  | { fit: "scale-down"; width: number }
+  | {
+      fit: "cover";
+      gravity?: "auto" | "face" | { mode: "box-center"; x: number; y: number };
+      height: number;
+      width: number;
+    };
 
 /** The parts of the Cloudflare Images binding (`env.IMAGES`) used here. */
 export interface ImagesBinding {
   input: (stream: ReadableStream<Uint8Array>) => {
-    transform: (options: { fit: "scale-down"; width: number }) => {
+    transform: (options: ImageTransformOptions) => {
       output: (options: { format: OutputFormat; quality: number }) => Promise<{
         response: () => Response;
       }>;
@@ -59,21 +115,142 @@ export const imagePath = (src: string, prefix: string): string =>
 /** File names the media route resizes, by extension. */
 const RASTER_FILE = /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/iu;
 
+/** Coordinates are kept to two decimals, so one point has one URL. */
+const coordinate = (value: number): string =>
+  String(Math.round(Math.min(1, Math.max(0, value)) * 100) / 100);
+
+/** A gravity in the route's (and Cloudflare's URL) form: `auto`, `face` or `0.5x0.3`. */
+export const formatGravity = (gravity: Gravity): string =>
+  gravity === "auto" || gravity === "face"
+    ? gravity
+    : `${coordinate(gravity.x)}x${coordinate(gravity.y)}`;
+
+const parseRatio = (ratio: string | null): [number, number] | null => {
+  const match = ratio?.match(/^(?<w>[1-9]\d?):(?<h>[1-9]\d?)$/u);
+
+  return match?.groups
+    ? [Number(match.groups.w), Number(match.groups.h)]
+    : null;
+};
+
+/**
+ * Adds a crop to an image route URL: the ratio, and the gravity when one is
+ * given. The route answers 404 for a ratio outside its set.
+ */
+export const cropSrc = (src: string, crop: Crop): string => {
+  const params = new URLSearchParams({ [RATIO_PARAM]: crop.ratio });
+
+  if (crop.gravity) {
+    params.set(GRAVITY_PARAM, formatGravity(crop.gravity));
+  }
+
+  return `${src}${src.includes("?") ? "&" : "?"}${params}`;
+};
+
+const encoder = new TextEncoder();
+
+/** What a crop signature covers: the path, ratio and gravity, but not the width. */
+const signedText = (pathname: string, ratio: string, gravity: string) =>
+  `${pathname}\n${ratio}\n${gravity}`;
+
+const signature = async (key: string, text: string): Promise<string> => {
+  const hmac = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(key),
+    { hash: "SHA-256", name: "HMAC" },
+    false,
+    ["sign"]
+  );
+
+  const bytes = new Uint8Array(
+    await crypto.subtle.sign("HMAC", hmac, encoder.encode(text))
+  ).slice(0, 16);
+
+  return btoa(String.fromCodePoint(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/[=]+$/u, "");
+};
+
+/**
+ * Like {@link cropSrc}, plus a signature made with `key`, for a route that
+ * requires one (`signingKey`). Sign on the server: the key must not reach
+ * the browser. The signature leaves the width out, so `imageSrcset` can add
+ * widths to a signed URL.
+ */
+export const signedCropSrc = async (
+  src: string,
+  crop: Crop,
+  key: string
+): Promise<string> => {
+  const cropped = cropSrc(src, crop);
+  const url = new URL(cropped, "https://route.invalid");
+
+  const sig = await signature(
+    key,
+    signedText(
+      url.pathname,
+      url.searchParams.get(RATIO_PARAM) ?? "",
+      url.searchParams.get(GRAVITY_PARAM) ?? ""
+    )
+  );
+
+  return `${cropped}&${SIGNATURE_PARAM}=${sig}`;
+};
+
+/** The widest crop of `ratio` an original fits without enlarging. */
+const cropLimit = (
+  ratio: [number, number],
+  width?: number,
+  height?: number
+): number | undefined => {
+  const byHeight = height ? Math.floor((height * ratio[0]) / ratio[1]) : null;
+
+  if (width && byHeight) {
+    return Math.min(width, byHeight);
+  }
+
+  return width ?? byHeight ?? undefined;
+};
+
+/** The route widths a crop of an original as wide as `limit` can use, never enlarging past the narrowest. */
+const cropWidths = (limit?: number): number[] => {
+  const fitting = IMAGE_WIDTHS.filter((step) => !limit || step <= limit);
+
+  return fitting.length > 0 ? fitting : [IMAGE_WIDTHS[0]];
+};
+
 /**
  * A `srcset` for an image on the image route: one candidate per width in
  * `IMAGE_WIDTHS` up to the original's `width`, each described by the width
  * the browser will actually get (the route never enlarges). Undefined for
  * anything else (external images, SVG, PDF), which has one size.
+ *
+ * For a cropped URL (see {@link cropSrc}) it offers only the widths the
+ * crop can fill from the original's `width` and `height`, because a cover
+ * crop wider than the original would be enlarged.
  */
 export const imageSrcset = (
   src: string,
-  width?: number
+  width?: number,
+  height?: number
 ): string | undefined => {
   if (!(src.startsWith(`${IMAGE_ROUTE}/`) && RASTER_FILE.test(src))) {
     return undefined;
   }
 
   const separator = src.includes("?") ? "&" : "?";
+
+  const ratio = parseRatio(
+    new URL(src, "https://route.invalid").searchParams.get(RATIO_PARAM)
+  );
+
+  if (ratio) {
+    return cropWidths(cropLimit(ratio, width, height))
+      .map((step) => `${src}${separator}${WIDTH_PARAM}=${step} ${step}w`)
+      .join(", ");
+  }
+
   const candidates: string[] = [];
 
   for (const step of IMAGE_WIDTHS) {
@@ -223,6 +400,110 @@ const requestedWidth = (request: Request): number | null => {
   return ROUTE_WIDTHS.has(width) && String(width) === value ? width : null;
 };
 
+/** Options for {@link serveImage}. */
+export interface ServeImageOptions {
+  /** The aspect ratios a crop may ask for. Defaults to `IMAGE_RATIOS`. */
+  ratios?: readonly string[];
+  /**
+   * When set, a crop must carry a signature made with this key (see
+   * {@link signedCropSrc}), so nobody can run up transforms with ratios and
+   * points the site never asked for. Plain resizes need none.
+   */
+  signingKey?: string;
+}
+
+const GRAVITY_POINT = /^(?<x>[01](?:\.\d{1,2})?)x(?<y>[01](?:\.\d{1,2})?)$/u;
+
+/** A gravity from the URL, in its one canonical form, or null. */
+const parseGravity = (
+  value: string
+): Extract<ImageTransformOptions, { fit: "cover" }>["gravity"] | null => {
+  if (value === "auto" || value === "face") {
+    return value;
+  }
+
+  const groups = value.match(GRAVITY_POINT)?.groups;
+
+  if (!groups) {
+    return null;
+  }
+
+  const x = Number(groups.x);
+  const y = Number(groups.y);
+
+  return x <= 1 && y <= 1 && formatGravity({ x, y }) === value
+    ? { mode: "box-center", x, y }
+    : null;
+};
+
+/** Time-constant comparison, so a signature can't be guessed byte by byte. */
+const sameText = (a: string, b: string): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let difference = 0;
+
+  for (let index = 0; index < a.length; index += 1) {
+    // oxlint-disable-next-line no-bitwise -- a constant-time comparison
+    difference |= (a.codePointAt(index) ?? 0) ^ (b.codePointAt(index) ?? 0);
+  }
+
+  return difference === 0;
+};
+
+/**
+ * The transform a request asks for, or null when it asks for anything the
+ * route doesn't serve: a width outside `IMAGE_WIDTHS`, a ratio outside the
+ * set, a gravity without a ratio or in a non-canonical form, or (with a
+ * `signingKey`) a crop without a valid signature.
+ */
+export const imageTransform = async (
+  request: Request,
+  options: ServeImageOptions = {}
+): Promise<ImageTransformOptions | null> => {
+  const width = requestedWidth(request);
+  const url = new URL(request.url);
+  const ratioValue = url.searchParams.get(RATIO_PARAM);
+  const gravityValue = url.searchParams.get(GRAVITY_PARAM);
+
+  if (!width) {
+    return null;
+  }
+
+  if (ratioValue === null) {
+    return gravityValue === null ? { fit: "scale-down", width } : null;
+  }
+
+  const ratio = (options.ratios ?? IMAGE_RATIOS).includes(ratioValue)
+    ? parseRatio(ratioValue)
+    : null;
+
+  const gravity =
+    gravityValue === null ? undefined : parseGravity(gravityValue);
+
+  if (!ratio || gravity === null) {
+    return null;
+  }
+
+  if (options.signingKey) {
+    const expected = await signature(
+      options.signingKey,
+      signedText(url.pathname, ratioValue, gravityValue ?? "")
+    );
+
+    if (!sameText(url.searchParams.get(SIGNATURE_PARAM) ?? "", expected)) {
+      return null;
+    }
+  }
+
+  const height = Math.round((width * ratio[1]) / ratio[0]);
+
+  return gravity
+    ? { fit: "cover", gravity, height, width }
+    : { fit: "cover", height, width };
+};
+
 const notFound = () =>
   new Response("Not found", {
     headers: { "cache-control": "no-store" },
@@ -248,13 +529,16 @@ const passThrough = (body: ReadableStream<Uint8Array>, type: string) => {
 
 /**
  * Resizes an original image fetched by the app to the requested width (see
- * `imageSrcset`) and answers the browser. SVG and PDF pass through unresized.
- * Anything else, or a width outside `IMAGE_WIDTHS`, becomes a 404.
+ * `imageSrcset`), or crops it to the requested ratio around the requested
+ * point (see `cropSrc`), and answers the browser. SVG and PDF pass through
+ * unresized. Anything else, or a request `imageTransform` refuses, becomes a
+ * 404.
  */
 export const serveImage = async (
   request: Request,
   original: Response | null,
-  images: ImagesBinding
+  images: ImagesBinding,
+  options: ServeImageOptions = {}
 ): Promise<Response> => {
   const type = original?.headers
     .get("content-type")
@@ -262,9 +546,9 @@ export const serveImage = async (
     ?.trim()
     .toLowerCase();
 
-  const width = requestedWidth(request);
+  const transform = await imageTransform(request, options);
 
-  if (!(original?.ok && original.body && type && width)) {
+  if (!(original?.ok && original.body && type && transform)) {
     await original?.body?.cancel();
 
     return notFound();
@@ -284,7 +568,7 @@ export const serveImage = async (
 
   const output = await images
     .input(original.body)
-    .transform({ fit: "scale-down", width })
+    .transform(transform)
     .output({ format, quality: QUALITY });
 
   const response = output.response();
