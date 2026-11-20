@@ -115,7 +115,7 @@ describe(configureWorkersBuilds, () => {
         deploy_command: "pnpm run deploy",
         environment_variables: {
           NODE_VERSION: { is_secret: false, value: "24" },
-          PNPM_VERSION: { is_secret: false, value: "12.16.1" },
+          PNPM_VERSION: { is_secret: false, value: "12.21.0" },
           SKIP_DEPENDENCY_INSTALL: { is_secret: false, value: "1" },
           WORKER_DOMAIN: { is_secret: false, value: "example.com" },
         },
