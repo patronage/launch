@@ -9,7 +9,7 @@ Every front-end, the MCP server and this site are each their own Cloudflare Work
 
 1. **`cloudflare.config.ts`** holds the Worker's name, compatibility date, domains and bindings. It is the `cf` CLI's typed config, not a Wrangler file. The account comes from `CLOUDFLARE_ACCOUNT_ID`, never from the file.
 2. **Secrets** are declared by name with `bindings.secret()`. Values come from the shell at deploy time and from a gitignored `.env.local` locally, and are never written to a file in the repo.
-3. **The build writes Cloudflare Build Output** to `.cloudflare/output/`. The vinext apps get it from the Cloudflare Vite plugin.
+3. **The build writes Cloudflare Build Output v1** to `.cloudflare/output/v1/`, the only format cf 1.0 release candidates deploy. The vinext apps get it from the Cloudflare Vite plugin (2.0 rc).
 4. **`pnpm run deploy`** uploads that output with `cf deploy --prebuilt`, which creates the Worker on its first run and provisions any binding resources, such as a KV namespace, that do not exist yet. `pnpm run deploy --preview` runs `cf previews deploy --prebuilt` instead, which names a Worker Preview after the Git branch.
 5. **Workers Builds** runs those commands on every push. See [Workers Builds](/deploy/workers-builds).
 

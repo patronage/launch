@@ -57,7 +57,7 @@ All three Workers (`launch-vinext-wordpress`, `launch-payload`, `launch-docs`) d
 - `cf deploy` without `--secrets-file` keeps the secrets already on the Worker. Production builds deploy with no secret values in the build environment.
 - Previews use their own KV namespace: `apps/web-wordpress` binds the production namespace by id only when the build is not a Preview.
 
-- Build variables are copied onto the Builds trigger when `builds:configure` creates it. Payload's trigger predated its `ACCESS_*` settings, so every Builds deploy blanked them and turned its Access sign-in off until they were added with `cf builds triggers environment-variables upsert`. The steps are in the docs site's Workers Builds page.
+- Build variables are copied onto the Builds trigger when `builds:configure` creates it. Payload's trigger predated its `ACCESS_*` settings, so every Builds deploy blanked them and turned its Access sign-in off until they were added with `cf builds triggers environment-variables upsert` (since removed from cf; the Workers Builds page now uses `cf builds workers edit`). The steps are in the docs site's Workers Builds page.
 - The Builds commands take the script tag, not the Worker name, and a Builds deploy shows up as `cf_cli` in the deployment list, like a laptop deploy.
 
 Still open:

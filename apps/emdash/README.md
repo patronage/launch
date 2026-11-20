@@ -79,4 +79,4 @@ It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configure
 
 There are no Worker Previews: the D1 database and R2 bucket are shared, so a preview would edit production content. The bundle is about 5 MB gzipped, so it needs the Workers Paid plan.
 
-This app uses `@astrojs/cloudflare` 15 (beta), the first version that reads `cloudflare.config.ts` instead of a Wrangler file, and cf 1.0 rc, which reads the Build Output v1 it writes. The other apps stay on cf beta and Build Output v0 until those reach a release.
+This app uses `@astrojs/cloudflare` 15 (beta), the first version that reads `cloudflare.config.ts` instead of a Wrangler file, and cf 1.0 rc, which reads the Build Output v1 it writes. Every app in the repo is on cf 1.0.0-rc.1 and Build Output v1.

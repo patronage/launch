@@ -95,19 +95,28 @@ describe("worker config", () => {
 
   it("asks for a build when there is no Build Output", () => {
     expect(() => readBuiltWorkerConfig("/nonexistent")).toThrow(
-      "Could not read .cloudflare/output/v0/workers/default/worker.config.json. Build the app first."
+      "Could not read .cloudflare/output/v1/workers/default/worker.config.json. Build the app first."
     );
   });
 
-  it("reads Build Output v1 when there is no v0", () => {
+  it("ignores a leftover Build Output v0, which cf no longer reads", () => {
     const root = mkdtempSync(path.join(tmpdir(), "worker-config-"));
-    const dir = path.join(root, ".cloudflare/output/v1/workers/default");
 
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(
-      path.join(dir, "worker.config.json"),
-      JSON.stringify({ name: "cms" })
-    );
+    for (const [version, name] of [
+      ["v0", "stale"],
+      ["v1", "cms"],
+    ]) {
+      const dir = path.join(
+        root,
+        `.cloudflare/output/${version}/workers/default`
+      );
+
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        path.join(dir, "worker.config.json"),
+        JSON.stringify({ name })
+      );
+    }
 
     expect(readBuiltWorkerConfig(root).name).toBe("cms");
   });
