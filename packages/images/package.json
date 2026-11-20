@@ -1,6 +1,6 @@
 {
   "name": "@patronage/launch-images",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Serve CMS images through the Cloudflare Images binding from one same-origin route, with srcset helpers and a rewriter for CMS-rendered HTML.",
   "license": "MIT",
   "repository": {
