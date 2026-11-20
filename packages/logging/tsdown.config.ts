@@ -6,7 +6,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
   deps: { neverBundle: [/^node:/u] },
   dts: true,
-  entry: ["src/worker.ts", "src/cloudflare.ts"],
+  entry: ["src/worker.ts", "src/cloudflare.ts", "src/probe.ts"],
   format: "esm",
   platform: "neutral",
 });

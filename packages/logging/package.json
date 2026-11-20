@@ -15,7 +15,8 @@
   "type": "module",
   "exports": {
     ".": "./src/worker.ts",
-    "./cloudflare": "./src/cloudflare.ts"
+    "./cloudflare": "./src/cloudflare.ts",
+    "./probe": "./src/probe.ts"
   },
   "publishConfig": {
     "exports": {
@@ -26,6 +27,10 @@
       "./cloudflare": {
         "types": "./dist/cloudflare.d.ts",
         "default": "./dist/cloudflare.js"
+      },
+      "./probe": {
+        "types": "./dist/probe.d.ts",
+        "default": "./dist/probe.js"
       }
     },
     "access": "public"
