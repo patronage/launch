@@ -1,0 +1,67 @@
+---
+title: Images
+description: How the vinext front ends serve CMS images through one same-origin route and the Cloudflare Images binding, with fixed widths, focal-point crops, signed crop URLs, local development and cost.
+---
+
+vinext's `/_next/image` only resizes files in `public/` on Workers, and CMS media lives elsewhere (WordPress uploads on the CMS host, Payload media in R2). So each vinext app serves CMS images from its own origin at `/media/<path>`, and `@patronage/launch-images` transforms the original with the [Cloudflare Images binding](https://developers.cloudflare.com/images/optimization/binding/). Adapters point image URLs at the route, so shared UI renders same-origin images without knowing which CMS they came from.
+
+## The route
+
+| Parameter | Values | Meaning |
+| --- | --- | --- |
+| `w` | 480, 768, 1024, 1280, 1600 (`IMAGE_WIDTHS`) | Output width. Browsers pick one from the `srcset`. Unset means 1600. |
+| `ar` | One of `IMAGE_RATIOS` (`1:1`, `3:2`, `2:3`, `4:3`, `3:4`, `4:5`, `5:4`, `5:6`, `6:5`, `16:9`, `9:16`, `21:9`), or the app's own `ratios` | Crop to this aspect ratio. |
+| `g` | `auto`, `face`, or a focal point `XxY` from 0 to 1 with at most two decimals, such as `0.5x0.3` | The point a crop keeps. Needs `ar`. |
+| `sig` | 22 characters | A crop's signature, when the app sets a signing key. |
+
+The parameters map onto the option names Cloudflare uses across its Images interfaces since its [November 2026 changelog](https://developers.cloudflare.com/changelog/post/2026-11-18-consistent-optimization-interfaces/):
+
+- No `ar`: `transform({ width, fit: "scale-down" })`, which never enlarges a smaller original.
+- With `ar`: `transform({ width, height, fit: "cover", gravity })`, where the height follows from the ratio. A focal point becomes `gravity: { x, y, mode: "box-center" }`, which puts the point at the center of the crop as far as the image allows, the way WordPress focal-point plugins center the crop sizes they pre-cut. `auto` crops by saliency and `face` around detected faces.
+
+Output is AVIF, WebP or JPEG, by the browser's `Accept` header, at quality 80. SVG and PDF pass through unresized, SVG under a script-free sandbox policy. Anything else, and any parameter outside the sets above (including a non-canonical point such as `0.50x0.5`), is a 404, so one image has a small, fixed number of URLs. Responses carry `cache-control: public, max-age=86400, stale-while-revalidate=604800`. An app that caches transforms itself should key on `w`, `ar`, `g`, `sig` and the negotiated format, and nothing else.
+
+The route fetches originals only from the CMS's own uploads path or bucket, so it is not an open proxy.
+
+## Focal points instead of crop sizes
+
+A CMS usually keeps an editor's focal point by cutting fixed crop sizes at upload. Images cropped later by CSS (`object-fit: cover`) then fall back to the center, and every new ratio means a new size and a library-wide regeneration. With the route, the CMS stores originals and the point, and the front end asks for the ratio it needs:
+
+```ts
+import { cropSrc, imagePath, imageSrcset } from "@patronage/launch-images";
+
+const src = cropSrc(imagePath(image.url, UPLOADS_PREFIX), {
+  ratio: "3:2",
+  gravity: image.focalPoint ?? undefined, // { x, y } from 0 to 1
+});
+
+<img src={`${src}&w=768`} srcSet={imageSrcset(src, image.width, image.height)} />;
+```
+
+Where the point comes from depends on the CMS. Payload keeps it on each upload as `focalX` and `focalY`, from 0 to 100, so divide by 100. WordPress has no built-in point; a focal-point plugin or field supplies it, exposed through WPGraphQL.
+
+For a crop, `imageSrcset` offers only the widths the original can fill without enlarging. Where CSS still crops an uncropped image, set `object-position` from the same point.
+
+## Signed crops
+
+Cloudflare bills each unique source image and transform once a month, so unsigned crop URLs would let anyone invent transforms: five widths, a dozen ratios and ten thousand two-decimal points come to about 600,000 billable variants per image. Signing limits the route to crops the site's own server asked for.
+
+1. Create a random key and store it as a Worker secret, for example `IMAGE_SIGNING_KEY`.
+2. Pass it to the route: `serveImage(request, original, env.IMAGES, { signingKey: env.IMAGE_SIGNING_KEY })`. A request with `ar` or `g` must then carry a valid `sig`; plain `?w=` resizes still need none.
+3. Sign in server code, where the page reads CMS data: `await signedCropSrc(src, crop, env.IMAGE_SIGNING_KEY)`. Never sign in the browser, which would expose the key.
+
+The signature is an HMAC-SHA256 of the path, ratio and gravity, truncated to 16 bytes. The width is not signed, so one signed URL serves the whole `srcset`. Changing the key invalidates signed URLs in cached pages until those pages rebuild; their crops 404 in the meantime.
+
+## Local development
+
+- **Crops don't render faithfully.** Local `wrangler dev` emulates only width, height, rotate and format for the Images binding, so `fit` and `gravity` are not applied as Cloudflare applies them. Check crops on a Preview, or with `wrangler dev --remote`.
+- **Signing is optional.** Leave the key unset and unsigned crops are accepted. If you set one, use the same value for the code that signs and for the route; in a vinext app both run in the same Worker, so one entry in `.dev.vars` covers both.
+- Plain resizes work locally as they do in production.
+
+## Cost
+
+Cloudflare bills $0.50 per 1,000 unique transformations a month after 5,000 free. Format and quality don't count, so AVIF and WebP of one width count once, and originals kept in the CMS add no storage or delivery charge ([pricing](https://developers.cloudflare.com/images/pricing/)). Each crop ratio multiplies an image's transforms by up to five (one per width), so keep the ratio set short and sign crops in production.
+
+## Reference
+
+The package's exports (`serveImage`, `imageTransform`, `cropSrc`, `signedCropSrc`, `imagePath`, `mediaPath`, `imageSrcset`, `rewriteMediaUrls`, `sourcePath`) are listed in its [README](https://github.com/patronage/launch/tree/main/packages/images). The WordPress front end's route is `apps/web-wordpress/app/media/[...path]/route.ts`, and Payload's is `apps/payload/src/app/(frontend)/media/[...path]/route.ts`.
