@@ -2,10 +2,15 @@ import type { LoggerConfig, RedactConfig } from "evlog";
 import { initWorkersLogger, withEvlog } from "evlog/workers";
 import type { WorkerExecutionContext } from "evlog/workers";
 
+import { isProbeResponse } from "./probe.ts";
 import { upstreamFields, upstreamTimings } from "./upstream.ts";
 import type { UpstreamTiming } from "./upstream.ts";
 
+export { isProbePath, isProbeResponse, withProbeGuard } from "./probe.ts";
+
 export { timedD1, timeUpstream } from "./upstream.ts";
+
+export type { ProbeGuardEntry, ProbeGuardOptions } from "./probe.ts";
 
 export type { UpstreamTiming } from "./upstream.ts";
 
@@ -114,6 +119,14 @@ export const withRequestLog = <TEnv, TEntry extends FetchEntry<TEnv>>(
       return upstreamTimings.run(timings, async () => {
         try {
           const response = await entry.fetch(request, env, ctx);
+
+          // withProbeGuard answered it: one cheap event, marked as such.
+          if (isProbeResponse(response)) {
+            log.set({ probe: true });
+
+            return response;
+          }
+
           const cache = cacheResult(response);
 
           if (cache) {

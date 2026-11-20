@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { timedD1, timeUpstream, withRequestLog } from "./worker.ts";
+import {
+  timedD1,
+  timeUpstream,
+  withProbeGuard,
+  withRequestLog,
+} from "./worker.ts";
 
 const ctx = { waitUntil: () => {} };
 
@@ -78,6 +83,33 @@ describe(withRequestLog, () => {
     );
 
     expect(loggedEvents()).toHaveLength(0);
+  });
+
+  it("logs a request the probe guard answered as one event marked probe", async () => {
+    const loggedEvents = captureConsole();
+    const fetch = vi.fn<() => Response>(() => new Response("page"));
+
+    const entry = withRequestLog(withProbeGuard({ fetch }), {
+      service: "demo-web",
+    });
+
+    const response = await entry.fetch(
+      new Request("https://example.org/.env"),
+      {},
+      ctx
+    );
+
+    expect(response.status).toBe(404);
+    expect(fetch).not.toHaveBeenCalled();
+
+    const events = loggedEvents();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      path: "/.env",
+      probe: true,
+      status: 404,
+    });
   });
 
   it("keeps the entry's other handlers and its this", async () => {

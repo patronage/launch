@@ -7,6 +7,7 @@ Logging is optional. With nothing configured, each Worker prints one JSON line p
 | Export | Use |
 | --- | --- |
 | `withRequestLog(entry, { service })` | Wrap a Worker's fetch entry (vinext's included) so every request emits one evlog wide event as a JSON console line: method, path without the query, status, duration, `cf-ray`, colo, country and ASN, plus `cache` (vinext's page cache result: `HIT`, `STALE` or `MISS`) and `upstream` totals. Build assets are skipped. Other handlers on the entry are kept. |
+| `withProbeGuard(entry, { allow?, extra? })` | Answer scanner paths (`/.env`, `/wp-login.php`, `/cgi-bin/…`) with an empty 404 without calling the entry. Also at `@patronage/launch-logging/probe`, which imports nothing, with `isProbePath(pathname, options?)`. See [Probe guard](#probe-guard). |
 | `timeUpstream(name, work)` | Time a call to an upstream and add it to the request's `upstream.<name>` as `{ calls, errors, ms }`. Outside a wrapped request it only runs `work`. |
 | `timedD1(binding, name?)` | Wrap a D1 binding so each query counts toward `upstream.d1` (or `name`). |
 | `@patronage/launch-logging/cloudflare` | Idempotent Cloudflare API helpers behind the provisioning script: `ensureBucket`, `ensureLogpushJob`, `ensureWordPressStream`, and token helpers. |
@@ -27,6 +28,27 @@ Pass `sampleRate` (0 to 100) to keep only part of the healthy traffic; responses
 `upstream` covers the work done before the response starts, which is the same span as `duration`. Reads inside a Suspense boundary that streams later aren't in it; traces show those. web-wordpress times its WPGraphQL and media reads as `upstream.wordpress`, and Payload times its D1 queries as `upstream.d1`.
 
 To keep events past seven days, deploy with `WORKER_LOGPUSH=true`. `cloudflare.config.ts` turns on Workers Trace Events Logpush for the Worker, and the account's `workers_trace_events` job (below) copies every log line to R2. Each evlog event arrives as an entry in the trace event's `Logs` array. For a Worker deployed by Workers Builds, set the variable before running `pnpm run builds:configure`, so builds pass it on.
+
+## Probe guard
+
+Every public site gets requests for paths no Launch site serves. On a headless site each one would still run the framework's router, render a not-found page and maybe read from the CMS before the 404 goes out. `withProbeGuard` answers them first:
+
+```ts
+import { withProbeGuard, withRequestLog } from "@patronage/launch-logging";
+import entry from "vinext/server/fetch-handler";
+
+export * from "vinext/server/fetch-handler";
+export default withRequestLog(withProbeGuard(entry), {
+  service: "web-wordpress",
+});
+```
+
+- **Order.** Put the guard inside `withRequestLog`. A guarded request is then still one event, with status 404 and `probe: true`, and nothing else is added to it.
+- **Response.** Status 404 (the paths never existed, so not 410), an empty body and `cache-control: public, max-age=3600`.
+- **The list.** A path is a probe when any segment is a server-side script file (`.php`, `.php5`, `.phtml`, `.asp`, `.aspx`, `.jsp`, `.cgi`), a `.env` file (`.env`, `.env.local`, …), `cgi-bin`, or a version control, secrets or editor name (`.git`, `.svn`, `.hg`, `.bzr`, `.aws`, `.ssh`, `.docker`, `.npmrc`, `.htaccess`, `.htpasswd`, `.DS_Store`, `.vscode`, `.idea`, `.circleci`). Case and percent-encoding are ignored. `/.well-known/…`, page paths, the media route, `/wp-content/uploads/…`, `/wp-json/…` and `/wp-admin` itself are never matched; `probe.test.ts` keeps both tables.
+- **Options.** `allow` lists paths the site does serve and wins over everything else; `extra` adds the site's own. An entry ending in `/` covers that path and everything under it; any other entry matches only that exact path.
+
+`isProbePath(pathname, options?)` is the same check as a pure function, and `@patronage/launch-logging/probe` exports both without importing evlog, for a Worker that doesn't log.
 
 ## Provision the log store
 

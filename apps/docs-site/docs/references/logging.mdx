@@ -30,6 +30,18 @@ That line goes wherever the Worker's console output goes. To keep it, build the 
 
 No binding, token or extra request is involved, so the logging costs a Worker nothing at request time.
 
+## Scanner paths get a 404 before the app runs
+
+Every public site gets requests for paths no Launch site serves, such as `/.env`, `/wp-login.php`, `/xmlrpc.php` or `/cgi-bin/`. `withProbeGuard`, also from `@patronage/launch-logging`, answers them at the Worker entry with an empty 404, so the framework's router, its not-found page and any CMS read never run. Put it inside `withRequestLog`, so each one is still one event, marked `probe: true`:
+
+```ts
+export default withRequestLog(withProbeGuard(entry), {
+  service: "web-wordpress",
+});
+```
+
+The shared list covers server-side script extensions (`.php`, `.asp`, `.aspx`, `.jsp`, `.cgi`), `.env` files, version control and secrets folders (`.git`, `.svn`, `.aws`, `.ssh` and the like) and `cgi-bin`, in any path segment, ignoring case and percent-encoding. It never matches `/.well-known/`, page paths, the media route or `/wp-content/uploads/`. A site passes `allow` for paths it does serve and `extra` for its own additions. The list lives in the package, so a site picks up changes by bumping it. web-wordpress uses it.
+
 ## Traces and Issues
 
 Launch's Workers also turn on Cloudflare's automatic tracing, Issues and query string redaction in their `cloudflare.config.ts`:
