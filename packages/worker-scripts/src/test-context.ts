@@ -112,7 +112,7 @@ export const fakeRepo = (config: WorkerConfig) => {
   writeFileSync(path.join(app, "package.json"), '{"name":"@launch/site"}');
   writeFileSync(
     path.join(repo, "package.json"),
-    '{"packageManager":"pnpm@12.16.1"}'
+    '{"packageManager":"pnpm@12.21.0"}'
   );
   writeFileSync(path.join(repo, ".nvmrc"), "24\n");
 
