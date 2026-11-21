@@ -1,0 +1,24 @@
+{
+  "name": "patronage/launch-focal-point",
+  "description": "Exposes each image's focal point in WPGraphQL as MediaItem.focalPoint, read from Media Focus Point or Theia Smart Thumbnails, so a headless front-end can crop around it.",
+  "type": "wordpress-muplugin",
+  "license": "MIT",
+  "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+  "authors": [
+    {
+      "name": "Patronage",
+      "homepage": "https://patronage.org"
+    }
+  ],
+  "support": {
+    "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-focal-point",
+    "docs": "https://launch.patronage.com/references/images"
+  },
+  "require": {
+    "php": ">=8.0",
+    "composer/installers": "^2.2"
+  },
+  "extra": {
+    "installer-name": "patronage-focal-point"
+  }
+}

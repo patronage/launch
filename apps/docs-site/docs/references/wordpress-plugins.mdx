@@ -3,13 +3,14 @@ title: WordPress plugins
 description: Install Patronage's WordPress mu-plugins on any site with Composer, from Launch's own Composer repository.
 ---
 
-Launch's WordPress plugins live in [`wordpress-shared/`](https://github.com/patronage/launch/tree/main/wordpress-shared), and any WordPress site can install them with Composer from `https://launch.patronage.com/composer`. They are mu-plugins, so they are always on, and each does nothing until its constants are set in `wp-config.php`.
+Launch's WordPress plugins live in [`wordpress-shared/`](https://github.com/patronage/launch/tree/main/wordpress-shared), and any WordPress site can install them with Composer from `https://launch.patronage.com/composer`. They are mu-plugins, so they are always on, and each does nothing until it is set up as its README describes, usually with constants in `wp-config.php`.
 
 | Package | What it does |
 | --- | --- |
 | `patronage/launch-access` | Locks WordPress behind Cloudflare Access, signs editors in from their Access login, and authenticates REST and WPGraphQL requests from a forwarded Access JWT. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-access) |
 | `patronage/launch-logging` | Records security events as wide events and ships them, with the host's log files, to the site's log bucket. See [Logging](/references/logging). [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-logging) |
 | `patronage/launch-headless-revalidate` | Tells a headless front-end which paths and cache tags to revalidate when content changes. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-headless-revalidate) |
+| `patronage/launch-focal-point` | Exposes each image's focal point in WPGraphQL as `MediaItem.focalPoint`, from Media Focus Point (or Theia Smart Thumbnails), for crops around it. See [Images](/references/images#focal-points-instead-of-crop-sizes). [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-focal-point) |
 | `patronage/launch-fleet` | For sites Patronage runs: reports WordPress, plugin and theme versions to Patronage Fleet for its vulnerability scan, and answers its uptime checks. [README](https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-fleet) |
 
 The same repository serves the deploy kit, `patronage/launch-wp-deploy`, which isn't a plugin: see [Deploy kit](#deploy-kit) below.
