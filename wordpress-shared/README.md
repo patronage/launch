@@ -7,6 +7,7 @@ Patronage's own WordPress code, used by the WordPress apps in this repo and, thr
 | [`patronage-access`](patronage-access) | Cloudflare Access lock, browser login and gateway identity | `patronage/launch-access` |
 | [`patronage-logging`](patronage-logging) | Security events and log files to the site's log bucket | `patronage/launch-logging` |
 | [`patronage-headless-revalidate`](patronage-headless-revalidate) | Revalidates the headless front-end when content changes | `patronage/launch-headless-revalidate` |
+| [`patronage-focal-point`](patronage-focal-point) | Each image's focal point in WPGraphQL (`MediaItem.focalPoint`), from Media Focus Point or Theia | `patronage/launch-focal-point` |
 | [`patronage-fleet`](patronage-fleet) | Version reports to Patronage Fleet, for Patronage-run sites | `patronage/launch-fleet` |
 | [`patronage-fields`](patronage-fields) | Field groups, post types and seed for Launch's own two installs | (none) |
 | [`wp-deploy`](wp-deploy) | The deploy kit: `deploy.sh`, `pull.sh` and the Cloudways hook, symlinked, copied or installed into a site's `_build/` | `patronage/launch-wp-deploy` (dev dependency) |

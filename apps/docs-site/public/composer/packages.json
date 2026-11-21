@@ -158,6 +158,38 @@
         }
       }
     },
+    "patronage/launch-focal-point": {
+      "1.0.0": {
+        "dist": {
+          "shasum": "e52f8e8d8b9e9b097c6e61a16b8f68bb47d8002d",
+          "type": "zip",
+          "url": "https://launch.patronage.com/composer/dist/launch-focal-point/1.0.0.zip"
+        },
+        "name": "patronage/launch-focal-point",
+        "version": "1.0.0",
+        "description": "Exposes each image's focal point in WPGraphQL as MediaItem.focalPoint, read from Media Focus Point or Theia Smart Thumbnails, so a headless front-end can crop around it.",
+        "type": "wordpress-muplugin",
+        "license": "MIT",
+        "homepage": "https://launch.patronage.com/references/wordpress-plugins",
+        "authors": [
+          {
+            "name": "Patronage",
+            "homepage": "https://patronage.org"
+          }
+        ],
+        "support": {
+          "source": "https://github.com/patronage/launch/tree/main/wordpress-shared/patronage-focal-point",
+          "docs": "https://launch.patronage.com/references/images"
+        },
+        "require": {
+          "php": ">=8.0",
+          "composer/installers": "^2.2"
+        },
+        "extra": {
+          "installer-name": "patronage-focal-point"
+        }
+      }
+    },
     "patronage/launch-headless-revalidate": {
       "2.1.0": {
         "dist": {

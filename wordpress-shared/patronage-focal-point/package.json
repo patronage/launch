@@ -1,0 +1,10 @@
+{
+  "name": "@patronage/wordpress-focal-point",
+  "version": "0.0.0",
+  "private": true,
+  "description": "WordPress mu-plugin that exposes each image's focal point in WPGraphQL as MediaItem.focalPoint.",
+  "license": "MIT",
+  "scripts": {
+    "test": "php -l patronage-focal-point.php >/dev/null && php -l tests/focal-point.test.php >/dev/null && php tests/focal-point.test.php"
+  }
+}

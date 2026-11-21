@@ -38,7 +38,7 @@ const src = cropSrc(imagePath(image.url, UPLOADS_PREFIX), {
 <img src={`${src}&w=768`} srcSet={imageSrcset(src, image.width, image.height)} />;
 ```
 
-Where the point comes from depends on the CMS. Payload keeps it on each upload as `focalX` and `focalY`, from 0 to 100, so divide by 100. WordPress has no built-in point; a focal-point plugin or field supplies it, exposed through WPGraphQL.
+Where the point comes from depends on the CMS. Payload keeps it on each upload as `focalX` and `focalY`, from 0 to 100, so divide by 100. WordPress has no built-in point: editors pick one with [Media Focus Point](https://wordpress.org/plugins/media-focus-point/), and the `patronage/launch-focal-point` mu-plugin ([WordPress plugins](/references/wordpress-plugins)) exposes it as `MediaItem.focalPoint { x y }`, from 0 to 1, or null when none was picked. It falls back to a Theia Smart Thumbnails point, and a `patronage_focal_point` filter can supply one stored elsewhere.
 
 For a crop, `imageSrcset` offers only the widths the original can fill without enlarging. Where CSS still crops an uncropped image, set `object-position` from the same point.
 
