@@ -4,13 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: Launch package
+        description: Package to publish (@patronage/<name>)
         required: true
         type: choice
         options:
+          - access
           - launch-images
           - launch-logging
           - launch-wpgraphql
+          - mcp-core
+          - mcp-payload
+          - mcp-wordpress
       version:
         description: Exact stable version on main
         required: true
@@ -56,9 +60,13 @@ jobs:
           PUBLISH: ${{ inputs.publish }}
         run: |
           case "$PACKAGE" in
+            access) package_dir=packages/access ;;
             launch-images) package_dir=packages/images ;;
             launch-logging) package_dir=packages/logging ;;
             launch-wpgraphql) package_dir=packages/wpgraphql ;;
+            mcp-core) package_dir=packages/mcp-core ;;
+            mcp-payload) package_dir=packages/mcp-payload ;;
+            mcp-wordpress) package_dir=packages/mcp-wordpress ;;
             *) echo "Unsupported package" >&2; exit 1 ;;
           esac
           export PACKAGE_DIR="$package_dir"

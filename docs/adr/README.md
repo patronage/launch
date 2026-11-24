@@ -32,4 +32,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0022](0022-emdash-renders-the-site-in-astro.md) | EmDash renders its own site in Astro with `@launch/ui`'s sections, on one Worker; seed as code, native previews, Access for the admin, a cron for scheduled publishing |
 | [0023](0023-approval-is-opt-in.md) | The MCP gateway applies writes by default; `APPROVAL_REQUIRED=true` makes one deployment hold them for Approval |
 | [0024](0024-emdash-seo-redirects-and-forms.md) | EmDash uses its built-in redirects and SEO (`<EmDashHead>`, sitemaps, robots.txt) and `@emdash-cms/plugin-forms` through a `form` section |
-| [0025](0025-npm-trusted-publishing.md) | Local verification and Workers Builds, with one manual GitHub Actions workflow for three npm packages |
+| [0025](0025-npm-trusted-publishing.md) | Local verification and Workers Builds, with one manual GitHub Actions workflow that publishes the npm packages |
