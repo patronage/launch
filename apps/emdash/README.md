@@ -71,7 +71,7 @@ pnpm --filter @launch/emdash run deploy --dry-run
 pnpm --filter @launch/emdash run secrets            # EMDASH_PREVIEW_SECRET from the environment
 ```
 
-It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configured in `cloudflare.config.ts` with D1 (`DB`), R2 (`MEDIA`), KV (`SESSION`), the Images binding and a cron trigger every minute for scheduled publishing. Set at build time:
+It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configured in `cloudflare.config.ts` with D1 (`DB`), R2 (`MEDIA`), KV (`SESSION`), the Images binding and a cron trigger every minute for scheduled publishing. Each run waits up to 70 seconds for entries scheduled in that window and publishes each at its time, so a run can stay open for about a minute. Set at build time:
 
 - `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (required): EmDash signs editors in through the Cloudflare Access application, which must cover `/_emdash/*` and nothing else, so the site stays public (ADR 0011). The deploy refuses to run without them. Pages link media at `/media/{key}`, which `src/pages/media` hands to EmDash's file route, so images load outside Access. Forms post to `/forms/submit` for the same reason.
 - `WORKER_DOMAIN`: the custom domain; without it the Worker is on workers.dev.
@@ -80,3 +80,13 @@ It deploys as the Worker `launch-emdash` (`WORKER_NAME` overrides it), configure
 There are no Worker Previews: the D1 database and R2 bucket are shared, so a preview would edit production content. The bundle is about 5 MB gzipped, so it needs the Workers Paid plan.
 
 This app uses `@astrojs/cloudflare` 15 (beta), the first version that reads `cloudflare.config.ts` instead of a Wrangler file, and cf 1.0 rc, which reads the Build Output v1 it writes. Every app in the repo is on cf 1.0.0-rc.1 and Build Output v1.
+
+## Upgrading EmDash
+
+Bump `emdash` and `@emdash-cms/cloudflare` together, to the same version, and `@emdash-cms/plugin-forms` to the release that requires the same `@cloudflare/kumo` as the new admin. Read the [core](https://github.com/emdash-cms/emdash/blob/main/packages/core/CHANGELOG.md) and [Cloudflare](https://github.com/emdash-cms/emdash/blob/main/packages/cloudflare/CHANGELOG.md) changelogs for upgrade actions. EmDash runs its database migrations on the first request after a deploy, so there is no separate migration step; D1 Time Travel is the way back.
+
+Before deploying 1.6 or later, check that every user's `role` is one EmDash defines (10, 20, 30, 40 or 50). From 1.6 a sign-in through Access with any other level is refused, and such a user can't sign in until the `users` row is fixed. Run this against the Worker's D1 database, for example in the dashboard's D1 console:
+
+```sql
+SELECT email, role FROM users WHERE role NOT IN (10, 20, 30, 40, 50);
+```
