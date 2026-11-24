@@ -14,7 +14,7 @@ const MAX_PATH = 128;
 
 // The version the MCP server reports in its handshake and every wide event
 // carries. Kept equal to this package's version; a test checks it.
-export const SERVICE_VERSION = "0.2.0";
+export const SERVICE_VERSION = "0.3.0";
 
 const REDACTION: RedactConfig = {
   paths: [
