@@ -1,14 +1,20 @@
 import type { LoggerConfig, RedactConfig } from "evlog";
 import { initWorkersLogger, withEvlog } from "evlog/workers";
 import type { WorkerExecutionContext } from "evlog/workers";
+import { z } from "zod";
 
 import { isProbeResponse } from "./probe.ts";
-import { upstreamFields, upstreamTimings } from "./upstream.ts";
-import type { UpstreamTiming } from "./upstream.ts";
+import { requestStore } from "./request-store.ts";
+import type { RequestStore } from "./request-store.ts";
+import { upstreamFields } from "./upstream.ts";
+
+export { withDataCacheLog } from "./data-cache.ts";
 
 export { isProbePath, isProbeResponse, withProbeGuard } from "./probe.ts";
 
 export { timedD1, timeUpstream } from "./upstream.ts";
+
+export type { DataCacheCounts } from "./data-cache.ts";
 
 export type { ProbeGuardEntry, ProbeGuardOptions } from "./probe.ts";
 
@@ -62,6 +68,9 @@ const cacheResult = (response: Response): string | undefined =>
   response.headers.get("x-nextjs-cache") ??
   undefined;
 
+/** evlog sets `requestId` from `x-request-id` or `cf-ray`, else a UUID. */
+const requestIdSchema = z.object({ requestId: z.string().optional() });
+
 /** Anything with a Workers `fetch` handler, such as vinext's worker entry. */
 export interface FetchEntry<TEnv> {
   fetch: (
@@ -114,9 +123,16 @@ export const withRequestLog = <TEnv, TEntry extends FetchEntry<TEnv>>(
 
   const wrapped = withEvlog<TEnv>(
     (request, env, ctx, log) => {
-      const timings = new Map<string, UpstreamTiming>();
+      // The event's own ID, for lines logged after it is emitted.
+      const { data } = requestIdSchema.safeParse(log.getContext());
 
-      return upstreamTimings.run(timings, async () => {
+      const store: RequestStore = {
+        open: true,
+        requestId: data?.requestId,
+        upstream: new Map(),
+      };
+
+      return requestStore.run(store, async () => {
         try {
           const response = await entry.fetch(request, env, ctx);
 
@@ -140,9 +156,16 @@ export const withRequestLog = <TEnv, TEntry extends FetchEntry<TEnv>>(
           // response starts, the same span as `duration`: a page's top-level
           // awaited reads, but not reads inside a Suspense boundary that
           // streams later. Traces cover those.
-          if (timings.size > 0) {
-            log.set({ upstream: upstreamFields(timings) });
+          if (store.upstream.size > 0) {
+            log.set({ upstream: upstreamFields(store.upstream) });
           }
+
+          if (store.dataCache) {
+            log.set({ dataCache: store.dataCache });
+          }
+
+          // Anything later, such as a background refresh, logs its own line.
+          store.open = false;
         }
       });
     },

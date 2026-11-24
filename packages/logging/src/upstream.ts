@@ -1,6 +1,8 @@
 // Per-request upstream timing for the wide event. withRequestLog opens a
 // store for each request; timeUpstream and timedD1 add to it.
-import { AsyncLocalStorage } from "node:async_hooks";
+import { log } from "evlog";
+
+import { requestStore } from "./request-store.ts";
 
 /** Calls to one upstream during a request, as `upstream.<name>` on the event. */
 export interface UpstreamTiming {
@@ -10,15 +12,16 @@ export interface UpstreamTiming {
   ms: number;
 }
 
-export const upstreamTimings = new AsyncLocalStorage<
-  Map<string, UpstreamTiming>
->();
-
 /**
  * Time a call to an upstream, such as a WPGraphQL fetch or a D1 query, and add
  * it to the current request's wide event as `upstream.<name>`. Outside a
  * request that {@link withRequestLog} wraps, it just runs `work`. A rejection
  * counts as an error, and so does a result that `isError` flags.
+ *
+ * A call that fails after the request's event was emitted, such as a stale
+ * data cache entry's background refresh, logs its own `upstream.failed` line
+ * with `afterResponse: true` and the request's `requestId`: otherwise a
+ * refresh that keeps failing serves the stale copy with nothing recorded.
  */
 export const timeUpstream = async <Result>(
   name: string,
@@ -26,9 +29,9 @@ export const timeUpstream = async <Result>(
   /** Counts a result that resolved but still failed, such as an HTTP 503. */
   isError?: (result: Result) => boolean
 ): Promise<Result> => {
-  const timings = upstreamTimings.getStore();
+  const store = requestStore.getStore();
 
-  if (!timings) {
+  if (!store) {
     return work();
   }
 
@@ -45,12 +48,24 @@ export const timeUpstream = async <Result>(
     failed = true;
     throw error;
   } finally {
-    const timing = timings.get(name) ?? { calls: 0, errors: 0, ms: 0 };
+    const ms = performance.now() - started;
 
-    timing.calls += 1;
-    timing.errors += failed ? 1 : 0;
-    timing.ms += performance.now() - started;
-    timings.set(name, timing);
+    if (store.open) {
+      const timing = store.upstream.get(name) ?? { calls: 0, errors: 0, ms: 0 };
+
+      timing.calls += 1;
+      timing.errors += failed ? 1 : 0;
+      timing.ms += ms;
+      store.upstream.set(name, timing);
+    } else if (failed) {
+      log.error({
+        afterResponse: true,
+        durationMs: Math.round(ms),
+        event: "upstream.failed",
+        requestId: store.requestId,
+        upstream: name,
+      });
+    }
   }
 };
 
