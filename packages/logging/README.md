@@ -10,6 +10,7 @@ Logging is optional. With nothing configured, each Worker prints one JSON line p
 | `withProbeGuard(entry, { allow?, extra? })` | Answer scanner paths (`/.env`, `/wp-login.php`, `/cgi-bin/…`) with an empty 404 without calling the entry. Also at `@patronage/launch-logging/probe`, which imports nothing, with `isProbePath(pathname, options?)`. See [Probe guard](#probe-guard). |
 | `timeUpstream(name, work)` | Time a call to an upstream and add it to the request's `upstream.<name>` as `{ calls, errors, ms }`. Outside a wrapped request it only runs `work`. |
 | `timedD1(binding, name?)` | Wrap a D1 binding so each query counts toward `upstream.d1` (or `name`). |
+| `withDataCacheLog(handler)` | Wrap a framework data cache handler, such as the one vinext's `kvDataAdapter` creates, so the request's data reads count toward `dataCache` (`hits`, `stale`, `misses`, `readErrors`, `writeErrors`) and a read or write that fails logs a `data_cache.error` warning. Failures are rethrown, so the framework handles them as before. See [Data cache](#data-cache). |
 | `@patronage/launch-logging/cloudflare` | Idempotent Cloudflare API helpers behind the provisioning script: `ensureBucket`, `ensureLogpushJob`, `ensureWordPressStream`, and token helpers. |
 
 ## Wide events from a Worker
@@ -26,6 +27,23 @@ export default withRequestLog(entry, { service: "web-wordpress" });
 Pass `sampleRate` (0 to 100) to keep only part of the healthy traffic; responses with status 400 or more, and requests slower than `slowMs` (1000 by default), are always kept.
 
 `upstream` covers the work done before the response starts, which is the same span as `duration`. Reads inside a Suspense boundary that streams later aren't in it; traces show those. web-wordpress times its WPGraphQL and media reads as `upstream.wordpress`, and Payload times its D1 queries as `upstream.d1`.
+
+An upstream call that fails after the event was emitted, such as the background refresh of a stale data cache entry, can't be added to it, so it logs its own `upstream.failed` error line with `afterResponse: true`, `upstream`, `durationMs` and the event's `requestId`.
+
+### Data cache
+
+vinext treats a data cache read that fails as a miss and drops a write that fails, so a broken store shows only as slower pages and more reads sent to the CMS. web-wordpress points vinext's `cache.data` at a module that wraps the KV adapter:
+
+```ts
+// lib/data-cache-adapter.ts; vite.config.ts sets cache.data.adapter to this file
+import { withDataCacheLog } from "@patronage/launch-logging";
+import createKvDataCacheAdapter from "@vinext/cloudflare/cache/kv-data-adapter.runtime";
+
+export default (input: Parameters<typeof createKvDataCacheAdapter>[0]) =>
+  withDataCacheLog(createKvDataCacheAdapter(input));
+```
+
+Only data entries count (kind `FETCH`); rendered pages are the event's `cache` field. A `data_cache.error` line carries `cacheError` (`read` or `write`), the error's name and the `requestId`, never the store's message, which can quote the cache key. Writes usually settle after the response, so a write failure is more often on its own line than in `dataCache.writeErrors`.
 
 To keep events past seven days, deploy with `WORKER_LOGPUSH=true`. `cloudflare.config.ts` turns on Workers Trace Events Logpush for the Worker, and the account's `workers_trace_events` job (below) copies every log line to R2. Each evlog event arrives as an entry in the trace event's `Logs` array. For a Worker deployed by Workers Builds, set the variable before running `pnpm run builds:configure`, so builds pass it on.
 

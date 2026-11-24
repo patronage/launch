@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { kvDataAdapter } from "@vinext/cloudflare/cache/kv-data-adapter";
@@ -14,7 +16,16 @@ export default defineConfig({
     vinext({
       // Pages (ISR) and data (fetch) both live in KV, so the revalidate
       // route's revalidateTag() and revalidatePath() clear them in one place.
-      cache: { data: kvDataAdapter() },
+      // The adapter runs through lib/data-cache-adapter.ts, which logs its
+      // hits, misses and failures on each request's wide event.
+      cache: {
+        data: {
+          ...kvDataAdapter(),
+          adapter: fileURLToPath(
+            new URL("lib/data-cache-adapter.ts", import.meta.url)
+          ),
+        },
+      },
       images: { optimizer: imagesOptimizer() },
     }),
     cloudflare({
