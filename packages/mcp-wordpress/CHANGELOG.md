@@ -1,5 +1,23 @@
 # @patronage/mcp-wordpress
 
+## 0.3.1
+
+### Patch Changes
+
+- 19a9b64: The connector's instructions to the model no longer say that every write pauses for human approval. Whether a write is held is now the deployment's setting (`APPROVAL_REQUIRED` in `@patronage/mcp-core`), and the `execute` tool description says which applies.
+- fe5c197: Updated dependencies to their latest minor and patch releases.
+- 6c071cd: `wp.apply` can set media alt text with `fields.alt_text` on `rest_base: "media"`. The approval preview shows the whole value, apply refuses to overwrite alt text that changed after the preview, and the saved text must match the request exactly.
+- Updated dependencies [56cd93c]
+- Updated dependencies [809b365]
+- Updated dependencies [19a9b64]
+- Updated dependencies [145051c]
+- Updated dependencies [d0b330b]
+- Updated dependencies [4a66108]
+- Updated dependencies [fe5c197]
+- Updated dependencies [cacc1bb]
+- Updated dependencies [19a9b64]
+  - @patronage/mcp-core@0.3.0
+
 ## 0.3.0
 
 ### Minor Changes

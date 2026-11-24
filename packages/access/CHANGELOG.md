@@ -1,5 +1,11 @@
 # @patronage/access
 
+## 0.2.1
+
+### Patch Changes
+
+- fe5c197: Updated dependencies to their latest minor and patch releases.
+
 ## 0.2.0
 
 ### Minor Changes
