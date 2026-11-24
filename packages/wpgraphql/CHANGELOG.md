@@ -1,5 +1,14 @@
 # @patronage/launch-wpgraphql
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [1aaa0e3]
+- Updated dependencies [fe5c197]
+  - @patronage/launch-logging@0.3.0
+  - @patronage/access@0.2.1
+
 ## 0.1.0
 
 ### Minor Changes
