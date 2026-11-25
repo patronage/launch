@@ -22,7 +22,7 @@ To open the admin locally, go to http://localhost:4321/_emdash/api/setup/dev-byp
 - `src/pages/forms/submit.ts`: public form submissions. It rewrites to the forms plugin's public submit route.
 - `src/styles/global.css`: `@launch/ui`'s Tailwind entry, built with `@tailwindcss/vite`.
 - `src/pages/news/[...path].astro`, `src/lib/news.ts`, `src/components/news-view.tsx` and `src/scripts/news-more.ts`: news (see News).
-- `src/pages/sections.astro`, `src/lib/section-library.ts` and `src/components/section-library-view.tsx`: the section library at `/sections`, the first published example of each section type drawn in light, dark and accent (or one colour with `?skin=`). Not indexed.
+- `src/pages/component-library/`, `src/lib/section-library.ts`, `src/lib/library-access.ts` and `src/components/section-library-view.tsx`: the component library for signed-in EmDash users. `/component-library` lists every section type; `/component-library/{section}` shows that section in light, dark and accent (or one colour with `?skin=`) and in each layout variant. Examples come from published pages. Signed-out visitors go to the admin sign-in; responses are `private, no-store` and not indexed.
 - `src/plugins/news-rules.ts`: a native EmDash plugin that refuses to publish or schedule a news story without exactly one category.
 - `src/pages/media/[...key].ts`: public media. It rewrites to EmDash's `/_emdash/api/media/file/{key}`, which refuses backup and staging keys.
 - `src/worker.ts`: EmDash's Worker entry, plus the scheduled handler that publishes scheduled entries.
