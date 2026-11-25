@@ -40,6 +40,7 @@ Shared front-end UI for the vinext sites: [shadcn/ui](https://ui.shadcn.com) com
 | `src/components/typography.tsx` | The type scale by role (`d1`, `h1` to `h4`, `lead`, `body-*`, `eyebrow`, `quote`). Pick the look with `variant` and the element with `as`. |
 | `src/components/button.tsx`, `card.tsx` | shadcn/ui components. Style a link as a button with `buttonVariants`. |
 | `src/blocks.tsx`, `src/sections.tsx` | The content-model blocks and `PageSections`. |
+| `src/news.tsx` | News listings: `NewsCard` (one `NewsSummary` as a list item, its title linking to the story and its category to the archive), `NewsCardGrid` and `NewsPagination`, whose "Older stories" link carries `data-news-more` for a load-more script. |
 
 ## Adding shadcn components
 

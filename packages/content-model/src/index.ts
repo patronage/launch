@@ -341,6 +341,27 @@ export const slugify = (
   return slug || undefined;
 };
 
+/** A link to a category or tag archive. */
+export interface TermLink {
+  label: string;
+  href: string;
+}
+
+/** A news story as a listing's card shows it. */
+export interface NewsSummary {
+  id: string;
+  title: string;
+  /** The story's own page. */
+  href: string;
+  /** When it was published, as an ISO 8601 date-time. */
+  publishedAt?: string;
+  excerpt?: string;
+  /** The story's own image, or its category's when it has none. */
+  image?: Image;
+  /** The story's primary category. */
+  category?: TermLink;
+}
+
 /** Drops hidden sections. Adapters keep them so previews can show them. */
 export const visibleSections = <R>(page: Page<R>): Section<R>[] =>
   page.sections.filter((section) => !section.options.hidden);

@@ -36,6 +36,8 @@ Build pages from these rather than app-local CSS:
 
 The content model has five hero variants (`home`, `split`, `media`, `simple` and a free-form one with rich text) and these sections: content, content with media, media, card grid, blockquote, call to action and form. Rich text can hold buttons, images, pullquotes and video or X embeds.
 
+News listings use `NewsCard`, `NewsCardGrid` and `NewsPagination`, which take the content model's `NewsSummary`: a title, link, date, excerpt, image and primary category.
+
 ## Tokens
 
 The colours, type and spacing are plain CSS variables in `tokens.css`, with no Tailwind, so the [Timber theme](/references/timber-wordpress) can load them on its own. `theme.css` maps them into Tailwind. To add a shadcn component, run `pnpm dlx shadcn@latest add <component>` in `packages/ui` and export it from the package.

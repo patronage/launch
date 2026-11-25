@@ -5,11 +5,14 @@
  *    seed/seed.json to the empty database (the dev server's own D1 and R2).
  * 2. Creates the demo form the Apply page places, through the forms plugin's
  *    admin API, unless it exists. The seed can't hold plugin data.
+ * 3. Dates the demo news stories (seed/news-dates.ts). EmDash's seed stamps
+ *    every entry with the time it is applied.
  *
  * The bypass answers 403 outside `astro dev`, so this cannot touch a deployed
  * site. Run it again any time.
  */
 import { demoForm } from "../seed/form.ts";
+import { newsDates } from "../seed/news-dates.ts";
 
 const siteUrl = process.env.EMDASH_URL ?? "http://localhost:4321";
 const api = `${siteUrl}/_emdash/api`;
@@ -73,6 +76,61 @@ if (list.includes(`"slug":"${demoForm.slug}"`)) {
   await call("forms/create", demoForm);
   console.log(`setup: created the ${demoForm.slug} form.`);
 }
+
+// News dates ------------------------------------------------------------------
+
+interface NewsItem {
+  id: string;
+  slug: string | null;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+/** The seed stamps a story's publish time as it creates it. */
+const SEED_STAMP_MS = 60_000;
+
+const stillSeedStamped = (item: NewsItem): boolean =>
+  item.publishedAt !== null &&
+  Math.abs(Date.parse(item.publishedAt) - Date.parse(item.createdAt)) <
+    SEED_STAMP_MS;
+
+const newsList = await fetch(`${api}/content/news?limit=100`, {
+  headers: { ...headers, cookie },
+});
+
+if (!newsList.ok) {
+  fail(`listing news failed (HTTP ${newsList.status})`);
+}
+
+// SAFETY: EmDash's content list answers { data: { items } } with each entry's
+// id, slug, createdAt and publishedAt; only those are read.
+const { data } = (await newsList.json()) as { data: { items: NewsItem[] } };
+
+// Published stories only, and only while they still carry the time the seed
+// stamped on them, so a rerun leaves a date an editor has set alone.
+const undated = data.items.flatMap((item) => {
+  const date = item.slug ? newsDates.get(item.slug) : undefined;
+
+  return date && stillSeedStamped(item) ? [{ date, item }] : [];
+});
+
+await Promise.all(
+  undated.map(async ({ date, item }) => {
+    const response = await fetch(`${api}/content/news/${item.id}`, {
+      body: JSON.stringify({ publishedAt: date }),
+      headers: { ...headers, "content-type": "application/json", cookie },
+      method: "PUT",
+    });
+
+    if (!response.ok) {
+      fail(
+        `dating ${item.slug} failed (HTTP ${response.status}): ${await response.text()}`
+      );
+    }
+  })
+);
+
+console.log(`setup: dated ${undated.length} news stories.`);
 
 console.log(
   `setup: done. Open ${siteUrl}/ for the site and ${siteUrl}/_emdash/admin to edit.`

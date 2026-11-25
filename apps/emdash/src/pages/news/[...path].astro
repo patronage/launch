@@ -1,0 +1,153 @@
+---
+/**
+ * News: the listing at /news, each category's and tag's archive, older pages
+ * at .../page/{n}, and each story at /news/{slug}. See src/lib/news.ts.
+ *
+ * A listing URL with `?fragment=cards` returns only that page's cards and its
+ * "Older stories" link, which the load-more script appends in place.
+ */
+import type { EmDashNewsData } from "@launch/adapter-emdash";
+import { getEmDashEntry, getTerm } from "emdash";
+
+import { NewsCards, NewsListing, NewsStory } from "../../components/news-view";
+import { adapter } from "../../components/page-view";
+import Site from "../../layouts/site.astro";
+import {
+  categoryImageFrom,
+  getCategoryDetails,
+  getNewsPage,
+  listingPath,
+  parseNewsPath,
+} from "../../lib/news";
+
+const route = parseNewsPath(Astro.params.path);
+
+if (route.kind === "redirect") {
+  return Astro.redirect(route.to, 301);
+}
+
+if (route.kind === "missing") {
+  return Astro.rewrite("/404");
+}
+
+const details = await getCategoryDetails();
+const categoryImage = categoryImageFrom(details);
+
+// One story ------------------------------------------------------------------
+
+let story;
+
+if (route.kind === "story") {
+  const { entry, isPreview } = await getEmDashEntry<"news", EmDashNewsData>(
+    "news",
+    route.slug
+  );
+
+  if (!entry) {
+    return Astro.rewrite("/404");
+  }
+
+  if (isPreview) {
+    Astro.response.headers.set("Cache-Control", "private, no-store");
+  }
+
+  story = {
+    body: adapter.richText(entry.data.body),
+    id: entry.data.id ?? entry.id,
+    isPreview,
+    seo: entry.data.seo,
+    summary: adapter.toNewsSummary(entry, categoryImage),
+    tags: adapter.newsTags(entry.data),
+  };
+}
+
+// A listing ------------------------------------------------------------------
+
+let listing;
+
+if (route.kind === "listing") {
+  const { filter, page } = route;
+  let heading = "News";
+  let eyebrow: string | undefined;
+  let intro: string | undefined;
+
+  if (filter.kind !== "all") {
+    const term = await getTerm(filter.kind, filter.slug);
+
+    if (!term) {
+      return Astro.rewrite("/404");
+    }
+
+    heading = term.label;
+    eyebrow = filter.kind === "category" ? "Category" : "Tag";
+    intro =
+      (filter.kind === "category"
+        ? details.get(filter.slug)?.intro
+        : undefined) ||
+      term.description ||
+      undefined;
+  }
+
+  const { entries, hasMore } = await getNewsPage(filter, page);
+
+  // Past the last page.
+  if (entries.length === 0 && page > 1) {
+    return Astro.rewrite("/404");
+  }
+
+  listing = {
+    eyebrow,
+    fragment: Astro.url.searchParams.get("fragment") === "cards",
+    heading,
+    intro,
+    newerHref: page > 1 ? listingPath(filter, page - 1) : undefined,
+    olderHref: hasMore ? listingPath(filter, page + 1) : undefined,
+    page,
+    stories: entries.map((entry) => adapter.toNewsSummary(entry, categoryImage)),
+  };
+}
+
+let pageTitle: string | undefined;
+
+if (listing) {
+  pageTitle =
+    listing.page > 1
+      ? `${listing.heading}, page ${listing.page}`
+      : listing.heading;
+}
+---
+
+{
+  listing?.fragment ? (
+    <NewsCards olderHref={listing.olderHref} stories={listing.stories} />
+  ) : listing ? (
+    <Site title={pageTitle}>
+      <NewsListing
+        empty={listing.stories.length === 0}
+        eyebrow={listing.eyebrow}
+        heading={listing.heading}
+        intro={listing.intro}
+      >
+        <NewsCards
+          newerHref={listing.newerHref}
+          olderHref={listing.olderHref}
+          stories={listing.stories}
+        />
+      </NewsListing>
+      <script src="../../scripts/news-more.ts"></script>
+    </Site>
+  ) : story ? (
+    <Site
+      title={story.seo?.title || story.summary.title}
+      description={story.seo?.description || story.summary.excerpt}
+      content={{ collection: "news", id: story.id, slug: route.kind === "story" ? route.slug : "" }}
+    >
+      {story.isPreview ? (
+        <p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+          Preview: you are seeing unpublished changes.
+        </p>
+      ) : null}
+      <NewsStory body={story.body} story={story.summary} tags={story.tags} />
+    </Site>
+  ) : null
+}

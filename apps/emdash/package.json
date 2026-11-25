@@ -20,6 +20,7 @@
     "@emdash-cms/cloudflare": "1.6.0",
     "@emdash-cms/plugin-forms": "0.2.14",
     "@launch/adapter-emdash": "workspace:*",
+    "@launch/content-model": "workspace:*",
     "@launch/ui": "workspace:*",
     "astro": "7.4.12",
     "emdash": "1.6.0",

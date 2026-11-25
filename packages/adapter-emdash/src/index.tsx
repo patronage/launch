@@ -6,10 +6,12 @@ import type {
   Link,
   LinkVariant,
   Media,
+  NewsSummary,
   Page,
   RichTextBlock,
   Section,
   SectionOptions,
+  TermLink,
 } from "@launch/content-model";
 import {
   compact,
@@ -29,9 +31,11 @@ import type {
   EmDashEntry,
   EmDashImage,
   EmDashLink,
+  EmDashNewsData,
   EmDashPageData,
   EmDashSection,
   EmDashSectionOptions,
+  EmDashTerm,
   EmDashUnknownSection,
   PortableText,
   PortableTextImage,
@@ -90,6 +94,42 @@ const isKnownSection = (
 const text = (value: string | null | undefined): string | undefined =>
   value?.trim() || undefined;
 
+/** Where news lives: stories at /news/{slug}, archives under it. */
+export const NEWS_PATH = "/news";
+
+export const newsPath = (slug: string): string =>
+  `${NEWS_PATH}/${encodeURIComponent(slug)}`;
+
+export const categoryPath = (slug: string): string =>
+  `${NEWS_PATH}/category/${encodeURIComponent(slug)}`;
+
+export const tagPath = (slug: string): string =>
+  `${NEWS_PATH}/tag/${encodeURIComponent(slug)}`;
+
+const termLink = (
+  term: EmDashTerm | undefined,
+  path: (slug: string) => string
+): TermLink | undefined => {
+  const slug = text(term?.slug);
+
+  return slug
+    ? { href: path(slug), label: text(term?.label) ?? slug }
+    : undefined;
+};
+
+/** A loader date (a Date) or a REST one (a string), as ISO 8601. */
+const isoDate = (
+  value: string | Date | null | undefined
+): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+};
+
 /** A section's options in the content model, for sections an app draws itself. */
 export const sectionOptions = (value: EmDashSectionOptions): SectionOptions =>
   compact({
@@ -122,6 +162,17 @@ const link = (
 
 const links = (rows: EmDashLink[] | null | undefined): Link[] =>
   (rows ?? []).flatMap((row) => link(row) ?? []);
+
+/**
+ * A news story's primary category: its one category, or the first by label
+ * if an older story holds several.
+ */
+const primaryCategory = (data: EmDashNewsData): EmDashTerm | undefined =>
+  data.terms?.category?.[0];
+
+/** A story's tags, as links to their archives, in label order. */
+export const newsTags = (data: EmDashNewsData): TermLink[] =>
+  (data.terms?.tag ?? []).flatMap((term) => termLink(term, tagPath) ?? []);
 
 export const createEmDashAdapter = (options: EmDashAdapterOptions = {}) => {
   const serverUrl = options.serverUrl?.replace(/\/+$/u, "") ?? "";
@@ -380,5 +431,39 @@ export const createEmDashAdapter = (options: EmDashAdapterOptions = {}) => {
     });
   };
 
-  return { pagePath, richTextImage, toPage };
+  /**
+   * Maps a news entry for a listing's card. `categoryImage` gives a
+   * category's image by slug, which stands in for a story without its own.
+   */
+  const toNewsSummary = (
+    entry: { id: string; data: EmDashNewsData },
+    categoryImage?: (slug: string) => EmDashImage | null | undefined
+  ): NewsSummary => {
+    const { data } = entry;
+    const slug = text(data.slug ?? undefined) ?? entry.id;
+    const category = primaryCategory(data);
+    const categorySlug = text(category?.slug);
+
+    return compact({
+      category: termLink(category, categoryPath),
+      excerpt: text(data.excerpt),
+      href: newsPath(slug),
+      id: text(data.id) ?? entry.id,
+      image:
+        image(data.featured_image) ??
+        (categorySlug ? image(categoryImage?.(categorySlug)) : undefined),
+      publishedAt: isoDate(data.publishedAt),
+      title: text(data.title) ?? "",
+    });
+  };
+
+  return {
+    image,
+    newsTags,
+    pagePath,
+    richText,
+    richTextImage,
+    toNewsSummary,
+    toPage,
+  };
 };

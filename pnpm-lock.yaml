@@ -279,6 +279,9 @@ importers:
       '@launch/adapter-emdash':
         specifier: workspace:*
         version: link:../../packages/adapter-emdash
+      '@launch/content-model':
+        specifier: workspace:*
+        version: link:../../packages/content-model
       '@launch/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -21,6 +21,8 @@ To open the admin locally, go to http://localhost:4321/_emdash/api/setup/dev-byp
 - `src/middleware.ts`: points the home page's sitemap entry at `/`, and points public pages and sitemaps at `/media/{key}` and `/forms/submit` instead of paths under `/_emdash`, which Access covers. This includes `og:image` and form actions.
 - `src/pages/forms/submit.ts`: public form submissions. It rewrites to the forms plugin's public submit route.
 - `src/styles/global.css`: `@launch/ui`'s Tailwind entry, built with `@tailwindcss/vite`.
+- `src/pages/news/[...path].astro`, `src/lib/news.ts`, `src/components/news-view.tsx` and `src/scripts/news-more.ts`: news (see News).
+- `src/plugins/news-rules.ts`: a native EmDash plugin that refuses to publish or schedule a news story without exactly one category.
 - `src/pages/media/[...key].ts`: public media. It rewrites to EmDash's `/_emdash/api/media/file/{key}`, which refuses backup and staging keys.
 - `src/worker.ts`: EmDash's Worker entry, plus the scheduled handler that publishes scheduled entries.
 
@@ -36,7 +38,21 @@ pnpm --filter @launch/emdash seed:write
 
 A page has a hero (a variant plus the fields each variant draws, as in the Payload and WordPress models) and a `sections` field of these blocks, each with the shared Section options: `content`, `content_media`, `media`, `card_grid`, `blockquote`, `call_to_action` and `form`. Not yet modeled: pull quotes, embeds and buttons inside rich text.
 
+The seed also holds the news schema and ten demo stories (one a draft), with four categories and six tags; see News.
+
 The seed also adds three example redirects: `/gardens` (301 to `/programs`), `/volunteer` (302 to `/get-involved`) and `/resources/[...path]` (301 to `/guide`).
+
+## News
+
+Stories are the `news` collection: a title, an excerpt for cards, an optional featured image and a rich text body, plus EmDash's SEO panel, drafts, previews and scheduling. See [ADR 0026](../../docs/adr/0026-emdash-news.md).
+
+- **Categories and tags** are EmDash taxonomies on `news`, managed under Categories and Tags. A story takes exactly one category, its primary one: the `news-rules` plugin refuses to publish or schedule it otherwise, with a message in the editor. Tags are optional.
+- **Category details** is a collection with one entry per category, whose slug is the category's slug. Its image stands in on cards and the story page when a story has no featured image, and its intro heads the category's archive.
+- **Routes**: `/news`, `/news/category/{slug}` and `/news/tag/{slug}` list six stories a page, newest first, with older pages at `.../page/{n}`. Stories are at `/news/{slug}`.
+- **Load more**: "Older stories" is a link to the next page. `src/scripts/news-more.ts` fetches that URL with `?fragment=cards`, which renders only its cards and the next link, and appends them in place. The CMS API stays behind Access; without JavaScript the link just opens the page.
+- `setup` gives the demo stories their dates from `seed/news-dates.ts`, since the seed stamps every entry with the time it runs.
+
+On a site whose database already exists, such as production, the seed doesn't run again: create the `news` and `category_details` collections, the `category` and `tag` taxonomies on `news`, and their terms in the admin (or through its API), matching `seed/build.ts`.
 
 ## Redirects
 

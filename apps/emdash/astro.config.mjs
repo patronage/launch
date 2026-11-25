@@ -7,6 +7,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 
+import { newsRules } from "./src/plugins/news-rules.ts";
+
 // With ACCESS_TEAM_DOMAIN set at build time, EmDash signs editors in with the
 // Cloudflare Access application in front of /_emdash/* (ADR 0011) and reads
 // its audience tag from the ACCESS_AUD binding at runtime. Without it (local
@@ -25,8 +27,9 @@ const emailFrom = process.env.EMAIL_FROM;
 /** @type {Parameters<typeof emdash>[0]} */
 const cms = {
   database: d1({ binding: "DB", session: "auto" }),
-  // Forms built in the admin, placed on pages with the `form` section.
-  plugins: [formsPlugin()],
+  // Forms built in the admin, placed on pages with the `form` section, and
+  // the rule that a news story goes live with exactly one category.
+  plugins: [formsPlugin(), newsRules()],
   storage: r2({ binding: "MEDIA" }),
 };
 
