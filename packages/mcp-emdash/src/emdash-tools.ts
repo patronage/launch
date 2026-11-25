@@ -24,6 +24,7 @@ export const EMDASH_EXECUTE_DESCRIPTION = [
   'Collections and their fields: emdash.get({ path: "/_emdash/api/schema/collections/pages", query: { includeFields: true } }).',
   'Entries: emdash.get({ path: "/_emdash/api/content/pages", query: { limit: 20 } }) returns { items, nextCursor, total }; emdash.get({ path: "/_emdash/api/content/pages/<id or slug>" }) returns { item, _rev }, where item.data holds the fields with any pending draft applied and item.status is draft, published or scheduled.',
   "Rich text fields (type portableText) are Portable Text arrays.",
+  "Search (/_emdash/api/search) is EmDash's public search and returns published entries only; list a collection with query.status to find drafts.",
   "EmDash has no writes through the gateway yet.",
 ].join(" ");
 
