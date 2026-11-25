@@ -26,7 +26,21 @@ export type NewsRoute =
   | { kind: "missing" };
 
 const PAGE_NUMBER = /^[1-9]\d{0,5}$/u;
-const SLUG = /^[a-z0-9][a-z0-9-]*$/u;
+
+// EmDash's slugs: lowercase letters in any script, digits and hyphens.
+const SLUG = /^[\p{Ll}\p{Lo}\p{N}][\p{Ll}\p{Lo}\p{Lm}\p{M}\p{N}-]*$/u;
+
+/** A path segment, decoded if it arrives percent-encoded, or undefined if malformed. */
+const decode = (segment: string): string | undefined => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return undefined;
+  }
+};
+
+const isSlug = (value: string | undefined): value is string =>
+  value !== undefined && SLUG.test(value);
 
 /** A listing's first page, without `/page/1`. */
 export const filterPath = (filter: NewsFilter): string => {
@@ -69,21 +83,34 @@ const listingRoute = (filter: NewsFilter, rest: string[]): NewsRoute => {
 /** Parses the path after /news/ (empty for /news itself). */
 export const parseNewsPath = (path: string | undefined): NewsRoute => {
   const segments = path ? path.split("/").filter(Boolean) : [];
-  const [first, second, ...rest] = segments;
+  const words = segments.flatMap((segment) => decode(segment) ?? []);
 
-  if (!first || first === "page") {
-    return listingRoute({ kind: "all" }, segments);
+  if (words.length !== segments.length) {
+    return { kind: "missing" };
+  }
+
+  const [first, second, ...rest] = words;
+
+  if (!first) {
+    return listingRoute({ kind: "all" }, words);
+  }
+
+  // A lone word is a story, even one slugged "page", "category" or "tag".
+  if (words.length === 1) {
+    return isSlug(first) ? { kind: "story", slug: first } : { kind: "missing" };
+  }
+
+  if (first === "page") {
+    return listingRoute({ kind: "all" }, words);
   }
 
   if (first === "category" || first === "tag") {
-    return second && SLUG.test(second)
+    return isSlug(second)
       ? listingRoute({ kind: first, slug: second }, rest)
       : { kind: "missing" };
   }
 
-  return segments.length === 1 && SLUG.test(first)
-    ? { kind: "story", slug: first }
-    : { kind: "missing" };
+  return { kind: "missing" };
 };
 
 /** One page of published stories, newest first. */

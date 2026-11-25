@@ -6,6 +6,9 @@
  */
 const FRAGMENT = "cards";
 
+/** Listings with a load in flight, so a double click appends a page once. */
+const loading = new WeakSet<Element>();
+
 const loadMore = async (link: HTMLAnchorElement): Promise<void> => {
   const listing = link.closest("[data-news-listing]");
   const list = listing?.querySelector<HTMLUListElement>("[data-news-cards]");
@@ -16,6 +19,12 @@ const loadMore = async (link: HTMLAnchorElement): Promise<void> => {
 
     return;
   }
+
+  if (loading.has(listing)) {
+    return;
+  }
+
+  loading.add(listing);
 
   const url = new URL(link.href);
   url.searchParams.set("fragment", FRAGMENT);
@@ -59,6 +68,8 @@ const loadMore = async (link: HTMLAnchorElement): Promise<void> => {
     cards[0]?.querySelector<HTMLAnchorElement>("h2 a, h3 a")?.focus();
   } catch {
     window.location.assign(link.href);
+  } finally {
+    loading.delete(listing);
   }
 };
 

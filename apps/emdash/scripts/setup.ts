@@ -82,8 +82,17 @@ if (list.includes(`"slug":"${demoForm.slug}"`)) {
 interface NewsItem {
   id: string;
   slug: string | null;
+  createdAt: string;
   publishedAt: string | null;
 }
+
+/** The seed stamps a story's publish time as it creates it. */
+const SEED_STAMP_MS = 60_000;
+
+const stillSeedStamped = (item: NewsItem): boolean =>
+  item.publishedAt !== null &&
+  Math.abs(Date.parse(item.publishedAt) - Date.parse(item.createdAt)) <
+    SEED_STAMP_MS;
 
 const newsList = await fetch(`${api}/content/news?limit=100`, {
   headers: { ...headers, cookie },
@@ -94,16 +103,15 @@ if (!newsList.ok) {
 }
 
 // SAFETY: EmDash's content list answers { data: { items } } with each entry's
-// id, slug and publishedAt; only those are read.
+// id, slug, createdAt and publishedAt; only those are read.
 const { data } = (await newsList.json()) as { data: { items: NewsItem[] } };
 
-// Published stories only, and only while they still carry the seed's time.
+// Published stories only, and only while they still carry the time the seed
+// stamped on them, so a rerun leaves a date an editor has set alone.
 const undated = data.items.flatMap((item) => {
   const date = item.slug ? newsDates.get(item.slug) : undefined;
 
-  return date && item.publishedAt && item.publishedAt !== date
-    ? [{ date, item }]
-    : [];
+  return date && stillSeedStamped(item) ? [{ date, item }] : [];
 });
 
 await Promise.all(

@@ -5,6 +5,11 @@
  * image stands in when the story has none. Drafts can be saved without one,
  * because EmDash assigns terms apart from the save.
  *
+ * EmDash 1.6 runs no hook when terms change on a story that is already live,
+ * so an editor can still remove its category or add a second until the next
+ * publish. The front end copes: it shows the first category by label, and a
+ * story with none shows no category and no stand-in image.
+ *
  * astro.config.mjs registers it with `newsRules()`; EmDash imports
  * `createPlugin` from this file at build time.
  */
