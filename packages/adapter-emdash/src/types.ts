@@ -191,6 +191,38 @@ export interface EmDashPageData {
   seo?: EmDashSeo;
 }
 
+// News --------------------------------------------------------------------------
+
+/** A taxonomy term on an entry, as EmDash's loader attaches it under `terms`. */
+export interface EmDashTerm {
+  slug?: string;
+  label?: string;
+}
+
+/**
+ * A `news` entry's data from `getEmDashCollection` or `getEmDashEntry`. The
+ * loader adds `id`, `publishedAt` (a Date there, a string over REST) and
+ * `terms`, keyed by taxonomy name.
+ */
+export interface EmDashNewsData {
+  title?: string;
+  excerpt?: string;
+  featured_image?: EmDashImage | null;
+  body?: PortableText;
+  id?: string;
+  slug?: string | null;
+  publishedAt?: string | Date | null;
+  terms?: { category?: EmDashTerm[]; tag?: EmDashTerm[] };
+  seo?: EmDashSeo;
+}
+
+/** A `category_details` entry's data: what a category term can't hold. */
+export interface EmDashCategoryDetailsData {
+  title?: string;
+  image?: EmDashImage | null;
+  intro?: string;
+}
+
 // Entries -----------------------------------------------------------------------
 
 export interface EmDashSeo {

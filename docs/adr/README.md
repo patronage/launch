@@ -33,3 +33,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0023](0023-approval-is-opt-in.md) | The MCP gateway applies writes by default; `APPROVAL_REQUIRED=true` makes one deployment hold them for Approval |
 | [0024](0024-emdash-seo-redirects-and-forms.md) | EmDash uses its built-in redirects and SEO (`<EmDashHead>`, sitemaps, robots.txt) and `@emdash-cms/plugin-forms` through a `form` section |
 | [0025](0025-npm-trusted-publishing.md) | Local verification and Workers Builds, with one manual GitHub Actions workflow that publishes the npm packages |
+| [0026](0026-emdash-news.md) | EmDash news: a `news` collection with `category` and `tag` taxonomies, one category per story, category images in `category_details`, and listing pages that load more through a public HTML fragment |

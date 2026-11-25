@@ -787,6 +787,63 @@
       "slug": "pages",
       "supports": ["drafts", "revisions", "preview", "search", "seo"],
       "urlPattern": "/{slug}"
+    },
+    {
+      "fields": [
+        {
+          "label": "Title",
+          "slug": "title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "label": "Excerpt (shown on cards)",
+          "slug": "excerpt",
+          "type": "text",
+          "searchable": true
+        },
+        {
+          "label": "Featured image (defaults to the category's image)",
+          "slug": "featured_image",
+          "type": "image"
+        },
+        {
+          "label": "Body",
+          "slug": "body",
+          "type": "portableText",
+          "searchable": true
+        }
+      ],
+      "label": "News",
+      "labelSingular": "News story",
+      "slug": "news",
+      "supports": ["drafts", "revisions", "preview", "search", "seo"],
+      "urlPattern": "/news/{slug}"
+    },
+    {
+      "fields": [
+        {
+          "label": "Category name",
+          "slug": "title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "label": "Image (for stories without one)",
+          "slug": "image",
+          "type": "image"
+        },
+        {
+          "label": "Intro (on the category page)",
+          "slug": "intro",
+          "type": "text"
+        }
+      ],
+      "label": "Category details",
+      "labelSingular": "Category details",
+      "slug": "category_details",
+      "supports": ["revisions"]
     }
   ],
   "content": {
@@ -1521,6 +1578,824 @@
         "slug": "tool-share",
         "status": "published"
       }
+    ],
+    "category_details": [
+      {
+        "data": {
+          "image": {
+            "$media": {
+              "alt": "Raised garden beds in a city lot",
+              "filename": "raised-beds.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/raised-beds.jpg"
+            }
+          },
+          "intro": "New gardens, grants and changes to how we run things.",
+          "title": "Announcements"
+        },
+        "id": "category-announcements",
+        "slug": "announcements",
+        "status": "published"
+      },
+      {
+        "data": {
+          "image": {
+            "$media": {
+              "alt": "Paper seed packets",
+              "filename": "seeds.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/seeds.jpg"
+            }
+          },
+          "intro": "Practical guides for member gardens, season by season.",
+          "title": "How-to"
+        },
+        "id": "category-how-to",
+        "slug": "how-to",
+        "status": "published"
+      },
+      {
+        "data": {
+          "image": {
+            "$media": {
+              "alt": "Volunteers sorting a harvest",
+              "filename": "harvest.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/harvest.jpg"
+            }
+          },
+          "intro": "Gardeners in their own words.",
+          "title": "Garden stories"
+        },
+        "id": "category-stories",
+        "slug": "stories",
+        "status": "published"
+      },
+      {
+        "data": {
+          "image": {
+            "$media": {
+              "alt": "Garden tools hanging on a wall",
+              "filename": "tools.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/tools.jpg"
+            }
+          },
+          "intro": "Work days, swaps and harvest days you can join.",
+          "title": "Events"
+        },
+        "id": "category-events",
+        "slug": "events",
+        "status": "published"
+      }
+    ],
+    "news": [
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k57",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k56",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "The tool share now has two more wheelbarrows, a broadfork and a second set of long-handled loppers, bought with donations from the spring plant sale."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k62",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k58",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Reserve them on the "
+                },
+                {
+                  "_key": "k60",
+                  "_type": "span",
+                  "marks": ["k59"],
+                  "text": "tool share"
+                },
+                {
+                  "_key": "k61",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " page and pick up at the Elm Street shed."
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "k59",
+                  "_type": "link",
+                  "href": "/tool-share"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "New wheelbarrows, a broadfork and loppers are ready to borrow.",
+          "featured_image": null,
+          "title": "New tools in the shed"
+        },
+        "id": "news-new-tools-in-the-shed",
+        "slug": "new-tools-in-the-shed",
+        "status": "published",
+        "taxonomies": {
+          "category": ["announcements"],
+          "tag": ["tools"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k64",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k63",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "The first hot week is when new gardens lose the most plants. A rota means every bed gets water, even when the regulars are away."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k66",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k65",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Setting one up"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "k68",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k67",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Pick one evening slot per person each week."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k70",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k69",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Water the soil, not the leaves, and water deeply."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k72",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k71",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Post the rota on the shed door and in the group chat."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            }
+          ],
+          "excerpt": "Set a watering rota before the first hot week, and every bed gets water even when the regulars are away.",
+          "featured_image": null,
+          "title": "Set up a watering rota before the heat"
+        },
+        "id": "news-summer-watering-rota",
+        "slug": "summer-watering-rota",
+        "status": "published",
+        "taxonomies": {
+          "category": ["how-to"],
+          "tag": ["volunteering"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k74",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k73",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Forty kids from three after-school programs planted, weeded and harvested at Elm Street, Maple Court and the Grove this summer."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k78",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k75",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Their favorite crop, by a wide margin, was the "
+                },
+                {
+                  "_key": "k76",
+                  "_type": "span",
+                  "marks": ["strong"],
+                  "text": "purple bush beans"
+                },
+                {
+                  "_key": "k77",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Forty kids from three after-school programs spent the summer growing food at three gardens.",
+          "featured_image": null,
+          "title": "A summer of youth growers"
+        },
+        "id": "news-youth-growers-summer",
+        "slug": "youth-growers-summer",
+        "status": "published",
+        "taxonomies": {
+          "category": ["stories"],
+          "tag": ["youth"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k82",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k79",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Seven years ago the lot at Elm and 4th was a fenced square of gravel and broken glass. This September we weighed "
+                },
+                {
+                  "_key": "k80",
+                  "_type": "span",
+                  "marks": ["strong"],
+                  "text": "1,140 pounds"
+                },
+                {
+                  "_key": "k81",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " of produce from it, and gave most of it away on the sidewalk."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k84",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k83",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "None of that came from expertise. It came from showing up every Saturday, and from neighbors who noticed and started showing up too."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k89",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k85",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "If you're thinking about a garden on your block, read the "
+                },
+                {
+                  "_key": "k87",
+                  "_type": "span",
+                  "marks": ["k86"],
+                  "text": "starter guide"
+                },
+                {
+                  "_key": "k88",
+                  "_type": "span",
+                  "marks": [],
+                  "text": ". It's everything I wish I'd known in year one."
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "k86",
+                  "_type": "link",
+                  "href": "/guide"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Seven years after the first raised bed, the Elm Street garden harvested more than half a ton of food this season.",
+          "featured_image": {
+            "$media": {
+              "alt": "Volunteers sorting a harvest",
+              "filename": "harvest.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/harvest.jpg"
+            }
+          },
+          "title": "Elm Street's best harvest yet"
+        },
+        "id": "news-elm-street-harvest",
+        "slug": "elm-street-harvest",
+        "status": "published",
+        "taxonomies": {
+          "category": ["stories"],
+          "tag": ["harvest"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k91",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k90",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Saving seed is how the library grows. Every packet you return in the fall becomes three packets for someone else in the spring."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k93",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k92",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Start with the easy ones"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "k95",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k94",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Beans, peas, lettuce and tomatoes are the best first crops to save from: they mostly pollinate themselves, so the seed grows true."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k97",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k96",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Let a few of the healthiest plants go fully to seed."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k99",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k98",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Harvest on a dry day and spread the seed on paper for a week."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k101",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k100",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Label everything: crop, variety, garden and year."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k103",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k102",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Bringing seed back"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "k108",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k104",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Drop labeled envelopes in the return box at any member garden, or bring them to the "
+                },
+                {
+                  "_key": "k106",
+                  "_type": "span",
+                  "marks": ["k105"],
+                  "text": "seed library"
+                },
+                {
+                  "_key": "k107",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " swap on the first Saturday of November."
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "k105",
+                  "_type": "link",
+                  "href": "/seed-library"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Beans, peas, lettuce and tomatoes are the easiest crops to save seed from. Here's how to bring your harvest back to the library.",
+          "featured_image": {
+            "$media": {
+              "alt": "Paper seed packets",
+              "filename": "seeds.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/seeds.jpg"
+            }
+          },
+          "title": "How to save seed for the library"
+        },
+        "id": "news-how-to-save-seed",
+        "slug": "how-to-save-seed",
+        "status": "published",
+        "taxonomies": {
+          "category": ["how-to"],
+          "tag": ["seed-library", "harvest"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k110",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k109",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Bring saved seed, take home something new. The swap runs from 10 a.m. to 1 p.m. on Saturday, November 7, in the Elm Street shed."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k112",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k111",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "No seed to trade? Come anyway: first-time growers go home with five packets."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Trade saved seed for something new at the Elm Street shed on Saturday, November 7.",
+          "featured_image": null,
+          "title": "The November seed swap"
+        },
+        "id": "news-november-seed-swap",
+        "slug": "november-seed-swap",
+        "status": "published",
+        "taxonomies": {
+          "category": ["events"],
+          "tag": ["seed-library"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k114",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k113",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "A two-year grant from the Riverside Community Fund will turn four vacant lots into shared gardens next spring."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k119",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k115",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Each new garden gets soil, lumber for raised beds and a mentor for its first season. "
+                },
+                {
+                  "_key": "k117",
+                  "_type": "span",
+                  "marks": ["k116"],
+                  "text": "Apply for a garden"
+                },
+                {
+                  "_key": "k118",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " by January 15."
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "k116",
+                  "_type": "link",
+                  "href": "/apply"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "A two-year grant from the Riverside Community Fund will turn four vacant lots into shared gardens next spring.",
+          "featured_image": {
+            "$media": {
+              "alt": "Raised garden beds in a city lot",
+              "filename": "raised-beds.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/raised-beds.jpg"
+            }
+          },
+          "title": "Four new gardens are coming next spring"
+        },
+        "id": "news-four-new-gardens-next-spring",
+        "slug": "four-new-gardens-next-spring",
+        "status": "published",
+        "taxonomies": {
+          "category": ["announcements"],
+          "tag": ["grants"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k121",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k120",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Every member garden needs a few extra hands before the frost. Join us on Saturday, November 14, from 9 a.m. to noon."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "k123",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k122",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Pull spent plants and compost them."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k125",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k124",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Mulch beds with leaves from the city drop-off."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k127",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k126",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Coil hoses and return borrowed tools to the shed."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "k132",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k128",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Coffee and pastries at Elm Street at 8:30. "
+                },
+                {
+                  "_key": "k130",
+                  "_type": "span",
+                  "marks": ["k129"],
+                  "text": "Sign up to volunteer"
+                },
+                {
+                  "_key": "k131",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "."
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "k129",
+                  "_type": "link",
+                  "href": "/get-involved"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Help put eleven gardens to bed for the winter on Saturday, November 14.",
+          "featured_image": {
+            "$media": {
+              "alt": "Garden tools hanging on a wall",
+              "filename": "tools.jpg",
+              "url": "https://raw.githubusercontent.com/patronage/launch/main/packages/demo-content/images/tools.jpg"
+            }
+          },
+          "title": "Fall cleanup day: November 14"
+        },
+        "id": "news-fall-cleanup-day",
+        "slug": "fall-cleanup-day",
+        "status": "published",
+        "taxonomies": {
+          "category": ["events"],
+          "tag": ["volunteering", "tools"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k136",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k135",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "We're looking for a part-time youth program coordinator to run after-school planting days at three gardens. Draft: confirm hours and pay with the board before publishing."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "A part-time role running after-school planting days.",
+          "featured_image": null,
+          "title": "We're hiring a youth program coordinator"
+        },
+        "id": "news-hiring-youth-coordinator",
+        "slug": "hiring-youth-coordinator",
+        "status": "draft",
+        "taxonomies": {
+          "category": ["announcements"],
+          "tag": ["youth"]
+        }
+      },
+      {
+        "data": {
+          "body": [
+            {
+              "_key": "k134",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "k133",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "The city's fall leaf drop-off is open at the Grove garden through December. Bring bagged leaves; take home finished compost from last year's pile."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "excerpt": "Drop off bagged leaves at the Grove garden through December and take home last year's compost.",
+          "featured_image": null,
+          "title": "Compost and leaf drop-off is open"
+        },
+        "id": "news-compost-and-leaf-drop-off",
+        "slug": "compost-and-leaf-drop-off",
+        "status": "published",
+        "taxonomies": {
+          "category": ["how-to"],
+          "tag": ["volunteering"]
+        }
+      }
     ]
   },
   "menus": [
@@ -1535,6 +2410,11 @@
           "label": "Starter guide",
           "type": "custom",
           "url": "/guide"
+        },
+        {
+          "label": "News",
+          "type": "custom",
+          "url": "/news"
         },
         {
           "label": "Get involved",
@@ -1573,6 +2453,66 @@
     "description": "The Launch demo site on EmDash",
     "name": "Launch EmDash"
   },
+  "taxonomies": [
+    {
+      "collections": ["news"],
+      "hierarchical": false,
+      "label": "Categories",
+      "labelSingular": "Category",
+      "name": "category",
+      "terms": [
+        {
+          "label": "Announcements",
+          "slug": "announcements"
+        },
+        {
+          "label": "How-to",
+          "slug": "how-to"
+        },
+        {
+          "label": "Garden stories",
+          "slug": "stories"
+        },
+        {
+          "label": "Events",
+          "slug": "events"
+        }
+      ]
+    },
+    {
+      "collections": ["news"],
+      "hierarchical": false,
+      "label": "Tags",
+      "labelSingular": "Tag",
+      "name": "tag",
+      "terms": [
+        {
+          "label": "Grants",
+          "slug": "grants"
+        },
+        {
+          "label": "Harvest",
+          "slug": "harvest"
+        },
+        {
+          "label": "Seed library",
+          "slug": "seed-library"
+        },
+        {
+          "label": "Tools",
+          "slug": "tools"
+        },
+        {
+          "label": "Volunteering",
+          "slug": "volunteering"
+        },
+        {
+          "label": "Youth",
+          "slug": "youth"
+        }
+      ]
+    }
+  ],
   "settings": {
     "tagline": "Shared gardens on every block",
     "title": "Neighborhood Growers"

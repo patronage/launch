@@ -16,6 +16,8 @@ export * from "./components/typography";
 
 export { PageHero } from "./hero";
 
+export * from "./news";
+
 export * from "./primitives";
 
 export { Embed, playerFor, Pullquote, RichTextBlock } from "./rich-text-blocks";

@@ -10,6 +10,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { newsDates } from "./news-dates.ts";
+
 const out = path.join(import.meta.dirname, "seed.json");
 
 // Field definitions -----------------------------------------------------------
@@ -191,6 +193,44 @@ const pages = {
   supports: ["drafts", "revisions", "preview", "search", "seo"],
   // The home page's slug is `home`; the front end serves it at `/`.
   urlPattern: "/{slug}",
+};
+
+/**
+ * News stories, at /news/{slug}. Each story takes exactly one category (the
+ * news-rules plugin refuses to publish one without) and any number of tags.
+ */
+const news = {
+  fields: [
+    field("title", "Title", "string", { required: true, searchable: true }),
+    field("excerpt", "Excerpt (shown on cards)", "text", { searchable: true }),
+    field(
+      "featured_image",
+      "Featured image (defaults to the category's image)",
+      "image"
+    ),
+    field("body", "Body", "portableText", { searchable: true }),
+  ],
+  label: "News",
+  labelSingular: "News story",
+  slug: "news",
+  supports: ["drafts", "revisions", "preview", "search", "seo"],
+  urlPattern: "/news/{slug}",
+};
+
+/**
+ * What a category term can't hold: its image and intro. One entry per
+ * category, with the category's slug as its own; it has no page of its own.
+ */
+const categoryDetails = {
+  fields: [
+    field("title", "Category name", "string", { required: true }),
+    field("image", "Image (for stories without one)", "image"),
+    field("intro", "Intro (on the category page)", "text"),
+  ],
+  label: "Category details",
+  labelSingular: "Category details",
+  slug: "category_details",
+  supports: ["revisions"],
 };
 
 // Demo content ----------------------------------------------------------------
@@ -594,16 +634,333 @@ const content = {
   ],
 };
 
+// News ----------------------------------------------------------------------
+
+const categories = [
+  {
+    image: "raised-beds.jpg",
+    intro: "New gardens, grants and changes to how we run things.",
+    label: "Announcements",
+    slug: "announcements",
+  },
+  {
+    image: "seeds.jpg",
+    intro: "Practical guides for member gardens, season by season.",
+    label: "How-to",
+    slug: "how-to",
+  },
+  {
+    image: "harvest.jpg",
+    intro: "Gardeners in their own words.",
+    label: "Garden stories",
+    slug: "stories",
+  },
+  {
+    image: "tools.jpg",
+    intro: "Work days, swaps and harvest days you can join.",
+    label: "Events",
+    slug: "events",
+  },
+];
+
+const tags = [
+  { label: "Grants", slug: "grants" },
+  { label: "Harvest", slug: "harvest" },
+  { label: "Seed library", slug: "seed-library" },
+  { label: "Tools", slug: "tools" },
+  { label: "Volunteering", slug: "volunteering" },
+  { label: "Youth", slug: "youth" },
+];
+
+interface Story {
+  slug: string;
+  title: string;
+  category: string;
+  tags: string[];
+  excerpt: string;
+  body: TextBlock[];
+  image?: string;
+  draft?: boolean;
+}
+
+/** Stories without an image show their category's. */
+const stories: Story[] = [
+  {
+    body: [
+      block([
+        "The tool share now has two more wheelbarrows, a broadfork and a second set of long-handled loppers, bought with donations from the spring plant sale.",
+      ]),
+      block([
+        "Reserve them on the ",
+        link("tool share", "/tool-share"),
+        " page and pick up at the Elm Street shed.",
+      ]),
+    ],
+    category: "announcements",
+    excerpt: "New wheelbarrows, a broadfork and loppers are ready to borrow.",
+    slug: "new-tools-in-the-shed",
+    tags: ["tools"],
+    title: "New tools in the shed",
+  },
+  {
+    body: [
+      block([
+        "The first hot week is when new gardens lose the most plants. A rota means every bed gets water, even when the regulars are away.",
+      ]),
+      block(["Setting one up"], { style: "h2" }),
+      block(["Pick one evening slot per person each week."], {
+        listItem: "bullet",
+      }),
+      block(["Water the soil, not the leaves, and water deeply."], {
+        listItem: "bullet",
+      }),
+      block(["Post the rota on the shed door and in the group chat."], {
+        listItem: "bullet",
+      }),
+    ],
+    category: "how-to",
+    excerpt:
+      "Set a watering rota before the first hot week, and every bed gets water even when the regulars are away.",
+    slug: "summer-watering-rota",
+    tags: ["volunteering"],
+    title: "Set up a watering rota before the heat",
+  },
+  {
+    body: [
+      block([
+        "Forty kids from three after-school programs planted, weeded and harvested at Elm Street, Maple Court and the Grove this summer.",
+      ]),
+      block([
+        "Their favorite crop, by a wide margin, was the ",
+        span("purple bush beans", "strong"),
+        ".",
+      ]),
+    ],
+    category: "stories",
+    excerpt:
+      "Forty kids from three after-school programs spent the summer growing food at three gardens.",
+    slug: "youth-growers-summer",
+    tags: ["youth"],
+    title: "A summer of youth growers",
+  },
+  {
+    body: [
+      block([
+        "Seven years ago the lot at Elm and 4th was a fenced square of gravel and broken glass. This September we weighed ",
+        span("1,140 pounds", "strong"),
+        " of produce from it, and gave most of it away on the sidewalk.",
+      ]),
+      block([
+        "None of that came from expertise. It came from showing up every Saturday, and from neighbors who noticed and started showing up too.",
+      ]),
+      block([
+        "If you're thinking about a garden on your block, read the ",
+        link("starter guide", "/guide"),
+        ". It's everything I wish I'd known in year one.",
+      ]),
+    ],
+    category: "stories",
+    excerpt:
+      "Seven years after the first raised bed, the Elm Street garden harvested more than half a ton of food this season.",
+    image: "harvest.jpg",
+    slug: "elm-street-harvest",
+    tags: ["harvest"],
+    title: "Elm Street's best harvest yet",
+  },
+  {
+    body: [
+      block([
+        "Saving seed is how the library grows. Every packet you return in the fall becomes three packets for someone else in the spring.",
+      ]),
+      block(["Start with the easy ones"], { style: "h2" }),
+      block([
+        "Beans, peas, lettuce and tomatoes are the best first crops to save from: they mostly pollinate themselves, so the seed grows true.",
+      ]),
+      block(["Let a few of the healthiest plants go fully to seed."], {
+        listItem: "bullet",
+      }),
+      block(["Harvest on a dry day and spread the seed on paper for a week."], {
+        listItem: "bullet",
+      }),
+      block(["Label everything: crop, variety, garden and year."], {
+        listItem: "bullet",
+      }),
+      block(["Bringing seed back"], { style: "h2" }),
+      block([
+        "Drop labeled envelopes in the return box at any member garden, or bring them to the ",
+        link("seed library", "/seed-library"),
+        " swap on the first Saturday of November.",
+      ]),
+    ],
+    category: "how-to",
+    excerpt:
+      "Beans, peas, lettuce and tomatoes are the easiest crops to save seed from. Here's how to bring your harvest back to the library.",
+    image: "seeds.jpg",
+    slug: "how-to-save-seed",
+    tags: ["seed-library", "harvest"],
+    title: "How to save seed for the library",
+  },
+  {
+    body: [
+      block([
+        "Bring saved seed, take home something new. The swap runs from 10 a.m. to 1 p.m. on Saturday, November 7, in the Elm Street shed.",
+      ]),
+      block([
+        "No seed to trade? Come anyway: first-time growers go home with five packets.",
+      ]),
+    ],
+    category: "events",
+    excerpt:
+      "Trade saved seed for something new at the Elm Street shed on Saturday, November 7.",
+    slug: "november-seed-swap",
+    tags: ["seed-library"],
+    title: "The November seed swap",
+  },
+  {
+    body: [
+      block([
+        "A two-year grant from the Riverside Community Fund will turn four vacant lots into shared gardens next spring.",
+      ]),
+      block([
+        "Each new garden gets soil, lumber for raised beds and a mentor for its first season. ",
+        link("Apply for a garden", "/apply"),
+        " by January 15.",
+      ]),
+    ],
+    category: "announcements",
+    excerpt:
+      "A two-year grant from the Riverside Community Fund will turn four vacant lots into shared gardens next spring.",
+    image: "raised-beds.jpg",
+    slug: "four-new-gardens-next-spring",
+    tags: ["grants"],
+    title: "Four new gardens are coming next spring",
+  },
+  {
+    body: [
+      block([
+        "Every member garden needs a few extra hands before the frost. Join us on Saturday, November 14, from 9 a.m. to noon.",
+      ]),
+      block(["Pull spent plants and compost them."], { listItem: "bullet" }),
+      block(["Mulch beds with leaves from the city drop-off."], {
+        listItem: "bullet",
+      }),
+      block(["Coil hoses and return borrowed tools to the shed."], {
+        listItem: "bullet",
+      }),
+      block([
+        "Coffee and pastries at Elm Street at 8:30. ",
+        link("Sign up to volunteer", "/get-involved"),
+        ".",
+      ]),
+    ],
+    category: "events",
+    excerpt:
+      "Help put eleven gardens to bed for the winter on Saturday, November 14.",
+    image: "tools.jpg",
+    slug: "fall-cleanup-day",
+    tags: ["volunteering", "tools"],
+    title: "Fall cleanup day: November 14",
+  },
+  {
+    body: [
+      block([
+        "The city's fall leaf drop-off is open at the Grove garden through December. Bring bagged leaves; take home finished compost from last year's pile.",
+      ]),
+    ],
+    category: "how-to",
+    excerpt:
+      "Drop off bagged leaves at the Grove garden through December and take home last year's compost.",
+    slug: "compost-and-leaf-drop-off",
+    tags: ["volunteering"],
+    title: "Compost and leaf drop-off is open",
+  },
+  {
+    body: [
+      block([
+        "We're looking for a part-time youth program coordinator to run after-school planting days at three gardens. Draft: confirm hours and pay with the board before publishing.",
+      ]),
+    ],
+    category: "announcements",
+    draft: true,
+    excerpt: "A part-time role running after-school planting days.",
+    slug: "hiring-youth-coordinator",
+    tags: ["youth"],
+    title: "We're hiring a youth program coordinator",
+  },
+];
+
+const dateOf = (slug: string) => {
+  const date = newsDates.get(slug);
+
+  if (!date) {
+    throw new Error(`No date for the news story ${slug} in seed/news-dates.ts`);
+  }
+
+  return date;
+};
+
+// Oldest first, so that stories created in the same instant still list newest
+// first before setup sets their dates.
+const newsEntries = stories
+  .toSorted((a, b) => dateOf(a.slug).localeCompare(dateOf(b.slug)))
+  .map((story) => ({
+    data: {
+      body: story.body,
+      excerpt: story.excerpt,
+      featured_image: story.image ? image(story.image) : null,
+      title: story.title,
+    },
+    id: `news-${story.slug}`,
+    slug: story.slug,
+    status: story.draft ? "draft" : "published",
+    taxonomies: { category: [story.category], tag: story.tags },
+  }));
+
+const categoryEntries = categories.map((category) => ({
+  data: {
+    image: image(category.image),
+    intro: category.intro,
+    title: category.label,
+  },
+  id: `category-${category.slug}`,
+  slug: category.slug,
+  status: "published",
+}));
+
+const taxonomies = [
+  {
+    collections: ["news"],
+    hierarchical: false,
+    label: "Categories",
+    labelSingular: "Category",
+    name: "category",
+    terms: categories.map(({ label, slug }) => ({ label, slug })),
+  },
+  {
+    collections: ["news"],
+    hierarchical: false,
+    label: "Tags",
+    labelSingular: "Tag",
+    name: "tag",
+    terms: tags,
+  },
+];
+
 const seed = {
   $schema: "https://emdashcms.com/seed.schema.json",
   blockTypes,
-  collections: [pages],
-  content,
+  collections: [pages, news, categoryDetails],
+  content: {
+    ...content,
+    category_details: categoryEntries,
+    news: newsEntries,
+  },
   menus: [
     {
       items: [
         { label: "Programs", type: "custom", url: "/programs" },
         { label: "Starter guide", type: "custom", url: "/guide" },
+        { label: "News", type: "custom", url: "/news" },
         { label: "Get involved", type: "custom", url: "/get-involved" },
         { label: "Apply", type: "custom", url: "/apply" },
       ],
@@ -622,6 +979,7 @@ const seed = {
     description: "The Launch demo site on EmDash",
     name: "Launch EmDash",
   },
+  taxonomies,
   settings: {
     tagline: "Shared gardens on every block",
     title: "Neighborhood Growers",

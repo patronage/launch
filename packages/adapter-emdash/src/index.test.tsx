@@ -222,3 +222,74 @@ describe("Portable Text", () => {
     );
   });
 });
+
+const categoryImages = (slug: string) =>
+  slug === "events"
+    ? { alt: "Garden tools", meta: { storageKey: "tools.jpg" } }
+    : undefined;
+
+describe("EmDash news", () => {
+  const story = {
+    data: {
+      excerpt: " Swap seed on Saturday. ",
+      featured_image: null,
+      id: "01STORY",
+      publishedAt: new Date("2026-10-14T15:00:00.000Z"),
+      slug: "november-seed-swap",
+      terms: {
+        category: [{ label: "Events", slug: "events" }],
+        tag: [
+          { label: "Seed library", slug: "seed-library" },
+          { label: "Volunteering", slug: "volunteering" },
+        ],
+      },
+      title: "The November seed swap",
+    },
+    id: "november-seed-swap",
+  };
+
+  it("maps a story for its card, with its category and date", () => {
+    expect(adapter.toNewsSummary(story)).toStrictEqual({
+      category: { href: "/news/category/events", label: "Events" },
+      excerpt: "Swap seed on Saturday.",
+      href: "/news/november-seed-swap",
+      id: "01STORY",
+      publishedAt: "2026-10-14T15:00:00.000Z",
+      title: "The November seed swap",
+    });
+  });
+
+  it("uses the category's image when a story has none", () => {
+    expect(adapter.toNewsSummary(story, categoryImages).image).toStrictEqual({
+      alt: "Garden tools",
+      src: "https://cms.example.com/_emdash/api/media/file/tools.jpg",
+    });
+  });
+
+  it("keeps a story's own image over its category's", () => {
+    const own = {
+      ...story,
+      data: {
+        ...story.data,
+        featured_image: { alt: "Seeds", src: "https://img.example.com/s.jpg" },
+      },
+    };
+
+    expect(adapter.toNewsSummary(own, categoryImages).image?.src).toBe(
+      "https://img.example.com/s.jpg"
+    );
+  });
+
+  it("links a story's tags to their archives", () => {
+    expect(adapter.newsTags(story.data)).toStrictEqual([
+      { href: "/news/tag/seed-library", label: "Seed library" },
+      { href: "/news/tag/volunteering", label: "Volunteering" },
+    ]);
+  });
+
+  it("reads REST dates and leaves out bad ones", () => {
+    const rest = { ...story, data: { ...story.data, publishedAt: "nope" } };
+
+    expect(adapter.toNewsSummary(rest).publishedAt).toBeUndefined();
+  });
+});
