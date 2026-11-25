@@ -18,6 +18,7 @@ description: EmDash, Cloudflare's CMS, rendering a Launch site in Astro with the
 | Redirects | EmDash's own: exact and pattern rules, 301s on slug changes, a 404 log |
 | SEO | Each entry's SEO panel, `<EmDashHead>` meta and JSON-LD, `/sitemap.xml` and `/robots.txt` |
 | News | Stories at `/news/{slug}`, with category and tag archives at `/news/category/{slug}` and `/news/tag/{slug}`. Listings page at `/page/{n}`; "Older stories" loads the next page's cards in place from the same URL with `?fragment=cards` |
+| Section library | `/sections` shows the first published example of each section type in light, dark and accent, or one colour with `?skin=`. Not indexed |
 | Forms | `@emdash-cms/plugin-forms`, placed with a `form` section; submissions in the admin, posted to the public `/forms/submit` |
 | Email | Cloudflare Email Sending through EmDash's `cloudflareEmail` plugin, on when `EMAIL_FROM` is set at deploy; the sender's domain must be onboarded for Email Sending |
 
