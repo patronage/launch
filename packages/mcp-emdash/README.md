@@ -5,7 +5,12 @@ The EmDash connector for [`@patronage/mcp-core`](../mcp-core). In the gateway's 
 - `emdash.get({ path, query? })` GETs an EmDash REST path under `/_emdash/api/` as the signed-in editor, with that editor's EmDash role, and returns the response's `data`. It reads content (lists, one entry, revisions, compare, translations, terms, references and trash), revisions, schema, media, menus, taxonomies and search. Every other route is refused, the admin's users, tokens, settings, plugins, imports and edit locks included.
 - `describe_site` lists the collections the editor can see, with their fields and what each supports (drafts, revisions, preview), the taxonomies, and the editor's role.
 
-It does not write yet. Draft writes are the next step (ADR 0027).
+- `emdash.apply({ intent, operations })` writes, held for approval where the gateway requires it, with up to 20 operations, one per entry:
+  - `update_draft` (`collection`, `id`, `fields`, optional `expected_rev`) saves the fields as a draft revision. The public site is unchanged.
+  - `create_draft` (`collection`, `fields`, optional `slug`) adds a new entry as a draft.
+  - `publish` (`collection`, `id`, optional `expected_rev`) puts the entry's draft on the public site. Its approval page says so.
+
+  `fields` names top-level field slugs. A rich text field takes a whole Portable Text array; Markdown isn't converted. Each write sends the `_rev` the preview read, so an entry someone saved since fails with `CONFLICT` instead of being overwritten. The preview refuses an unknown field, a slug in place of an entry id, a stale `expected_rev`, and `update_draft` on a collection without `revisions` (EmDash would save it live). Each receipt carries the entry's `id`, its new `rev`, its `status` and an admin link. EmDash's own permissions and plugins apply: an author can draft their own entries but not change anyone else's, and a plugin can refuse a publish (the Launch demo's news stories need a category, which the connector doesn't set).
 
 ## What the EmDash site needs
 

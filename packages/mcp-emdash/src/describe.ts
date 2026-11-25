@@ -12,25 +12,25 @@ import { emdashData } from "./emdash";
 // more lists the rest by slug alone; emdash.get reads any one in full.
 export const DESCRIBED_COLLECTIONS = 25;
 
-const collectionSchema = z.object({
-  hidden: z.boolean().optional(),
-  label: z.string(),
-  slug: z.string(),
-  supports: z.array(z.string()).catch([]),
-  urlPattern: z.string().nullish(),
-});
-
 const fieldSchema = z.object({
-  label: z.string().optional(),
+  kind: z.string().optional(),
   required: z.boolean().optional(),
-  slug: z.string(),
-  type: z.string(),
+  type: z.string().optional(),
 });
 
-const collectionsSchema = z.object({ items: z.array(collectionSchema) });
-
-const collectionWithFieldsSchema = z.object({
-  item: collectionSchema.extend({ fields: z.array(fieldSchema).catch([]) }),
+// EmDash's admin manifest, which any signed-in user may read. The schema
+// routes need an editor's `schema:read`, which an author doesn't have.
+const manifestSchema = z.object({
+  collections: z.record(
+    z.string(),
+    z.object({
+      fields: z.record(z.string(), fieldSchema.catch({})).catch({}),
+      hidden: z.boolean().optional(),
+      label: z.string(),
+      supports: z.array(z.string()).catch([]),
+      urlPattern: z.string().nullish(),
+    })
+  ),
 });
 
 const taxonomiesSchema = z.object({
@@ -77,8 +77,8 @@ export const describeEmDash = async (
   telemetry: UpstreamTelemetry
 ) => {
   const [collections, taxonomies, me] = await Promise.all([
-    emdashData(client, "/_emdash/api/schema/collections", telemetry).then(
-      (data) => parsed(collectionsSchema, data, "collections").items
+    emdashData(client, "/_emdash/api/manifest", telemetry).then((data) =>
+      Object.entries(parsed(manifestSchema, data, "manifest").collections)
     ),
     emdashData(client, "/_emdash/api/taxonomies", telemetry)
       .then((data) => parsed(taxonomiesSchema, data, "taxonomies").taxonomies)
@@ -88,41 +88,34 @@ export const describeEmDash = async (
     ),
   ]);
 
-  const visible = collections.filter((collection) => !collection.hidden);
+  const visible = collections.filter(([, collection]) => !collection.hidden);
   const described = visible.slice(0, DESCRIBED_COLLECTIONS);
 
-  const withFields = await Promise.all(
-    described.map(async (collection) => {
-      const data = await emdashData(
-        client,
-        `/_emdash/api/schema/collections/${encodeURIComponent(collection.slug)}?includeFields=true`,
-        telemetry
-      );
+  const withFields = described.map(([slug, collection]) => {
+    const entry: JsonObject = {
+      fields: Object.entries(collection.fields).map(([field, descriptor]) => {
+        const summary: JsonObject = {
+          slug: field,
+          type: descriptor.type ?? descriptor.kind ?? "unknown",
+        };
 
-      const { item } = parsed(collectionWithFieldsSchema, data, "collection");
+        if (descriptor.required) {
+          summary.required = true;
+        }
 
-      const entry: JsonObject = {
-        fields: item.fields.map((field) => {
-          const summary: JsonObject = { slug: field.slug, type: field.type };
+        return summary;
+      }),
+      label: collection.label,
+      slug,
+      supports: collection.supports,
+    };
 
-          if (field.required) {
-            summary.required = true;
-          }
+    if (collection.urlPattern) {
+      entry.urlPattern = collection.urlPattern;
+    }
 
-          return summary;
-        }),
-        label: item.label,
-        slug: item.slug,
-        supports: item.supports,
-      };
-
-      if (item.urlPattern) {
-        entry.urlPattern = item.urlPattern;
-      }
-
-      return entry;
-    })
-  );
+    return entry;
+  });
 
   const site: JsonObject = {
     collections: withFields,
@@ -144,7 +137,7 @@ export const describeEmDash = async (
   if (visible.length > described.length) {
     site.moreCollections = visible
       .slice(DESCRIBED_COLLECTIONS)
-      .map((collection) => collection.slug);
+      .map(([slug]) => slug);
   }
 
   return site;

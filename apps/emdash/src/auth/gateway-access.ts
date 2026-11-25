@@ -37,12 +37,14 @@ const identitySchema = z.object({
 
 const envValueSchema = z.string().trim().catch("");
 
-// EmDash's stock provider takes a bare hostname; the issuer is https://<host>.
-const issuerFor = (teamDomain: string): string =>
-  `https://${teamDomain
-    .trim()
-    .replace(/^https:\/\//u, "")
-    .replace(/\/+$/u, "")}`;
+// EmDash's stock provider takes a bare hostname, and the issuer is then
+// https://<host>. A full origin is kept as it is: launch-verify's local Access
+// stand-in is http://127.0.0.1:<port>, and only a local build names one.
+const issuerFor = (teamDomain: string): string => {
+  const domain = teamDomain.trim().replace(/\/+$/u, "");
+
+  return /^https?:\/\//u.test(domain) ? domain : `https://${domain}`;
+};
 
 const readEnv = (name: string): string =>
   envValueSchema.parse(process.env[name]);

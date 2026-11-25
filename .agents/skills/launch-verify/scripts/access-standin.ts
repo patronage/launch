@@ -4,15 +4,19 @@
 // serves its keys (`/cdn-cgi/access/certs`), and keeps the private half in a
 // file beside its receipt so a drive can sign a JWT for a synthetic editor.
 //
+// It also answers `/cdn-cgi/access/get-identity` for a token it signed, sent
+// as the CF_Authorization cookie, as EmDash's Access provider asks it.
+//
 // It listens on 127.0.0.1 only, and a token it signs is trusted only by local
 // servers started with this origin as their ACCESS_TEAM_DOMAIN.
 import {
   createPrivateKey,
   createSign,
+  createVerify,
   generateKeyPairSync,
   randomUUID,
 } from "node:crypto";
-import type { JsonWebKey } from "node:crypto";
+import type { KeyObject, JsonWebKey } from "node:crypto";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 
@@ -69,6 +73,47 @@ export const mintAccessJwt = (options: {
   return `${header}.${claims}.${base64url(signature)}`;
 };
 
+const COOKIE = /(?:^|;\s*)CF_Authorization=(?<token>[^;]+)/u;
+
+/**
+ * The identity Access would return for a token this stand-in signed with
+ * `publicKey`'s pair, or null for any other token.
+ */
+export const identityFor = (
+  cookie: string | undefined,
+  publicKey: KeyObject
+): {
+  email: string;
+  groups: [];
+  idp: { type: string };
+  name: string;
+} | null => {
+  const token = COOKIE.exec(cookie ?? "")?.groups?.token ?? "";
+  const [header = "", claims = "", signature = ""] = token.split(".");
+
+  const signed = createVerify("RSA-SHA256")
+    .update(`${header}.${claims}`)
+    .verify(publicKey, Buffer.from(signature, "base64url"));
+
+  if (!signed) {
+    return null;
+  }
+
+  const { email }: { email?: unknown } = JSON.parse(
+    Buffer.from(claims, "base64url").toString()
+  );
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- a claim this stand-in signed itself
+  return typeof email === "string"
+    ? {
+        email,
+        groups: [],
+        idp: { type: "launch-verify" },
+        name: email.split("@")[0] ?? email,
+      }
+    : null;
+};
+
 const serve = (port: number, keyFile: string): void => {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -100,6 +145,20 @@ const serve = (port: number, keyFile: string): void => {
       if (request.method === "GET" && request.url === "/cdn-cgi/access/certs") {
         response.writeHead(200, { "content-type": "application/json" });
         response.end(keys);
+
+        return;
+      }
+
+      if (
+        request.method === "GET" &&
+        request.url === "/cdn-cgi/access/get-identity"
+      ) {
+        const identity = identityFor(request.headers.cookie, publicKey);
+
+        response.writeHead(identity ? 200 : 401, {
+          "content-type": "application/json",
+        });
+        response.end(JSON.stringify(identity ?? { err: "invalid token" }));
 
         return;
       }

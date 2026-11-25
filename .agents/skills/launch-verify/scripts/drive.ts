@@ -4290,10 +4290,451 @@ const mcpPayloadLocales: Drive = async ({
   }
 };
 
+/** An EmDash entry as the gateway's emdash.get reads it. */
+interface EmDashEntry {
+  id: string;
+  rev: string;
+  slug: string;
+  status: string;
+  title: string;
+}
+
+/** The local EmDash's one admin, made by its dev setup (`pnpm setup`). */
+const EMDASH_ADMIN = "dev@emdash.local";
+
+// The first published news story with no pending draft, read through the
+// gateway as the editor: publishing one with a draft would put that draft live.
+const READ_NEWS = `async () => {
+  const list = await emdash.get({ path: "/_emdash/api/content/news", query: { limit: 50 } });
+  for (const item of list.items.filter((entry) => entry.status === "published")) {
+    const read = await emdash.get({ path: "/_emdash/api/content/news/" + item.id });
+    if (!read.item.draftRevisionId) {
+      return { id: read.item.id, rev: read._rev, slug: read.item.slug, status: read.item.status, title: read.item.data.title };
+    }
+  }
+  return null;
+}`;
+
+const readEntryScript = (id: string) => `async () => {
+  const read = await emdash.get({ path: "/_emdash/api/content/news/${id}" });
+  return { id: read.item.id, rev: read._rev, slug: read.item.slug, status: read.item.status, title: read.item.data.title };
+}`;
+
+/** One emdash.apply operation, as the drive sends it. */
+interface EmDashWrite {
+  collection: string;
+  expected_rev?: string;
+  fields?: Record<string, string>;
+  id?: string;
+  kind: "create_draft" | "publish" | "update_draft";
+  slug?: string;
+}
+
+const emdashApplyScript = (intent: string, operation: EmDashWrite) =>
+  `async () => emdash.apply(${JSON.stringify({ intent, operations: [operation] })})`;
+
+/** The public story page's text, as an anonymous visitor gets it. */
+const publicStory = async (
+  emdashOrigin: string,
+  slug: string
+): Promise<{ status: number; text: string }> => {
+  const response = await fetch(`${emdashOrigin}/news/${slug}`);
+
+  return { status: response.status, text: await response.text() };
+};
+
+interface ApprovalRun {
+  page: string;
+  receipt: string;
+  run: StructuredContent<EmDashEntry>;
+}
+
+/**
+ * Pauses a write, opens its approval page in a browser signed in as `token`'s
+ * editor, approves it and returns the page text and the run's receipt.
+ */
+const approveWrite = async (options: {
+  browser: Browser;
+  code: string;
+  dir: string;
+  log: ReturnType<typeof transcript>;
+  name: string;
+  origin: string;
+  token: string;
+}): Promise<ApprovalRun> => {
+  const paused = await execute<EmDashEntry>(
+    options.origin,
+    options.token,
+    options.code
+  );
+
+  const { approvalUrl = "", executionId = "" } = paused.structuredContent;
+
+  if (!approvalUrl.startsWith(`${options.origin}/mcp/approvals/`)) {
+    throw new Error(
+      `${options.name} did not pause for approval: ${paused.text.slice(0, 300)}`
+    );
+  }
+
+  const context = await options.browser.newContext({
+    extraHTTPHeaders: { "cf-access-jwt-assertion": options.token },
+    viewport: { height: 900, width: 1280 },
+  });
+
+  try {
+    const page = await context.newPage();
+
+    await page.goto(approvalUrl, { waitUntil: "networkidle" });
+
+    const preview = await mainText(page);
+
+    await options.log.shot(page, `${options.name}-approval`);
+
+    if (await page.getByRole("button", { name: "Approve" }).isVisible()) {
+      await page.getByRole("button", { name: "Approve" }).click();
+      await page.waitForLoadState("networkidle");
+      await options.log.shot(page, `${options.name}-approved`);
+    }
+
+    const run = await callTool<EmDashEntry>(
+      options.origin,
+      options.token,
+      "get_run",
+      { executionId }
+    );
+
+    writeFileSync(
+      path.join(options.dir, `${options.name}-run.json`),
+      `${JSON.stringify(run.structuredContent, null, 2)}\n`
+    );
+
+    return {
+      page: preview,
+      receipt: JSON.stringify(run.structuredContent),
+      run: run.structuredContent,
+    };
+  } finally {
+    await context.close();
+  }
+};
+
+/** The rev a receipt reports for the entry it wrote. */
+const receiptRev = (receipt: string): string =>
+  /"rev":"(?<rev>[^"]+)"/u.exec(receipt)?.groups?.rev ?? "";
+
+/**
+ * MCP gateway on EmDash: an editor's agent reads a published story, saves a
+ * new title as a draft through the approval page while the public page keeps
+ * the old one, is refused on a stale rev, publishes the draft, and creates a
+ * new draft story. An author, whom EmDash lets edit only their own stories,
+ * is refused on the editor's story.
+ */
+const mcpEmDashDraft: Drive = async ({
+  origin,
+  dir,
+  repoRoot,
+  peers,
+  signIn,
+}) => {
+  const emdashOrigin = peers.emdash;
+
+  if (!emdashOrigin) {
+    throw new Error("No owned emdash server; launch mcp --emdash first.");
+  }
+
+  const marker = `verify-${randomUUID().slice(0, 8)}`;
+  const log = transcript(dir);
+  const browser = await openBrowser(repoRoot);
+  const failures: string[] = [];
+
+  const expect = (pass: boolean, what: string) => {
+    if (!pass) {
+      failures.push(what);
+    }
+  };
+
+  try {
+    const token = signIn(EMDASH_ADMIN);
+
+    log.step(
+      "Sign in to the gateway as the local EmDash admin",
+      `${EMDASH_ADMIN}, with a JWT signed by the local Access stand-in`
+    );
+
+    const described = await callTool(origin, token, "describe_site", {});
+
+    expect(
+      described.text.includes("emdash") && described.text.includes("news"),
+      "describe_site does not list EmDash's news collection"
+    );
+    log.step(
+      "describe_site",
+      `names emdash and news: ${described.text.includes("news")}`
+    );
+
+    const read = await execute<EmDashEntry>(origin, token, READ_NEWS);
+    const story = read.structuredContent.result;
+
+    if (!story) {
+      throw new Error(
+        `No published news story without a pending draft: run pnpm --filter @launch/emdash run setup. ${read.text.slice(0, 200)}`
+      );
+    }
+
+    const before = await publicStory(emdashOrigin, story.slug);
+    const title = `${story.title.replace(MARKER, "")} (${marker})`;
+
+    log.step(
+      "execute: read the first published story through emdash.get",
+      `news/${story.id} "${story.title}" (${story.status}), _rev ${story.rev}; public page ${before.status}`
+    );
+
+    const stale = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Stale retitle ${marker}`, {
+        collection: "news",
+        expected_rev: "c3RhbGU=",
+        fields: { title },
+        id: story.id,
+        kind: "update_draft",
+      }),
+      dir,
+      log,
+      name: "stale",
+      origin,
+      token,
+    });
+
+    expect(
+      stale.page.includes("stale_expected_rev"),
+      "a stale expected_rev was not refused on its approval page"
+    );
+    log.step(
+      "Ask for a retitle with a stale expected_rev and open its approval page",
+      stale.page.slice(0, 200)
+    );
+
+    const draft = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Retitle a story for launch-verify ${marker}`, {
+        collection: "news",
+        expected_rev: story.rev,
+        fields: { title },
+        id: story.id,
+        kind: "update_draft",
+      }),
+      dir,
+      log,
+      name: "draft",
+      origin,
+      token,
+    });
+
+    expect(
+      draft.page.includes(marker),
+      "the approval page does not show the new title"
+    );
+    expect(
+      draft.receipt.includes('"status":"succeeded"') &&
+        draft.receipt.includes('"changed_paths":["title"]'),
+      "the draft save's receipt reports no title change"
+    );
+
+    const afterDraft = await publicStory(emdashOrigin, story.slug);
+
+    const drafted = await execute<EmDashEntry>(
+      origin,
+      token,
+      readEntryScript(story.id)
+    );
+
+    expect(
+      drafted.structuredContent.result?.title === title,
+      "the gateway does not read the new title as the draft"
+    );
+    expect(
+      !afterDraft.text.includes(marker),
+      "the public page shows the draft title before it was published"
+    );
+    log.step(
+      "Approve the draft save, then read the story and its public page",
+      `receipt rev ${receiptRev(draft.receipt)}; draft title "${drafted.structuredContent.result?.title}"; public page shows it: ${afterDraft.text.includes(marker)}`
+    );
+
+    const published = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Publish the retitle ${marker}`, {
+        collection: "news",
+        expected_rev: receiptRev(draft.receipt),
+        id: story.id,
+        kind: "publish",
+      }),
+      dir,
+      log,
+      name: "publish",
+      origin,
+      token,
+    });
+
+    const afterPublish = await publicStory(emdashOrigin, story.slug);
+
+    expect(
+      published.page.includes("public site"),
+      "the publish approval does not warn that it goes live"
+    );
+    expect(
+      published.receipt.includes('"status":"succeeded"'),
+      "the publish receipt does not report success"
+    );
+    expect(
+      afterPublish.text.includes(marker),
+      "the public page does not show the published title"
+    );
+    log.step(
+      "Approve the publish, then load the public page",
+      `warns it goes live: ${published.page.includes("public site")}; public page shows the new title: ${afterPublish.text.includes(marker)}`
+    );
+
+    const created = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Add a draft story ${marker}`, {
+        collection: "news",
+        fields: { title: `Draft story (${marker})` },
+        kind: "create_draft",
+        slug: marker,
+      }),
+      dir,
+      log,
+      name: "create",
+      origin,
+      token,
+    });
+
+    const newStory = await publicStory(emdashOrigin, marker);
+
+    expect(
+      created.receipt.includes('"status":"changed"') &&
+        created.receipt.includes('"status":"draft"'),
+      "create_draft's receipt does not report a new draft"
+    );
+    expect(newStory.status === 404, "the new draft story is public");
+    log.step(
+      "Approve a new draft story, then ask for its public page",
+      `receipt reports a draft: ${created.receipt.includes('"status":"draft"')}; public page ${newStory.status}`
+    );
+
+    // Put the story's first title back, as a draft and then live, so the site
+    // ends as it began.
+    const firstTitle = story.title.replace(MARKER, "");
+
+    const restored = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Put the story's title back ${marker}`, {
+        collection: "news",
+        expected_rev: receiptRev(published.receipt),
+        fields: { title: firstTitle },
+        id: story.id,
+        kind: "update_draft",
+      }),
+      dir,
+      log,
+      name: "put-back",
+      origin,
+      token,
+    });
+
+    const republished = await approveWrite({
+      browser,
+      code: emdashApplyScript(`Publish the first title again ${marker}`, {
+        collection: "news",
+        expected_rev: receiptRev(restored.receipt),
+        id: story.id,
+        kind: "publish",
+      }),
+      dir,
+      log,
+      name: "republish",
+      origin,
+      token,
+    });
+
+    const afterPutBack = await publicStory(emdashOrigin, story.slug);
+
+    expect(
+      republished.receipt.includes('"status":"succeeded"') &&
+        !afterPutBack.text.includes(marker),
+      "the story's first title is not back on the public page"
+    );
+    log.step(
+      "Save the first title as a draft and publish it again",
+      `public page shows the marker: ${afterPutBack.text.includes(marker)}`
+    );
+
+    // A new person signs in as an author, EmDash's default role, who may
+    // draft stories of their own but not change anyone else's.
+    const authorToken = signIn(`author-${marker}@example.test`);
+
+    const authored = await approveWrite({
+      browser,
+      code: emdashApplyScript(`An author drafts a story ${marker}`, {
+        collection: "news",
+        fields: { title: `Author draft (${marker})` },
+        kind: "create_draft",
+        slug: `${marker}-author`,
+      }),
+      dir,
+      log,
+      name: "author-create",
+      origin,
+      token: authorToken,
+    });
+
+    expect(
+      authored.receipt.includes('"status":"changed"'),
+      "an author could not create a draft of their own"
+    );
+
+    const author = await approveWrite({
+      browser,
+      code: emdashApplyScript(
+        `An author retitles the editor's story ${marker}`,
+        {
+          collection: "news",
+          fields: { title: `${title} by an author` },
+          id: story.id,
+          kind: "update_draft",
+        }
+      ),
+      dir,
+      log,
+      name: "author-edit",
+      origin,
+      token: authorToken,
+    });
+
+    const refused =
+      author.receipt.includes("FORBIDDEN") || author.page.includes("FORBIDDEN");
+
+    expect(refused, "EmDash let an author change the editor's story");
+    log.step(
+      "Sign in as a new author: draft a story, then ask to retitle the editor's story",
+      `own draft created: ${authored.receipt.includes('"status":"changed"')}; editor's story refused by EmDash: ${refused}`
+    );
+  } finally {
+    log.write();
+    await browser.close();
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`emdash-draft failed: ${failures.join("; ")}`);
+  }
+};
+
 export const DRIVES = new Map<string, Map<string, Drive>>([
   [
     "mcp",
     new Map([
+      ["emdash-draft", mcpEmDashDraft],
       ["payload-draft", mcpPayloadDraft],
       ["payload-global", mcpPayloadGlobal],
       ["payload-locales", mcpPayloadLocales],

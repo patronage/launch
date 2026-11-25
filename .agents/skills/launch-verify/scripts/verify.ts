@@ -42,7 +42,12 @@ export const SKILL_DIR = path.resolve(import.meta.dirname, "..");
 
 export const REPO_ROOT = path.resolve(SKILL_DIR, "../../..");
 
-export type SurfaceName = "access" | "mcp" | "payload" | "web-wordpress";
+export type SurfaceName =
+  | "access"
+  | "emdash"
+  | "mcp"
+  | "payload"
+  | "web-wordpress";
 
 export interface Surface {
   /** The app directory, relative to the repo root. */
@@ -75,6 +80,35 @@ export const SURFACES: Record<SurfaceName, Surface> = {
       "access-standin.ts",
       String(port),
       accessKeyFile(),
+    ],
+  },
+  // The EmDash site, built and run by `astro preview` on its local D1, for
+  // `launch mcp --emdash`. EmDash skips external auth under `astro dev`, so
+  // only a built Worker runs the gateway's sign-in. `--ignore-lock` keeps
+  // Astro 7's preview in the foreground, where this helper can track and
+  // stop it, instead of moving itself to the background.
+  emdash: {
+    app: "apps/emdash",
+    defaultPort: 4321,
+    envFiles: [
+      ".env",
+      ".env.local",
+      ".env.production",
+      ".env.production.local",
+      ".dev.vars",
+      ".dev.vars.production",
+    ],
+    health: ["/", "/news"],
+    prepare: () => [["pnpm", "build"]],
+    requiredFiles: [".dev.vars"],
+    start: (port) => [
+      "pnpm",
+      "exec",
+      "astro",
+      "preview",
+      "--port",
+      String(port),
+      "--ignore-lock",
     ],
   },
   // The MCP gateway on `vite dev`, signed in through the stand-in and
@@ -165,6 +199,7 @@ export const SURFACES: Record<SurfaceName, Surface> = {
 
 export const isSurfaceName = (value: string): value is SurfaceName =>
   value === "access" ||
+  value === "emdash" ||
   value === "mcp" ||
   value === "payload" ||
   value === "web-wordpress";
@@ -186,6 +221,8 @@ export interface Receipt {
   accessIssuer?: string;
   /** The demo's locales a Payload server was built with (`--locales`). */
   locales?: string;
+  /** The local EmDash origin a gateway was pointed at (`--emdash`). */
+  emdashOrigin?: string;
 }
 
 export const stateDir = (surface: SurfaceName): string =>
@@ -323,9 +360,21 @@ export const unsafeEnvironment = (
     }
   }
 
+  if (surface === "emdash") {
+    for (const url of values("ACCESS_TEAM_DOMAIN").filter(
+      (entry) => !isLocalUrl(entry)
+    )) {
+      problems.push(
+        `ACCESS_TEAM_DOMAIN must be the local Access stand-in, not ${url}`
+      );
+    }
+  }
+
   if (surface === "mcp") {
     for (const name of [
       "ACCESS_TEAM_DOMAIN",
+      "EMDASH_ADMIN_URL",
+      "EMDASH_API_URL",
       "PAYLOAD_ADMIN_URL",
       "PAYLOAD_API_URL",
       "WORDPRESS_API_URL",
@@ -336,6 +385,9 @@ export const unsafeEnvironment = (
     }
 
     for (const name of [
+      "EMDASH_ACCESS_CLIENT_ID",
+      "EMDASH_ACCESS_CLIENT_SECRET",
+      "EMDASH_WORKER",
       "PAYLOAD_ACCESS_CLIENT_ID",
       "PAYLOAD_ACCESS_CLIENT_SECRET",
       "PAYLOAD_WORKER",
@@ -344,7 +396,7 @@ export const unsafeEnvironment = (
     ]) {
       if (values(name).length > 0) {
         problems.push(
-          `${name} is set; the local gateway reaches the local Payload by URL, with no service token`
+          `${name} is set; the local gateway reaches the local CMSs by URL, with no service token`
         );
       }
     }
@@ -618,6 +670,26 @@ const initializeStatus = async (
   return response.status;
 };
 
+// A gateway launched with --emdash also needs EmDash built to trust the
+// stand-in it was started against.
+const emdashCheck = (access: Receipt | null) => {
+  const emdash = readReceipt("emdash");
+
+  const pass = Boolean(
+    emdash &&
+    ownsProcess(emdash) &&
+    access &&
+    emdash.accessIssuer === standinIssuer(access.port)
+  );
+
+  return {
+    pass,
+    text: pass
+      ? `EmDash on port ${emdash?.port} trusts the stand-in`
+      : "EmDash is not running against the stand-in: cleanup emdash, then launch mcp --emdash",
+  };
+};
+
 /**
  * What Doctor checks on the gateway beyond its own process: the stand-in and
  * the Payload it was started against are this checkout's, a request signed by
@@ -651,6 +723,10 @@ const gatewayChecks = async (
       ? `Payload on port ${payload?.port} trusts the stand-in`
       : "Payload is not running against the stand-in: cleanup payload, then launch mcp",
   });
+
+  if (readReceipt("mcp")?.emdashOrigin) {
+    lines.push(emdashCheck(access));
+  }
 
   if (!(access && accessUp)) {
     return lines;
@@ -803,6 +879,8 @@ export interface LaunchOptions {
   locales?: string | undefined;
   /** The local Payload origin the gateway reaches. */
   payloadOrigin?: string;
+  /** The local EmDash origin the gateway reaches (`--emdash`). */
+  emdashOrigin?: string | undefined;
 }
 
 /**
@@ -834,12 +912,28 @@ const launchEnv = (
     };
   }
 
+  // EmDash's admin and the gateway's forwarded sign-in both trust the
+  // stand-in. ACCESS_GATEWAY_AUD turns on its gateway auth provider.
+  if (surface === "emdash") {
+    return {
+      ...base,
+      ACCESS_AUD: STANDIN_AUDIENCE,
+      ACCESS_GATEWAY_AUD: STANDIN_AUDIENCE,
+      ACCESS_TEAM_DOMAIN: options.accessIssuer,
+    };
+  }
+
   if (surface === "mcp") {
     return {
       ...base,
       ACCESS_AUD: STANDIN_AUDIENCE,
       ACCESS_TEAM_DOMAIN: options.accessIssuer,
+      // The drives prove the approval step, which a gateway applies only
+      // when built to require it (ADR 0023).
+      APPROVAL_REQUIRED: "true",
       DEPLOYMENT_ENVIRONMENT: "development",
+      EMDASH_ADMIN_URL: options.emdashOrigin ?? "",
+      EMDASH_API_URL: options.emdashOrigin ?? "",
       PAYLOAD_ADMIN_URL: options.payloadOrigin ?? "",
       PAYLOAD_API_URL: options.payloadOrigin ?? "",
       // The MCP endpoint answers only on hostnames it is told are its own.
@@ -874,10 +968,34 @@ const assertReusable = (
     );
   }
 
+  if (
+    surface === "mcp" &&
+    (existing.emdashOrigin ?? "") !== (options.emdashOrigin ?? "")
+  ) {
+    throw new Error(
+      `This checkout's gateway was launched ${existing.emdashOrigin ? "with" : "without"} EmDash. Run cleanup mcp, then launch mcp again.`
+    );
+  }
+
   if (surface === "payload" && existing.locales !== options.locales) {
     throw new Error(
       `This checkout's payload server runs ${existing.locales ? `with the demo's locales (${existing.locales})` : "without the demo's locales"}. Run cleanup payload, then launch again.`
     );
+  }
+};
+
+// What a reused server is checked against: how it was launched.
+const recordLaunchOptions = (receipt: Receipt, options: LaunchOptions) => {
+  if (options.accessIssuer && receipt.surface !== "access") {
+    receipt.accessIssuer = options.accessIssuer;
+  }
+
+  if (options.locales && receipt.surface === "payload") {
+    receipt.locales = options.locales;
+  }
+
+  if (options.emdashOrigin && receipt.surface === "mcp") {
+    receipt.emdashOrigin = options.emdashOrigin;
   }
 };
 
@@ -975,13 +1093,7 @@ export const launch = async (
     token: randomUUID(),
   };
 
-  if (options.accessIssuer && surface !== "access") {
-    receipt.accessIssuer = options.accessIssuer;
-  }
-
-  if (options.locales && surface === "payload") {
-    receipt.locales = options.locales;
-  }
+  recordLaunchOptions(receipt, options);
 
   writeFileSync(receiptPath(surface), `${JSON.stringify(receipt, null, 2)}\n`);
   child.unref();
@@ -1021,6 +1133,8 @@ const secretFilesHint = (surface: SurfaceName): string => {
 
 interface GatewayPorts {
   access?: number | undefined;
+  /** Set to start EmDash too, on this port (`--emdash`). */
+  emdash?: number | undefined;
   locales?: string | undefined;
   payload?: number | undefined;
 }
@@ -1049,6 +1163,20 @@ export const launchGateway = async (
     );
   }
 
+  const emdashProof = readSecrets("emdash").get("ACCESS_GATEWAY_PROOF_SECRET");
+
+  if (
+    ports.emdash !== undefined &&
+    !(
+      emdashProof &&
+      readSecrets("mcp").get("EMDASH_ACCESS_PROOF_SECRET") === emdashProof
+    )
+  ) {
+    throw new Error(
+      `--emdash needs ACCESS_GATEWAY_PROOF_SECRET in ${secretFilesHint("emdash")}, equal to EMDASH_ACCESS_PROOF_SECRET in ${secretFilesHint("mcp")}; see the MCP gateway section of SKILL.md.`
+    );
+  }
+
   const accessPort = ports.access ?? portFor("access");
   const accessIssuer = standinIssuer(accessPort);
   const payloadPort = ports.payload ?? portFor("payload");
@@ -1058,8 +1186,14 @@ export const launchGateway = async (
     accessIssuer,
     locales: ports.locales,
   });
+
+  if (ports.emdash !== undefined) {
+    await launch("emdash", ports.emdash, { accessIssuer });
+  }
+
   await launch("mcp", port, {
     accessIssuer,
+    emdashOrigin: ports.emdash === undefined ? undefined : origin(ports.emdash),
     payloadOrigin: origin(payloadPort),
   });
 };
@@ -1313,18 +1447,20 @@ export const cleanup = async (surface: SurfaceName): Promise<void> => {
 const HELP = `Usage: node .agents/skills/launch-verify/scripts/verify.ts <command> <surface> [options]
 
 Surfaces: payload (apps/payload, port 4173), web-wordpress (apps/web-wordpress, port 3000),
-          mcp (apps/mcp, port 8787; launch also starts payload and the Access stand-in),
+          mcp (apps/mcp, port 8787; launch also starts payload and the Access stand-in,
+          and EmDash with --emdash), emdash (apps/emdash, port 4321, on astro preview),
           access (the local Access stand-in, port 8799)
 
 Commands:
   launch <surface> [--port N]      Prepare and start a server this run owns, then run doctor
-                                   (mcp also takes --payload-port N and --access-port N;
+                                   (mcp also takes --payload-port N and --access-port N, and
+                                   --emdash [--emdash-port N] to start EmDash for the emdash drives;
                                    payload and mcp take --locales, which builds Payload with
                                    English and Spanish on a fresh, seeded local database of
                                    its own, for the payload-locales drive)
   doctor <surface> [--port N]      Read-only check: environment, ownership, CMS, health routes
   capture <surface> <path> <name>  Save status, headers, HTML, a screenshot and the server log lines
-  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: payload-draft, payload-global, payload-locales, payload-restore, payload-rows, payload-trash, payload-unpublish, payload-upload)
+  drive <surface> <feature>        Run a scripted browser drive (payload: pages, apply-form, seo; web-wordpress: pages; mcp: emdash-draft, payload-draft, payload-global, payload-locales, payload-restore, payload-rows, payload-trash, payload-unpublish, payload-upload)
   cleanup <surface>                Stop only the process group in this surface's receipt
   status                           Show each surface's receipt
 
@@ -1379,9 +1515,18 @@ const COMMANDS = new Map<string, Command>([
         throw new Error("--locales goes with launch payload or launch mcp");
       }
 
+      const emdash = rest.includes("--emdash")
+        ? (parsePort(rest, "--emdash-port") ?? SURFACES.emdash.defaultPort)
+        : undefined;
+
+      if (emdash !== undefined && surface !== "mcp") {
+        throw new Error("--emdash goes with launch mcp");
+      }
+
       await (surface === "mcp"
         ? launchGateway(port, {
             access: parsePort(rest, "--access-port"),
+            emdash,
             locales,
             payload: parsePort(rest, "--payload-port"),
           })
