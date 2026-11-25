@@ -6,10 +6,16 @@
  */
 import type { AstroGlobal } from "astro";
 
+// The page differs per viewer, so no shared cache may keep it, and no index.
+const PRIVATE_HEADERS = {
+  "Cache-Control": "private, no-store",
+  "X-Robots-Tag": "noindex",
+} as const;
+
 export const requireEmDashUser = (Astro: AstroGlobal): Response | undefined => {
-  // The page differs per viewer, so no shared cache may keep it.
-  Astro.response.headers.set("Cache-Control", "private, no-store");
-  Astro.response.headers.set("X-Robots-Tag", "noindex");
+  for (const [name, value] of Object.entries(PRIVATE_HEADERS)) {
+    Astro.response.headers.set(name, value);
+  }
 
   if (Astro.locals.user) {
     return undefined;
@@ -19,5 +25,9 @@ export const requireEmDashUser = (Astro: AstroGlobal): Response | undefined => {
 
   login.searchParams.set("redirect", Astro.url.pathname + Astro.url.search);
 
-  return Astro.redirect(login.pathname + login.search, 302);
+  // Astro.redirect() drops Astro.response.headers, so build the redirect here.
+  return new Response(null, {
+    headers: { ...PRIVATE_HEADERS, Location: login.pathname + login.search },
+    status: 302,
+  });
 };
