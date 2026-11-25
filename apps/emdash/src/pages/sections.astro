@@ -1,0 +1,27 @@
+---
+/**
+ * The section library: one published example of each section type, in each
+ * colour or in the one picked with `?skin=light|dark|accent`. Not indexed.
+ */
+import { SKINS } from "@launch/content-model";
+
+import { SectionLibraryView } from "../components/section-library-view";
+import Site from "../layouts/site.astro";
+import { getLibraryExamples, parseSkin } from "../lib/section-library";
+
+const picked = parseSkin(Astro.url.searchParams.get("skin"));
+const examples = await getLibraryExamples();
+
+Astro.response.headers.set("X-Robots-Tag", "noindex");
+---
+
+<Site
+  title="Section library"
+  description="Every section type on this site, in every colour."
+>
+  <SectionLibraryView
+    examples={examples}
+    picked={picked}
+    skins={picked ? [picked] : SKINS}
+  />
+</Site>
