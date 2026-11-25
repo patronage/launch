@@ -102,6 +102,15 @@ const errorSchema = z.object({
 
 const successSchema = z.object({ data: z.json(), success: z.literal(true) });
 
+// EmDash's own error code, such as CONFLICT or FORBIDDEN, when it sent one.
+export const emdashErrorCode = (
+  result: UpstreamFetchResult
+): string | undefined => {
+  const parsed = errorSchema.safeParse(result.json);
+
+  return parsed.success ? parsed.data.error.code : undefined;
+};
+
 // EmDash answers an error as `{ error: { code, message } }`. Its messages are
 // written for editors, so the first one is passed on, bounded, with its code.
 export const emdashErrorMessage = (result: UpstreamFetchResult): string => {
@@ -171,6 +180,10 @@ const publicOrigin = (env: EmDashEnv): URL | undefined => {
     return undefined;
   }
 };
+
+// The public origin a preview path is joined to, or "" when unknown.
+export const emdashSiteUrl = (env: EmDashEnv): string =>
+  publicOrigin(env)?.origin ?? "";
 
 // An entry's page in the EmDash admin. Over a Service binding the gateway
 // knows no public origin, so the link comes from EMDASH_ADMIN_URL and is left

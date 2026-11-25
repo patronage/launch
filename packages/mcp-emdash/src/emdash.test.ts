@@ -299,7 +299,7 @@ describe(describeEmDash, () => {
 });
 
 describe(emdashConnector.parseApply, () => {
-  it("refuses every apply batch", () => {
+  it("refuses an empty batch", () => {
     expect(() =>
       emdashConnector.parseApply({ intent: "x", operations: [] })
     ).toThrow(ApplyValidationError);
