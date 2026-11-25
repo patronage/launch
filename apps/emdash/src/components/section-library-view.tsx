@@ -27,11 +27,14 @@ const chipClass =
 const pickedChipClass =
   "rounded-full border border-transparent bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground";
 
-/** The colour switcher, kept in view while the sections scroll past. */
+/**
+ * The colour switcher. Not sticky: the site header already sticks at the top
+ * (z-40) and would cover it.
+ */
 const SkinSwitcher = ({ picked }: { picked: Skin | undefined }) => (
   <Section
     as="div"
-    className="sticky top-0 z-10 border-b border-current/10 py-3"
+    className="border-b border-current/10 py-3"
     paddingBottom="none"
     paddingTop="none"
     skin="light"
