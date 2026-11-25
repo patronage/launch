@@ -1,0 +1,22 @@
+---
+/**
+ * The component library: every section type editors can add, each linking to
+ * its own page. Signed-in EmDash users only; not indexed.
+ */
+import { ComponentLibraryIndex } from "../../components/section-library-view";
+import Site from "../../layouts/site.astro";
+import { requireEmDashUser } from "../../lib/library-access";
+import { getLibraryExamples, SECTION_TYPES } from "../../lib/section-library";
+
+const denied = requireEmDashUser(Astro);
+
+if (denied) {
+  return denied;
+}
+
+const examples = await getLibraryExamples();
+---
+
+<Site title="Component library" description="Every section editors can add.">
+  <ComponentLibraryIndex examples={examples} types={SECTION_TYPES} />
+</Site>

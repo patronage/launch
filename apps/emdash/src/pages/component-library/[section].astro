@@ -1,0 +1,41 @@
+---
+/**
+ * One section type in the component library: the example in each colour (or
+ * the one picked with `?skin=light|dark|accent`), then each layout variant.
+ * Signed-in EmDash users only; not indexed.
+ */
+import { SKINS } from "@launch/content-model";
+
+import { ComponentLibraryDetail } from "../../components/section-library-view";
+import Site from "../../layouts/site.astro";
+import { requireEmDashUser } from "../../lib/library-access";
+import {
+  findSectionType,
+  getLibraryExamples,
+  parseSkin,
+} from "../../lib/section-library";
+
+const denied = requireEmDashUser(Astro);
+
+if (denied) {
+  return denied;
+}
+
+const type = findSectionType(Astro.params.section);
+
+if (!type) {
+  return Astro.rewrite("/404");
+}
+
+const picked = parseSkin(Astro.url.searchParams.get("skin"));
+const examples = await getLibraryExamples();
+---
+
+<Site title={`${type.label} | Component library`} description={type.description}>
+  <ComponentLibraryDetail
+    example={examples.get(type.type)}
+    picked={picked}
+    skins={picked ? [picked] : SKINS}
+    type={type}
+  />
+</Site>
