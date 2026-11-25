@@ -190,7 +190,7 @@ const fakeEmDash = (options: FakeOptions = {}) => {
     EMDASH_ADMIN_URL: "https://site.example",
   };
 
-  return { entries, env, sent };
+  return { entries, env, schemas, sent };
 };
 
 const memoryStore = (): RuntimeStore => ({
@@ -292,6 +292,19 @@ describe("emdash update_draft", () => {
       error: { code: "CONFLICT" },
       status: "conflict",
     });
+    expect(sent.filter((request) => request.method === "PUT")).toHaveLength(0);
+  });
+
+  it("writes nothing when the collection stopped keeping revisions after the preview", async () => {
+    const { env, schemas, sent } = fakeEmDash();
+    const args = updateTitle();
+    const approved = await preflight(env, args);
+
+    schemas.set("news", ["drafts"]);
+
+    const receipt = await apply(env, args, approved);
+
+    expect(receipt.operations[0]?.error?.code).toBe("no_draft_revisions");
     expect(sent.filter((request) => request.method === "PUT")).toHaveLength(0);
   });
 

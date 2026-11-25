@@ -50,7 +50,7 @@ export interface EmDashLinks {
 const STATUS_PATH = "status";
 
 const PUBLISH_WARNING =
-  "Approving this publishes the entry: its draft is on the public site at once.";
+  "Approving this publishes the entry: its whole draft is on the public site at once, including any slug or linked-entry change staged in the admin, which isn't listed here.";
 
 // EmDash writes a draft revision only on a collection that keeps revisions.
 // On any other collection a save writes the live entry, which this connector
@@ -565,6 +565,11 @@ const applyUpdate = async (
   preview: OperationPreflight,
   telemetry: UpstreamTelemetry
 ) => {
+  // The collection is checked again here, not only at the preview: if it
+  // stopped keeping revisions while the approval waited, EmDash would save
+  // this "draft" straight to the live entry.
+  await assertWritableCollection(client, operation, telemetry);
+
   const before = await readUnchanged(client, operation, preview, telemetry);
 
   resultData(

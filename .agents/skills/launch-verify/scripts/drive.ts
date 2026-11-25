@@ -4302,13 +4302,17 @@ interface EmDashEntry {
 /** The local EmDash's one admin, made by its dev setup (`pnpm setup`). */
 const EMDASH_ADMIN = "dev@emdash.local";
 
-// The first published news story, read through the gateway as the editor.
+// The first published news story with no pending draft, read through the
+// gateway as the editor: publishing one with a draft would put that draft live.
 const READ_NEWS = `async () => {
   const list = await emdash.get({ path: "/_emdash/api/content/news", query: { limit: 50 } });
-  const first = list.items.find((item) => item.status === "published");
-  if (!first) return null;
-  const read = await emdash.get({ path: "/_emdash/api/content/news/" + first.id });
-  return { id: read.item.id, rev: read._rev, slug: read.item.slug, status: read.item.status, title: read.item.data.title };
+  for (const item of list.items.filter((entry) => entry.status === "published")) {
+    const read = await emdash.get({ path: "/_emdash/api/content/news/" + item.id });
+    if (!read.item.draftRevisionId) {
+      return { id: read.item.id, rev: read._rev, slug: read.item.slug, status: read.item.status, title: read.item.data.title };
+    }
+  }
+  return null;
 }`;
 
 const readEntryScript = (id: string) => `async () => {
@@ -4473,7 +4477,7 @@ const mcpEmDashDraft: Drive = async ({
 
     if (!story) {
       throw new Error(
-        `No published news story to edit: run pnpm --filter @launch/emdash run setup. ${read.text.slice(0, 200)}`
+        `No published news story without a pending draft: run pnpm --filter @launch/emdash run setup. ${read.text.slice(0, 200)}`
       );
     }
 
