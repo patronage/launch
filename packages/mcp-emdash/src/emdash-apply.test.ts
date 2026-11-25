@@ -99,22 +99,14 @@ const fakeEmDash = (options: FakeOptions = {}) => {
       .split("/")
       .slice(3);
 
-    if (kind === "schema") {
-      // /_emdash/api/schema/collections/{slug}
-      const supports = schemas.get(id);
+    if (kind === "manifest") {
+      const fields = { body: {}, excerpt: {}, title: {} };
 
-      return supports
-        ? ok({
-            item: {
-              fields: [
-                { slug: "title" },
-                { slug: "excerpt" },
-                { slug: "body" },
-              ],
-              supports,
-            },
-          })
-        : refuse("NOT_FOUND", `Collection not found: ${id}`, 404);
+      return ok({
+        collections: Object.fromEntries(
+          [...schemas].map(([slug, supports]) => [slug, { fields, supports }])
+        ),
+      });
     }
 
     if (method === "POST" && id === "") {
@@ -404,6 +396,21 @@ describe("emdash update_draft", () => {
       },
       () => {},
       "no_draft_revisions",
+    ],
+    [
+      "a collection EmDash doesn't have",
+      {
+        intent: "x",
+        operations: [
+          {
+            collection: "stories",
+            fields: { title: "x" },
+            kind: "create_draft",
+          },
+        ],
+      },
+      () => {},
+      "unknown_collection",
     ],
   ])("refuses to preview %s", async (_name, args, change, code) => {
     const { entries, env } = fakeEmDash();

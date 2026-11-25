@@ -17,7 +17,7 @@ node .agents/skills/launch-verify/scripts/verify.ts --help
 | --- | --- | --- | --- |
 | `payload` | `apps/payload`, built and run by `vite preview` on local D1 and R2 | 4173 | `pages`, `apply-form`, `seo` |
 | `web-wordpress` | `apps/web-wordpress` on `vite dev`, reading WordPress in Docker | 3000 | `pages` |
-| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799) | 8787 | `payload-draft`, `payload-global`, `payload-locales` (needs `launch mcp --locales`), `payload-restore`, `payload-rows`, `payload-trash`, `payload-unpublish`, `payload-upload` |
+| `mcp` | `apps/mcp` on `vite dev`, with `payload` and a local stand-in for Cloudflare Access (`access`, port 8799), and with `--emdash` the EmDash site built and run by `astro preview` (`emdash`, port 4321) | 8787 | `emdash-draft` (needs `launch mcp --emdash`), `payload-draft`, `payload-global`, `payload-locales` (needs `launch mcp --locales`), `payload-restore`, `payload-rows`, `payload-trash`, `payload-unpublish`, `payload-upload` |
 
 The feature map is in [features/README.md](features/README.md). The Timber install renders its own pages in PHP and isn't covered here.
 
@@ -47,6 +47,14 @@ echo "ACCESS_GATEWAY_PROOF_SECRET=$PROOF" >> apps/payload/.dev.vars
 printf 'APPROVAL_CSRF_SECRET=%s\nPAYLOAD_ACCESS_PROOF_SECRET=%s\n' "$(openssl rand -hex 32)" "$PROOF" > apps/mcp/.dev.vars
 ```
 
+For `launch mcp --emdash`, EmDash and the gateway share a second proof secret. EmDash's local data must be set up once with `pnpm --filter @launch/emdash dev` and `pnpm --filter @launch/emdash run setup` (see its README); stop that dev server before launching:
+
+```bash
+EPROOF=$(openssl rand -hex 32)
+echo "ACCESS_GATEWAY_PROOF_SECRET=$EPROOF" >> apps/emdash/.dev.vars
+echo "EMDASH_ACCESS_PROOF_SECRET=$EPROOF" >> apps/mcp/.dev.vars
+```
+
 A local Worker reads `.dev.vars.development` (the gateway) or `.dev.vars.production` (Payload) instead of `.dev.vars` when that file exists, and never merges the two. If a checkout has one, the secrets go there.
 
 Then start the surface:
@@ -55,7 +63,7 @@ Then start the surface:
 node .agents/skills/launch-verify/scripts/verify.ts launch payload        # or: launch web-wordpress, launch mcp, --port N
 ```
 
-`launch mcp` starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`. If another checkout holds Payload's or the stand-in's port, pass `--payload-port N` or `--access-port N`.
+`launch mcp` runs the gateway with `APPROVAL_REQUIRED=true`, so every write pauses for the approval page the drives click through. It starts three servers this checkout owns, each with its own receipt: the Access stand-in (`access`), Payload built to trust it, and the gateway pointed at both. The stand-in signs JWTs for synthetic editors with a key it makes at start; only local servers started against it accept them. Stop them with `cleanup mcp`, `cleanup payload` and `cleanup access`. If another checkout holds Payload's or the stand-in's port, pass `--payload-port N` or `--access-port N`. `launch mcp --emdash` also builds EmDash to trust the stand-in and starts it with `astro preview --ignore-lock` (Astro 7's preview otherwise moves itself to the background); stop it with `cleanup emdash`, and pass `--emdash-port N` if 4321 is taken.
 
 `launch payload --locales` and `launch mcp --locales` run Payload with two locales (`en` and `es`), for the `payload-locales` drive. The demo has one language, so this builds Payload with `PAYLOAD_DEMO_LOCALES=en,es` and gives it a fresh database of its own, migrated and seeded on every such launch, under `apps/payload/.demo-locales/` (ignored by git). The normal local database is not touched. A Payload server already running the other way is not reused: run `cleanup payload` (and `cleanup mcp`) first, and again afterwards to go back to the one-language demo.
 
@@ -65,7 +73,7 @@ Launch fails when Doctor fails, and it refuses in these cases:
 - a required env file is missing;
 - `WORDPRESS_URL` isn't local, or the WordPress Access service token is set, in the shell or in any env file the app loads (`.env`, `.env.local`, `.env.development*`, `.dev.vars*`);
 - `PAYLOAD_DB=postgres` is set;
-- for `mcp`: the two secrets are missing or don't match, a Payload, WordPress or Access URL in the shell or `apps/mcp`'s env files isn't local, a service token or `PAYLOAD_WORKER` is set, or Payload is already running without the stand-in;
+- for `mcp`: the two secrets are missing or don't match (with `--emdash`, EmDash's pair too), an EmDash URL isn't local, an EmDash service token or `EMDASH_WORKER` is set, a Payload, WordPress or Access URL in the shell or `apps/mcp`'s env files isn't local, a service token or `PAYLOAD_WORKER` is set, or Payload is already running without the stand-in;
 - `PAYLOAD_SECRET` is empty.
 
 For Payload it runs `pnpm payload migrate` and `pnpm build` every time, so a stale build is never verified. For web-wordpress it runs `pnpm codegen`. It then starts the server in its own process group and records a receipt (`.state/<surface>/run.json`, with the pid, port, app directory and a token). The server log goes to `.state/<surface>/server.log`. Ready means launch ends with `Doctor: PASS`. If this checkout already runs an owned server on that port, launch reuses it.

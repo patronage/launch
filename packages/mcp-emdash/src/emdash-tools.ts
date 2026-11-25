@@ -32,11 +32,12 @@ export const EMDASH_CONNECTOR_INSTRUCTIONS = [
 export const EMDASH_EXECUTE_DESCRIPTION = [
   "The emdash global reaches the EmDash CMS.",
   "Reads: await emdash.get({ path, query? }), where path starts /_emdash/api/, contains no ?, and query values are scalars; it returns the response's data.",
-  'Collections and their fields: emdash.get({ path: "/_emdash/api/schema/collections/pages", query: { includeFields: true } }).',
+  'describe_site lists the collections with their fields. Editors and admins can also read one in full: emdash.get({ path: "/_emdash/api/schema/collections/pages", query: { includeFields: true } }).',
   'Entries: emdash.get({ path: "/_emdash/api/content/pages", query: { limit: 20 } }) returns { items, nextCursor, total }; emdash.get({ path: "/_emdash/api/content/pages/<id or slug>" }) returns { item, _rev }, where item.data holds the fields with any pending draft applied and item.status is draft, published or scheduled.',
   "Rich text fields (type portableText) are Portable Text arrays.",
   "Search (/_emdash/api/search) is EmDash's public search and returns published entries only; list a collection to find drafts.",
   'Writes: await emdash.apply({ intent, operations }), with 1-20 operations, one per entry, shaped { kind: "update_draft", collection, id, fields, expected_rev? }, { kind: "create_draft", collection, fields, slug? } or { kind: "publish", collection, id, expected_rev? }. fields maps field slugs (from describe_site) to values, top-level fields only; a portableText field takes a whole Portable Text array, such as [{ _type: "block", _key: "a1", style: "normal", markDefs: [], children: [{ _type: "span", _key: "a2", text: "Hello", marks: [] }] }]. Read the entry first and copy its _rev into expected_rev; id is the entry id, not its slug.',
+  "Taxonomies, SEO and authors are set in the EmDash admin, and a site's plugins can refuse a publish.",
   "update_draft and create_draft save a draft and change nothing public. A publish puts the entry's draft on the public site; send it only when the person asked to publish, as its own call after the save, with the rev the save's receipt reports (details.rev).",
 ].join(" ");
 

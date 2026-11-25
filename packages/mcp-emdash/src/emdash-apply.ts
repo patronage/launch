@@ -77,11 +77,16 @@ type Entry = z.infer<typeof entrySchema>;
 
 const successSchema = z.object({ data: z.json(), success: z.literal(true) });
 
-const collectionSchema = z.object({
-  item: z.object({
-    fields: z.array(z.object({ slug: z.string() })).catch([]),
-    supports: z.array(z.string()).catch([]),
-  }),
+// EmDash's admin manifest, which any signed-in user may read. The schema
+// routes need an editor's `schema:read`, which an author doesn't have.
+const manifestSchema = z.object({
+  collections: z.record(
+    z.string(),
+    z.object({
+      fields: z.record(z.string(), z.json()).catch({}),
+      supports: z.array(z.string()).catch([]),
+    })
+  ),
 });
 
 const previewUrlSchema = z.object({ url: z.string() });
@@ -142,23 +147,28 @@ const readCollection = async (
   telemetry: UpstreamTelemetry
 ) => {
   const data = resultData(
-    await emdashRest(
-      client,
-      `${EMDASH_API_PREFIX}schema/collections/${encodeURIComponent(collection)}?includeFields=true`,
-      telemetry
-    )
+    await emdashRest(client, `${EMDASH_API_PREFIX}manifest`, telemetry)
   );
 
-  const parsed = collectionSchema.safeParse(data);
+  const parsed = manifestSchema.safeParse(data);
 
   if (!parsed.success) {
     throw new ApplyConflictError(
       "unexpected_response",
-      `EmDash returned an unexpected schema for ${collection}`
+      "EmDash returned an unexpected manifest"
     );
   }
 
-  return parsed.data.item;
+  const found = parsed.data.collections[collection];
+
+  if (!found) {
+    throw new ApplyConflictError(
+      "unknown_collection",
+      `EmDash has no collection ${collection}`
+    );
+  }
+
+  return { fields: Object.keys(found.fields), supports: found.supports };
 };
 
 const assertWritableCollection = async (
@@ -182,7 +192,7 @@ const assertWritableCollection = async (
     );
   }
 
-  const known = new Set(collection.fields.map((field) => field.slug));
+  const known = new Set(collection.fields);
   const unknown = writtenPaths(operation).filter((path) => !known.has(path));
 
   if (unknown.length > 0) {

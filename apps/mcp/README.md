@@ -11,7 +11,7 @@ This app is only the deployment. The gateway lives in packages, so another site 
 | [`@patronage/mcp-core`](../../packages/mcp-core) | The Worker, Access sign-in, the code-mode runtime, the approval card and page, and logging. It names no CMS. |
 | [`@patronage/mcp-wordpress`](../../packages/mcp-wordpress) | The `wp` connector. |
 | [`@patronage/mcp-payload`](../../packages/mcp-payload) | The `payload` connector. |
-| [`@patronage/mcp-emdash`](../../packages/mcp-emdash) | The `emdash` connector, reads only so far. |
+| [`@patronage/mcp-emdash`](../../packages/mcp-emdash) | The `emdash` connector: reads, draft saves, new drafts and publishes. |
 
 `src/worker.ts` is the whole app: it passes `[wordpressConnector, payloadConnector, emdashConnector]` to `createWorker` and to its `GatewayRuntime` Durable Object.
 
@@ -40,7 +40,7 @@ On a site with Payload, the `payload` connector sits beside it:
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway, from a URL on the collection's `upload.pasteURL.allowList` or from a small base64 string, and `payload.apply` saves it with an `upload_media` operation (a new file) or a `replace_media_file` operation (a new file on an existing document, which shows at once wherever it is used). The approval shows a thumbnail made with the `IMAGES` binding, and the file goes to Payload's own upload route as the approver. See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#files).
 - Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
 
-On a site with EmDash, the `emdash` connector reads EmDash's REST API as the signed-in editor: `emdash.get({ path, query? })` takes a path under `/_emdash/api/` from an allowlist of content, revision, schema, media, menu, taxonomy and search routes, and returns the response's `data`. `describe_site` lists the editor's collections with their fields, the taxonomies and the editor's role. It doesn't write yet ([ADR 0027](../../docs/adr/0027-emdash-connector.md)).
+On a site with EmDash, the `emdash` connector reads EmDash's REST API as the signed-in editor: `emdash.get({ path, query? })` takes a path under `/_emdash/api/` from an allowlist of content, revision, schema, media, menu, taxonomy and search routes, and returns the response's `data`. `describe_site` lists the editor's collections with their fields, the taxonomies and the editor's role. `emdash.apply` saves drafts (`update_draft`), adds draft entries (`create_draft`) and publishes (`publish`), each built on the `_rev` the model read and held for approval like the other connectors' writes ([ADR 0027](../../docs/adr/0027-emdash-connector.md)).
 
 ## Approvals
 

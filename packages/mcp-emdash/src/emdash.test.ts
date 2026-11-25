@@ -45,29 +45,28 @@ const fakeEmDash = () => {
           },
           { status: 404 }
         ),
-      "/_emdash/api/schema/collections": () =>
+      "/_emdash/api/manifest": () =>
         ok({
-          items: [
-            {
-              label: "Pages",
-              slug: "pages",
-              supports: ["drafts", "revisions"],
+          collections: {
+            internal: {
+              fields: {},
+              hidden: true,
+              label: "Internal",
+              supports: [],
             },
-            { hidden: true, label: "Internal", slug: "internal", supports: [] },
-          ],
-        }),
-      "/_emdash/api/schema/collections/pages": () =>
-        ok({
-          item: {
-            fields: [
-              { required: true, slug: "title", type: "string" },
-              { slug: "body", type: "portableText" },
-            ],
-            label: "Pages",
-            slug: "pages",
-            supports: ["drafts", "revisions"],
-            urlPattern: "/{slug}",
+            pages: {
+              fields: {
+                // EmDash keeps its own field order, not an alphabetical one.
+                // oxlint-disable-next-line sort-keys
+                title: { kind: "string", required: true, type: "string" },
+                body: { kind: "json", type: "portableText" },
+              },
+              label: "Pages",
+              supports: ["drafts", "revisions"],
+              urlPattern: "/{slug}",
+            },
           },
+          version: "1.6.0",
         }),
       "/_emdash/api/taxonomies": () =>
         ok({
