@@ -2,7 +2,7 @@
 
 An MCP gateway for Cloudflare Workers. People sign in through Cloudflare Access, and the model reads and changes the CMS as that person through code mode. A deployment that needs it holds every write until a person approves a before-and-after ([ADR 0014](../../docs/adr/0014-mcp-gateway-worker.md), [ADR 0023](../../docs/adr/0023-approval-is-opt-in.md)).
 
-Core names no CMS. Each backend is a connector, such as [`@patronage/mcp-wordpress`](../mcp-wordpress) or [`@patronage/mcp-payload`](../mcp-payload), and a deployment lists the ones it has.
+Core names no CMS. Each backend is a connector, such as [`@patronage/mcp-wordpress`](../mcp-wordpress), [`@patronage/mcp-payload`](../mcp-payload) or [`@patronage/mcp-emdash`](../mcp-emdash), and a deployment lists the ones it has.
 
 ## Use
 

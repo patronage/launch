@@ -15,6 +15,14 @@ export type {
   AccessVerifyResult,
 } from "./jwt.ts";
 
+export { hasForwardedJwt, verifyForwardedUser } from "./forwarded.ts";
+
+export type {
+  ForwardedUserConfig,
+  ForwardedUserFailure,
+  ForwardedUserResult,
+} from "./forwarded.ts";
+
 export {
   GATEWAY_PROOF_HEADER,
   PROOF_SKEW_SECONDS,

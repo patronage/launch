@@ -11,8 +11,9 @@ This app is only the deployment. The gateway lives in packages, so another site 
 | [`@patronage/mcp-core`](../../packages/mcp-core) | The Worker, Access sign-in, the code-mode runtime, the approval card and page, and logging. It names no CMS. |
 | [`@patronage/mcp-wordpress`](../../packages/mcp-wordpress) | The `wp` connector. |
 | [`@patronage/mcp-payload`](../../packages/mcp-payload) | The `payload` connector. |
+| [`@patronage/mcp-emdash`](../../packages/mcp-emdash) | The `emdash` connector, reads only so far. |
 
-`src/worker.ts` is the whole app: it passes `[wordpressConnector, payloadConnector]` to `createWorker` and to its `GatewayRuntime` Durable Object.
+`src/worker.ts` is the whole app: it passes `[wordpressConnector, payloadConnector, emdashConnector]` to `createWorker` and to its `GatewayRuntime` Durable Object.
 
 ## Tools
 
@@ -38,6 +39,8 @@ On a site with Payload, the `payload` connector sits beside it:
 - On a Payload with locales, `update_draft`, `create_draft`, `patch_rows`, `update_global`, `unpublish` and the two upload operations take a `locale`. The approval marks each field for that locale alone or for every locale, `publish: true` publishes that locale only (`publish_all_locales: true` publishes them all), and a locale the site does not have is refused. The deployed demo has one language; `launch mcp --locales` in the `launch-verify` skill runs a local one with two. See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#locales).
 - `payload.stageUpload({ collection, source })` keeps a file in the gateway, from a URL on the collection's `upload.pasteURL.allowList` or from a small base64 string, and `payload.apply` saves it with an `upload_media` operation (a new file) or a `replace_media_file` operation (a new file on an existing document, which shows at once wherever it is used). The approval shows a thumbnail made with the `IMAGES` binding, and the file goes to Payload's own upload route as the approver. See [`@patronage/mcp-payload`](../../packages/mcp-payload/README.md#files).
 - Rich text fields can be written as Markdown, in an operation's `markdown` instead of `fields`. Payload converts it with that field's own editor features, through the read-only `markdownToRichText` and `richTextToMarkdown` tools that `apps/payload` adds, and the approval preview shows Markdown on both sides. A field whose Markdown is unchanged is not rewritten, and a Markdown edit is refused when the stored value holds nodes Markdown cannot carry (rich text blocks, uploads), since writing it back would delete them.
+
+On a site with EmDash, the `emdash` connector reads EmDash's REST API as the signed-in editor: `emdash.get({ path, query? })` takes a path under `/_emdash/api/` from an allowlist of content, revision, schema, media, menu, taxonomy and search routes, and returns the response's `data`. `describe_site` lists the editor's collections with their fields, the taxonomies and the editor's role. It doesn't write yet ([ADR 0027](../../docs/adr/0027-emdash-connector.md)).
 
 ## Approvals
 
@@ -66,6 +69,8 @@ Calls to WordPress and Payload forward that JWT. WordPress's `patronage-access` 
 
 Payload is reached one of two ways. With `PAYLOAD_WORKER` set at build time, a Service binding calls the Payload Worker directly. With `PAYLOAD_API_URL` instead, requests go through Payload's Access application with the service token in `PAYLOAD_ACCESS_CLIENT_ID` and `PAYLOAD_ACCESS_CLIENT_SECRET`. Either way Payload checks the proof signed with `PAYLOAD_ACCESS_PROOF_SECRET`, which must match `ACCESS_GATEWAY_PROOF_SECRET` on the Payload Worker. `PAYLOAD_ADMIN_URL` gives the approval page its "open in Payload admin" link. With neither set, the `payload` connector is left out.
 
+EmDash is reached the same two ways: `EMDASH_WORKER` for a Service binding, or `EMDASH_API_URL` through EmDash's Access application with `EMDASH_ACCESS_CLIENT_ID` and `EMDASH_ACCESS_CLIENT_SECRET`. EmDash's gateway auth provider (`apps/emdash/src/auth/gateway-access.ts`) checks the proof signed with `EMDASH_ACCESS_PROOF_SECRET`, which must match `ACCESS_GATEWAY_PROOF_SECRET` on the EmDash Worker. `EMDASH_ADMIN_URL` gives links into the EmDash admin. With neither set, the `emdash` connector is left out.
+
 ## Logging
 
 Each request writes one evlog wide event to Workers Logs: the opaque actor (a hash, never the email or subject), the tool, the outcome and any write receipts. A request with no Access JWT is logged as `challenged`, not `denied`, because a client that has not signed in yet sends one first. Workers Logs keep events for seven days. A weekly usage report is future work (see the docs site's MCP reference).
@@ -81,7 +86,7 @@ pnpm deploy     # build and cf deploy; pass --dry-run to check without uploading
 
 The tests live with the packages: `pnpm --filter "@patronage/mcp-*" test`. The packages and `@patronage/access` are versioned with Changesets and published to npm from `main` with `pnpm release`. A change to a package needs a changeset (`pnpm changeset`); the steps are in the docs site's MCP reference, under Releasing the npm packages.
 
-Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, `FEEDBACK_MAINTAINER`, and for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
+Text bindings come from the environment at build time (`WORKER_NAME`, `WORKER_DOMAIN`, `ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`, `WORDPRESS_API_URL`, `DEPLOYMENT_ENVIRONMENT`, `APPROVAL_REQUIRED`, `FEEDBACK_MAINTAINER`, for Payload `PAYLOAD_WORKER` or `PAYLOAD_API_URL`, plus `PAYLOAD_ADMIN_URL`, and for EmDash `EMDASH_WORKER` or `EMDASH_API_URL`, plus `EMDASH_ADMIN_URL`). For `vite dev` and `vite preview`, put them in `.dev.vars` as well. The first deploy needs every secret in the environment; later deploys keep the stored values. `LOADER` needs the Workers paid plan (Dynamic Workers are in open beta).
 
 ## Still to come
 

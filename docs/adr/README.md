@@ -34,3 +34,4 @@ To change a decision, add a new record that supersedes the old one and set the o
 | [0024](0024-emdash-seo-redirects-and-forms.md) | EmDash uses its built-in redirects and SEO (`<EmDashHead>`, sitemaps, robots.txt) and `@emdash-cms/plugin-forms` through a `form` section |
 | [0025](0025-npm-trusted-publishing.md) | Local verification and Workers Builds, with one manual GitHub Actions workflow that publishes the npm packages |
 | [0026](0026-emdash-news.md) | EmDash news: a `news` collection with `category` and `tag` taxonomies, one category per story, category images in `category_details`, and listing pages that load more through a public HTML fragment |
+| [0027](0027-emdash-connector.md) | The EmDash connector reads EmDash's REST API from an allowlist, as the editor, through a gateway auth provider that trusts the forwarded Access JWT only with the gateway proof; draft writes follow |

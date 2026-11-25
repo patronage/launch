@@ -10,6 +10,12 @@ const emailFrom = process.env.EMAIL_FROM;
 const env = {
   // The Access application's audience tag, for editor sign-in.
   ACCESS_AUD: bindings.text(process.env.ACCESS_AUD ?? ""),
+  // The MCP gateway's Access application, whose editors' JWTs the gateway
+  // forwards, and the proof secret it signs them with (ADR 0027). Both or
+  // neither: without ACCESS_GATEWAY_AUD the gateway is not trusted.
+  ACCESS_GATEWAY_AUD: bindings.text(process.env.ACCESS_GATEWAY_AUD ?? ""),
+  ACCESS_GATEWAY_PROOF_SECRET:
+    Boolean(process.env.ACCESS_GATEWAY_AUD) && bindings.secret(),
   ASSETS: bindings.assets(),
   // Content, users and settings. Created on first deploy.
   DB: bindings.d1(),

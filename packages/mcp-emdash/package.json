@@ -1,0 +1,48 @@
+{
+  "name": "@patronage/mcp-emdash",
+  "version": "0.0.0",
+  "description": "The EmDash connector for @patronage/mcp-core: EmDash's REST API read as the signed-in editor.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patronage/launch.git",
+    "directory": "packages/mcp-emdash"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "pnpm --filter @patronage/mcp-core generate && tsdown",
+    "prepack": "pnpm build",
+    "test": "pnpm --filter @patronage/mcp-core generate && vitest run",
+    "typecheck": "pnpm --filter @patronage/mcp-core generate && tsc --noEmit"
+  },
+  "dependencies": {
+    "@patronage/mcp-core": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261112.1",
+    "@patronage/access": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "0.23.7",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
