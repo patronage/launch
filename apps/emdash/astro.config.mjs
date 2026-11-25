@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import { access, d1, r2 } from "@emdash-cms/cloudflare";
@@ -39,8 +41,30 @@ if (emailFrom) {
   );
 }
 
+// The MCP gateway signs editors in too, over a Service binding, with the
+// editor's JWT for the gateway's own Access application and a proof signed
+// with a secret the two Workers share (ADR 0027). src/auth/gateway-access.ts
+// hands every other request to the stock Access provider unchanged. Set
+// ACCESS_GATEWAY_AUD at build time to turn it on; it needs the
+// ACCESS_GATEWAY_PROOF_SECRET secret beside it.
+const gatewayAud = process.env.ACCESS_GATEWAY_AUD;
+
 if (teamDomain) {
   cms.auth = access({ audienceEnvVar: "ACCESS_AUD", teamDomain });
+
+  if (gatewayAud) {
+    cms.auth = {
+      ...cms.auth,
+      config: {
+        ...cms.auth.config,
+        gatewayAudienceEnvVar: "ACCESS_GATEWAY_AUD",
+        gatewayProofSecretEnvVar: "ACCESS_GATEWAY_PROOF_SECRET",
+      },
+      entrypoint: fileURLToPath(
+        new URL("src/auth/gateway-access.ts", import.meta.url)
+      ),
+    };
+  }
 }
 
 export default defineConfig({

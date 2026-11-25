@@ -15,6 +15,13 @@ const payloadWorker = process.env.PAYLOAD_WORKER;
 const payloadUrl = process.env.PAYLOAD_API_URL ?? "";
 const payloadOn = Boolean(payloadWorker || payloadUrl);
 
+// The EmDash Worker to reach over a Service binding, or EmDash's public
+// origin reached through its Access application with a service token. One of
+// the two turns the `emdash` connector on (ADR 0027).
+const emdashWorker = process.env.EMDASH_WORKER;
+const emdashUrl = process.env.EMDASH_API_URL ?? "";
+const emdashOn = Boolean(emdashWorker || emdashUrl);
+
 // The WordPress origin, without /wp-json. Set, it turns the `wp` connector
 // on; unset, a Payload-only site has no WordPress connector to describe.
 const wordpressUrl = process.env.WORDPRESS_API_URL ?? "";
@@ -49,6 +56,20 @@ export default defineConfig({
       // Off everywhere: on, it offers the approval card and its token to
       // clients that never advertised MCP Apps support (see README).
       APPROVAL_CARD_FOR_UNKNOWN_CLIENTS: bindings.text("false"),
+      // EmDash, when this site has it: a Service binding to its Worker, or
+      // its URL reached through Access with a service token.
+      EMDASH:
+        Boolean(emdashWorker) &&
+        bindings.worker({ worker: emdashWorker ?? "" }),
+      // Only needed when EmDash is reached by URL through Access.
+      EMDASH_ACCESS_CLIENT_ID: Boolean(emdashUrl) && bindings.secret(),
+      EMDASH_ACCESS_CLIENT_SECRET: Boolean(emdashUrl) && bindings.secret(),
+      // The secret EmDash checks before it trusts a forwarded Access JWT
+      // (ACCESS_GATEWAY_PROOF_SECRET on the EmDash Worker).
+      EMDASH_ACCESS_PROOF_SECRET: emdashOn && bindings.secret(),
+      // EmDash's public origin, for links to an entry in its admin.
+      EMDASH_ADMIN_URL: bindings.text(process.env.EMDASH_ADMIN_URL ?? ""),
+      EMDASH_API_URL: bindings.text(emdashUrl),
       // Signs the approval tokens; every approval fails closed without it.
       // Only a site that holds writes for approval has any to sign.
       APPROVAL_CSRF_SECRET: approvalRequired && bindings.secret(),

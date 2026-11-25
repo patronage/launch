@@ -3,7 +3,7 @@ title: MCP server
 description: One MCP server per site that the team installs once, signs in to with Cloudflare Access, and that changes content as the signed-in person, with an approval step for sites that need one.
 ---
 
-The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress` and `@patronage/mcp-payload`, deployed by `apps/mcp`. They're published to npm under `@patronage`, with `@patronage/access`, so another site installs them rather than copying the code. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
+The gateway is built as four packages, `@patronage/mcp-core`, `@patronage/mcp-wordpress`, `@patronage/mcp-payload` and `@patronage/mcp-emdash`, deployed by `apps/mcp`. They're published to npm under `@patronage`, with `@patronage/access`, so another site installs them rather than copying the code. Tool packs are still to come. The design is in [ADR 0014](https://github.com/patronage/launch/blob/main/docs/adr/0014-mcp-gateway-worker.md).
 
 ## What a site's team gets
 
@@ -19,7 +19,8 @@ The gateway is built as three packages, `@patronage/mcp-core`, `@patronage/mcp-w
 | `packages/mcp-core` | Built. The gateway Worker: sign-in, the code-mode runtime, tool catalog, write approval, logging and the connector contract. It names no CMS |
 | `packages/mcp-wordpress` | Built. The `wp` connector: WPGraphQL and REST reads, post updates (core fields, ACF fields and registered post meta) and Redirection rules |
 | `packages/mcp-payload` | Built. The `payload` connector: reads through Payload's own MCP endpoint (`@payloadcms/plugin-mcp`). Edits and new documents are saved as drafts, or published when the operation asks for it, and rich text can be written as Markdown. It can also upload a file to an upload collection, or replace one, with a thumbnail where approval is required |
-| `apps/mcp` | Built. Launch's deployment: it lists the two connectors and holds the Cloudflare config |
+| `packages/mcp-emdash` | Built, reads only. The `emdash` connector: reads EmDash's REST API as the signed-in editor, from an allowlist of content, schema, media, menu, taxonomy and search routes. Draft writes are next ([ADR 0027](https://github.com/patronage/launch/blob/main/docs/adr/0027-emdash-connector.md)) |
+| `apps/mcp` | Built. Launch's deployment: it lists the three connectors and holds the Cloudflare config |
 | Tool packs | Planned. Typed tools for named workflows, kept in each site's own repository |
 
 The model sees a short tool list: `execute` runs JavaScript against the connectors in a Dynamic Worker, `describe_site` summarizes the content types, `get_run` reports on a run, and `submit_feedback` and `get_feedback` let an agent report a problem with the tools and hear back. On a site that requires approval, a write is approved on a card inside the client, where the client supports MCP Apps, or on a browser page at `/mcp/approvals/:id`. A site depends on the npm packages rather than copying them.
@@ -80,6 +81,7 @@ A site's gateway is a small Worker of its own that installs the packages from np
 pnpm add @patronage/mcp-core @cloudflare/codemode
 pnpm add @patronage/mcp-payload     # a site with Payload
 pnpm add @patronage/mcp-wordpress   # a site with WordPress
+pnpm add @patronage/mcp-emdash      # a site with EmDash
 ```
 
 ```ts
@@ -102,13 +104,14 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 
 - **Keep an existing Durable Object class name.** A gateway that already runs with another class name, such as `WordPressRuntime`, names its subclass that and points `GATEWAY_RUNTIME` at it. Cloudflare keys stored runs and pending approvals to the class.
 - **Payload** needs `@payloadcms/plugin-mcp` with read tools only and `oauth: false` (from Payload 4.0.0-beta.8 the plugin otherwise runs its own OAuth sign-in for MCP clients, beside Access), plus the `getEditingInfo`, `getPreviewUrl`, `markdownToRichText` and `richTextToMarkdown` tools from `apps/payload/src/mcp-tools.ts` (with `src/lib/editing-info.ts`). `payload.apply` reads `getEditingInfo` before every write and refuses without it. That tool tells the gateway what can be written: drafts, rich text fields, array and blocks fields and what their rows hold, relationship and upload fields, upload limits, globals and locales. `getPreviewUrl` is optional: with it, the approval page links to the front end's draft preview and the receipt carries the link. The users collection adds `accessGatewayAuthStrategy` from `@patronage/access/payload`, so Payload trusts the forwarded sign-in.
+- **EmDash** needs to trust the forwarded sign-in, which the stock `@emdash-cms/cloudflare` provider doesn't. Copy `apps/emdash/src/auth/gateway-access.ts` into the site and set it as the `access(...)` provider's `entrypoint`, as `apps/emdash/astro.config.mjs` does. Set `ACCESS_GATEWAY_AUD` to the gateway's Access audience and the secret `ACCESS_GATEWAY_PROOF_SECRET` to the gateway's `EMDASH_ACCESS_PROOF_SECRET`. EmDash's own MCP endpoint takes only OAuth or API tokens, so the connector uses the REST API.
 - **WordPress** needs the `patronage-access` mu-plugin from `wordpress-shared/patronage-access`, which is not on npm. Copy it into the site's `wp-content/mu-plugins/`. To let `wp.apply` change a plugin's post meta, such as Yoast's `_yoast_wpseo_metadesc`, register the key with `register_post_meta` and `show_in_rest`, with an `auth_callback` that checks `edit_post`. Redirect operations need the Redirection plugin, and the approver needs its capability (`manage_options` unless the site filters `redirection_role`). `wp.apply` can also set an image's alt text, with `fields.alt_text` on `rest_base: "media"`, up to 400 characters.
 - **Access applications** can be created with `provisionLockdown` from `@patronage/access/cloudflare`. The gateway's application covers its whole hostname, not just `/mcp*`, so scanner probes are stopped at the edge and never reach the Worker or its logs. Give the gateway a hostname of its own, and put other services, such as a docs site, on theirs. The `access:provision` command runs only inside the Launch repo.
 - **Logging**: `@patronage/launch-logging` is on npm for the Worker wrapper and the `@patronage/launch-logging/cloudflare` helpers. The `logging:provision` command runs only inside the Launch repo.
 
 ## Releasing the npm packages
 
-`@patronage/access`, `@patronage/launch-images`, `@patronage/launch-logging`, `@patronage/launch-wpgraphql`, `@patronage/mcp-core`, `@patronage/mcp-payload` and `@patronage/mcp-wordpress` are versioned with [Changesets](https://github.com/changesets/changesets). Each package's `CHANGELOG.md` says what changed in each version and ships in the npm package.
+`@patronage/access`, `@patronage/launch-images`, `@patronage/launch-logging`, `@patronage/launch-wpgraphql`, `@patronage/mcp-core`, `@patronage/mcp-emdash`, `@patronage/mcp-payload` and `@patronage/mcp-wordpress` are versioned with [Changesets](https://github.com/changesets/changesets). Each package's `CHANGELOG.md` says what changed in each version and ships in the npm package.
 
 1. A pull request that changes a published package's `src/` or `package.json` adds a changeset: run `pnpm changeset`, pick the packages and the bump, and write the changelog line. While the packages are 0.x, a change that can break a site is a minor bump and anything else is a patch. `pnpm verify` runs `pnpm release:check`, which fails when such a change has no changeset.
 2. To cut a release, run `pnpm changeset version` on a branch. It bumps the versions, writes the changelogs and removes the changesets. Open a pull request with the result; `release:check` lets that branch through without a changeset of its own.
@@ -117,7 +120,7 @@ Copy `apps/mcp`'s `cloudflare.config.ts`, `vite.config.ts` and `scripts/` as the
 
 After the version PR merges, run **Publish a Launch npm package** in GitHub Actions on `main` once for each package the release bumped. Select one package and its exact version. Leave **Publish to npm** unchecked for a dry run. The workflow verifies the checkout and packs the selected package with pnpm, which resolves workspace dependencies. For a real release, check **Publish to npm** and have a maintainer approve the `npm-release` environment job. The workflow publishes the tarball with npm Trusted Publishing and prints the version.
 
-Publish dependencies first: Access and logging, then `mcp-core` and WPGraphQL, then `mcp-payload` and `mcp-wordpress`. A real publish refuses a package whose `@patronage/*` dependencies are not on npm at the versions it names. After each run succeeds, verify the exact version and its provenance on npm. Create the annotated Git tag `<package>@<version>` at the workflow run’s commit and push that explicit tag.
+Publish dependencies first: Access and logging, then `mcp-core` and WPGraphQL, then `mcp-emdash`, `mcp-payload` and `mcp-wordpress`. A real publish refuses a package whose `@patronage/*` dependencies are not on npm at the versions it names. After each run succeeds, verify the exact version and its provenance on npm. Create the annotated Git tag `<package>@<version>` at the workflow run’s commit and push that explicit tag.
 
 Before a package's first OIDC release, create the GitHub environment `npm-release` if it does not exist, restrict it to `main` and require a reviewer. The package must already exist on npm. In its settings, add a GitHub Actions Trusted Publisher with owner `patronage`, repo `launch`, workflow filename `npm-publish.yml` and environment `npm-release`. Enable **Allow npm publish** and complete npm’s 2FA when prompted. Add the binding just before each package’s first intended OIDC publish. A new binding expires unless it completes a real OIDC publish within two days. [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/#trusted-publisher-configuration-expiry)
 
@@ -168,7 +171,7 @@ Fields worth filtering on:
 - `mcp.outcome` is `challenged` or `denied` when Access turned the request away, and `error` only for a signed-in call that failed. A path outside `/mcp` gets a 404 and no `mcp` fields at all.
 - `run.approval` records how a paused run was offered: `clientApps` (`advertised`, `unknown` or `absent`) and `card` (`armed`, `not_armed` or `not_offered`). Every paused result also names the approval link.
 - `approval.outcome` is `not_required` for a write on a deployment that doesn't require approval, and `approved` or `denied` where it does. There, `approval.source` says where the decision was made: `mcp_app` (the card) or `approval_page`.
-- `upstream` holds every CMS request, each tagged with its `connector` (`wp`, `payload`).
+- `upstream` holds every CMS request, each tagged with its `connector` (`wp`, `payload`, `emdash`).
 
 In `@patronage/mcp-core` 0.2.0, `upstream` replaces the `wordpress` field, `approval.upstreamActor` replaces `approval.wordpressActor`, and the audit target type is `cms` rather than `wordpress`. Saved queries on the old names need updating.
 

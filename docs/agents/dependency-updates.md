@@ -70,7 +70,7 @@ Revert `packageManager` in `.deepsec/package.json` if taze changed it, then reru
 
 ## 4. Changeset
 
-If `git diff --name-only origin/main -- packages/access packages/mcp-core packages/mcp-payload packages/mcp-wordpress` lists a `package.json` or `src/` file, write `.changeset/dependency-updates-<date>.md`:
+If `git diff --name-only origin/main -- packages/access packages/mcp-core packages/mcp-emdash packages/mcp-payload packages/mcp-wordpress` lists a `package.json` or `src/` file, write `.changeset/dependency-updates-<date>.md`:
 
 ```md
 ---

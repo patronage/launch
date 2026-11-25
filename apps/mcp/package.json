@@ -13,6 +13,7 @@
   "dependencies": {
     "@cloudflare/codemode": "0.5.6",
     "@patronage/mcp-core": "workspace:*",
+    "@patronage/mcp-emdash": "workspace:*",
     "@patronage/mcp-payload": "workspace:*",
     "@patronage/mcp-wordpress": "workspace:*"
   },
