@@ -96,6 +96,39 @@ const operationPath = (operation: UpdateDraftOperation): string =>
 const createPath = (operation: DraftOperation): string =>
   `/api/${encodeURIComponent(operation.collection)}${draftQuery(!operation.publish)}`;
 
+// A new document missing a required field fails in Payload only once it is
+// approved. Payload checks a draft only where the collection validates
+// drafts; a published document, and one without drafts, always.
+const assertRequiredFields = (
+  collection: CollectionEditing,
+  operation: DraftOperation
+): void => {
+  if (operation.kind !== "create_draft") {
+    return;
+  }
+
+  const checked =
+    operation.publish === true ||
+    !collection.drafts ||
+    collection.validatesDrafts;
+
+  const given = new Set([
+    ...Object.keys(draftFields(operation)),
+    ...Object.keys(draftMarkdown(operation)),
+  ]);
+
+  const missing = collection.requiredFields.filter(
+    (field) => !given.has(field)
+  );
+
+  if (checked && missing.length > 0) {
+    throw new ApplyConflictError(
+      "missing_required_fields",
+      `A new ${operation.collection} document needs ${missing.join(", ")}; add ${missing.length === 1 ? "it" : "them"} to fields`
+    );
+  }
+};
+
 const assertEditable = (
   info: EditingInfo,
   operation: DraftOperation
@@ -113,6 +146,8 @@ const assertEditable = (
       `This editor may not ${operation.kind === "create_draft" ? "create" : "update"} ${operation.collection}`
     );
   }
+
+  assertRequiredFields(collection, operation);
 
   const notRichText = Object.keys(draftMarkdown(operation)).filter(
     (field) => !collection.richTextFields.includes(field)

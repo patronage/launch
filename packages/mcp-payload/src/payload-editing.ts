@@ -137,6 +137,9 @@ const collectionEditingSchema = z.object({
   localizedFields: z.array(z.string()).optional(),
   preview: z.boolean().default(false),
   relationFields: z.array(relationFieldSchema).default([]),
+  // Top-level fields a new document needs, which have no default. Absent
+  // from a Payload that does not list them, and then nothing is checked.
+  requiredFields: z.array(z.string()).default([]),
   richTextFields: z.array(z.string()),
   rowFields: z.array(rowsFieldSchema).default([]),
   schedulePublish: z.boolean().default(false),
@@ -144,6 +147,7 @@ const collectionEditingSchema = z.object({
   titleField: z.string().optional(),
   trash: z.boolean().default(false),
   upload: uploadSchema.optional(),
+  validatesDrafts: z.boolean().default(false),
 });
 
 const globalEditingSchema = z.object({
