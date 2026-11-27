@@ -493,7 +493,50 @@ const draftSettings = (
     autosave: Boolean(drafts && drafts.autosave),
     drafts: Boolean(drafts),
     schedulePublish: Boolean(drafts && drafts.schedulePublish),
+    // Whether Payload validates a draft as it does a published document, so
+    // a draft without a required field is refused too.
+    validatesDrafts: Boolean(drafts && drafts.validate),
   };
+};
+
+// Fields Payload sets itself, never sent by the gateway.
+const SYSTEM_FIELDS = new Set(["_status", "createdAt", "id", "updatedAt"]);
+
+// The top-level fields a new document can't be saved without: required, with
+// no default and no hook that might fill them in. The gateway refuses a
+// create without them before anyone is asked to approve it, so the list errs
+// towards leaving a field out: a collection whose own hooks may fill fields,
+// a field shown only on a condition and a virtual field are never listed.
+const requiredFields = (config: SanitizedCollectionConfig): string[] => {
+  const collectionHooks =
+    (config.hooks.beforeValidate?.length ?? 0) > 0 ||
+    (config.hooks.beforeChange?.length ?? 0) > 0;
+
+  if (collectionHooks) {
+    return [];
+  }
+
+  return config.flattenedFields.flatMap((field) => {
+    const hooks = "hooks" in field ? field.hooks : undefined;
+
+    const filled =
+      field.defaultValue !== undefined ||
+      (hooks?.beforeValidate?.length ?? 0) > 0 ||
+      (hooks?.beforeChange?.length ?? 0) > 0;
+
+    const conditional = Boolean(field.admin?.condition);
+    const isVirtual = "virtual" in field && Boolean(field.virtual);
+
+    return "required" in field &&
+      field.required === true &&
+      !filled &&
+      !conditional &&
+      !isVirtual &&
+      !field.hidden &&
+      !SYSTEM_FIELDS.has(field.name)
+      ? [field.name]
+      : [];
+  });
 };
 
 interface AllowedHost {
@@ -590,6 +633,7 @@ const collectionInfo = (
       localizedFields: fields.localizedFields,
       preview: Boolean(config.admin.preview),
       relationFields: fields.relationFields,
+      requiredFields: requiredFields(config),
       richTextFields: richTextFields(req, slug).map((field) => field.name),
       rowFields: fields.rowFields,
       slug,

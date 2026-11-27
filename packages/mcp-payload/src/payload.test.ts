@@ -67,7 +67,9 @@ const fakePayload = (
     failCreatedRead?: boolean;
     keepDraft?: boolean;
     lost?: string[];
+    requiredFields?: string[];
     status?: string;
+    validatesDrafts?: boolean;
   } = {}
 ) => {
   const seen: Seen[] = [];
@@ -95,8 +97,10 @@ const fakePayload = (
           canCreate: options.canCreate !== false,
           canUpdate: true,
           drafts,
+          requiredFields: options.requiredFields ?? [],
           richTextFields: ["content"],
           slug: "posts",
+          validatesDrafts: options.validatesDrafts ?? false,
         },
       ];
 
@@ -597,6 +601,73 @@ describe("Payload publishing on request", () => {
       _status: "published",
       title: "New title",
     });
+  });
+
+  it.each<[string, { validatesDrafts?: boolean }, DraftOperation]>([
+    [
+      "a collection that validates drafts",
+      { validatesDrafts: true },
+      {
+        collection: "posts",
+        fields: { title: "Launch day" },
+        kind: "create_draft",
+      },
+    ],
+    [
+      "a publish",
+      {},
+      {
+        collection: "posts",
+        fields: { title: "Launch day" },
+        kind: "create_draft",
+        publish: true,
+      },
+    ],
+  ])(
+    "refuses to preview a new document without a required field, on %s",
+    async (_name, settings, creating) => {
+      const fake = fakePayload({
+        requiredFields: ["slug", "title"],
+        ...settings,
+      });
+
+      vi.stubGlobal("fetch", fake.handler);
+
+      await expect(
+        preflightDraftOperations(
+          client(),
+          "Announce",
+          [creating],
+          adminUrl,
+          createUpstreamTelemetry()
+        )
+      ).rejects.toThrow(
+        expect.objectContaining({
+          code: "missing_required_fields",
+          message: expect.stringContaining("needs slug"),
+        })
+      );
+    }
+  );
+
+  it("lets a draft through without a required field where Payload doesn't validate drafts", async () => {
+    vi.stubGlobal("fetch", fakePayload({ requiredFields: ["slug"] }).handler);
+
+    const creating: DraftOperation = {
+      collection: "posts",
+      fields: { title: "Launch day" },
+      kind: "create_draft",
+    };
+
+    const preflight = await preflightDraftOperations(
+      client(),
+      "Announce",
+      [creating],
+      adminUrl,
+      createUpstreamTelemetry()
+    );
+
+    expect(preflight.operations).toHaveLength(1);
   });
 
   it("fails a publish that Payload saved as a draft", async () => {
